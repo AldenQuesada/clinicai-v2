@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@clinicai/logger": "workspace:*",
-    "@clinicai/supabase": "workspace:*"
+    "@clinicai/supabase": "workspace:*",
+    "@supabase/supabase-js": "catalog:"
   },
   "devDependencies": {
     "@clinicai/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   }
 }

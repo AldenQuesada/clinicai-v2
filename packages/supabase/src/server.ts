@@ -16,10 +16,12 @@ import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './types'
 
+type CookieOptions = Record<string, unknown>
+
 interface CookieAdapter {
   get(name: string): string | undefined
-  set?(name: string, value: string, options?: Record<string, unknown>): void
-  remove?(name: string, options?: Record<string, unknown>): void
+  set?(name: string, value: string, options?: CookieOptions): void
+  remove?(name: string, options?: CookieOptions): void
 }
 
 /**
@@ -38,17 +40,17 @@ export function createServerClient(cookieStore: CookieAdapter): SupabaseClient<D
   }
   return createSSRServerClient<Database>(url, key, {
     cookies: {
-      get(name) {
+      get(name: string) {
         return cookieStore.get(name)
       },
-      set(name, value, options) {
+      set(name: string, value: string, options: CookieOptions) {
         try {
           cookieStore.set?.(name, value, options)
         } catch {
           // Ignored · alguns contextos (RSC) nao permitem set
         }
       },
-      remove(name, options) {
+      remove(name: string, options: CookieOptions) {
         try {
           cookieStore.remove?.(name, options)
         } catch {
