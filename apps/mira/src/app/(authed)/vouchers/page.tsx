@@ -1,12 +1,12 @@
 /**
- * /vouchers · lista de vouchers com filtros (status, partnership, periodo).
+ * /vouchers · lista admin densa de vouchers com filtros.
  *
  * Server Component · sem create UI (vouchers sao emitidos via Mira webhook).
- * Click linha vai pra /vouchers/[id] (P2 - placeholder pode ficar).
+ * Visual mirror mira-config antigo · row pattern + status pills,
+ * filtros em linha gold-tinted, max-w-[960px].
  */
 
 import Link from 'next/link'
-import { Ticket, Filter } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 
 export const dynamic = 'force-dynamic'
@@ -28,13 +28,22 @@ const PERIOD_OPTIONS = [
   { value: '0', label: 'Tudo' },
 ]
 
-const STATUS_BADGE: Record<string, string> = {
-  issued: 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]',
-  delivered: 'bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))]',
-  opened: 'bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]',
-  redeemed: 'bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]',
-  expired: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]',
-  cancelled: 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]',
+const STATUS_PILL: Record<string, string> = {
+  issued: 'bg-[#C9A96E]/18 text-[#C9A96E]',
+  delivered: 'bg-[#C9A96E]/18 text-[#C9A96E]',
+  opened: 'bg-[#10B981]/15 text-[#10B981]',
+  redeemed: 'bg-[#10B981]/15 text-[#10B981]',
+  expired: 'bg-white/8 text-[#9CA3AF]',
+  cancelled: 'bg-[#EF4444]/15 text-[#FCA5A5]',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  issued: 'Emitido',
+  delivered: 'Entregue',
+  opened: 'Aberto',
+  redeemed: 'Resgatado',
+  expired: 'Expirado',
+  cancelled: 'Cancelado',
 }
 
 interface PageProps {
@@ -64,129 +73,137 @@ export default async function VouchersPage({ searchParams }: PageProps) {
     repos.b2bPartnerships.list(ctx.clinic_id),
   ])
 
-  // Lookup map name por id
   const partnershipNameById = new Map(allPartnerships.map((p) => [p.id, p.name]))
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-            <Ticket className="w-6 h-6" />
-          </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
+      <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
+        {/* Header denso */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/8">
           <div>
-            <h1 className="text-2xl font-light">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">Vouchers</span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+            <h1 className="text-base font-semibold text-[#F5F5F5]">Vouchers</h1>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
               {vouchers.length} voucher{vouchers.length === 1 ? '' : 's'} no recorte
             </p>
           </div>
         </div>
 
-        <form className="mb-6 flex flex-wrap items-center gap-3 px-4 py-3 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]">
-          <Filter className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
-
-          <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Status</label>
-          <select
+        {/* Filtros · gold tinted form */}
+        <form className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] px-3.5 py-3 flex items-center gap-2.5 flex-wrap">
+          <FilterField
+            label="Status"
             name="status"
             defaultValue={params.status || ''}
-            className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-sm"
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-
-          <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] ml-2">Parceria</label>
-          <select
+            options={STATUS_OPTIONS}
+          />
+          <FilterField
+            label="Parceria"
             name="partnership"
             defaultValue={params.partnership || ''}
-            className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-sm"
-          >
-            <option value="">Todas</option>
-            {allPartnerships.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-
-          <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] ml-2">Período</label>
-          <select
+            options={[
+              { value: '', label: 'Todas' },
+              ...allPartnerships.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+          />
+          <FilterField
+            label="Período"
             name="period"
             defaultValue={params.period || '30'}
-            className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-sm"
-          >
-            {PERIOD_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-
+            options={PERIOD_OPTIONS}
+          />
           <button
             type="submit"
-            className="px-3 py-1.5 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
+            className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors ml-auto"
           >
             Aplicar
           </button>
         </form>
 
+        {/* Lista densa */}
         {vouchers.length === 0 ? (
-          <div className="text-center py-16 text-sm text-[hsl(var(--muted-foreground))]">
+          <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
             Nenhum voucher encontrado com os filtros.
           </div>
         ) : (
-          <div className="rounded-card border border-[hsl(var(--chat-border))] overflow-hidden bg-[hsl(var(--chat-panel-bg))]">
-            <table className="w-full text-sm">
-              <thead className="bg-[hsl(var(--muted))]/30 border-b border-[hsl(var(--chat-border))]">
-                <tr className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                  <th className="text-left px-4 py-3">Token</th>
-                  <th className="text-left px-4 py-3">Recipient</th>
-                  <th className="text-left px-4 py-3">Parceria</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Emitido</th>
-                  <th className="text-left px-4 py-3">Válido até</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vouchers.map((v) => {
-                  const partnerName = partnershipNameById.get(v.partnershipId) ?? '—'
-                  return (
-                    <tr
-                      key={v.id}
-                      className="border-b border-[hsl(var(--chat-border))] last:border-0 hover:bg-[hsl(var(--muted))]/20 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs">{v.token}</td>
-                      <td className="px-4 py-3 text-xs">
-                        {v.recipientName || '—'}
-                        {v.recipientPhone && (
-                          <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">
-                            {v.recipientPhone}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
+          <div className="flex flex-col gap-1.5">
+            {vouchers.map((v) => {
+              const partnerName = partnershipNameById.get(v.partnershipId) ?? '—'
+              const pill = STATUS_PILL[v.status] ?? 'bg-white/8 text-[#9CA3AF]'
+              const label = STATUS_LABEL[v.status] ?? v.status
+              return (
+                <div
+                  key={v.id}
+                  className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+                >
+                  <span className="font-mono text-[11px] text-[#C9A96E]">{v.token}</span>
+
+                  <div className="min-w-0 flex flex-col gap-0.5">
+                    <span className="text-xs text-[#F5F5F5] truncate">
+                      {v.recipientName || '—'}
+                      <span className="ml-2">
                         <Link
                           href={`/partnerships/${v.partnershipId}`}
-                          className="text-[hsl(var(--primary))] hover:underline"
+                          className="text-[#C9A96E] hover:underline text-[11px]"
                         >
                           {partnerName}
                         </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-pill text-[10px] uppercase tracking-widest ${STATUS_BADGE[v.status] ?? 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>
-                          {v.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{fmt(v.issuedAt)}</td>
-                      <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{fmt(v.validUntil)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </span>
+                    </span>
+                    {v.recipientPhone && (
+                      <span className="text-[10.5px] font-mono text-[#9CA3AF]">
+                        {v.recipientPhone}
+                      </span>
+                    )}
+                  </div>
+
+                  <span
+                    className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${pill}`}
+                  >
+                    {label}
+                  </span>
+
+                  <div className="flex flex-col items-end gap-0.5 text-[10px] text-[#6B7280] font-mono whitespace-nowrap">
+                    <span>emit {fmt(v.issuedAt)}</span>
+                    <span>até {fmt(v.validUntil)}</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
     </main>
+  )
+}
+
+function FilterField({
+  label,
+  name,
+  defaultValue,
+  options,
+}: {
+  label: string
+  name: string
+  defaultValue: string
+  options: Array<{ value: string; label: string }>
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+        {label}
+      </span>
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#C9A96E]/50"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
   )
 }
 
