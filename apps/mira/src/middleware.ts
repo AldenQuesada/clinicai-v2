@@ -24,6 +24,7 @@ const PUBLIC_PATHS = [
   '/api/auth',
   '/api/webhook',
   '/api/cron',
+  '/api/debug', // diagnosis · protegido por secret interno
 ]
 
 function isPublicPath(pathname: string): boolean {
