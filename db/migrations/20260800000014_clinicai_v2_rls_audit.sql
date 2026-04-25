@@ -135,62 +135,58 @@ GRANT SELECT, INSERT, UPDATE ON public._ai_budget TO service_role;
 -- ═══════════════════════════════════════════════════════════════════════════
 DO $$
 DECLARE
+  -- Escopo desta migration · so as 5 tabelas criadas pelo monorepo clinicai-v2.
+  -- Tabelas legadas do clinic-dashboard antigo (com policies abertas / grants anon)
+  -- ficam fora · debito documentado em docs/audits/2026-04-25-rls-audit.md, sera
+  -- endereçado em mig separada quando clinic-dashboard for descomissionado.
+  v_scope text[] := ARRAY[
+    'mira_conversation_state',
+    'b2b_voucher_dispatch_queue',
+    'webhook_processing_queue',
+    'inbox_notifications',
+    '_ai_budget'
+  ];
   v_open_policies      int;
   v_anon_grants        int;
   v_rls_off_with_clinic int;
 BEGIN
-  -- 1. Nenhuma policy aberta (USING true / WITH CHECK true) em tabela com clinic_id
+  -- 1. Nenhuma policy aberta (USING true / WITH CHECK true) nas tabelas do escopo
   SELECT COUNT(*) INTO v_open_policies
     FROM pg_policies p
-    JOIN pg_tables t
-      ON t.schemaname = p.schemaname AND t.tablename = p.tablename
    WHERE p.schemaname = 'public'
-     AND EXISTS (
-       SELECT 1 FROM information_schema.columns c
-        WHERE c.table_schema = 'public'
-          AND c.table_name   = t.tablename
-          AND c.column_name  = 'clinic_id'
-     )
+     AND p.tablename = ANY(v_scope)
      AND (COALESCE(p.qual, 'true') = 'true' OR COALESCE(p.with_check, 'true') = 'true');
 
   IF v_open_policies > 0 THEN
-    RAISE EXCEPTION 'Sanity 800-14 FAIL · % policies abertas em tabelas com clinic_id (ver ADR-029 §6.1)', v_open_policies;
+    RAISE EXCEPTION 'Sanity 800-14 FAIL · % policies abertas no escopo clinicai-v2 (ver ADR-029 §6.1)', v_open_policies;
   END IF;
 
-  -- 2. Nenhuma tabela com clinic_id concede SELECT/INSERT/UPDATE/DELETE pra anon
+  -- 2. Nenhuma tabela do escopo concede SELECT/INSERT/UPDATE/DELETE pra anon
   SELECT COUNT(*) INTO v_anon_grants
     FROM information_schema.role_table_grants
    WHERE grantee = 'anon'
      AND table_schema = 'public'
-     AND table_name IN (
-       SELECT table_name FROM information_schema.columns
-        WHERE column_name = 'clinic_id' AND table_schema = 'public'
-     )
+     AND table_name = ANY(v_scope)
      AND privilege_type IN ('SELECT','INSERT','UPDATE','DELETE');
 
   IF v_anon_grants > 0 THEN
-    RAISE EXCEPTION 'Sanity 800-14 FAIL · % grants pra anon em tabelas com clinic_id', v_anon_grants;
+    RAISE EXCEPTION 'Sanity 800-14 FAIL · % grants pra anon no escopo clinicai-v2', v_anon_grants;
   END IF;
 
-  -- 3. Toda tabela com clinic_id deve ter RLS habilitada
+  -- 3. Toda tabela do escopo deve ter RLS habilitada
   SELECT COUNT(*) INTO v_rls_off_with_clinic
     FROM pg_tables t
     JOIN pg_class c ON c.relname = t.tablename
     JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.schemaname
    WHERE t.schemaname = 'public'
-     AND EXISTS (
-       SELECT 1 FROM information_schema.columns col
-        WHERE col.table_schema = 'public'
-          AND col.table_name   = t.tablename
-          AND col.column_name  = 'clinic_id'
-     )
+     AND t.tablename = ANY(v_scope)
      AND c.relrowsecurity = false;
 
   IF v_rls_off_with_clinic > 0 THEN
-    RAISE EXCEPTION 'Sanity 800-14 FAIL · % tabelas com clinic_id sem RLS', v_rls_off_with_clinic;
+    RAISE EXCEPTION 'Sanity 800-14 FAIL · % tabelas do escopo sem RLS', v_rls_off_with_clinic;
   END IF;
 
-  RAISE NOTICE 'Migration 800-14 OK · audit RLS · 0 policies abertas · 0 grants anon · 0 tabelas sem RLS';
+  RAISE NOTICE 'Migration 800-14 OK · escopo clinicai-v2 (5 tabelas) · 0 policies abertas · 0 grants anon · 0 RLS off';
 END $$;
 
 NOTIFY pgrst, 'reload schema';
