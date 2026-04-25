@@ -15,9 +15,9 @@ import { b2bAdminRejectHandler } from './b2b-admin-reject'
 import { b2bAdminQueryHandler } from './b2b-admin-query'
 import { b2bCreatePartnershipHandler } from './b2b-create-partnership'
 import { b2bFeedbackReceivedHandler } from './b2b-feedback-received'
+import { b2bOtherHandler } from './b2b-other'
 import {
   b2bAdminHelpHandler,
-  b2bOtherHandler,
 } from './stubs'
 
 export { b2bVoucherConfirmHandler }

@@ -1,53 +1,29 @@
 /**
- * Stubs · handlers ainda nao portados em P0.
+ * Stubs · ja nao tem stubs ativos em P0.5 · todos os handlers foram portados
+ * pra full. Esse arquivo segue existindo apenas pra hospedar admin.help, que
+ * e um menu estatico (nao tem state nem side-effects).
  *
- * Cada um retorna mensagem de fallback educada e pinga audit pra Alden ver
- * volume. Implementacao completa entra em sequencia da P0.5 (commits 13-15
- * do plano de fatiamento).
- *
- * IMPORTANTE: nao silenciar · responde algo util pra parceira/admin enquanto
- * a feature e portada.
+ * Quando algum handler novo precisar de fallback estilo stub, voltar a usar
+ * makeStub aqui (helper removido junto com os ultimos stubs).
  */
 
 import type { Handler, HandlerResult } from './types'
 
-const PARTNER_FALLBACK =
-  'Recebi sua mensagem 💛 essa funcionalidade tá em finalização — me dá um momento que vou te chamar com a Mirian, ok?'
-
-const ADMIN_FALLBACK =
-  'Te ouvi! Esse comando ainda tá em rota P0.5 do deploy clinicai-v2. ' +
-  'Por enquanto: emitir/aprovar voucher e indicar lead já funcionam. ' +
-  'Resto eu retomo na próxima onda.'
-
-function makeStub(name: string, replyText: string): Handler {
-  return async (ctx): Promise<HandlerResult> => ({
-    replyText,
-    actions: [],
-    stateTransitions: [],
-    meta: { handler: name, stub: true, intent: ctx.intent },
-  })
-}
-
 export const b2bAdminHelpHandler: Handler = async (): Promise<HandlerResult> => ({
   replyText:
-    'Oi! Sou a Mira, posso te ajudar com:\n' +
-    '• Emitir voucher · _"emite voucher pra <nome> <telefone>"_\n' +
-    '• Indicar lead · _"indico fulana"_\n' +
-    '• Cadastro parceria (P0.5)\n' +
-    '• Aprovar/rejeitar candidatura (P0.5)\n' +
-    '• Agenda/financeiro (P0.5)\n\n' +
+    'Oi! Sou a Mira, posso te ajudar com:\n\n' +
+    '*B2B:*\n' +
+    '• _aprova [nome]_ · ativa parceria pendente\n' +
+    '• _rejeita [nome]_ · rejeita (vou pedir motivo)\n' +
+    '• _criar parceria_ · wizard pra cadastrar nova\n' +
+    '• _emite voucher pra [nome] [phone]_\n' +
+    '• _indico [nome] [phone]_\n\n' +
+    '*Operacional:*\n' +
+    '• _agenda hoje_ · _agenda da semana_\n' +
+    '• _quanto faturei essa semana?_\n' +
+    '• _quem é [nome]?_\n\n' +
     'Manda do jeito que vier · texto ou áudio 💛',
   actions: [],
   stateTransitions: [],
   meta: { handler: 'admin-help' },
-})
-
-export const b2bOtherHandler: Handler = async (ctx): Promise<HandlerResult> => ({
-  replyText:
-    ctx.role === 'partner'
-      ? PARTNER_FALLBACK
-      : ADMIN_FALLBACK,
-  actions: [],
-  stateTransitions: [],
-  meta: { handler: 'b2b-other', role: ctx.role },
 })
