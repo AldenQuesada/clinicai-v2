@@ -154,6 +154,31 @@ export interface InboxNotificationInput {
   payload: Record<string, unknown>
 }
 
+/**
+ * Resultado da varredura cross-tabela `LeadRepository.findInAnySystem`.
+ *
+ * `kind` segue ordem de relevancia (mais forte → mais fraco):
+ *   patient            → leads.phase = 'patient' (ja virou paciente real)
+ *   lead               → leads (qualquer phase != patient)
+ *   voucher_recipient  → b2b_vouchers.recipient_phone (ja recebeu voucher antes)
+ *   partner_referral   → b2b_attributions via lead_id (ja foi indicada via outra parceira)
+ *
+ * Usado pelo handler `b2b-emit-voucher` pra bloquear emissao duplicada.
+ * Mensagem formatada construida em `formatDedupReply` (apps/mira).
+ */
+export type DedupHitKind = 'patient' | 'lead' | 'voucher_recipient' | 'partner_referral'
+
+export interface DedupHit {
+  kind: DedupHitKind
+  id: string
+  name: string | null
+  phone: string
+  /** ISO date · usada pra formatar "Set/24" no reply */
+  since: string
+  /** Nome da parceria origem · disponivel em voucher_recipient e partner_referral */
+  partnershipName?: string | null
+}
+
 // ── Mappers (snake -> camel) ────────────────────────────────────────────────
 
 // Boundary com supabase-js · types.ts ainda é any (Fase 1 regenera).

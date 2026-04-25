@@ -57,4 +57,6 @@ export type {
   SaveOutboundMessageInput,
   CreateTemplateInput,
   InboxNotificationInput,
+  DedupHit,
+  DedupHitKind,
 } from './types'
