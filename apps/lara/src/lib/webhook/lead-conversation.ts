@@ -1,134 +1,75 @@
 /**
- * Lookup/create/revive de lead + conversation com phone variants.
+ * Lookup/create/revive de lead + conversation usando Repositories (ADR-012).
  *
- * Phone variants: leads e conversations legacy podem ter sido salvos com 9 inicial
- * após DDD (Evolution) ou sem 9 (Cloud). phoneVariants() retorna ambas as formas
- * pra casar com qualquer um dos formatos.
+ * Phone variants: leads/conversations legacy podem ter sido salvos com 9 inicial
+ * após DDD (Evolution) ou sem 9 (Cloud). phoneVariants() bate em ambas.
  *
- * Auto-revive: se conversation está archived (mergeada por dedup ou arquivada
- * manualmente), reativa quando paciente volta a falar · não cria duplicata.
+ * Auto-revive: ConversationRepository.findActiveByPhoneVariants ja flipa
+ * status='archived' -> 'active' antes de retornar (sem duplicata).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { phoneVariants } from '@clinicai/utils'
 import { createLogger, hashPhone } from '@clinicai/logger'
-import { v4 as uuidv4 } from 'uuid'
+import type {
+  ConversationDTO,
+  ConversationRepository,
+  LeadDTO,
+  LeadRepository,
+} from '@clinicai/repositories'
 
 const log = createLogger({ app: 'lara' })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Lead = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Conversation = any
-
 interface ResolveLeadOpts {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  leads: LeadRepository
   clinic_id: string
   phone: string
   pushName: string
 }
 
 /**
- * Acha lead existente em qualquer variante de telefone · cria se não existe.
- * Retorna null se falhou (caller deve abortar processamento).
+ * Acha lead em qualquer variante · cria se nao existe.
  */
-export async function resolveLead(opts: ResolveLeadOpts): Promise<Lead | null> {
-  const { supabase, clinic_id, phone, pushName } = opts
+export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null> {
+  const { leads, clinic_id, phone, pushName } = opts
   const variants = phoneVariants(phone)
 
-  const { data: existing } = await supabase
-    .from('leads')
-    .select('*')
-    .in('phone', variants)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
+  const existing = await leads.findByPhoneVariants(clinic_id, variants)
   if (existing) return existing
 
-  const { data: created, error } = await supabase
-    .from('leads')
-    .insert({
-      id: uuidv4(),
-      clinic_id,
-      phone,
-      name: pushName || null,
-      phase: 'lead',
-      temperature: 'warm',
-      ai_persona: 'onboarder',
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-
-  if (error) {
-    log.error({ clinic_id, phone_hash: hashPhone(phone), err: error.message }, 'lead.create.failed')
-    return null
+  const created = await leads.create(clinic_id, {
+    phone,
+    name: pushName || null,
+  })
+  if (!created) {
+    log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'lead.create.failed')
   }
   return created
 }
 
 interface ResolveConversationOpts {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  conversations: ConversationRepository
   clinic_id: string
   phone: string
-  lead: Lead
+  lead: LeadDTO
   pushName: string
 }
 
-/**
- * Acha conversation ativa/pausada/archived (auto-revive) em qualquer variante.
- * Cria nova se nada encontrado. Retorna null se falhou.
- */
-export async function resolveConversation(opts: ResolveConversationOpts): Promise<Conversation | null> {
-  const { supabase, clinic_id, phone, lead, pushName } = opts
+export async function resolveConversation(
+  opts: ResolveConversationOpts,
+): Promise<ConversationDTO | null> {
+  const { conversations, clinic_id, phone, lead, pushName } = opts
   const variants = phoneVariants(phone)
 
-  // Busca em status amplo · 'archived' incluso pra recuperar histórico mergeado
-  const { data: existing } = await supabase
-    .from('wa_conversations')
-    .select('*')
-    .in('phone', variants)
-    .in('status', ['active', 'paused', 'archived'])
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle()
+  const existing = await conversations.findActiveByPhoneVariants(clinic_id, variants)
+  if (existing) return existing
 
-  if (existing) {
-    // Auto-revive · paciente arquivada voltou a falar
-    if (existing.status === 'archived') {
-      await supabase
-        .from('wa_conversations')
-        .update({ status: 'active', ai_enabled: true })
-        .eq('id', existing.id)
-      existing.status = 'active'
-      existing.ai_enabled = true
-      log.info({ clinic_id, phone_hash: hashPhone(phone), conv_id: existing.id }, 'conversation.revived')
-    }
-    return existing
-  }
-
-  const { data: created, error } = await supabase
-    .from('wa_conversations')
-    .insert({
-      id: uuidv4(),
-      clinic_id,
-      phone,
-      lead_id: lead.id,
-      display_name: pushName || lead.name || phone,
-      status: 'active',
-      ai_enabled: true,
-      created_at: new Date().toISOString(),
-      last_message_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-
-  if (error) {
-    log.error({ clinic_id, phone_hash: hashPhone(phone), err: error.message }, 'conversation.create.failed')
-    return null
+  const created = await conversations.create(clinic_id, {
+    phone,
+    leadId: lead.id,
+    displayName: pushName || lead.name || phone,
+  })
+  if (!created) {
+    log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'conversation.create.failed')
   }
   return created
 }
@@ -159,7 +100,7 @@ export function extractContent(message: any): ExtractedContent {
     case 'audio':
       return {
         contentType,
-        textContent: '[audio recebido]', // placeholder · substituído por transcrição
+        textContent: '[audio recebido]',
         mediaId: message.audio?.id || null,
       }
     case 'video':

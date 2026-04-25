@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "catalog:",
     "@clinicai/ai": "workspace:*",
     "@clinicai/logger": "workspace:*",
+    "@clinicai/repositories": "workspace:*",
     "@clinicai/supabase": "workspace:*",
     "@clinicai/ui": "workspace:*",
     "@clinicai/utils": "workspace:*",
