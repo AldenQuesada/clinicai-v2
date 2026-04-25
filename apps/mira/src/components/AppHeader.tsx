@@ -215,7 +215,7 @@ export async function AppHeader() {
         <div className="flex items-center gap-2">
           <SearchHint />
 
-          <QuickAction href="/hoje/vouchers" label="Voucher" />
+          <QuickAction href="/vouchers/novo" label="Voucher" />
           <QuickAction href="/estudio/cadastrar" label="Parceria" />
 
           <Link
