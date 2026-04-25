@@ -97,6 +97,124 @@ export class WaProAuditRepository {
   }
 
   /**
+   * Aggregate de wa_pro_audit_log no periodo · usado em /configuracoes overview.
+   * Retorna count, success rate, avg response_ms e top intents.
+   */
+  async aggregate(
+    clinicId: string,
+    sinceIso: string,
+  ): Promise<{
+    total: number
+    success: number
+    failure: number
+    avgResponseMs: number
+    topIntents: Array<{ intent: string; count: number }>
+  }> {
+    const { data } = await this.supabase
+      .from('wa_pro_audit_log')
+      .select('intent, success, response_ms')
+      .eq('clinic_id', clinicId)
+      .gte('created_at', sinceIso)
+      .limit(10000)
+
+    const rows = (data ?? []) as Array<{
+      intent: string | null
+      success: boolean
+      response_ms: number | null
+    }>
+    const total = rows.length
+    let success = 0
+    let failure = 0
+    let totalMs = 0
+    let msSamples = 0
+    const intentCount = new Map<string, number>()
+    for (const r of rows) {
+      if (r.success) success++
+      else failure++
+      if (r.response_ms != null) {
+        totalMs += Number(r.response_ms)
+        msSamples++
+      }
+      const i = r.intent ?? 'unknown'
+      intentCount.set(i, (intentCount.get(i) ?? 0) + 1)
+    }
+    const topIntents = Array.from(intentCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([intent, count]) => ({ intent, count }))
+    return {
+      total,
+      success,
+      failure,
+      avgResponseMs: msSamples > 0 ? Math.round(totalMs / msSamples) : 0,
+      topIntents,
+    }
+  }
+
+  /**
+   * Lista paginada de audit log (UI /configuracoes/logs).
+   */
+  async list(
+    clinicId: string,
+    filters: {
+      phone?: string
+      intent?: string
+      success?: boolean
+      limit?: number
+      offset?: number
+    } = {},
+  ): Promise<
+    Array<{
+      id: string
+      phone: string
+      query: string
+      intent: string | null
+      rpcCalled: string | null
+      success: boolean
+      resultSummary: string | null
+      errorMessage: string | null
+      responseMs: number | null
+      createdAt: string
+    }>
+  > {
+    let q = this.supabase
+      .from('wa_pro_audit_log')
+      .select('id, phone, query, intent, rpc_called, success, result_summary, error_message, response_ms, created_at')
+      .eq('clinic_id', clinicId)
+      .order('created_at', { ascending: false })
+    if (filters.phone) q = q.eq('phone', filters.phone)
+    if (filters.intent) q = q.eq('intent', filters.intent)
+    if (filters.success !== undefined) q = q.eq('success', filters.success)
+    const limit = Math.min(filters.limit ?? 50, 200)
+    const offset = filters.offset ?? 0
+    q = q.range(offset, offset + limit - 1)
+    const { data } = await q
+    return ((data ?? []) as Array<{
+      id: string
+      phone: string
+      query: string
+      intent: string | null
+      rpc_called: string | null
+      success: boolean
+      result_summary: string | null
+      error_message: string | null
+      response_ms: number | null
+      created_at: string
+    }>).map((r) => ({
+      id: String(r.id),
+      phone: String(r.phone ?? ''),
+      query: String(r.query ?? ''),
+      intent: r.intent ?? null,
+      rpcCalled: r.rpc_called ?? null,
+      success: r.success === true,
+      resultSummary: r.result_summary ?? null,
+      errorMessage: r.error_message ?? null,
+      responseMs: r.response_ms != null ? Number(r.response_ms) : null,
+      createdAt: String(r.created_at ?? ''),
+    }))
+  }
+
+  /**
    * Loga em b2b_comm_dispatch_log (audit trail de toda msg outbound enviada).
    * Bug do clinic-dashboard 2026-04-24: clinic_id NOT NULL faltando deixava
    * dispatch_log zerado em prod. Aqui clinicId e obrigatorio na assinatura.

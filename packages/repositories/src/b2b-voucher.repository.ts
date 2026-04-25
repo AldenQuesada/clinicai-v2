@@ -144,4 +144,53 @@ export class B2BVoucherRepository {
   async updateStatus(id: string, status: B2BVoucherDTO['status']): Promise<void> {
     await this.supabase.from('b2b_vouchers').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
   }
+
+  /**
+   * Conta vouchers no periodo · usado em dashboard pra "vouchers emitidos hoje/7d".
+   */
+  async countByPeriod(
+    clinicId: string,
+    sinceIso: string,
+    filters: { status?: B2BVoucherDTO['status'] | B2BVoucherDTO['status'][] } = {},
+  ): Promise<number> {
+    let q = this.supabase
+      .from('b2b_vouchers')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .gte('issued_at', sinceIso)
+    if (filters.status) {
+      const arr = Array.isArray(filters.status) ? filters.status : [filters.status]
+      q = q.in('status', arr as unknown as string[])
+    }
+    const { count } = await q
+    return count ?? 0
+  }
+
+  /**
+   * Lista vouchers da clinica com filtros · paginated. Usado em /vouchers UI.
+   */
+  async list(
+    clinicId: string,
+    filters: {
+      status?: B2BVoucherDTO['status']
+      partnershipId?: string
+      sinceIso?: string
+      limit?: number
+      offset?: number
+    } = {},
+  ): Promise<B2BVoucherDTO[]> {
+    let q = this.supabase
+      .from('b2b_vouchers')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('issued_at', { ascending: false })
+    if (filters.status) q = q.eq('status', filters.status)
+    if (filters.partnershipId) q = q.eq('partnership_id', filters.partnershipId)
+    if (filters.sinceIso) q = q.gte('issued_at', filters.sinceIso)
+    const limit = Math.min(filters.limit ?? 100, 500)
+    const offset = filters.offset ?? 0
+    q = q.range(offset, offset + limit - 1)
+    const { data } = await q
+    return (data ?? []).map(mapVoucherRow)
+  }
 }

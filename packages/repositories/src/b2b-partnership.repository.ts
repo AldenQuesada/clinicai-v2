@@ -249,6 +249,122 @@ export class B2BPartnershipRepository {
     }
   }
 
+  /**
+   * Conta parcerias por filtros (status/pillar).
+   */
+  async count(
+    clinicId: string,
+    filters: { status?: string; pillar?: string } = {},
+  ): Promise<number> {
+    let q = this.supabase
+      .from('b2b_partnerships')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+    if (filters.status) q = q.eq('status', filters.status)
+    if (filters.pillar) q = q.eq('pillar', filters.pillar)
+    const { count } = await q
+    return count ?? 0
+  }
+
+  /**
+   * Top performers nos ultimos N dias · ordena por count de attributions
+   * (purchased | redeemed). Usado no dashboard B2B.
+   *
+   * Implementacao: agrega b2b_attributions por partnership_id e join nome.
+   * Se RPC `b2b_top_performers` existir em prod, da pra trocar; por enquanto
+   * fallback puro SQL.
+   */
+  async topPerformers30d(
+    clinicId: string,
+    limit = 5,
+  ): Promise<Array<{ partnership: B2BPartnershipDTO; count: number }>> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (this.supabase
+      .from('b2b_attributions') as any)
+      .select('partnership_id, b2b_partnerships(*)')
+      .eq('clinic_id', clinicId)
+      .gte('created_at', since)
+    if (!Array.isArray(data)) return []
+    const counts = new Map<string, { partnership: B2BPartnershipDTO; count: number }>()
+    for (const row of data as Array<{ partnership_id: string; b2b_partnerships?: unknown }>) {
+      if (!row.partnership_id || !row.b2b_partnerships) continue
+      const existing = counts.get(row.partnership_id)
+      if (existing) {
+        existing.count += 1
+      } else {
+        counts.set(row.partnership_id, {
+          partnership: mapPartnershipRow(row.b2b_partnerships),
+          count: 1,
+        })
+      }
+    }
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit)
+  }
+
+  /**
+   * Snapshot de saude da parceria · alertas ativos (cap_warning, zero_conversion,
+   * inactive). Best-effort · se tabela `b2b_partnership_alerts` nao existir,
+   * retorna [].
+   */
+  async healthSnapshot(
+    partnershipId: string,
+  ): Promise<Array<{ kind: string; severity: string; message: string; createdAt: string }>> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (this.supabase
+        .from('b2b_partnership_alerts') as any)
+        .select('alert_kind, severity, message, created_at')
+        .eq('partnership_id', partnershipId)
+        .eq('resolved', false)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error || !Array.isArray(data)) return []
+      return data.map((r: { alert_kind?: string; severity?: string; message?: string; created_at?: string }) => ({
+        kind: String(r.alert_kind ?? 'unknown'),
+        severity: String(r.severity ?? 'info'),
+        message: String(r.message ?? ''),
+        createdAt: String(r.created_at ?? new Date().toISOString()),
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Update campos editaveis basicos · contato/observacoes. Restrito a owner/admin
+   * pelo caller.
+   */
+  async updateBasicInfo(
+    id: string,
+    patch: {
+      contactName?: string | null
+      contactPhone?: string | null
+      contactEmail?: string | null
+      contactInstagram?: string | null
+      pillar?: string
+      notes?: string | null
+    },
+  ): Promise<{ ok: boolean; error?: string }> {
+    const update: Record<string, unknown> = {}
+    if (patch.contactName !== undefined) update.contact_name = patch.contactName
+    if (patch.contactPhone !== undefined) update.contact_phone = patch.contactPhone
+    if (patch.contactEmail !== undefined) update.contact_email = patch.contactEmail
+    if (patch.contactInstagram !== undefined) update.contact_instagram = patch.contactInstagram
+    if (patch.pillar !== undefined) update.pillar = patch.pillar
+    if (patch.notes !== undefined) update.notes = patch.notes
+    if (Object.keys(update).length === 0) return { ok: true }
+    update.updated_at = new Date().toISOString()
+    const { error } = await this.supabase
+      .from('b2b_partnerships')
+      .update(update)
+      .eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
   async upsert(slug: string, payload: Record<string, unknown>): Promise<{ id?: string; ok: boolean; error?: string }> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_upsert', {
       p_slug: slug,
