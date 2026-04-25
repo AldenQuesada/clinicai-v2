@@ -5,18 +5,26 @@
  * arquitetura ADR-012 (Repository → Service → UI) · webhook usa repos
  * exclusivamente, nunca supabase.from() direto.
  *
- * Fluxo:
+ * Fix F4 (mig 800-11) · "fast ack + background worker":
+ *   Pre-validacao sincrona (auth + parse + role + dedup) · ~200ms
+ *   → enfileira em webhook_processing_queue · ~100ms
+ *   → return 202 (cliente Evolution recebe ack < 500ms)
+ *   → cron worker /api/cron/webhook-processing-worker drena (cada 1min,
+ *     pickPending(5)) e roda audio + Whisper + classify + handler + reply.
+ *
+ * Feature flag WEBHOOK_ASYNC_ENABLED (default 'true'):
+ *   - 'true'  → path async (acima)
+ *   - 'false' → path sincrono legado · processWebhookMessage no proprio request
+ *               (rollback rapido se algo quebrar em prod).
+ *
+ * Fluxo (path comum):
  *   1. Validate apikey/X-Evolution-Secret (timing-safe)
  *   2. Parse payload (extractEvolutionMessage)
  *   3. Skip se nao for messages.upsert / fromMe / group / phone invalido
  *   4. Resolve role (admin/partner/null) · null = silent ignore (ALDEN)
  *   5. Dedup wa_message_id (state __processed__:msgId · TTL 2h)
- *   6. Se audio: download base64 + Whisper transcribe pt-BR
- *   7. State preemption: voucher_confirm ativo + texto curto YES/NO
- *      → b2bVoucherConfirmHandler (bypassa classifier)
- *   8. Senao: classifier (Tier1 regex → Tier2 Haiku fallback)
- *   9. Dispatch handler · aplica replyText + actions + stateTransitions
- *  10. Audit via WaProAuditRepository.logQuery + logDispatch
+ *   6a. ASYNC  → enqueue + return 202
+ *   6b. SYNC   → processWebhookMessage (audio + classify + handler + reply + audit)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -25,18 +33,8 @@ import { makeMiraRepos } from '@/lib/repos'
 import { resolveClinicId } from '@/lib/clinic'
 import { extractEvolutionMessage } from '@/lib/webhook/evolution-extract'
 import { resolveRole } from '@/lib/webhook/role-resolver'
-import { classifyIntent } from '@/lib/webhook/intent-classifier'
-import { dedupCheckAndMark, isGlobalAdminCommand, STATE_KEY } from '@/lib/webhook/state-machine'
-import {
-  dispatchHandler,
-  b2bVoucherConfirmHandler,
-  b2bBulkVoucherConfirmHandler,
-  shouldHandleAsConfirmation,
-  shouldHandleAsBulkConfirmation,
-  type HandlerAction,
-} from '@/lib/webhook/handlers'
-import { getEvolutionService } from '@/services/evolution.service'
-import { transcribeAudio } from '@/services/transcription.service'
+import { dedupCheckAndMark } from '@/lib/webhook/state-machine'
+import { processWebhookMessage } from '@/lib/webhook/process-message'
 import { createLogger } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
@@ -53,6 +51,15 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 function jsonRes(body: unknown, status = 200): NextResponse {
   return NextResponse.json(body, { status })
+}
+
+/**
+ * Feature flag · default true (async path).
+ * Set WEBHOOK_ASYNC_ENABLED=false em env pra rollback ao path sincrono legado.
+ */
+function isAsyncEnabled(): boolean {
+  const v = String(process.env.WEBHOOK_ASYNC_ENABLED ?? 'true').toLowerCase()
+  return v === 'true' || v === '1' || v === 'yes'
 }
 
 // ── POST: webhook entry ──────────────────────────────────────────────────
@@ -96,256 +103,108 @@ export async function POST(req: NextRequest) {
     return jsonRes({ ok: true, skip: 'unauthorized_phone' })
   }
 
-  // 5. Dedup
+  // 5. Dedup (mantido em ambos os paths · evita reentrada da MESMA wa_message_id
+  //    via 2 requests proximos antes do worker pegar a queue).
   const dedup = await dedupCheckAndMark(repos.miraState, msg.phone, msg.messageId)
   if (dedup.alreadyProcessed) {
     return jsonRes({ ok: true, skip: 'already_processed', wa_message_id: msg.messageId })
   }
 
-  // 6. Audio → Whisper
-  let content = msg.content
-  let transcribedFromAudio = false
-  if (!content && msg.isAudio) {
-    try {
-      const wa = getEvolutionService('mira')
-      const dl = await wa.downloadMedia(msg.messageKey)
-      if (!dl) {
-        const wa2 = getEvolutionService('mira')
-        await wa2.sendText(
-          msg.phone,
-          'Não consegui baixar seu áudio · pode mandar em texto, por favor?',
-        )
-        return jsonRes({ ok: true, error: 'audio_download_failed' })
-      }
-      const transcribed = await transcribeAudio(dl.buffer, dl.contentType)
-      if (!transcribed) {
-        await wa.sendText(
-          msg.phone,
-          'Tive um problema pra transcrever o áudio. Pode escrever em texto?',
-        )
-        return jsonRes({ ok: true, error: 'whisper_failed' })
-      }
-      content = transcribed
-      transcribedFromAudio = true
-    } catch (err) {
-      log.error({ err, phone: msg.phone }, 'mira.webhook.audio_processing_exception')
-      return jsonRes({ ok: false, error: 'audio_pipeline_exception' }, 500)
-    }
-  }
+  // 6. Branch: async (default) vs sync (legacy)
+  const asyncMode = isAsyncEnabled()
 
-  if (!content) {
-    return jsonRes({ ok: true, skip: 'empty_message' })
-  }
+  if (asyncMode) {
+    // 6a. Enqueue + return 202 · worker drena em background.
+    //     UNIQUE (source, wa_message_id) garante idempotency adicional contra
+    //     retry do Evolution com mesmo messageId (caso dedup state expire).
+    const enq = await repos.webhookQueue.enqueue({
+      source: 'evolution',
+      phone: msg.phone,
+      waMessageId: msg.messageId,
+      role,
+      payload: body as object,
+    })
 
-  // 7. State preemption · estados pendentes bypassam classifier
-  //    Ordem de prioridade (Alden):
-  //      1. voucher_confirm (parceira respondendo SIM/NAO)
-  //      2. admin_reject_reason (admin mandando motivo de rejeicao)
-  //      3. admin_approve_select / admin_reject_select (admin escolhendo
-  //         numero entre candidatas multi-match)
-  //      4. cp_* (wizard de cadastro de parceria · multi-turno)
-  //
-  //    Estados B2B nao precisam de "shouldHandleAsConfirmation" porque sao
-  //    multi-turn explicitos · qualquer texto e parte do fluxo.
-  const voucherPending = await repos.miraState.get(msg.phone, STATE_KEY.VOUCHER_CONFIRM)
-  const bulkVoucherPending = await repos.miraState.get(msg.phone, STATE_KEY.BULK_VOUCHER_REVIEW)
-  const rejectReasonPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_REASON)
-  const approveSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_APPROVE_SELECT)
-  const rejectSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_SELECT)
-  const cpStepPending = await repos.miraState.get(msg.phone, STATE_KEY.CP_STEP)
-
-  let result
-  let chosenIntent = 'unknown'
-
-  if (voucherPending && shouldHandleAsConfirmation(content)) {
-    chosenIntent = 'preempt:voucher_confirm'
-    result = await b2bVoucherConfirmHandler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'partner.other', // intent placeholder · handler nao usa
-      repos,
-      pushName: msg.pushName,
-    })
-  } else if (bulkVoucherPending && shouldHandleAsBulkConfirmation(content)) {
-    chosenIntent = 'preempt:bulk_voucher_review'
-    result = await b2bBulkVoucherConfirmHandler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'partner.other', // placeholder · handler nao usa
-      repos,
-      pushName: msg.pushName,
-    })
-  } else if (role === 'admin' && rejectReasonPending) {
-    // Admin no meio de "rejeitar" · proximo turno e o motivo
-    chosenIntent = 'preempt:admin_reject_reason'
-    const handler = dispatchHandler('admin.reject')
-    result = await handler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'admin.reject',
-      repos,
-      pushName: msg.pushName,
-    })
-  } else if (role === 'admin' && approveSelectPending) {
-    chosenIntent = 'preempt:admin_approve_select'
-    const handler = dispatchHandler('admin.approve')
-    result = await handler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'admin.approve',
-      repos,
-      pushName: msg.pushName,
-    })
-  } else if (role === 'admin' && rejectSelectPending) {
-    chosenIntent = 'preempt:admin_reject_select'
-    const handler = dispatchHandler('admin.reject')
-    result = await handler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'admin.reject',
-      repos,
-      pushName: msg.pushName,
-    })
-  } else if (role === 'admin' && cpStepPending) {
-    chosenIntent = 'preempt:cp_step'
-    const handler = dispatchHandler('admin.create_partnership')
-    result = await handler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: 'admin.create_partnership',
-      repos,
-      pushName: msg.pushName,
-    })
-  } else {
-    // 7b. Auto-clear comando global do admin · evita state residual interferir
-    if (role === 'admin' && isGlobalAdminCommand(content)) {
-      await repos.miraState.clear(msg.phone)
+    if (!enq.ok) {
+      log.error(
+        { phone: msg.phone, wa_message_id: msg.messageId, error: enq.error },
+        'mira.webhook.enqueue_failed',
+      )
+      return jsonRes(
+        {
+          ok: false,
+          error: enq.error ?? 'enqueue_failed',
+          wa_message_id: msg.messageId,
+        },
+        500,
+      )
     }
 
-    // 8. Classify intent
-    const classification = await classifyIntent(content, role)
-    chosenIntent = classification.intent
+    const responseMs = Date.now() - t0
+    log.info(
+      {
+        queue_id: enq.id,
+        enqueued: enq.enqueued,
+        wa_message_id: msg.messageId,
+        phone: msg.phone,
+        role,
+        response_ms: responseMs,
+      },
+      'mira.webhook.enqueued',
+    )
 
-    // 9. Dispatch
-    const handler = dispatchHandler(classification.intent)
-    result = await handler({
-      clinicId,
-      phone: msg.phone,
-      role,
-      text: content,
-      intent: classification.intent,
-      repos,
-      pushName: msg.pushName,
-    })
+    return NextResponse.json(
+      {
+        ok: true,
+        queued: true,
+        queue_id: enq.id,
+        enqueued: enq.enqueued,
+        wa_message_id: msg.messageId,
+        response_ms: responseMs,
+      },
+      { status: 202 },
+    )
   }
 
-  // 10. Apply state transitions
-  for (const tx of result.stateTransitions) {
-    if (tx.op === 'set' && tx.value !== undefined) {
-      await repos.miraState.set(msg.phone, tx.key, tx.value, tx.ttlMinutes ?? 15)
-    } else if (tx.op === 'clear') {
-      await repos.miraState.clear(msg.phone, tx.key)
-    }
-  }
-
-  // 11. Send replyText pra origem (parceira/admin)
-  const wa = getEvolutionService('mira')
-  let replyMessageId: string | null = null
-  if (result.replyText) {
-    const sent = await wa.sendText(msg.phone, result.replyText)
-    replyMessageId = sent.messageId ?? null
-
-    // Audit dispatch (event_key derived do handler)
-    await repos.waProAudit.logDispatch({
-      clinicId,
-      eventKey: `mira.${chosenIntent}`,
-      channel: 'text',
-      recipientRole: role === 'admin' ? 'admin' : 'partner',
-      recipientPhone: msg.phone,
-      senderInstance: process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian',
-      textContent: result.replyText,
-      waMessageId: replyMessageId,
-      status: sent.ok ? 'sent' : 'failed',
-      errorMessage: sent.error ?? null,
-    })
-  }
-
-  // 12. Apply actions (sendText pra outros phones via mira ou mih)
-  for (const action of result.actions as HandlerAction[]) {
-    if (action.kind === 'send_wa') {
-      try {
-        const target = getEvolutionService(action.via)
-        const sent = await target.sendText(action.to, action.content)
-        await repos.waProAudit.logDispatch({
-          clinicId,
-          eventKey: action.eventKey ?? 'mira.action.send_wa',
-          channel: 'text',
-          recipientRole: action.recipientRole ?? 'unknown',
-          recipientPhone: action.to,
-          senderInstance: action.via === 'mih'
-            ? (process.env.EVOLUTION_INSTANCE_MIH ?? 'Mih')
-            : (process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'),
-          textContent: action.content,
-          waMessageId: sent.messageId ?? null,
-          status: sent.ok ? 'sent' : 'failed',
-          errorMessage: sent.error ?? null,
-        })
-      } catch (err) {
-        log.error({ err, action }, 'mira.webhook.action_failed')
-      }
-    }
-  }
-
-  // 13. Audit query · turn completo
-  const responseMs = Date.now() - t0
-  await repos.waProAudit.logQuery({
-    msg: {
-      clinicId,
-      phone: msg.phone,
-      direction: 'inbound',
-      content,
-      intent: chosenIntent,
-      intentData: result.meta ?? null,
-      responseMs,
-      status: 'sent',
-    },
-    audit: {
-      clinicId,
-      phone: msg.phone,
-      query: content,
-      intent: chosenIntent,
-      success: true,
-      resultSummary: result.replyText.slice(0, 200),
-      responseMs,
-    },
+  // 6b. SYNC legacy path · processa agora (audio + Whisper + classify + handler
+  //     + reply + audit). Mantido pra rollback rapido se async quebrar em prod.
+  const result = await processWebhookMessage({
+    clinicId,
+    msg,
+    role,
+    repos,
+    startedAtMs: t0,
   })
+
+  if (!result.ok) {
+    return jsonRes(
+      { ok: false, error: result.error, wa_message_id: msg.messageId },
+      500,
+    )
+  }
+  if (result.skip) {
+    return jsonRes({
+      ok: true,
+      skip: result.skip,
+      phone: msg.phone,
+      wa_message_id: msg.messageId,
+    })
+  }
 
   return jsonRes({
     ok: true,
     phone: msg.phone,
     wa_message_id: msg.messageId,
     role,
-    intent: chosenIntent,
-    transcribed: transcribedFromAudio,
-    reply_preview: result.replyText.slice(0, 120),
-    actions_count: result.actions.length,
-    response_ms: responseMs,
+    intent: result.intent,
+    transcribed: result.transcribed,
+    reply_preview: result.replyPreview,
+    actions_count: result.actionsCount,
+    response_ms: result.responseMs,
   })
 }
 
 // ── GET: health/handshake ────────────────────────────────────────────────
 export async function GET() {
-  return jsonRes({ ok: true, service: 'mira-evolution-webhook', version: '0.1.0' })
+  return jsonRes({ ok: true, service: 'mira-evolution-webhook', version: '0.2.0' })
 }
