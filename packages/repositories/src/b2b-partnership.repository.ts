@@ -223,6 +223,32 @@ export class B2BPartnershipRepository {
     return { ok: (data as { ok?: boolean })?.ok === true }
   }
 
+  /**
+   * Adiciona comentario livre na parceria · b2b_partnership_comments (clinic-
+   * dashboard mig 0300). Usado pelo handler b2b-feedback-received pra registrar
+   * feedback de parceira.
+   *
+   * Retorna { ok, id } ou { ok:false, error } via RPC b2b_comment_add.
+   */
+  async addComment(
+    partnershipId: string,
+    body: string,
+    authorName?: string,
+  ): Promise<{ ok: boolean; id?: string; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comment_add', {
+      p_partnership_id: partnershipId,
+      p_author: authorName ?? null,
+      p_body: body,
+    })
+    if (error) return { ok: false, error: error.message }
+    const result = data as { ok?: boolean; id?: string; error?: string }
+    return {
+      ok: result?.ok === true,
+      id: result?.id,
+      error: result?.error,
+    }
+  }
+
   async upsert(slug: string, payload: Record<string, unknown>): Promise<{ id?: string; ok: boolean; error?: string }> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_upsert', {
       p_slug: slug,

@@ -28,11 +28,6 @@ function makeStub(name: string, replyText: string): Handler {
   })
 }
 
-export const b2bFeedbackReceivedHandler = makeStub(
-  'b2b-feedback-received',
-  'Que ótimo! Adoro ouvir 💛 já anotei pra Mirian saber também.',
-)
-
 export const b2bAdminHelpHandler: Handler = async (): Promise<HandlerResult> => ({
   replyText:
     'Oi! Sou a Mira, posso te ajudar com:\n' +
