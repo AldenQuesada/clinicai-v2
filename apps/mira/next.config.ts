@@ -12,7 +12,6 @@
  */
 
 import type { NextConfig } from 'next'
-import { withSentryConfig } from '@sentry/nextjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://oqboitkpcvuaudouwvkl.supabase.co'
 const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution.aldenquesada.site'
@@ -68,27 +67,25 @@ const nextConfig: NextConfig = {
   },
 }
 
-// Wrapping condicional · so envolve com withSentryConfig se DSN estiver setado.
-// Sem DSN = noop puro (dev local nao precisa configurar nada e nao crash).
-const finalConfig = process.env.NEXT_PUBLIC_SENTRY_DSN
-  ? withSentryConfig(nextConfig, {
-      // Org/project sao opcionais · sem upload de sourcemaps se nao setados.
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      // Silencia logs de build do Sentry CLI em prod
-      silent: !process.env.CI,
-      // Hide source maps client-side (PII em código nao deve vazar)
-      hideSourceMaps: true,
-      // Tunnel route opcional · evita ad-blockers cortando capture
-      tunnelRoute: '/monitoring',
-      // Disable widening (otimizacao opcional do Sentry)
-      widenClientFileUpload: false,
-      // Auth token so usado em build pra upload de sourcemaps
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      // Disable upload se auth token ausente · evita warn em deploys sem credencial
-      disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-      disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-    })
-  : nextConfig
+// Wrapping condicional · DYNAMIC import pra evitar puxar @sentry/nextjs (e
+// toda instrumentacao OpenTelemetry junto) quando DSN nao esta setado. Import
+// estatico quebra o webpack cache do Next 16 (WasmHash undefined em build) ·
+// dynamic require so quando DSN existe.
+let finalConfig: NextConfig = nextConfig
+if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { withSentryConfig } = require('@sentry/nextjs') as typeof import('@sentry/nextjs')
+  finalConfig = withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    silent: !process.env.CI,
+    hideSourceMaps: true,
+    tunnelRoute: '/monitoring',
+    widenClientFileUpload: false,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+    disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  })
+}
 
 export default finalConfig
