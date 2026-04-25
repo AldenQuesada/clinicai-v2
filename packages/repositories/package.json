@@ -14,7 +14,14 @@
     "./clinic-data": "./src/clinic-data.repository.ts",
     "./template": "./src/template.repository.ts",
     "./budget": "./src/budget.repository.ts",
-    "./inbox-notification": "./src/inbox-notification.repository.ts"
+    "./inbox-notification": "./src/inbox-notification.repository.ts",
+    "./mira-state": "./src/mira-state.repository.ts",
+    "./b2b-partnership": "./src/b2b-partnership.repository.ts",
+    "./b2b-voucher": "./src/b2b-voucher.repository.ts",
+    "./b2b-attribution": "./src/b2b-attribution.repository.ts",
+    "./b2b-wa-sender": "./src/b2b-wa-sender.repository.ts",
+    "./b2b-comm-template": "./src/b2b-comm-template.repository.ts",
+    "./wa-pro-audit": "./src/wa-pro-audit.repository.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "catalog:",

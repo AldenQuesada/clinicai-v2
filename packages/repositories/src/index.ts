@@ -17,6 +17,26 @@ export { BudgetRepository } from './budget.repository'
 export { InboxNotificationRepository } from './inbox-notification.repository'
 export { ProfileRepository, type ProfileDTO } from './profile.repository'
 
+// ── Mira repositories (B2B + admin · WhatsApp Evolution) ──────────────────
+export { MiraStateRepository, type MiraStateRow } from './mira-state.repository'
+export { B2BPartnershipRepository, type B2BPartnershipDTO } from './b2b-partnership.repository'
+export {
+  B2BVoucherRepository,
+  type B2BVoucherDTO,
+  type IssueVoucherInput,
+} from './b2b-voucher.repository'
+export { B2BAttributionRepository, type B2BAttributionDTO } from './b2b-attribution.repository'
+export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
+export {
+  B2BCommTemplateRepository,
+  type B2BCommTemplateDTO,
+} from './b2b-comm-template.repository'
+export {
+  WaProAuditRepository,
+  type WaProMessageInput,
+  type WaProAuditInput,
+} from './wa-pro-audit.repository'
+
 export type {
   Funnel,
   ConversationStatus,
