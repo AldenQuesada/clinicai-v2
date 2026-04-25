@@ -1,12 +1,12 @@
 /**
- * Cron: state cleanup + reminder dispatch.
+ * Cron: dedicated reminder dispatch (sem cleanup).
  *
- * Easypanel cron faz GET com header `x-cron-secret: <MIRA_CRON_SECRET>`.
- * - Limpa states expirados (mira_state_cleanup_expired)
- * - Dispara reminder messages (mira_state_reminder_check)
+ * Variante do mira-state-cleanup pra agendar com cadencia maior caso queira
+ * separar (ex: cleanup 5min, reminder 1min). Em P1 mira-state-cleanup ja
+ * cobre os 2 · esse handler existe pra Easypanel poder configurar separado
+ * se Alden preferir (mantém ambos como entradas).
  *
- * Frequencia recomendada: a cada 1min (reminder precisa de granularidade).
- * pg_cron tambem faz o mesmo · belt-and-suspenders.
+ * Frequencia recomendada: a cada 1min.
  */
 
 import { NextRequest } from 'next/server'
@@ -17,8 +17,7 @@ import { getEvolutionService } from '@/services/evolution.service'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  return runCron(req, 'mira-state-cleanup', async ({ repos, clinicId }) => {
-    const cleaned = await repos.miraState.cleanupExpired()
+  return runCron(req, 'mira-state-reminder-check', async ({ repos, clinicId }) => {
     const reminders = await repos.miraState.reminderCheck()
 
     let sent = 0
@@ -28,7 +27,6 @@ export async function GET(req: NextRequest) {
       for (const r of reminders) {
         try {
           const state = r.state as {
-            recipient_first_name?: string
             recipient_name?: string
             partnership_id?: string
           }
@@ -66,7 +64,6 @@ export async function GET(req: NextRequest) {
     }
 
     return {
-      cleaned_states: cleaned,
       reminders_total: reminders.length,
       reminders_sent: sent,
       reminders_failed: failed,

@@ -13,7 +13,25 @@ Auth: header `apikey` ou `X-Evolution-Secret` (timing-safe compare contra `EVOLU
 
 ## Cron
 
-`GET /api/cron/mira-state-cleanup` — chamado pelo Easypanel cron a cada 10min, dispara cleanup de states expirados (RPC `mira_state_cleanup_expired`). Idempotente.
+Todos os endpoints aceitam `GET` com header `x-cron-secret: <MIRA_CRON_SECRET>` (timing-safe). Service role bypassa RLS, multi-tenant resolvido via RPC `_default_clinic_id()`.
+
+| Endpoint | Schedule (cron) | Função |
+|---|---|---|
+| `/api/cron/mira-state-cleanup` | `* * * * *` (a cada 1min) | cleanup states expirados + dispara reminders |
+| `/api/cron/mira-state-reminder-check` | `* * * * *` (alternativa) | só dispara reminders (sem cleanup) |
+| `/api/cron/mira-daily-digest` | `0 10 * * 1-6` (10:00 seg-sáb) | agenda do dia + tarefas pendentes |
+| `/api/cron/mira-evening-digest` | `0 23 * * 1-6` (23:00 seg-sáb) | resumo do dia + agenda amanhã |
+| `/api/cron/mira-weekly-roundup` | `0 10 * * 1` (seg 10:00) | semana anterior + plano semana |
+| `/api/cron/mira-preconsult-alerts` | `*/5 11-23 * * 1-6` (5min · 11-23h seg-sáb) | alerta admin 30min antes appt |
+| `/api/cron/mira-anomaly-check` | `0 1 * * *` (01:00 diário) | gaps operacionais (zero agenda, NaN finance) |
+| `/api/cron/mira-birthday-alerts` | `0 10 * * *` (10:00 diário) | aniversariantes do dia |
+| `/api/cron/mira-task-reminders` | `*/5 * * * *` (a cada 5min) | tarefas vencidas |
+| `/api/cron/mira-followup-suggestions` | `0 12 * * *` (12:00 diário) | suggestions Claude Haiku pra leads esquecidos |
+| `/api/cron/mira-inactivity-radar` | `0 21 * * 5` (sex 21:00) | pacientes/leads sem atividade 30+d |
+
+Cada endpoint tenta a RPC `wa_pro_<name>` em prod primeiro; quando ausente, faz fallback minimalista (counts simples) ou pula dispatch. Veja TODO P2 nos handlers — extrair lógica pra RPCs canônicas.
+
+Configuração no Easypanel: criar 11 cron jobs com URL `https://mira.miriandpaula.com.br/<endpoint>` + header `x-cron-secret: $MIRA_CRON_SECRET`.
 
 ## Env vars (Easypanel)
 
