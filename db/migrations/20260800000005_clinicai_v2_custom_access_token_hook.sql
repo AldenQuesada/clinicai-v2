@@ -89,9 +89,13 @@ BEGIN
 END;
 $$;
 
--- GRANT pra Supabase Auth chamar (regra GOLD #3 + permissions)
+-- Grants/revokes hardening · padrao Supabase pra hooks de Auth
+-- (so supabase_auth_admin chama · authenticated/anon/public NAO podem)
 GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb)
   TO supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb)
+  FROM authenticated, anon, public;
 
 -- Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';
