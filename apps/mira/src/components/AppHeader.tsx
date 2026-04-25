@@ -51,7 +51,7 @@ const SECTIONS: Section[] = [
     subtabs: [
       { href: '/dashboard', label: 'Caixa do dia', available: true },
       { href: '/vouchers', label: 'Vouchers em curso', available: true },
-      { href: '/hoje/conversas', label: 'Conversas', available: false },
+      { href: '/hoje/conversas', label: 'Conversas', available: true },
       { href: '/configuracoes?tab=overview', label: 'Saúde do sistema', available: true },
     ],
   },
@@ -80,10 +80,10 @@ const SECTIONS: Section[] = [
       { href: '/estudio/combos', label: 'Combos voucher', available: false },
       { href: '/configuracoes?tab=professionals', label: 'Admins WhatsApp', available: true },
       { href: '/configuracoes?tab=channels', label: 'Channels Evolution', available: true },
-      { href: '/estudio/padroes', label: 'Padrões clínica', available: false },
+      { href: '/estudio/padroes', label: 'Padrões clínica', available: true },
       { href: '/configuracoes?tab=logs', label: 'Diagnóstico', available: true },
       { href: '/estudio/lgpd', label: 'LGPD', available: false },
-      { href: '/estudio/sobre', label: 'Sobre', available: false },
+      { href: '/estudio/sobre', label: 'Sobre', available: true },
     ],
   },
 ]
