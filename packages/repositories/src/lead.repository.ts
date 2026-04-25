@@ -37,21 +37,29 @@ export class LeadRepository {
   /**
    * Cria lead novo · retorna DTO ou null se insert falhou.
    * Phase default 'lead', persona 'onboarder' (alinhado com webhook legacy).
+   *
+   * `source` e `tags` opcionais · usados pela Mira B2B pra discriminar origem
+   * (b2b_partnership_referral, b2b_admin_registered · ver mig 800-01) e marcar
+   * indicacoes com slug da parceria.
    */
   async create(clinicId: string, input: CreateLeadInput): Promise<LeadDTO | null> {
+    const row: Record<string, unknown> = {
+      id: uuidv4(),
+      clinic_id: clinicId,
+      phone: input.phone,
+      name: input.name ?? null,
+      phase: input.phase ?? 'lead',
+      temperature: input.temperature ?? 'warm',
+      ai_persona: input.aiPersona ?? 'onboarder',
+      funnel: input.funnel ?? null,
+      created_at: new Date().toISOString(),
+    }
+    if (input.source) row.source = input.source
+    if (Array.isArray(input.tags) && input.tags.length > 0) row.tags = input.tags
+
     const { data, error } = await this.supabase
       .from('leads')
-      .insert({
-        id: uuidv4(),
-        clinic_id: clinicId,
-        phone: input.phone,
-        name: input.name ?? null,
-        phase: input.phase ?? 'lead',
-        temperature: input.temperature ?? 'warm',
-        ai_persona: input.aiPersona ?? 'onboarder',
-        funnel: input.funnel ?? null,
-        created_at: new Date().toISOString(),
-      })
+      .insert(row)
       .select()
       .single()
 

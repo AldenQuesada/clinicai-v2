@@ -101,6 +101,13 @@ export interface CreateLeadInput {
   temperature?: string | null
   aiPersona?: string | null
   funnel?: string | null
+  /**
+   * Discriminator de origem (mig 800-01) · CHECK constraint cobre:
+   *   'lara_recipient' (default), 'lara_vpi_partner',
+   *   'b2b_partnership_referral', 'b2b_admin_registered'.
+   */
+  source?: string | null
+  tags?: string[] | null
 }
 
 export interface CreateConversationInput {

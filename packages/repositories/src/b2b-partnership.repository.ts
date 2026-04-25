@@ -132,6 +132,97 @@ export class B2BPartnershipRepository {
     return (data as { ok?: boolean })?.ok === true
   }
 
+  /**
+   * Lista parcerias "pendentes" (status: prospect | dna_check | contract) que
+   * batem com `identifier` · slug exato, UUID exato, ou nome contendo. Usado
+   * pelo handler admin.approve/reject pra resolver candidata via voz.
+   *
+   * Retorna [] se nada bate · caller decide tratamento (zero, um ou multi).
+   */
+  async findPendingByIdentifier(
+    clinicId: string,
+    identifier: string,
+  ): Promise<B2BPartnershipDTO[]> {
+    const ident = String(identifier || '').trim()
+    if (!ident) return []
+
+    const pendingStatuses = ['prospect', 'dna_check', 'contract'] as const
+
+    // UUID exato → match direto
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ident)
+    if (isUuid) {
+      const { data } = await this.supabase
+        .from('b2b_partnerships')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('id', ident)
+        .in('status', pendingStatuses as unknown as string[])
+      return (data ?? []).map(mapPartnershipRow)
+    }
+
+    // Slug exato
+    const slug = ident.toLowerCase().replace(/\s+/g, '-')
+    const { data: bySlug } = await this.supabase
+      .from('b2b_partnerships')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('slug', slug)
+      .in('status', pendingStatuses as unknown as string[])
+    if (Array.isArray(bySlug) && bySlug.length > 0) {
+      return bySlug.map(mapPartnershipRow)
+    }
+
+    // Nome ILIKE (parcial) · ordena por created_at desc, limit 10
+    const { data: byName } = await this.supabase
+      .from('b2b_partnerships')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .in('status', pendingStatuses as unknown as string[])
+      .ilike('name', `%${ident}%`)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    return (byName ?? []).map(mapPartnershipRow)
+  }
+
+  /**
+   * Aprova parceria · UPDATE status='active'. Trigger
+   * trg_b2b_on_partnership_active (mig 800-03) auto-whitelista contact_phone
+   * em b2b_partnership_wa_senders se for E.164.
+   *
+   * `byAdmin` e o phone do admin · gravado em audit (b2b_comm_dispatch_log
+   * pelo handler caller).
+   */
+  async approve(id: string, byAdmin: string): Promise<{ ok: boolean; error?: string }> {
+    const reason = byAdmin ? `approved_by:${byAdmin}` : 'approved_by_admin'
+    const { data, error } = await this.supabase.rpc('b2b_partnership_set_status', {
+      p_id: id,
+      p_status: 'active',
+      p_reason: reason,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
+  /**
+   * Rejeita parceria · UPDATE status='closed' com reason gravado.
+   * Schema canonico do clinic-dashboard nao tem status 'rejected' separado ·
+   * 'closed' + reason='rejected:<motivo>' e a convencao operacional.
+   */
+  async reject(
+    id: string,
+    reason: string,
+    byAdmin: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const reasonStr = `rejected:${reason || 'sem_motivo'}|by:${byAdmin || 'unknown'}`
+    const { data, error } = await this.supabase.rpc('b2b_partnership_set_status', {
+      p_id: id,
+      p_status: 'closed',
+      p_reason: reasonStr,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
   async upsert(slug: string, payload: Record<string, unknown>): Promise<{ id?: string; ok: boolean; error?: string }> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_upsert', {
       p_slug: slug,
