@@ -25,6 +25,35 @@
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 0 · Limpeza defensiva · DROP TODAS policies abertas legacy nas tabelas do
+--     escopo (cobre policies criadas em migs antigas que nao conhecemos)
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+  v_scope text[] := ARRAY[
+    'mira_conversation_state',
+    'b2b_voucher_dispatch_queue',
+    'webhook_processing_queue',
+    'inbox_notifications',
+    '_ai_budget'
+  ];
+  v_pol record;
+BEGIN
+  FOR v_pol IN
+    SELECT tablename, policyname FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename = ANY(v_scope)
+       AND (
+         (cmd <> 'INSERT' AND COALESCE(qual, 'true') = 'true')
+         OR (cmd IN ('INSERT','UPDATE','ALL') AND COALESCE(with_check, 'true') = 'true')
+       )
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', v_pol.policyname, v_pol.tablename);
+    RAISE NOTICE '800-14 DROP policy aberta legacy: %.%', v_pol.tablename, v_pol.policyname;
+  END LOOP;
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 1 · mira_conversation_state · service_role-only (sem clinic_id por design)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Schema deste table eh PK (phone, state_key) · nao tem clinic_id (state machine
@@ -150,12 +179,18 @@ DECLARE
   v_anon_grants        int;
   v_rls_off_with_clinic int;
 BEGIN
-  -- 1. Nenhuma policy aberta (USING true / WITH CHECK true) nas tabelas do escopo
+  -- 1. Nenhuma policy aberta nas tabelas do escopo. "Aberta" eh discriminado por cmd:
+  --    SELECT/DELETE: aberto sse qual = 'true' (with_check sempre NULL nessas)
+  --    INSERT: aberto sse with_check = 'true' (qual sempre NULL nessas)
+  --    UPDATE/ALL: aberto sse qual = 'true' OU with_check = 'true'
   SELECT COUNT(*) INTO v_open_policies
     FROM pg_policies p
    WHERE p.schemaname = 'public'
      AND p.tablename = ANY(v_scope)
-     AND (COALESCE(p.qual, 'true') = 'true' OR COALESCE(p.with_check, 'true') = 'true');
+     AND (
+       (p.cmd <> 'INSERT' AND COALESCE(p.qual, 'true') = 'true')
+       OR (p.cmd IN ('INSERT','UPDATE','ALL') AND COALESCE(p.with_check, 'true') = 'true')
+     );
 
   IF v_open_policies > 0 THEN
     RAISE EXCEPTION 'Sanity 800-14 FAIL · % policies abertas no escopo clinicai-v2 (ver ADR-029 §6.1)', v_open_policies;
