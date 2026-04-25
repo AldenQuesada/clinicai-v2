@@ -4,26 +4,13 @@
  * GET  → Verification handshake with Meta
  * POST → Receive inbound messages, process with AI, reply
  *
- * This replaces the entire n8n lara-whatsapp-workflow.json
+ * Multi-tenant ADR-028 · clinic_id resolvido por request via
+ * wa_numbers_resolve_by_phone_number_id RPC. Fallback pra Mirian se
+ * resolve falhar (audit log warn).
  *
- * ⚠️ MULTI-TENANT REFACTOR PENDENTE (ADR-028 · Fase 1.5)
- * ----------------------------------------------------------------
- * Importado do clinicai-lara do Ivan AS-IS · 4 pontos com clinic_id
- * hardcoded ('00000000-0000-0000-0000-000000000001'):
- *   - linha ~96  (lead INSERT)
- *   - linha ~129 (wa_conversations INSERT)
- *   - linha ~282 (wa_messages outbound)
- *   - linha ~521 (idem)
- *
- * Refactor planejado · Fase 1.5 (commit separado após validar build):
- *   1. Extrair phone_number_id de body.entry[0].changes[0].value.metadata.phone_number_id
- *   2. Resolver clinic_id via @clinicai/supabase/tenant resolveClinicByPhoneNumberId()
- *   3. Substituir os 4 literais por const clinic_id resolvido
- *   4. WhatsApp send: usar createWhatsAppCloudFromWaNumber() em vez de
- *      WhatsAppCloudService() com env vars globais
- *   5. Verify token: lookup em wa_numbers.verify_token em vez de env var única
- *
- * Não usar `// TODO(ADR-028)` segundo a doutrina · isso é débito FORMALIZADO.
+ * Phone variants · queries de lookup usam phoneVariants(phone) pra
+ * achar conversations/messages legacy salvas com 9 inicial após DDD
+ * (Evolution API) vs sem 9 (Meta Cloud).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -32,7 +19,38 @@ import { WhatsAppCloudService } from '@/services/whatsapp-cloud';
 import { checkGuard } from '@/lib/guard';
 import { generateResponse, getFixedResponse } from '@/services/ai.service';
 import { transcribeAudio } from '@/services/transcription.service';
+import { phoneVariants } from '@clinicai/utils';
 import { v4 as uuidv4 } from 'uuid';
+
+// Fallback pro clinic_id da Mirian · usado SOMENTE se RPC retornar null.
+// No caminho feliz, clinic_id e dinamico via wa_numbers_resolve.
+const FALLBACK_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
+ * Resolve clinic_id + wa_number_id via RPC wa_numbers_resolve_by_phone_number_id.
+ * ADR-028 multi-tenant · clinic_id NUNCA hardcoded em request.
+ */
+async function resolveTenantContext(
+  supabase: ReturnType<typeof createServerClient>,
+  phoneNumberId: string | null,
+): Promise<{ clinic_id: string; wa_number_id: string | null }> {
+  if (!phoneNumberId) {
+    console.warn('[Tenant] phone_number_id ausente · usando fallback Mirian');
+    return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null };
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('wa_numbers_resolve_by_phone_number_id', {
+    p_phone_number_id: phoneNumberId,
+  });
+  if (error || !data?.ok) {
+    console.warn(`[Tenant] resolve falhou phone_number_id=${phoneNumberId} · usando fallback · err=${error?.message ?? data?.error}`);
+    return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null };
+  }
+  return {
+    clinic_id: data.clinic_id as string,
+    wa_number_id: data.wa_number_id as string,
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -77,8 +95,12 @@ export async function POST(request: NextRequest) {
         const value = change.value;
         if (!value?.messages?.length) continue;
 
+        // Meta payload: value.metadata.phone_number_id identifica qual numero
+        // recebeu a mensagem · usado pra resolver clinic_id (multi-tenant ADR-028)
+        const phoneNumberId = value.metadata?.phone_number_id || null;
+
         for (const message of value.messages) {
-          await processInboundMessage(message, value.contacts);
+          await processInboundMessage(message, value.contacts, phoneNumberId);
         }
       }
     }
@@ -91,28 +113,40 @@ export async function POST(request: NextRequest) {
 }
 
 // ── Process a single inbound message ─────────────────────────
-async function processInboundMessage(message: any, contacts: any[]) {
+async function processInboundMessage(
+  message: any,
+  contacts: any[],
+  phoneNumberId: string | null = null,
+) {
   const supabase = createServerClient();
   const wa = new WhatsAppCloudService();
   const phone = message.from;
   const pushName = contacts?.[0]?.profile?.name || '';
 
+  // ADR-028: resolve clinic_id por request via wa_numbers · NUNCA hardcoded
+  const { clinic_id } = await resolveTenantContext(supabase, phoneNumberId);
+
+  // Phone variants pra lookup legacy (Evolution 13 chars com 9 vs Cloud 12 chars sem)
+  const variants = phoneVariants(phone);
+
   // 1. Mark as read immediately
   wa.markAsRead(message.id);
 
-  // 2. Find or create lead
+  // 2. Find or create lead · busca em todas variantes
   let { data: lead } = await supabase
     .from('leads')
     .select('*')
-    .eq('phone', phone)
-    .single();
+    .in('phone', variants)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!lead) {
     const { data: newLead, error: leadErr } = await supabase
       .from('leads')
       .insert({
         id: uuidv4(),
-        clinic_id: '00000000-0000-0000-0000-000000000001',
+        clinic_id,
         phone,
         name: pushName || null,
         phase: 'lead',
@@ -122,7 +156,7 @@ async function processInboundMessage(message: any, contacts: any[]) {
       })
       .select()
       .single();
-      
+
     if (leadErr) {
       console.error('[Webhook] Failed to create lead for', phone, leadErr);
       return;
@@ -130,22 +164,34 @@ async function processInboundMessage(message: any, contacts: any[]) {
     lead = newLead;
   }
 
-  // 3. Find or create conversation
+  // 3. Find or create conversation · busca em todas variantes E status amplo
+  // (incluir 'archived' tambem · se conversation foi mergeada/arquivada com
+  // historico legacy, ainda quero recuperar antes de criar nova)
   let { data: conv } = await supabase
     .from('wa_conversations')
     .select('*')
-    .eq('phone', phone)
-    .in('status', ['active', 'paused'])
-    .order('created_at', { ascending: false })
+    .in('phone', variants)
+    .in('status', ['active', 'paused', 'archived'])
+    .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(1)
-    .single();
+    .maybeSingle();
+
+  // Se a conversation encontrada estava archived (mergeada antes), reativa
+  if (conv && conv.status === 'archived') {
+    await supabase
+      .from('wa_conversations')
+      .update({ status: 'active', ai_enabled: true })
+      .eq('id', conv.id);
+    conv.status = 'active';
+    conv.ai_enabled = true;
+  }
 
   if (!conv) {
     const { data: newConv, error: convErr } = await supabase
       .from('wa_conversations')
       .insert({
         id: uuidv4(),
-        clinic_id: '00000000-0000-0000-0000-000000000001',
+        clinic_id,
         phone,
         lead_id: lead.id,
         display_name: pushName || lead.name || phone,
@@ -156,7 +202,7 @@ async function processInboundMessage(message: any, contacts: any[]) {
       })
       .select()
       .single();
-      
+
     if (convErr) {
       console.error('[Webhook] Failed to create conversation for', phone, convErr);
       return;
@@ -298,7 +344,7 @@ async function processInboundMessage(message: any, contacts: any[]) {
   const sentAtStr = new Date().toISOString();
   const { error: msgErr } = await supabase.from('wa_messages').insert({
     id: uuidv4(),
-    clinic_id: '00000000-0000-0000-0000-000000000001',
+    clinic_id,
     conversation_id: conv.id,
     phone: phone, // Passando o telefone explicitamente pro Trigger não chorar
     direction: 'inbound',
@@ -537,7 +583,7 @@ async function processInboundMessage(message: any, contacts: any[]) {
   // 12. Save outbound message to DB
   await supabase.from('wa_messages').insert({
     id: uuidv4(),
-    clinic_id: '00000000-0000-0000-0000-000000000001',
+    clinic_id,
     conversation_id: conv.id,
     direction: 'outbound',
     sender: 'lara',

@@ -23,7 +23,7 @@ export async function GET() {
   try {
     const { data: convs, error } = await supabase
       .from('wa_conversations')
-      .select('id, phone, lead_id')
+      .select('id, phone, lead_id, clinic_id')
       .eq('status', 'active')
       .eq('reactivation_sent', false)
       .lte('last_lead_msg', twentyThreeHoursAgo)
@@ -49,8 +49,9 @@ export async function GET() {
           .eq('id', conv.id);
         
         // Também gravamos na tabela de mensagens pro histórico do dashboard
+        // Multi-tenant: pega clinic_id da conversation (resolvido no inbound)
         await supabase.from('wa_messages').insert({
-          clinic_id: '00000000-0000-0000-0000-000000000001',
+          clinic_id: conv.clinic_id,
           conversation_id: conv.id,
           direction: 'outbound',
           sender: 'lara',

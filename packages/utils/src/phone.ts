@@ -27,6 +27,42 @@ export function isValidPhoneBR(input: string | null | undefined): boolean {
   return normalizePhoneBR(input) !== ''
 }
 
+/**
+ * Retorna todas as variantes válidas do mesmo número BR · usado pra lookup
+ * em wa_messages/wa_conversations onde phone pode ter sido salvo com ou sem
+ * 9 inicial (Evolution legacy 13 chars vs Meta Cloud 12 chars).
+ *
+ * Exemplos:
+ *   '554498787673'  -> ['554498787673', '5544998787673']
+ *   '5544998787673' -> ['5544998787673', '554498787673']
+ *   '4498787673'    -> ['554498787673', '5544998787673', '4498787673']
+ *
+ * Usa em queries: .or(`phone.eq.${a},phone.eq.${b}`) ou .in('phone', variants).
+ */
+export function phoneVariants(input: string | null | undefined): string[] {
+  if (!input) return []
+  const digits = String(input).replace(/\D/g, '')
+  if (!digits) return []
+
+  const variants = new Set<string>()
+  variants.add(digits)
+
+  // Normalizado (com DDI 55)
+  const norm = normalizePhoneBR(input)
+  if (norm) variants.add(norm)
+
+  // Se 13 chars com DDI 55 e 9 inicial após DDD: gera variante sem 9
+  if (norm.length === 13 && norm.startsWith('55') && norm.charAt(4) === '9') {
+    variants.add(norm.substring(0, 4) + norm.substring(5))
+  }
+  // Se 12 chars com DDI 55: gera variante COM 9 inicial após DDD
+  if (norm.length === 12 && norm.startsWith('55')) {
+    variants.add(norm.substring(0, 4) + '9' + norm.substring(4))
+  }
+
+  return Array.from(variants)
+}
+
 /** Formata pra display (44 99162-2986). Sem DDI por brevidade. */
 export function formatPhoneBR(input: string | null | undefined): string {
   const digits = normalizePhoneBR(input)
