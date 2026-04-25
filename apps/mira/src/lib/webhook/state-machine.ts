@@ -26,6 +26,7 @@ export const TTL_DEFAULT_MIN = 15
 
 export const STATE_KEY = {
   VOUCHER_CONFIRM: 'voucher_confirm',
+  BULK_VOUCHER_REVIEW: 'bulk_voucher_review',
   PROCESSED_PREFIX: '__processed__:',
   CP_STEP: 'cp_step',
   ADMIN_REJECT_REASON: 'admin_reject_reason',
@@ -34,6 +35,7 @@ export const STATE_KEY = {
 } as const
 
 export const TTL_ADMIN_SELECT_MIN = 5
+export const TTL_BULK_VOUCHER_REVIEW_MIN = 30
 
 export interface VoucherConfirmState {
   partnership_id: string
@@ -43,6 +45,36 @@ export interface VoucherConfirmState {
   combo: string
   expires_at: string
   reminder_sent?: boolean
+}
+
+/**
+ * State `bulk_voucher_review` · parceira mandou lista N vouchers,
+ * Mira ja fez dedup pre-check em paralelo e mostrou preview · aguarda
+ * SIM/NAO ou edicao de schedule. TTL 30min · igual single voucher_confirm.
+ *
+ * `batch_id` ja gerado aqui (uuid v4) · vai pra queue no confirm. Permite
+ * audit cross-table (state preview → queue items → vouchers emitidos).
+ *
+ * `blocked` carrega items que bateram dedup · NAO entram na queue, sao apenas
+ * exibidos no preview pra parceira saber que nao esquecemos · UI fica auto-doc.
+ */
+export interface BulkVoucherReviewState {
+  partnership_id: string
+  batch_id: string
+  items: Array<{
+    name: string
+    phone: string
+    combo?: string | null
+  }>
+  blocked: Array<{
+    name: string
+    phone: string
+    dedup_hit_kind: string
+    dedup_hit_msg: string
+  }>
+  scheduled_at: string
+  expires_at: string
+  schedule_hint?: string
 }
 
 export type CpStep =
