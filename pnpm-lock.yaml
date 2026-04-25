@@ -167,7 +167,7 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: 'catalog:'
-        version: 16.2.4(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+        version: 16.2.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.2.4
@@ -255,7 +255,7 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: 'catalog:'
-        version: 16.2.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+        version: 16.2.4(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.2.4
@@ -303,6 +303,31 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 20.19.39
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/repositories:
+    dependencies:
+      '@clinicai/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.104.1
+      uuid:
+        specifier: 'catalog:'
+        version: 13.0.0
+    devDependencies:
+      '@clinicai/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 20.19.39
+      '@types/uuid':
+        specifier: 'catalog:'
+        version: 10.0.0
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

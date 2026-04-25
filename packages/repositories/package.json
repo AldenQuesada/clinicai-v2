@@ -1,0 +1,34 @@
+{
+  "name": "@clinicai/repositories",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./lead": "./src/lead.repository.ts",
+    "./conversation": "./src/conversation.repository.ts",
+    "./message": "./src/message.repository.ts",
+    "./clinic-data": "./src/clinic-data.repository.ts",
+    "./template": "./src/template.repository.ts",
+    "./budget": "./src/budget.repository.ts",
+    "./inbox-notification": "./src/inbox-notification.repository.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "@clinicai/utils": "workspace:*",
+    "uuid": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@clinicai/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/uuid": "catalog:",
+    "typescript": "catalog:"
+  }
+}
