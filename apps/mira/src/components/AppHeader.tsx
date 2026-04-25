@@ -1,27 +1,124 @@
 /**
- * Mira · AppHeader · top bar denso · mirror mira-config antigo.
+ * Mira · AppHeader · 2 niveis sticky no topo (Father section + sub-tabs).
  *
- * Server Component · pega user via cookies do Supabase. Sem cursive italic,
- * sem brand luxury · estética admin operacional B2B (Inter only, gold accent
- * suave #C9A96E, borders white/8).
+ * Identidade visual: espelho do painel B2B antigo (b2b-partners.html) ·
+ * Cormorant Garamond pro logo display, Montserrat 600 uppercase pras labels.
+ *
+ * Estrutura (combate obesidade mental, agrupado por frequencia de uso):
+ *   1. Hoje    · operacao diaria (caixa do dia, vouchers, conversas, saude)
+ *   2. Semana  · revisao recorrente (parcerias, performance, renovacoes ...)
+ *   3. Estudio · setup pontual (templates, cadastrar, combos, admins ...)
+ *
+ * Quick actions sempre visiveis: + Voucher, + Parceria, busca CTRL+K.
+ *
+ * Sub-tabs renderizadas dinamicamente conforme section ativa (detectada via
+ * pathname). Telas que ainda nao existem aparecem como sub-tab desabilitada
+ * com badge "em breve".
  */
 
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
 import { ProfileRepository } from '@clinicai/repositories'
-import {
-  LogOut,
-  ExternalLink,
-  LayoutDashboard,
-  Handshake,
-  Ticket,
-  FileText,
-  Settings,
-} from 'lucide-react'
+import { LogOut, ExternalLink, Plus, Search } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
+
+type SubTab = {
+  href: string
+  label: string
+  available: boolean // false = stub "em breve"
+}
+
+type Section = {
+  key: 'hoje' | 'semana' | 'estudio'
+  label: string
+  defaultHref: string
+  subtabs: SubTab[]
+  /** Prefixos de pathname que pertencem a esta section */
+  match: string[]
+}
+
+const SECTIONS: Section[] = [
+  {
+    key: 'hoje',
+    label: 'Hoje',
+    defaultHref: '/dashboard',
+    match: ['/hoje', '/dashboard', '/vouchers'],
+    subtabs: [
+      { href: '/dashboard', label: 'Caixa do dia', available: true },
+      { href: '/vouchers', label: 'Vouchers em curso', available: true },
+      { href: '/hoje/conversas', label: 'Conversas', available: false },
+      { href: '/configuracoes?tab=overview', label: 'Saúde do sistema', available: true },
+    ],
+  },
+  {
+    key: 'semana',
+    label: 'Semana',
+    defaultHref: '/partnerships',
+    match: ['/semana', '/partnerships'],
+    subtabs: [
+      { href: '/partnerships', label: 'Pulse de parcerias', available: true },
+      { href: '/semana/performance', label: 'Performance', available: false },
+      { href: '/semana/renovacoes', label: 'Renovações', available: false },
+      { href: '/semana/comentarios', label: 'Comentários', available: false },
+      { href: '/semana/encerramentos', label: 'Encerramentos', available: false },
+      { href: '/semana/relatorios', label: 'Relatórios', available: false },
+    ],
+  },
+  {
+    key: 'estudio',
+    label: 'Estúdio',
+    defaultHref: '/templates',
+    match: ['/estudio', '/templates', '/configuracoes'],
+    subtabs: [
+      { href: '/templates', label: 'Templates WA', available: true },
+      { href: '/estudio/cadastrar', label: 'Cadastrar parceria', available: false },
+      { href: '/estudio/combos', label: 'Combos voucher', available: false },
+      { href: '/configuracoes?tab=professionals', label: 'Admins WhatsApp', available: true },
+      { href: '/configuracoes?tab=channels', label: 'Channels Evolution', available: true },
+      { href: '/estudio/padroes', label: 'Padrões clínica', available: false },
+      { href: '/configuracoes?tab=logs', label: 'Diagnóstico', available: true },
+      { href: '/estudio/lgpd', label: 'LGPD', available: false },
+      { href: '/estudio/sobre', label: 'Sobre', available: false },
+    ],
+  },
+]
+
+function detectActiveSection(pathname: string): Section {
+  for (const s of SECTIONS) {
+    for (const m of s.match) {
+      if (pathname === m || pathname.startsWith(m + '/')) return s
+    }
+  }
+  return SECTIONS[0] // default Hoje
+}
+
+function detectActiveSubtab(
+  pathname: string,
+  searchParams: string,
+  section: Section,
+): SubTab | null {
+  const fullPath = searchParams ? `${pathname}?${searchParams}` : pathname
+
+  // Match exato (com query) primeiro
+  const exact = section.subtabs.find((t) => t.href === fullPath)
+  if (exact) return exact
+
+  // Match por pathname puro (ignora query) · ex: /partnerships/[id] casa /partnerships
+  const byPath = section.subtabs.find((t) => {
+    const tabPath = t.href.split('?')[0]
+    return pathname === tabPath || pathname.startsWith(tabPath + '/')
+  })
+  if (byPath) {
+    // Pra rotas com query, so vira ativo se nao houver query NA URL atual
+    // (ex: /configuracoes sem ?tab=overview nao casa "Saude" porque ambiguo)
+    if (byPath.href.includes('?') && !searchParams) return null
+    return byPath
+  }
+  return null
+}
 
 export async function AppHeader() {
   const cookieStore = await cookies()
@@ -52,113 +149,163 @@ export async function AppHeader() {
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
 
   const headerStore = await headers()
-  const pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
-  const isOnDashboard = pathname.startsWith('/dashboard')
-  const isOnPartnerships = pathname.startsWith('/partnerships')
-  const isOnVouchers = pathname.startsWith('/vouchers')
-  const isOnTemplates = pathname.startsWith('/templates')
-  const isOnConfig = pathname.startsWith('/configuracoes')
-  const canManageConfig = !role || ['owner', 'admin'].includes(role)
+  const rawPath =
+    headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? '/dashboard'
+  const url = new URL(rawPath, 'http://x')
+  const pathname = url.pathname
+  const searchParams = url.searchParams.toString()
+
+  const activeSection = detectActiveSection(pathname)
+  const activeSubtab = detectActiveSubtab(pathname, searchParams, activeSection)
 
   return (
-    <header className="h-12 shrink-0 border-b border-white/8 bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-5 z-20">
-      <div className="flex items-center gap-5">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-md bg-[#C9A96E]/18 border border-[#C9A96E]/30 flex items-center justify-center text-[#C9A96E] font-bold text-xs">
-            M
+    <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
+      {/* === Father row · 3 sections + brand + quick actions + user === */}
+      <div className="h-13 flex items-center justify-between px-5 border-b border-white/5">
+        {/* Brand */}
+        <Link href={activeSection.defaultHref} className="flex items-center gap-3 group shrink-0">
+          <div className="w-8 h-8 rounded-md bg-[#C9A96E]/15 border border-[#C9A96E]/35 flex items-center justify-center">
+            <span className="font-display text-[#C9A96E] text-base leading-none">M</span>
           </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-xs font-semibold text-[#F5F5F5] group-hover:text-[#C9A96E] transition-colors">
+          <div className="flex flex-col leading-tight">
+            <span className="font-display text-[15px] text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors">
               Mira
             </span>
-            <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280] mt-0.5">
-              Admin · B2B
-            </span>
+            <span className="eyebrow text-[#9CA3AF]">Parcerias B2B</span>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-0.5">
-          <NavLink href="/dashboard" icon={<LayoutDashboard className="w-3.5 h-3.5" />} active={isOnDashboard}>
-            Visão geral
-          </NavLink>
-          <NavLink href="/partnerships" icon={<Handshake className="w-3.5 h-3.5" />} active={isOnPartnerships}>
-            Parcerias
-          </NavLink>
-          <NavLink href="/vouchers" icon={<Ticket className="w-3.5 h-3.5" />} active={isOnVouchers}>
-            Vouchers
-          </NavLink>
-          <NavLink href="/templates" icon={<FileText className="w-3.5 h-3.5" />} active={isOnTemplates}>
-            Templates
-          </NavLink>
-          {canManageConfig && (
-            <NavLink href="/configuracoes" icon={<Settings className="w-3.5 h-3.5" />} active={isOnConfig}>
-              Config
-            </NavLink>
-          )}
+        {/* 3 Father sections · centro */}
+        <nav className="flex items-center gap-1">
+          {SECTIONS.map((s) => (
+            <FatherLink
+              key={s.key}
+              href={s.defaultHref}
+              active={s.key === activeSection.key}
+            >
+              {s.label}
+            </FatherLink>
+          ))}
         </nav>
+
+        {/* Quick actions + user */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title="Buscar (Ctrl+K) — em breve"
+            className="hidden md:inline-flex items-center gap-2 px-2.5 py-1.5 rounded border border-white/10 text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors text-[11px]"
+            disabled
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="font-mono text-[10px] opacity-70">⌘K</span>
+          </button>
+
+          <QuickAction href="/hoje/vouchers" label="Voucher" />
+          <QuickAction href="/estudio/cadastrar" label="Parceria" />
+
+          <Link
+            href={PAINEL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-white/10 text-[10px] uppercase tracking-[1px] text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors"
+          >
+            Painel CRM
+            <ExternalLink className="w-3 h-3" />
+          </Link>
+
+          <div className="flex items-center gap-2 pl-3 border-l border-white/10">
+            <div className="w-7 h-7 rounded-md bg-white/5 border border-white/10 text-[#F5F0E8] flex items-center justify-center text-[11px] font-semibold">
+              {initials}
+            </div>
+            <div className="hidden sm:flex flex-col leading-tight">
+              <span className="text-[12px] font-medium text-[#F5F0E8]">{displayName}</span>
+              {role && <span className="eyebrow text-[#6B7280]">{role}</span>}
+            </div>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                title="Sair"
+                className="p-1.5 rounded text-[#9CA3AF] hover:text-[#FCA5A5] hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Link
-          href={PAINEL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] border border-white/8 text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors"
-        >
-          Painel CRM
-          <ExternalLink className="w-3 h-3" />
-        </Link>
-
-        <div className="flex items-center gap-2 pl-3 border-l border-white/8">
-          <div className="w-7 h-7 rounded-md bg-white/5 border border-white/8 text-[#F5F5F5] flex items-center justify-center text-[11px] font-bold">
-            {initials}
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-xs font-medium text-[#F5F5F5]">{displayName}</span>
-            {role && (
-              <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280] mt-0.5">
-                {role}
-              </span>
-            )}
-          </div>
-
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              title="Sair"
-              className="ml-1.5 p-1.5 rounded text-[#9CA3AF] hover:text-[#FCA5A5] hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </form>
-        </div>
+      {/* === Sub-tabs row · pertencem ao Father ativo === */}
+      <div className="h-9 flex items-center px-5 overflow-x-auto custom-scrollbar">
+        <span className="eyebrow mr-4 shrink-0">{activeSection.label}</span>
+        <nav className="flex items-center gap-1">
+          {activeSection.subtabs.map((t) => (
+            <SubLink key={t.href} tab={t} active={activeSubtab?.href === t.href} />
+          ))}
+        </nav>
       </div>
     </header>
   )
 }
 
-function NavLink({
+function FatherLink({
   href,
-  icon,
   active,
   children,
 }: {
   href: string
-  icon: React.ReactNode
   active: boolean
   children: React.ReactNode
 }) {
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-[1px] transition-colors ${
+      className={`px-4 py-1.5 rounded-md text-[12px] font-semibold uppercase tracking-[1.5px] transition-colors ${
         active
-          ? 'bg-[#C9A96E]/15 text-[#C9A96E]'
-          : 'text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-white/5'
+          ? 'bg-[#C9A96E]/15 text-[#C9A96E] border border-[#C9A96E]/30'
+          : 'text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 border border-transparent'
       }`}
     >
-      {icon}
       {children}
+    </Link>
+  )
+}
+
+function SubLink({ tab, active }: { tab: SubTab; active: boolean }) {
+  if (!tab.available) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] text-[#6B7280] cursor-not-allowed"
+        title="Em breve"
+      >
+        {tab.label}
+        <span className="text-[8px] uppercase tracking-[1px] px-1 py-px rounded bg-white/5 text-[#6B7280]">
+          em breve
+        </span>
+      </span>
+    )
+  }
+  return (
+    <Link
+      href={tab.href}
+      className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+        active
+          ? 'text-[#C9A96E] border-b-2 border-[#C9A96E] rounded-none'
+          : 'text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5'
+      }`}
+    >
+      {tab.label}
+    </Link>
+  )
+}
+
+function QuickAction({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-[1px] bg-[#C9A96E]/12 border border-[#C9A96E]/30 text-[#C9A96E] hover:bg-[#C9A96E]/20 transition-colors"
+    >
+      <Plus className="w-3 h-3" />
+      {label}
     </Link>
   )
 }

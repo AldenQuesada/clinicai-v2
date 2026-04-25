@@ -1,13 +1,15 @@
 /**
  * Mira · globals.css.
  *
- * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
- * vivem em packages/ui/styles/globals.css.
+ * Identidade visual: espelho do painel B2B antigo (b2b-partners.html) ·
+ * dark luxury com Cormorant Garamond (display) + Montserrat (body), accent
+ * gold #C9A96E, paleta `#0F0D0A` base com layers ate `#2A2520`. Pills
+ * coloridas (verde/amarelo/vermelho) e health dot 4 cores.
  *
- * Mira NÃO replica o re-skin luxury Mirian · ela espelha o mira-config antigo
- * do clinic-dashboard (admin denso · namespace `.bcfg-*` / `--bcomm-*`).
- * Tokens `--bcfg-*` adicionados abaixo · usados via `text-[hsl(var(--bcfg-*))]`
- * ou em arbitrary values direto (`text-[#C9A96E]`).
+ * Hierarquia tipografica:
+ *   - .font-display · Cormorant Garamond (h1 38px, h2 26px, KPIs grandes)
+ *   - body default · Montserrat 400-600 (todo o texto operacional)
+ *   - .font-mono · ui-monospace (tokens, IDs, codigo)
  */
 
 @import "@clinicai/ui/styles/globals.css";
@@ -58,6 +60,25 @@
   body {
     background-color: hsl(var(--chat-bg));
     color: hsl(var(--foreground));
+    font-family: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 400;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Cormorant Garamond pra display · usar via className="font-display" */
+  .font-display {
+    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+
+  /* Eyebrow consistente · gold uppercase letterspacing pra section labels */
+  .eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #C9A96E;
   }
 }
 
