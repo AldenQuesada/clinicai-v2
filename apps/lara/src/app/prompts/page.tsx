@@ -144,8 +144,8 @@ export default async function PromptsPage() {
           </div>
         </div>
 
-        <div className="rounded-card border border-yellow-500/30 bg-yellow-500/5 p-4 mb-8 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+        <div className="rounded-card border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-4 mb-8 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-[hsl(var(--warning))] shrink-0 mt-0.5" />
           <div className="text-sm text-[hsl(var(--foreground))]">
             <strong>Atenção · prompts moldam comportamento da IA real.</strong> Mudanças
             aplicam imediatamente em todas as próximas conversas. Se algo der errado, deixe o
@@ -203,7 +203,7 @@ function PromptCard({ prompt }: { prompt: PromptData }) {
                 type="submit"
                 name="action"
                 value="reset"
-                className="px-4 py-2 rounded-md text-xs uppercase tracking-widest text-[hsl(var(--muted-foreground))] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                className="px-4 py-2 rounded-md text-xs uppercase tracking-widest text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))]/10 transition-colors"
               >
                 Restaurar padrão
               </button>

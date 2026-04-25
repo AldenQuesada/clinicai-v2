@@ -80,7 +80,7 @@ export function TemplateRow({
               <button
                 type="submit"
                 title="Excluir"
-                className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))]/10 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

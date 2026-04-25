@@ -175,7 +175,7 @@ export default async function ConfiguracoesPage() {
 
           <div className="pt-4 border-t border-[hsl(var(--chat-border))] flex items-center justify-between">
             <div className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-500" />
+              <AlertTriangle className="w-4 h-4 text-[hsl(var(--warning))]" />
               Mudanças aplicam imediatamente · sem rebuild necessário
             </div>
             <button

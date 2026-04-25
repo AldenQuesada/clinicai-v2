@@ -142,48 +142,48 @@ export default function ChatPage() {
       {/* Barra de Insights (Top Bar) */}
       <div className="h-16 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 gap-8 shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${urgentes > 0 ? 'bg-red-500/10 text-red-500' : 'bg-gray-500/10 text-gray-500'}`}>
+          <div className={`p-2 rounded-lg ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>
             <AlertCircle className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Urgentes</p>
-            <p className={`text-lg font-bold leading-none mt-0.5 ${urgentes > 0 ? 'text-red-500' : 'text-white'}`}>{urgentes}</p>
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Urgentes</p>
+            <p className={`text-lg font-bold leading-none mt-0.5 ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
           </div>
         </div>
 
         <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500">
+          <div className="p-2 rounded-lg bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Aguardando Você</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-white">{aguardando}</p>
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Aguardando Você</p>
+            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{aguardando}</p>
           </div>
         </div>
 
         <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+          <div className="p-2 rounded-lg bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
             <MessageCircle className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Lara Ativa</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-white">{laraAtiva}</p>
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Lara Ativa</p>
+            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{laraAtiva}</p>
           </div>
         </div>
 
         <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
+          <div className="p-2 rounded-lg bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Resolvidos Hoje</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-white">{resolvidos}</p>
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Resolvidos Hoje</p>
+            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{resolvidos}</p>
           </div>
         </div>
       </div>

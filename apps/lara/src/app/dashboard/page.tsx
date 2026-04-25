@@ -295,15 +295,15 @@ function StatCard({
 }) {
   const toneClasses =
     tone === 'warn'
-      ? 'border-yellow-500/30 bg-yellow-500/5'
+      ? 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
       : tone === 'success'
-      ? 'border-green-500/20 bg-green-500/5'
+      ? 'border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5'
       : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]'
   const iconTone =
     tone === 'warn'
-      ? 'text-yellow-500 bg-yellow-500/10'
+      ? 'text-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10'
       : tone === 'success'
-      ? 'text-green-500 bg-green-500/10'
+      ? 'text-[hsl(var(--success))] bg-[hsl(var(--success))]/10'
       : 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
   return (
     <div className={`rounded-card border p-4 ${toneClasses}`}>

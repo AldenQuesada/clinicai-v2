@@ -91,7 +91,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
           </div>
 
           {errorMsg && (
-            <div className="px-3 py-2 rounded text-xs bg-red-500/10 border border-red-500/30 text-red-400">
+            <div className="px-3 py-2 rounded text-xs bg-[hsl(var(--danger))]/10 border border-[hsl(var(--danger))]/30 text-[hsl(var(--danger))]">
               {decodeURIComponent(errorMsg)}
             </div>
           )}

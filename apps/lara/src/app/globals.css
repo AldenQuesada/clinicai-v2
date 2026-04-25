@@ -41,6 +41,14 @@
     --muted-foreground: 38 8% 55%;    /* #8A847B · subdued warm */
     --foreground: 38 35% 92%;
     --ring: 35 36% 64%;               /* champagne pra focus rings */
+
+    /* Estados semanticos · HSL pra hsl(var(--x)) funcionar nos componentes legacy.
+       Tons dessaturados luxury · evitam quebrar a paleta dark warm da marca. */
+    --accent: 28 30% 70%;             /* #D4B894 · champagne-soft · queixas/tags acento */
+    --accent-foreground: 40 8% 12%;
+    --success: 145 22% 48%;           /* #6B8B6A · sage muted · resolvido */
+    --warning: 35 60% 52%;            /* #C2924A · amber luxury · arquivado */
+    --danger: 6 60% 55%;              /* #D14F47 · vermelho terra · urgente/destrutivo */
   }
 }
 
