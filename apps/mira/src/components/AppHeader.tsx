@@ -80,11 +80,11 @@ const SECTIONS: Section[] = [
   {
     key: 'analytics',
     label: 'Analytics',
-    defaultHref: '/semana/relatorios',
-    match: ['/analytics', '/semana/relatorios', '/b2b/nps'],
+    defaultHref: '/b2b/analytics',
+    match: ['/b2b/analytics', '/analytics', '/semana/relatorios', '/b2b/nps'],
     subtabs: [
-      { href: '/semana/relatorios', label: 'Overview', available: true },
-      { href: '/b2b/nps', label: 'NPS', available: false },
+      { href: '/b2b/analytics', label: 'Overview', available: true },
+      { href: '/b2b/nps', label: 'NPS', available: true },
     ],
   },
   {

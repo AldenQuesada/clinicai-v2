@@ -95,6 +95,23 @@ export {
   type BroadcastPartnerIds,
   type TeamManager,
 } from './b2b-collab.repository'
+export {
+  B2BAnalyticsRepository,
+  type AnalyticsApplications,
+  type AnalyticsVouchers,
+  type AnalyticsTiming,
+  type AnalyticsHealth,
+  type AnalyticsMiraNPS,
+  type AnalyticsMira,
+  type AnalyticsBlob,
+} from './b2b-analytics.repository'
+export {
+  B2BNpsRepository,
+  type NpsBucket,
+  type NpsResponseEntry,
+  type NpsListResult,
+  type NpsSummary,
+} from './b2b-nps.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
