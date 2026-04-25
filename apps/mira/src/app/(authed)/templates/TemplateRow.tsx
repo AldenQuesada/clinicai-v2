@@ -6,6 +6,7 @@
  */
 
 import { saveTemplateAction, deleteTemplateById } from './actions'
+import { TemplateEditor } from './TemplateEditor'
 import type { B2BCommTemplateDTO } from '@clinicai/repositories'
 
 const CHANNEL_OPTIONS = [
@@ -58,37 +59,18 @@ export function TemplateRow({
 
       <form
         action={saveTemplateAction}
-        className="px-3.5 pb-3.5 pt-1 flex flex-col gap-2.5 border-t border-[#C9A96E]/15 bg-[#C9A96E]/[0.04] rounded-b-lg"
+        className="px-3.5 pb-3.5 pt-3 flex flex-col gap-3 border-t border-[#C9A96E]/15 bg-[#C9A96E]/[0.04] rounded-b-lg"
       >
         <input type="hidden" name="id" value={template.id} />
 
-        <div className="flex flex-col gap-1 mt-2.5">
-          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-            Texto (text_template)
-          </label>
-          <textarea
-            name="textTemplate"
-            rows={5}
-            defaultValue={template.textTemplate ?? ''}
-            disabled={!canManage}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y font-mono"
-          />
-        </div>
+        <TemplateEditor
+          defaultText={template.textTemplate ?? ''}
+          defaultAudio={template.audioScript ?? ''}
+          idPrefix={`tpl-${template.id}`}
+          disabled={!canManage}
+        />
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-            Audio Script (audio_script)
-          </label>
-          <textarea
-            name="audioScript"
-            rows={3}
-            defaultValue={template.audioScript ?? ''}
-            disabled={!canManage}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y font-mono"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/8">
           <div className="flex items-center gap-1.5">
             <label className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
               Canal
@@ -122,7 +104,7 @@ export function TemplateRow({
         </div>
 
         {canManage && (
-          <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+          <div className="flex items-center gap-2 pt-2">
             <button
               type="submit"
               className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"

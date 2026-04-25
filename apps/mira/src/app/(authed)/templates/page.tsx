@@ -10,6 +10,7 @@
 
 import { Plus } from 'lucide-react'
 import { TemplateRow } from './TemplateRow'
+import { TemplateEditor } from './TemplateEditor'
 import { createTemplateAction } from './actions'
 import { loadMiraServerContext } from '@/lib/server-context'
 
@@ -87,21 +88,11 @@ export default async function TemplatesPage() {
                 </FormField>
               </div>
 
-              <FormField label="Texto (text_template) · use {{name}} pra placeholders">
-                <textarea
-                  name="textTemplate"
-                  rows={4}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 resize-y font-mono"
-                />
-              </FormField>
-
-              <FormField label="Audio Script (opcional)">
-                <textarea
-                  name="audioScript"
-                  rows={2}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 resize-y font-mono"
-                />
-              </FormField>
+              <TemplateEditor
+                defaultText=""
+                defaultAudio=""
+                idPrefix="tpl-new"
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <FormField label="Sender Instance">
