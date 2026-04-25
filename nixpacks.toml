@@ -1,0 +1,28 @@
+# Nixpacks config · Easypanel default builder.
+# Forca uso de Node 20 + pnpm 9 + scripts package.json raiz.
+#
+# Por que existe: aba "Git" do Easypanel cai no Nixpacks por default
+# (ignora Dockerfile do repo). Em vez de brigar contra, configuramos
+# Nixpacks pra rodar nosso build/start corretos.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm-9_x"]
+
+[phases.install]
+cmds = [
+  "npm install -g corepack@latest",
+  "corepack enable",
+  "corepack prepare pnpm@9.15.0 --activate",
+  "pnpm install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = ["pnpm run build:lara"]
+
+[start]
+cmd = "pnpm run start:lara"
+
+[variables]
+NEXT_TELEMETRY_DISABLED = "1"
+PORT = "3005"
+HOSTNAME = "0.0.0.0"
