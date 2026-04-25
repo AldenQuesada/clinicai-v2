@@ -5,9 +5,14 @@
  * Porta 3006 (Lara é 3005). standalone output pro Dockerfile minimal Easypanel.
  *
  * CSP cravada · permite chamadas Evolution + Anthropic + Groq + Supabase.
+ *
+ * Sentry (F6 · alert system): wrapping com `withSentryConfig` so acontece se
+ * `NEXT_PUBLIC_SENTRY_DSN` estiver setado · mantem dev local funcional sem DSN
+ * e evita upload de sourcemaps em build sem credentials.
  */
 
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://oqboitkpcvuaudouwvkl.supabase.co'
 const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution.aldenquesada.site'
@@ -63,4 +68,27 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+// Wrapping condicional · so envolve com withSentryConfig se DSN estiver setado.
+// Sem DSN = noop puro (dev local nao precisa configurar nada e nao crash).
+const finalConfig = process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, {
+      // Org/project sao opcionais · sem upload de sourcemaps se nao setados.
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      // Silencia logs de build do Sentry CLI em prod
+      silent: !process.env.CI,
+      // Hide source maps client-side (PII em código nao deve vazar)
+      hideSourceMaps: true,
+      // Tunnel route opcional · evita ad-blockers cortando capture
+      tunnelRoute: '/monitoring',
+      // Disable widening (otimizacao opcional do Sentry)
+      widenClientFileUpload: false,
+      // Auth token so usado em build pra upload de sourcemaps
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      // Disable upload se auth token ausente · evita warn em deploys sem credencial
+      disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+      disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+    })
+  : nextConfig
+
+export default finalConfig
