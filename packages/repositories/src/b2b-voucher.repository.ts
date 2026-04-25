@@ -13,6 +13,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { phoneVariants } from '@clinicai/utils'
+import type { DedupHit, DedupHitKind } from './types'
 
 export type LaraFollowupState =
   | 'pending'
@@ -135,6 +136,136 @@ export class B2BVoucherRepository {
       token: result?.token,
       validUntil: result?.valid_until,
       error: result?.error,
+    }
+  }
+
+  /**
+   * Emite voucher novo COM dedup transactional (Fix F5 · mig 800-12).
+   *
+   * Wraps RPC `b2b_voucher_issue_with_dedup(payload)` que faz dedup +
+   * create numa unica transacao com SET LOCAL transaction_isolation =
+   * 'serializable'. Elimina a race que existia entre o handler chamar
+   * findInAnySystem (4 queries em paralelo) e o RPC b2b_voucher_issue
+   * legacy: 2 parceiras mandando voucher pra mesmo phone simultaneamente
+   * podiam ambas passar pelo dedup (cada uma vendo "vazio") e ambas chegar
+   * a emitir voucher duplicado. Com serializable + FOR UPDATE em
+   * leads/b2b_vouchers/b2b_attributions, uma vence e a outra recebe
+   * SQLSTATE 40001 (serialization_failure) · esse retry abaixo cobre.
+   *
+   * Phone variants: caller passa `recipientPhone` cru · esse metodo
+   * gera `phoneVariants(recipientPhone)` e envia como jsonb array no
+   * payload (chave 'phone_variants') pra RPC checar todas as variantes.
+   *
+   * Retry: ate 3 tentativas com backoff 100ms / 300ms / 700ms quando
+   * receber serialization_failure. Outras erros nao retentam.
+   *
+   * Retorno:
+   *   - emit OK:    { ok:true, id, token, validUntil }
+   *   - dedup hit:  { ok:true, dedupHit: {...} }
+   *   - falha:      { ok:false, error }
+   */
+  async issueWithDedup(input: IssueVoucherInput): Promise<{
+    ok: boolean
+    id?: string
+    token?: string
+    validUntil?: string
+    dedupHit?: DedupHit
+    error?: string
+    retries?: number
+  }> {
+    const payload: Record<string, unknown> = {
+      partnership_id: input.partnershipId,
+    }
+    if (input.combo) payload.combo = input.combo
+    if (input.recipientName) payload.recipient_name = input.recipientName
+    if (input.recipientPhone) {
+      payload.recipient_phone = input.recipientPhone
+      const variants = phoneVariants(input.recipientPhone)
+      if (variants.length > 0) payload.phone_variants = variants
+    }
+    if (input.recipientCpf) payload.recipient_cpf = input.recipientCpf
+    if (input.validityDays != null) payload.validity_days = input.validityDays
+    if (input.notes) payload.notes = input.notes
+
+    const BACKOFFS_MS = [100, 300, 700]
+    let lastError: string | undefined
+
+    for (let attempt = 0; attempt < BACKOFFS_MS.length; attempt++) {
+      const { data, error } = await this.supabase.rpc(
+        'b2b_voucher_issue_with_dedup',
+        { p_payload: payload },
+      )
+
+      if (error) {
+        // Detect serialization_failure · PG SQLSTATE 40001.
+        // supabase-js wraps PG errors · code pode estar em error.code ou
+        // dentro da message. Cobrimos ambos.
+        const msg = String(error.message ?? '')
+        const code = (error as { code?: string }).code ?? ''
+        const isSerializationFailure =
+          code === '40001' ||
+          /could not serialize/i.test(msg) ||
+          /serialization_failure/i.test(msg)
+
+        if (isSerializationFailure && attempt < BACKOFFS_MS.length - 1) {
+          lastError = msg
+          // Backoff e retenta · race resolveu, proxima tentativa vence ou
+          // pega dedup_hit do voucher recem-criado.
+          await new Promise((resolve) => setTimeout(resolve, BACKOFFS_MS[attempt]))
+          continue
+        }
+        return {
+          ok: false,
+          error: msg || lastError || 'rpc_error',
+          retries: attempt,
+        }
+      }
+
+      const result = data as {
+        ok?: boolean
+        id?: string
+        token?: string
+        valid_until?: string
+        error?: string
+        dedup_hit?: {
+          kind: DedupHitKind
+          id: string
+          name?: string | null
+          phone?: string | null
+          since: string
+          partnership_name?: string | null
+        }
+      } | null
+
+      if (result?.dedup_hit) {
+        return {
+          ok: result.ok === true,
+          retries: attempt,
+          dedupHit: {
+            kind: result.dedup_hit.kind,
+            id: String(result.dedup_hit.id),
+            name: result.dedup_hit.name ?? null,
+            phone: String(result.dedup_hit.phone ?? input.recipientPhone ?? ''),
+            since: String(result.dedup_hit.since ?? new Date().toISOString()),
+            partnershipName: result.dedup_hit.partnership_name ?? null,
+          },
+        }
+      }
+
+      return {
+        ok: result?.ok === true,
+        id: result?.id,
+        token: result?.token,
+        validUntil: result?.valid_until,
+        error: result?.error,
+        retries: attempt,
+      }
+    }
+
+    return {
+      ok: false,
+      error: lastError ?? 'serialization_failure_max_retries',
+      retries: BACKOFFS_MS.length,
     }
   }
 
