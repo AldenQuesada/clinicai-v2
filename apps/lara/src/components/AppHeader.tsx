@@ -4,9 +4,9 @@
  */
 
 import Link from 'next/link'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
-import { LogOut, ExternalLink } from 'lucide-react'
+import { LogOut, ExternalLink, LayoutDashboard, MessageSquare } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -43,21 +43,38 @@ export async function AppHeader() {
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
 
+  // Detecta rota atual via headers (server-side · pra highlight do nav ativo)
+  const headerStore = await headers()
+  const pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
+  const isOnDashboard = pathname.startsWith('/dashboard')
+  const isOnConversas = pathname.startsWith('/conversas')
+
   return (
     <header className="h-14 shrink-0 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-5 z-20">
-      <Link href="/conversas" className="flex items-center gap-3 group">
-        <div className="w-8 h-8 rounded-pill bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold text-sm shadow-luxury-sm">
-          L
-        </div>
-        <div className="flex flex-col leading-none">
-          <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">
-            Lara
-          </span>
-          <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            Clínica AI
-          </span>
-        </div>
-      </Link>
+      <div className="flex items-center gap-6">
+        <Link href="/dashboard" className="flex items-center gap-3 group">
+          <div className="w-8 h-8 rounded-pill bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold text-sm shadow-luxury-sm">
+            L
+          </div>
+          <div className="flex flex-col leading-none">
+            <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">
+              Lara
+            </span>
+            <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+              Clínica AI
+            </span>
+          </div>
+        </Link>
+
+        <nav className="flex items-center gap-1">
+          <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} active={isOnDashboard}>
+            Dashboard
+          </NavLink>
+          <NavLink href="/conversas" icon={<MessageSquare className="w-4 h-4" />} active={isOnConversas}>
+            Conversas
+          </NavLink>
+        </nav>
+      </div>
 
       <div className="flex items-center gap-3">
         <Link
@@ -95,5 +112,31 @@ export async function AppHeader() {
         </div>
       </div>
     </header>
+  )
+}
+
+function NavLink({
+  href,
+  icon,
+  active,
+  children,
+}: {
+  href: string
+  icon: React.ReactNode
+  active: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs uppercase tracking-widest transition-colors ${
+        active
+          ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]'
+          : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
+      }`}
+    >
+      {icon}
+      {children}
+    </Link>
   )
 }
