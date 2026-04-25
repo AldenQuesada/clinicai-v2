@@ -1,21 +1,29 @@
 /**
  * Cron: lara-voucher-followup.
  *
- * Schedule: cada hora (cron `0 * * * *`).
+ * Schedule: cada hora (cron `0 * * * *`) · GitHub Actions mira-crons.yml.
  *
- * Drena candidatos de follow-up via RPC lara_voucher_followup_pick (mig 800-07):
- *   1. picker retorna items com bucket calculado (24h, 48h ou 72h)
- *   2. pra cada item: escolhe template engracado por bucket · variacao 5 templates
- *      (hash do voucher_id pra ser deterministico mas distribuido)
+ * Drena candidatos de follow-up via RPC lara_voucher_followup_pick (mig 800-07
+ * + 800-09 batch limit + picking_at lock):
+ *   0. clearStuckFollowups() · libera locks > 5min (cron crashou em execucao
+ *      anterior · log warn se cleared > 0)
+ *   1. picker retorna ate BATCH_LIMIT (10) items priorizados server-side por
+ *      bucket_priority DESC (72h > 48h > 24h) · audio_sent_at ASC.
+ *      Cada item ja vem c/ picking_at = now() setado atomicamente · 2 crons
+ *      concorrentes nao pegam os mesmos vouchers.
+ *   2. pra cada item: template engracado por bucket · 5 variacoes (hash do
+ *      voucher_id deterministico mas distribuido)
  *   3. envia via Evolution Mih (recipient_voucher dispatch)
- *   4. registra envio · markFollowupSent(voucherId, bucket) seta state cold_<bucket>
- *   5. apos enviar 72h · envia ALSO mensagem pra parceira via Mira instance
- *      ("sua indicada nao respondeu, vou marcar como lead frio")
+ *   4. markFollowupSent(voucherId, bucket) seta state cold_<bucket> +
+ *      libera picking_at (lock)
+ *   5. apos 72h · envia tambem mensagem pra parceira via Mira instance
+ *
+ * Anti-avalanche (mig 800-09): se cron atrasar e backlog acumular (ex 26
+ * vouchers Dani pendentes), pegamos 10 por execucao. 26 → 16 → 6 → 0 em 3h.
+ * Spacing 6s entre envios · 10 itens × 6s = 60s · cabe na janela.
  *
  * Audit: waProAudit.logDispatch · b2b_comm_dispatch_log com event_key
  * "lara.voucher.followup.<bucket>" e recipient_role beneficiary | partner.
- *
- * Anti-flood: 1.5s entre envios pra Mih nao saturar Evolution.
  */
 
 import { NextRequest } from 'next/server'
@@ -28,7 +36,9 @@ export const dynamic = 'force-dynamic'
 
 const log = createLogger({ app: 'mira' }).child({ cron: 'lara-voucher-followup' })
 
-const SPACING_MS = 1500
+// Batch limit (mig 800-09 anti-avalanche) · cabe em ~60s c/ spacing 6s.
+const BATCH_LIMIT = 10
+const SPACING_MS = 6000
 const SENDER_INSTANCE_MIH = process.env.EVOLUTION_INSTANCE_MIH ?? 'mih'
 const SENDER_INSTANCE_MIRA = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
 
@@ -115,11 +125,69 @@ function sleep(ms: number): Promise<void> {
 
 export async function GET(req: NextRequest) {
   return runCron(req, 'lara-voucher-followup', async ({ repos, clinicId }) => {
-    const candidates = await repos.b2bVouchers.findFollowupCandidates()
+    // Step 0 · libera vouchers stuck (cron crashou no meio de pick anterior).
+    // Roda SEMPRE antes de pickar pra evitar starvation eterna de voucher
+    // que ficou marcado picking_at mas nunca foi processado.
+    const stuck = await repos.b2bVouchers.clearStuckFollowups()
+    if (stuck.cleared > 0) {
+      log.warn(
+        { cleared: stuck.cleared },
+        'lara_voucher_followup.stuck_cleared',
+      )
+      // Audit log · marker visivel pra debugging em b2b_comm_dispatch_log/wa_pro
+      try {
+        await repos.waProAudit.logQuery({
+          msg: {
+            clinicId,
+            phone: 'system',
+            direction: 'outbound',
+            content: `lara_followup.stuck_cleared count=${stuck.cleared}`,
+            intent: 'lara.voucher.followup.stuck_cleared',
+            status: 'sent',
+          },
+          audit: {
+            clinicId,
+            phone: 'system',
+            query: 'lara_voucher_followup_clear_stuck',
+            intent: 'lara.voucher.followup.stuck_cleared',
+            rpcCalled: 'lara_voucher_followup_clear_stuck',
+            success: true,
+            resultSummary: `cleared=${stuck.cleared}`,
+          },
+        })
+      } catch {
+        // best-effort
+      }
+    }
+
+    // Step 1 · pick batch limitado (mig 800-09)
+    const candidates = await repos.b2bVouchers.findFollowupCandidates(undefined, BATCH_LIMIT)
 
     if (candidates.length === 0) {
-      return { picked: 0, sent: 0, failed: 0, partner_reports: 0 }
+      log.info({ stuck_cleared: stuck.cleared }, 'lara_voucher_followup.empty_batch')
+      return {
+        picked: 0,
+        sent: 0,
+        failed: 0,
+        partner_reports: 0,
+        stuck_cleared: stuck.cleared,
+        batch_limit: BATCH_LIMIT,
+      }
     }
+
+    log.info(
+      {
+        candidates: candidates.length,
+        batch_limit: BATCH_LIMIT,
+        stuck_cleared: stuck.cleared,
+        bucket_breakdown: {
+          '72h': candidates.filter((c) => c.bucket === '72h').length,
+          '48h': candidates.filter((c) => c.bucket === '48h').length,
+          '24h': candidates.filter((c) => c.bucket === '24h').length,
+        },
+      },
+      'lara_voucher_followup.batch.picked',
+    )
 
     const waMih = getEvolutionService('mih')
     const waMira = getEvolutionService('mira')
@@ -239,15 +307,49 @@ export async function GET(req: NextRequest) {
     }
 
     log.info(
-      { picked: candidates.length, sent, failed, partner_reports: partnerReports },
+      {
+        picked: candidates.length,
+        sent,
+        failed,
+        partner_reports: partnerReports,
+        stuck_cleared: stuck.cleared,
+        batch_limit: BATCH_LIMIT,
+      },
       'lara_voucher_followup.batch.processed',
     )
+
+    // Audit batch · marker em wa_pro_audit_log pra debugging em massa
+    try {
+      await repos.waProAudit.logQuery({
+        msg: {
+          clinicId,
+          phone: 'system',
+          direction: 'outbound',
+          content: `lara_followup.batch picked=${candidates.length} sent=${sent} failed=${failed} partner_reports=${partnerReports}`,
+          intent: 'lara.voucher.followup.batch_processed',
+          status: failed > 0 ? 'partial' : 'sent',
+        },
+        audit: {
+          clinicId,
+          phone: 'system',
+          query: 'lara_voucher_followup_pick',
+          intent: 'lara.voucher.followup.batch_processed',
+          rpcCalled: 'lara_voucher_followup_pick',
+          success: failed === 0,
+          resultSummary: `picked=${candidates.length} sent=${sent} failed=${failed} partner_reports=${partnerReports} stuck_cleared=${stuck.cleared}`,
+        },
+      })
+    } catch {
+      // best-effort
+    }
 
     return {
       picked: candidates.length,
       sent,
       failed,
       partner_reports: partnerReports,
+      stuck_cleared: stuck.cleared,
+      batch_limit: BATCH_LIMIT,
     }
   })
 }
