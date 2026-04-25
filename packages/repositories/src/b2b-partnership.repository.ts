@@ -224,6 +224,80 @@ export class B2BPartnershipRepository {
   }
 
   /**
+   * Lista comentarios de UMA parceria · ordenados por created_at DESC.
+   * Usa RPC b2b_comments_list (clinic-dashboard mig 0300).
+   */
+  async listCommentsByPartnership(
+    partnershipId: string,
+  ): Promise<Array<{ id: string; authorName: string | null; body: string; createdAt: string }>> {
+    const { data, error } = await this.supabase.rpc('b2b_comments_list', {
+      p_partnership_id: partnershipId,
+    })
+    if (error || !Array.isArray(data)) return []
+    return (data as Array<{ id: string; author_name: string | null; body: string; created_at: string }>).map((r) => ({
+      id: String(r.id),
+      authorName: r.author_name,
+      body: String(r.body),
+      createdAt: String(r.created_at),
+    }))
+  }
+
+  /**
+   * Lista comentarios CROSS-partnership da clinica · feed cronologico desc.
+   * Inclui nome da parceria via inner join · usado pela view /semana/comentarios.
+   * Best-effort: se RLS bloqueia ou tabela inexistente, retorna [].
+   */
+  async listRecentComments(
+    clinicId: string,
+    limit = 50,
+  ): Promise<Array<{
+    id: string
+    partnershipId: string
+    partnershipName: string
+    authorName: string | null
+    body: string
+    createdAt: string
+  }>> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (this.supabase
+        .from('b2b_partnership_comments') as any)
+        .select('id, partnership_id, author_name, body, created_at, b2b_partnerships(name)')
+        .eq('clinic_id', clinicId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (error || !Array.isArray(data)) return []
+      return (data as Array<{
+        id: string
+        partnership_id: string
+        author_name: string | null
+        body: string
+        created_at: string
+        b2b_partnerships?: { name?: string }
+      }>).map((r) => ({
+        id: String(r.id),
+        partnershipId: String(r.partnership_id),
+        partnershipName: String(r.b2b_partnerships?.name ?? '—'),
+        authorName: r.author_name,
+        body: String(r.body),
+        createdAt: String(r.created_at),
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Remove comentario · usa RPC b2b_comment_delete.
+   */
+  async deleteComment(id: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comment_delete', { p_id: id })
+    if (error) return { ok: false, error: error.message }
+    const result = data as { ok?: boolean; error?: string }
+    return { ok: result?.ok === true, error: result?.error }
+  }
+
+  /**
    * Adiciona comentario livre na parceria · b2b_partnership_comments (clinic-
    * dashboard mig 0300). Usado pelo handler b2b-feedback-received pra registrar
    * feedback de parceira.
