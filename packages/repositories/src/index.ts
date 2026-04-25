@@ -39,6 +39,19 @@ export {
   type PickedQueueItemDTO,
   type BatchSummaryDTO,
 } from './voucher-dispatch-queue.repository'
+export {
+  WebhookProcessingQueueRepository,
+  type WebhookQueueDTO,
+  type WebhookQueueStatus,
+  type WebhookQueueSource,
+  type WebhookQueueRole,
+  type EnqueueWebhookInput,
+  type EnqueueWebhookResultDTO,
+  type PickedWebhookItemDTO,
+  type WebhookCompleteResultDTO,
+  type WebhookFailResultDTO,
+  type WebhookResetStuckResultDTO,
+} from './webhook-processing-queue.repository'
 export { B2BAttributionRepository, type B2BAttributionDTO } from './b2b-attribution.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
