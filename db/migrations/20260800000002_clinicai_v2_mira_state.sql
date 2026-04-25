@@ -31,15 +31,69 @@
 -- ║ GOLD #10: NOTIFY pgrst reload schema.                                    ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 
--- ── Tabela ──────────────────────────────────────────────────────────────
+-- ── Tabela · evolui versao do clinic-dashboard 0375 ─────────────────────
+-- Versao prod atual tem PK(phone) e coluna `state jsonb`. Evoluimos:
+--   1. Cria tabela se nao existir (greenfield)
+--   2. Se existir, adiciona state_key + state_value, migra dados, troca PK
+--
+-- Migracao de dados: linhas existentes ganham state_key='legacy' com o jsonb
+-- antigo copiado pra state_value. Compatibilidade: edge function da
+-- clinic-dashboard nao roda mais (Mira live so na clinicai-v2), entao ok.
 CREATE TABLE IF NOT EXISTS public.mira_conversation_state (
   phone        text   NOT NULL,
-  state_key    text   NOT NULL,
+  state_key    text   NOT NULL DEFAULT 'legacy',
   state_value  jsonb  NOT NULL DEFAULT '{}'::jsonb,
   updated_at   timestamptz NOT NULL DEFAULT now(),
-  expires_at   timestamptz NOT NULL,
-  PRIMARY KEY (phone, state_key)
+  expires_at   timestamptz NOT NULL DEFAULT (now() + interval '15 minutes')
 );
+
+-- ── Migracao schema (caso tabela ja exista com schema antigo) ───────────
+DO $$
+DECLARE
+  v_has_state_col      boolean;
+  v_has_state_key_col  boolean;
+  v_has_state_value    boolean;
+BEGIN
+  SELECT EXISTS(SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='mira_conversation_state'
+                  AND column_name='state')
+    INTO v_has_state_col;
+  SELECT EXISTS(SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='mira_conversation_state'
+                  AND column_name='state_key')
+    INTO v_has_state_key_col;
+  SELECT EXISTS(SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='mira_conversation_state'
+                  AND column_name='state_value')
+    INTO v_has_state_value;
+
+  -- Adiciona state_key e state_value se ausentes
+  IF NOT v_has_state_key_col THEN
+    ALTER TABLE public.mira_conversation_state
+      ADD COLUMN state_key text NOT NULL DEFAULT 'legacy';
+  END IF;
+  IF NOT v_has_state_value THEN
+    ALTER TABLE public.mira_conversation_state
+      ADD COLUMN state_value jsonb NOT NULL DEFAULT '{}'::jsonb;
+  END IF;
+
+  -- Migra `state` antigo pra `state_value` (se nao migrado ainda)
+  IF v_has_state_col AND NOT v_has_state_value THEN
+    UPDATE public.mira_conversation_state
+       SET state_value = state
+     WHERE state IS NOT NULL AND state_value = '{}'::jsonb;
+  END IF;
+
+  -- Troca PK pra composta (drop antiga · cria nova)
+  BEGIN
+    ALTER TABLE public.mira_conversation_state DROP CONSTRAINT IF EXISTS mira_conversation_state_pkey;
+    ALTER TABLE public.mira_conversation_state ADD CONSTRAINT mira_conversation_state_pkey
+      PRIMARY KEY (phone, state_key);
+  EXCEPTION WHEN duplicate_table THEN
+    -- PK ja existe na forma desejada · ignora
+    NULL;
+  END;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_mira_state_expires
   ON public.mira_conversation_state (expires_at);
