@@ -1,0 +1,18 @@
+# nixpacks.toml · Mira (Easypanel build alternativo a Dockerfile)
+# Mirror do apps/lara/nixpacks.toml padrão.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "corepack"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@9.15.0 --activate",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = ["pnpm turbo run build --filter=@clinicai/mira"]
+
+[start]
+cmd = "node apps/mira/.next/standalone/apps/mira/server.js"

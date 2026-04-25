@@ -1,0 +1,16 @@
+/**
+ * Mira · globals.css.
+ *
+ * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
+ * vivem em packages/ui/styles/globals.css. Mira reusa o re-skin Mirian já
+ * cravado pela Lara · single source of truth pra branding.
+ */
+
+@import "@clinicai/ui/styles/globals.css";
+
+@layer base {
+  body {
+    background-color: hsl(60 5% 7%);
+    color: hsl(38 35% 92%);
+  }
+}

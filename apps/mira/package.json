@@ -1,0 +1,45 @@
+{
+  "name": "@clinicai/mira",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3006",
+    "build": "next build --webpack",
+    "start": "next start -p 3006",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@clinicai/ai": "workspace:*",
+    "@clinicai/logger": "workspace:*",
+    "@clinicai/repositories": "workspace:*",
+    "@clinicai/supabase": "workspace:*",
+    "@clinicai/ui": "workspace:*",
+    "@clinicai/utils": "workspace:*",
+    "@clinicai/whatsapp": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@supabase/ssr": "catalog:",
+    "date-fns": "catalog:",
+    "groq-sdk": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "uuid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@clinicai/tsconfig": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@types/uuid": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-next": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}
