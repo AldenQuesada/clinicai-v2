@@ -34,15 +34,20 @@ import { runCron } from '@/lib/cron'
 import { extractEvolutionMessage } from '@/lib/webhook/evolution-extract'
 import { processWebhookMessage } from '@/lib/webhook/process-message'
 import type { Role } from '@/lib/webhook/role-resolver'
-import { createLogger } from '@clinicai/logger'
+import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
+import { alertSlack } from '@/lib/alerts'
 
 export const dynamic = 'force-dynamic'
 
-const log = createLogger({ app: 'mira' }).child({ cron: 'webhook-processing-worker' })
+// Logger com alerts integrados (F6) · .error/.warn disparam Sentry/Slack.
+const log = createLoggerWithAlerts({ app: 'mira' }).child({ cron: 'webhook-processing-worker' })
 
 const PICK_LIMIT = 5
 const SPACING_MS = 1000
 const STUCK_THRESHOLD_MIN = 5
+// F6 · queue >50 pending e sinal de cron nao drenando (Easypanel offline,
+// rate limit Anthropic/Groq, etc) · alerta humano pra investigar.
+const QUEUE_BACKLOG_THRESHOLD = 50
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,9 +55,48 @@ function sleep(ms: number): Promise<void> {
 
 export async function GET(req: NextRequest) {
   return runCron(req, 'webhook-processing-worker', async ({ repos, clinicId }) => {
+    // F6 · backlog check ANTES de processar · se queue tem >50 pending,
+    // cron nao esta dando conta (worker derrubado, dependencia lenta, deploy
+    // travado). Alerta antes mesmo de tentar drenar.
+    try {
+      const pendingCount = await repos.webhookQueue.count(clinicId, {
+        status: 'pending',
+      })
+      if (pendingCount > QUEUE_BACKLOG_THRESHOLD) {
+        void alertSlack(
+          `webhook_worker.queue_backlog: ${pendingCount} mensagens pending (>${QUEUE_BACKLOG_THRESHOLD})`,
+          'warn',
+          {
+            handler: 'webhook-processing-worker',
+            clinic_id: clinicId,
+            pending_count: pendingCount,
+            threshold: QUEUE_BACKLOG_THRESHOLD,
+          },
+        )
+        log.warn(
+          { pending_count: pendingCount, threshold: QUEUE_BACKLOG_THRESHOLD },
+          'webhook_worker.queue_backlog',
+        )
+      }
+    } catch (e) {
+      // Best-effort · count nao pode quebrar o drain
+      log.error({ err: e instanceof Error ? e.message : e }, 'webhook_worker.count_failed')
+    }
+
     // Step 0 · circuit breaker (mig 800-11 anti-zumbi)
     const reset = await repos.webhookQueue.resetStuck(STUCK_THRESHOLD_MIN)
     if (reset.resetCount > 0) {
+      void alertSlack(
+        `webhook_worker.reset_stuck: ${reset.resetCount} items travados >${reset.thresholdMinutes}min`,
+        'warn',
+        {
+          handler: 'webhook-processing-worker',
+          clinic_id: clinicId,
+          reset_count: reset.resetCount,
+          threshold_minutes: reset.thresholdMinutes,
+          items: reset.items,
+        },
+      )
       log.warn(
         {
           reset_count: reset.resetCount,

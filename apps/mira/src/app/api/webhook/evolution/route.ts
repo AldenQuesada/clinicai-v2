@@ -35,9 +35,11 @@ import { extractEvolutionMessage } from '@/lib/webhook/evolution-extract'
 import { resolveRole } from '@/lib/webhook/role-resolver'
 import { dedupCheckAndMark } from '@/lib/webhook/state-machine'
 import { processWebhookMessage } from '@/lib/webhook/process-message'
-import { createLogger } from '@clinicai/logger'
+import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
+import { alertCritical } from '@/lib/alerts'
 
-const log = createLogger({ app: 'mira' })
+// F6 · logger com alerts integrados · .error() dispara Sentry alem do Pino.
+const log = createLoggerWithAlerts({ app: 'mira' })
 
 export const dynamic = 'force-dynamic'
 
@@ -66,9 +68,16 @@ function isAsyncEnabled(): boolean {
 export async function POST(req: NextRequest) {
   const t0 = Date.now()
 
+  try {
   // 1. Auth
   const secret = process.env.EVOLUTION_WEBHOOK_SECRET ?? ''
   if (!secret) {
+    // F6 · misconfig em prod e P0 · alerta humano + Sentry pra rastreio
+    void alertCritical(
+      'evolution.webhook.missing_secret: EVOLUTION_WEBHOOK_SECRET nao configurado',
+      new Error('EVOLUTION_WEBHOOK_SECRET ausente em runtime'),
+      { handler: 'evolution-webhook' },
+    )
     log.error({}, 'mira.webhook.missing_secret')
     return jsonRes({ ok: false, error: 'server_misconfigured' }, 500)
   }
@@ -126,6 +135,10 @@ export async function POST(req: NextRequest) {
     })
 
     if (!enq.ok) {
+      // F6 · enqueue fail = Mira nao processa mensagem · 500 retornado pro
+      // Evolution que tentara reenviar. Loga + Sentry pra investigacao.
+      // Slack via wrapper rate-limited (.error dispara Sentry, nao Slack ·
+      // bursts de enqueue fail iam saturar canal humano).
       log.error(
         { phone: msg.phone, wa_message_id: msg.messageId, error: enq.error },
         'mira.webhook.enqueue_failed',
@@ -177,6 +190,17 @@ export async function POST(req: NextRequest) {
   })
 
   if (!result.ok) {
+    // F6 · sync path 500 · alerta critical (Sentry + Slack) pra investigar
+    void alertCritical(
+      `evolution.webhook.sync_500: ${result.error ?? 'unknown'}`,
+      new Error(result.error ?? 'sync_processing_failed'),
+      {
+        handler: 'evolution-webhook',
+        clinic_id: clinicId,
+        wa_message_id: msg.messageId,
+        role,
+      },
+    )
     return jsonRes(
       { ok: false, error: result.error, wa_message_id: msg.messageId },
       500,
@@ -202,6 +226,21 @@ export async function POST(req: NextRequest) {
     actions_count: result.actionsCount,
     response_ms: result.responseMs,
   })
+  } catch (err) {
+    // F6 · catch externo · qualquer exception nao tratada vira 500 com alert
+    // critical (Sentry + Slack). Inclui erros de Supabase, RPC fail, etc.
+    const errObj = err instanceof Error ? err : new Error(String(err))
+    void alertCritical(
+      `evolution.webhook.unhandled_exception: ${errObj.message}`,
+      errObj,
+      { handler: 'evolution-webhook' },
+    )
+    log.error(
+      { err: errObj.message, stack: errObj.stack },
+      'mira.webhook.unhandled_exception',
+    )
+    return jsonRes({ ok: false, error: 'internal_error' }, 500)
+  }
 }
 
 // ── GET: health/handshake ────────────────────────────────────────────────

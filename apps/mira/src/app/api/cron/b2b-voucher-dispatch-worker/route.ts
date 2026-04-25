@@ -32,11 +32,14 @@
 
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
-import { createLogger } from '@clinicai/logger'
+import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
+import { alertSlack } from '@/lib/alerts'
 
 export const dynamic = 'force-dynamic'
 
-const log = createLogger({ app: 'mira' }).child({ cron: 'b2b-voucher-dispatch-worker' })
+// Logger com alerts integrados (F6) · .error()/.warn() disparam Sentry/Slack
+// alem do log Pino normal. Rate-limited via ALERT_THRESHOLD_WARN_RATE_PER_MIN.
+const log = createLoggerWithAlerts({ app: 'mira' }).child({ cron: 'b2b-voucher-dispatch-worker' })
 
 const PICK_LIMIT = 10
 const SPACING_MS = 2000
@@ -52,6 +55,21 @@ export async function GET(req: NextRequest) {
     // Resgata items processing travados > 5min antes de pickar mais.
     const reset = await repos.voucherQueue.resetStuck(STUCK_THRESHOLD_MIN)
     if (reset.resetCount > 0) {
+      // F6 · alerta humano explicito · race detected significa que algum
+      // worker travou (crash mid-flight, deploy, RPC lenta) e items ficaram
+      // presos. Slack avisa pra investigar antes que vire incidente como
+      // o de 26 vouchers em 2026-04-25.
+      void alertSlack(
+        `voucher_dispatch.reset_stuck: ${reset.resetCount} items travados >${reset.thresholdMinutes}min`,
+        'warn',
+        {
+          handler: 'b2b-voucher-dispatch-worker',
+          clinic_id: clinicId,
+          reset_count: reset.resetCount,
+          threshold_minutes: reset.thresholdMinutes,
+          items: reset.items,
+        },
+      )
       log.warn(
         {
           reset_count: reset.resetCount,

@@ -16,20 +16,25 @@
 
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
-import { createLogger } from '@clinicai/logger'
+import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
+import { alertSlack } from '@/lib/alerts'
 import { renderReminder } from '@/lib/webhook/reminder-templates'
 import { getEvolutionService } from '@/services/evolution.service'
 
 export const dynamic = 'force-dynamic'
 
-const log = createLogger({ app: 'mira' }).child({ cron: 'mira-state-cleanup' })
+// Logger com alerts integrados (F6) · .warn() dispara Slack alem do log Pino.
+const log = createLoggerWithAlerts({ app: 'mira' }).child({ cron: 'mira-state-cleanup' })
 
 // Threshold: cron roda a cada 10min (cleanup) ou 1min (reminder)
 // 50+ states expirados numa unica rodada e sinal de:
 //   · TTL muito agressivo (ex: ttl_minutes=1 acidental)
 //   · Acumulo (cron parou e voltou)
 //   · Volume real anormal (parceria nova com 100 vouchers em batch)
+//
+// F6: 100+ states e anomalia critica · alerta direto pro Slack alem do warn.
 const EXCESSIVE_CLEANUP_THRESHOLD = 50
+const CRITICAL_CLEANUP_THRESHOLD = 100
 
 export async function GET(req: NextRequest) {
   return runCron(req, 'mira-state-cleanup', async ({ repos, clinicId }) => {
@@ -37,6 +42,21 @@ export async function GET(req: NextRequest) {
 
     if (cleaned > 0) {
       if (cleaned > EXCESSIVE_CLEANUP_THRESHOLD) {
+        // F6 · alerta humano explicito quando passa de 100 (critical) ·
+        // log.warn ja dispara Slack rate-limited mas critical merece
+        // bypass do rate limit + severidade error.
+        if (cleaned > CRITICAL_CLEANUP_THRESHOLD) {
+          void alertSlack(
+            `state.cleanup.critical: ${cleaned} states expirados em uma rodada`,
+            'error',
+            {
+              handler: 'mira-state-cleanup',
+              clinic_id: clinicId,
+              count: cleaned,
+              threshold: CRITICAL_CLEANUP_THRESHOLD,
+            },
+          )
+        }
         log.warn(
           { count: cleaned, threshold: EXCESSIVE_CLEANUP_THRESHOLD },
           'state.cleanup.excessive',

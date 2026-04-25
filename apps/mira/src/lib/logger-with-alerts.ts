@@ -111,7 +111,12 @@ function wrapLogger(log: Logger): Logger {
       }
       if (prop === 'child') {
         return function wrappedChild(...args: unknown[]) {
-          const child = (target.child as (...a: unknown[]) => Logger).apply(target, args)
+          // Cast via unknown · child() generics complexas do Pino nao batem
+          // com nosso wrapper, mas runtime e identico (apply transparente).
+          const child = (target.child as unknown as (...a: unknown[]) => Logger).apply(
+            target,
+            args,
+          )
           return wrapLogger(child)
         }
       }
