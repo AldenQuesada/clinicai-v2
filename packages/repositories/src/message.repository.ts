@@ -1,0 +1,215 @@
+/**
+ * MessageRepository · acesso canonico a `wa_messages`.
+ *
+ * Multi-tenant ADR-028 · clinic_id explicito em saves (insert) · listagens
+ * por conversation_id ja escopa indiretamente porque conv tem clinic_id.
+ *
+ * Dedup soft de Meta retry · janela default 60s (mesma regra do webhook legado).
+ */
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
+import {
+  mapMessageRow,
+  type MessageDTO,
+  type SaveInboundMessageInput,
+  type SaveOutboundMessageInput,
+} from './types'
+
+export interface AIHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export class MessageRepository {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
+
+  async listByConversation(
+    conversationId: string,
+    opts: { limit?: number; ascending?: boolean } = {},
+  ): Promise<MessageDTO[]> {
+    const ascending = opts.ascending ?? true
+    let q = this.supabase
+      .from('wa_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('sent_at', { ascending })
+
+    if (opts.limit) q = q.limit(opts.limit)
+    const { data } = await q
+    return (data ?? []).map(mapMessageRow)
+  }
+
+  /**
+   * Salva mensagem inbound (paciente · sender='user').
+   * Caller passa clinic_id resolvido do tenant context (ADR-028).
+   */
+  async saveInbound(
+    clinicId: string,
+    input: SaveInboundMessageInput,
+  ): Promise<string | null> {
+    const id = uuidv4()
+    const { error } = await this.supabase.from('wa_messages').insert({
+      id,
+      clinic_id: clinicId,
+      conversation_id: input.conversationId,
+      phone: input.phone,
+      direction: 'inbound',
+      sender: 'user',
+      content: input.content,
+      content_type: input.contentType ?? 'text',
+      media_url: input.mediaUrl ?? null,
+      status: 'received',
+      sent_at: input.sentAt ?? new Date().toISOString(),
+    })
+    if (error) return null
+    return id
+  }
+
+  async saveOutbound(
+    clinicId: string,
+    input: SaveOutboundMessageInput,
+  ): Promise<string | null> {
+    const id = input.id ?? uuidv4()
+    const { error } = await this.supabase.from('wa_messages').insert({
+      id,
+      clinic_id: clinicId,
+      conversation_id: input.conversationId,
+      direction: 'outbound',
+      sender: input.sender,
+      content: input.content,
+      content_type: input.contentType ?? 'text',
+      media_url: input.mediaUrl ?? null,
+      status: input.status ?? 'pending',
+      sent_at: input.sentAt ?? new Date().toISOString(),
+    })
+    if (error) return null
+    return id
+  }
+
+  async updateStatus(messageId: string, status: string): Promise<void> {
+    await this.supabase.from('wa_messages').update({ status }).eq('id', messageId)
+  }
+
+  /**
+   * Detecta retry da Meta · mesmo content na mesma conv nos últimos N segundos.
+   * Returns true se duplicata · caller deve abortar.
+   */
+  async findRecentDuplicate(
+    conversationId: string,
+    content: string,
+    windowSeconds = 60,
+  ): Promise<boolean> {
+    const since = new Date(Date.now() - windowSeconds * 1000).toISOString()
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('content', content)
+      .gte('sent_at', since)
+      .maybeSingle()
+
+    return !!data
+  }
+
+  /**
+   * Verifica se chegou nova mensagem inbound apos `sentAt` · usado pelo
+   * debounce de 5s (agrupa fotos/áudios disparados juntos).
+   */
+  async hasInboundAfter(conversationId: string, sentAt: string): Promise<boolean> {
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('sent_at')
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'inbound')
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!data) return false
+    // 10ms grace pra clock skew
+    return new Date(data.sent_at).getTime() > new Date(sentAt).getTime() + 10
+  }
+
+  /**
+   * Conta inbound numa conv · usado pelo selector de fixed responses
+   * (ai.service.getFixedResponse depende de message_count).
+   */
+  async countInbound(conversationId: string): Promise<number> {
+    const { count } = await this.supabase
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'inbound')
+    return count ?? 0
+  }
+
+  /**
+   * Conta outbound da Lara nas últimas N horas · usado pelo guard daily limit.
+   */
+  async countLaraOutboundSince(
+    conversationId: string,
+    sinceIso: string,
+  ): Promise<number> {
+    const { count } = await this.supabase
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'outbound')
+      .eq('sender', 'lara')
+      .gte('sent_at', sinceIso)
+    return count ?? 0
+  }
+
+  /**
+   * Histórico ultimas N mensagens em formato Anthropic (role=user/assistant).
+   * Inbound vira 'user', outbound vira 'assistant'.
+   */
+  async getHistoryForAI(
+    conversationId: string,
+    limit = 30,
+  ): Promise<AIHistoryMessage[]> {
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('direction, content')
+      .eq('conversation_id', conversationId)
+      .order('sent_at', { ascending: true })
+      .limit(limit)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((h: any) => ({
+      role: (h.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: String(h.content ?? ''),
+    }))
+  }
+
+  /**
+   * Counts in/out por janela temporal (dashboard cards).
+   * Returns { inbound, outbound } pra evitar 2 queries no caller.
+   */
+  async countByDirection(
+    clinicId: string,
+    sinceIso: string,
+  ): Promise<{ inbound: number; outbound: number }> {
+    const [inbound, outbound] = await Promise.all([
+      this.supabase
+        .from('wa_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .eq('direction', 'inbound')
+        .gte('sent_at', sinceIso),
+      this.supabase
+        .from('wa_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .eq('direction', 'outbound')
+        .gte('sent_at', sinceIso),
+    ])
+
+    return {
+      inbound: inbound.count ?? 0,
+      outbound: outbound.count ?? 0,
+    }
+  }
+}
