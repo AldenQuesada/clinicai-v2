@@ -676,23 +676,38 @@ BEGIN
         WHERE c LIKE 'search_path=%'
      );
 
-  -- GRANT pra anon (nao deveria existir)
-  SELECT array_agg(routine_name)
+  -- GRANT pra anon (nao deveria existir) · SO checa overloads (uuid) criados nesta mig
+  -- (overloads legadas (p_phone text) do clinic-dashboard antigo permanecem com
+  -- grants pra anon · debito documentado em docs/audits/2026-04-25-wa-pro-rpcs-audit.md;
+  -- nao removemos aqui pra nao quebrar o painel CRM antigo que ainda chama via PostgREST anon)
+  SELECT array_agg(p.proname)
     INTO v_grants_anon
-    FROM information_schema.role_routine_grants
-   WHERE specific_schema = 'public'
-     AND routine_name    = ANY(v_expected)
-     AND grantee         = 'anon'
-     AND privilege_type  = 'EXECUTE';
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    JOIN information_schema.role_routine_grants r
+      ON r.specific_schema = n.nspname
+     AND r.routine_name    = p.proname
+     AND r.specific_name   = p.proname || '_' || p.oid
+   WHERE n.nspname = 'public'
+     AND p.proname = ANY(v_expected)
+     AND oidvectortypes(p.proargtypes) = 'uuid'
+     AND r.grantee = 'anon'
+     AND r.privilege_type = 'EXECUTE';
 
-  -- GRANT pra PUBLIC (nao deveria existir)
-  SELECT array_agg(routine_name)
+  -- GRANT pra PUBLIC (nao deveria existir) · SO checa overloads (uuid)
+  SELECT array_agg(p.proname)
     INTO v_grants_public
-    FROM information_schema.role_routine_grants
-   WHERE specific_schema = 'public'
-     AND routine_name    = ANY(v_expected)
-     AND grantee         = 'PUBLIC'
-     AND privilege_type  = 'EXECUTE';
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    JOIN information_schema.role_routine_grants r
+      ON r.specific_schema = n.nspname
+     AND r.routine_name    = p.proname
+     AND r.specific_name   = p.proname || '_' || p.oid
+   WHERE n.nspname = 'public'
+     AND p.proname = ANY(v_expected)
+     AND oidvectortypes(p.proargtypes) = 'uuid'
+     AND r.grantee = 'PUBLIC'
+     AND r.privilege_type = 'EXECUTE';
 
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'D1 sanity FAIL · faltam RPCs (uuid): %', v_missing;
