@@ -28,11 +28,6 @@ function makeStub(name: string, replyText: string): Handler {
   })
 }
 
-export const b2bReferLeadHandler = makeStub(
-  'b2b-refer-lead',
-  'Quem ótimo! 🎉 Anota seu nome + telefone que vou registrar. (Indicação completa entra em deploy P0.5.)',
-)
-
 export const b2bAdminApproveHandler = makeStub(
   'b2b-admin-approve',
   ADMIN_FALLBACK,
