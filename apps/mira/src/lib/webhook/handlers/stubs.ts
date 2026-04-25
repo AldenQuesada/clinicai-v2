@@ -28,11 +28,6 @@ function makeStub(name: string, replyText: string): Handler {
   })
 }
 
-export const b2bCreatePartnershipHandler = makeStub(
-  'b2b-create-partnership',
-  ADMIN_FALLBACK + ' Cadastro de parceria nova entra na P0.5 com wizard 7-turno.',
-)
-
 export const b2bFeedbackReceivedHandler = makeStub(
   'b2b-feedback-received',
   'Que ótimo! Adoro ouvir 💛 já anotei pra Mirian saber também.',
