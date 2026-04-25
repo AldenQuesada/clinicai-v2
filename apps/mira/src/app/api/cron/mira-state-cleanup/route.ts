@@ -2,23 +2,50 @@
  * Cron: state cleanup + reminder dispatch.
  *
  * Easypanel cron faz GET com header `x-cron-secret: <MIRA_CRON_SECRET>`.
- * - Limpa states expirados (mira_state_cleanup_expired)
+ * - Limpa states expirados (mira_state_cleanup_expired · mig 800-10 · 2min buffer)
  * - Dispara reminder messages (mira_state_reminder_check)
  *
  * Frequencia recomendada: a cada 1min (reminder precisa de granularidade).
  * pg_cron tambem faz o mesmo · belt-and-suspenders.
+ *
+ * Telemetria (mig 800-10 · F3):
+ *   · state.cleanup.batch · count de rows deleted
+ *   · state.cleanup.excessive · WARN se count > 50 numa rodada (TTL agressivo
+ *     OU acumulo · pode indicar bug em mira_state_set ttl_minutes)
  */
 
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
+import { createLogger } from '@clinicai/logger'
 import { renderReminder } from '@/lib/webhook/reminder-templates'
 import { getEvolutionService } from '@/services/evolution.service'
 
 export const dynamic = 'force-dynamic'
 
+const log = createLogger({ app: 'mira' }).child({ cron: 'mira-state-cleanup' })
+
+// Threshold: cron roda a cada 10min (cleanup) ou 1min (reminder)
+// 50+ states expirados numa unica rodada e sinal de:
+//   · TTL muito agressivo (ex: ttl_minutes=1 acidental)
+//   · Acumulo (cron parou e voltou)
+//   · Volume real anormal (parceria nova com 100 vouchers em batch)
+const EXCESSIVE_CLEANUP_THRESHOLD = 50
+
 export async function GET(req: NextRequest) {
   return runCron(req, 'mira-state-cleanup', async ({ repos, clinicId }) => {
     const cleaned = await repos.miraState.cleanupExpired()
+
+    if (cleaned > 0) {
+      if (cleaned > EXCESSIVE_CLEANUP_THRESHOLD) {
+        log.warn(
+          { count: cleaned, threshold: EXCESSIVE_CLEANUP_THRESHOLD },
+          'state.cleanup.excessive',
+        )
+      } else {
+        log.info({ count: cleaned }, 'state.cleanup.batch')
+      }
+    }
+
     const reminders = await repos.miraState.reminderCheck()
 
     let sent = 0
