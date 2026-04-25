@@ -1,19 +1,17 @@
 /**
- * Mira · AppHeader · 2 niveis sticky no topo (Father section + sub-tabs).
+ * Mira · AppHeader · 2 niveis sticky no topo (SECTION + sub-tabs).
  *
- * Identidade visual: espelho do painel B2B antigo (b2b-partners.html) ·
- * Cormorant Garamond pro logo display, Montserrat 600 uppercase pras labels.
+ * Hierarquia CANONICA replicada 1:1 do clinic-dashboard b2b-shell.ui.js:
+ *   1. Geral          · Ativas / Prospects / Candidatos / Candidaturas /
+ *                       Inativas / Mapa / Saude / Gaps / Encerramentos
+ *   2. Disparos       · Templates / Segmento
+ *   3. Analytics      · Overview / NPS
+ *   4. Configurações  · Admins / Padroes / Saude / Auditoria / Sobre
  *
- * Estrutura (combate obesidade mental, agrupado por frequencia de uso):
- *   1. Hoje    · operacao diaria (caixa do dia, vouchers, conversas, saude)
- *   2. Semana  · revisao recorrente (parcerias, performance, renovacoes ...)
- *   3. Estudio · setup pontual (templates, cadastrar, combos, admins ...)
+ * Cada sub-tab aponta pra rota Next existente (quando ja foi migrada) OU
+ * marca "em breve" pra rotas que ainda precisam ser portadas do antigo.
  *
  * Quick actions sempre visiveis: + Voucher, + Parceria, busca CTRL+K.
- *
- * Sub-tabs renderizadas dinamicamente conforme section ativa (detectada via
- * pathname). Telas que ainda nao existem aparecem como sub-tab desabilitada
- * com badge "em breve".
  */
 
 import Link from 'next/link'
@@ -34,7 +32,7 @@ type SubTab = {
 }
 
 type Section = {
-  key: 'hoje' | 'semana' | 'estudio'
+  key: 'geral' | 'disparos' | 'analytics' | 'config'
   label: string
   defaultHref: string
   subtabs: SubTab[]
@@ -44,49 +42,79 @@ type Section = {
 
 const SECTIONS: Section[] = [
   {
-    key: 'hoje',
-    label: 'Hoje',
-    defaultHref: '/dashboard',
-    match: ['/hoje', '/dashboard', '/vouchers'],
-    subtabs: [
-      { href: '/dashboard', label: 'Caixa do dia', available: true },
-      { href: '/vouchers', label: 'Vouchers em curso', available: true },
-      { href: '/hoje/conversas', label: 'Conversas', available: true },
-      { href: '/configuracoes?tab=overview', label: 'Saúde do sistema', available: true },
-    ],
-  },
-  {
-    key: 'semana',
-    label: 'Semana',
+    key: 'geral',
+    label: 'Geral',
     defaultHref: '/partnerships',
-    match: ['/semana', '/partnerships'],
+    match: [
+      '/partnerships',
+      '/dashboard',
+      '/hoje',
+      '/semana',
+      '/vouchers',
+      '/b2b/candidatos',
+      '/b2b/candidaturas',
+      '/b2b/mapa',
+    ],
     subtabs: [
-      { href: '/partnerships', label: 'Pulse de parcerias', available: true },
+      { href: '/partnerships?status=active', label: 'Ativas', available: true },
+      { href: '/partnerships?status=prospect', label: 'Prospects', available: true },
+      { href: '/b2b/candidatos', label: 'Candidatos', available: false },
+      { href: '/b2b/candidaturas', label: 'Candidaturas', available: false },
+      { href: '/partnerships?status=closed', label: 'Inativas', available: true },
+      { href: '/b2b/mapa', label: 'Mapa', available: false },
+      { href: '/semana/performance', label: 'Saúde', available: true },
       { href: '/semana/gaps', label: 'Gaps do plano', available: true },
-      { href: '/semana/performance', label: 'Performance', available: true },
-      { href: '/semana/renovacoes', label: 'Renovações', available: true },
-      { href: '/semana/comentarios', label: 'Comentários', available: true },
       { href: '/semana/encerramentos', label: 'Encerramentos', available: true },
-      { href: '/semana/relatorios', label: 'Relatórios', available: true },
     ],
   },
   {
-    key: 'estudio',
-    label: 'Estúdio',
+    key: 'disparos',
+    label: 'Disparos',
     defaultHref: '/templates',
-    match: ['/estudio', '/templates', '/configuracoes'],
+    match: ['/templates', '/b2b/segmento'],
     subtabs: [
-      { href: '/templates', label: 'Templates WA', available: true },
-      { href: '/estudio/cadastrar', label: 'Cadastrar parceria', available: true },
-      { href: '/estudio/combos', label: 'Combos voucher', available: true },
-      { href: '/configuracoes?tab=professionals', label: 'Admins WhatsApp', available: true },
-      { href: '/configuracoes?tab=channels', label: 'Channels Evolution', available: true },
-      { href: '/estudio/padroes', label: 'Padrões clínica', available: true },
-      { href: '/configuracoes?tab=logs', label: 'Diagnóstico', available: true },
-      { href: '/estudio/lgpd', label: 'LGPD', available: true },
+      { href: '/templates', label: 'Templates', available: true },
+      { href: '/b2b/segmento', label: 'Segmento', available: false },
+    ],
+  },
+  {
+    key: 'analytics',
+    label: 'Analytics',
+    defaultHref: '/semana/relatorios',
+    match: ['/analytics', '/semana/relatorios', '/b2b/nps'],
+    subtabs: [
+      { href: '/semana/relatorios', label: 'Overview', available: true },
+      { href: '/b2b/nps', label: 'NPS', available: false },
+    ],
+  },
+  {
+    key: 'config',
+    label: 'Configurações',
+    defaultHref: '/configuracoes?tab=professionals',
+    match: ['/configuracoes', '/estudio'],
+    subtabs: [
+      { href: '/configuracoes?tab=professionals', label: 'Admins', available: true },
+      { href: '/estudio/padroes', label: 'Padrões', available: true },
+      { href: '/configuracoes?tab=overview', label: 'Saúde', available: true },
+      { href: '/configuracoes?tab=logs', label: 'Auditoria', available: true },
       { href: '/estudio/sobre', label: 'Sobre', available: true },
     ],
   },
+]
+
+// Sub-tabs LEGADAS que ainda existem como rota mas nao fazem parte da
+// hierarquia canonica · ficam acessiveis via URL direta mas nao aparecem
+// no menu (evita confusao). Listadas aqui pra detectActiveSection saber
+// que pertencem a Geral por default.
+const LEGACY_PATHS = [
+  '/hoje',
+  '/semana/comentarios',
+  '/semana/renovacoes',
+  '/estudio/cadastrar',
+  '/estudio/combos',
+  '/estudio/lgpd',
+  '/vouchers/novo',
+  '/vouchers/bulk',
 ]
 
 function detectActiveSection(pathname: string): Section {
@@ -95,7 +123,9 @@ function detectActiveSection(pathname: string): Section {
       if (pathname === m || pathname.startsWith(m + '/')) return s
     }
   }
-  return SECTIONS[0] // default Hoje
+  // Legacy paths default to Geral
+  if (LEGACY_PATHS.some((p) => pathname.startsWith(p))) return SECTIONS[0]
+  return SECTIONS[0] // default Geral
 }
 
 function detectActiveSubtab(
