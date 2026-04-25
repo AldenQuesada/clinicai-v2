@@ -16,6 +16,7 @@ import { cookies } from 'next/headers'
 import { createServerClient, requireClinicContext } from '@clinicai/supabase'
 import { Settings, AlertTriangle } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
+import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -186,6 +187,11 @@ export default async function ConfiguracoesPage() {
             </button>
           </div>
         </form>
+
+        {/* Settings client-side · per-device · localStorage */}
+        <div className="mt-6">
+          <NotificationSettingsPanel />
+        </div>
       </div>
     </main>
   )

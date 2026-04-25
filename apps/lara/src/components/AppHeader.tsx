@@ -8,6 +8,7 @@ import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
 import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
+import { NotificationToggle } from '@/components/NotificationToggle'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
 
@@ -94,6 +95,8 @@ export async function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        <NotificationToggle />
+
         <Link
           href={PAINEL_URL}
           target="_blank"

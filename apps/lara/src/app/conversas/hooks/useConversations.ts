@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { readNotificationSettings } from '@/hooks/useNotificationSettings';
 
 export interface Conversation {
   conversation_id: string;
@@ -86,12 +87,8 @@ export function useConversations() {
     selectedIdRef.current = selectedConversation?.conversation_id || null;
   }, [selectedConversation]);
 
-  // Request Notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission !== 'denied' && Notification.permission !== 'granted') {
-      Notification.requestPermission();
-    }
-  }, []);
+  // Permission gating moveu pro NotificationPermissionBanner · evita prompt
+  // automatico no mount (browsers modernos bloqueiam sem user gesture).
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -129,20 +126,25 @@ export function useConversations() {
         }
         
         if (hasNewActivity) {
-          playNotificationSound();
-          if (document.hidden || isUrgent) {
-             sendBrowserNotification(
-               isUrgent ? `🚨 URGENTE: ${notifyName}` : `Nova mensagem de ${notifyName}`, 
-               notifyText,
-               () => {
-                 window.focus();
-                 // Se encontrarmos o ID da conversa que gerou o alerta, selecionamos ela
-                 const triggered = data.find(c => (c.lead_name || c.phone) === notifyName);
-                 if (triggered) {
-                   setSelectedConversation(triggered);
+          const prefs = readNotificationSettings();
+          if (prefs.enabled) {
+            if (prefs.sound) playNotificationSound();
+
+            // Urgente sempre notifica · regular respeita onlyWhenHidden
+            const shouldNotify = isUrgent || (prefs.onlyWhenHidden ? document.hidden : true);
+            if (shouldNotify) {
+               sendBrowserNotification(
+                 isUrgent ? `🚨 URGENTE: ${notifyName}` : `Nova mensagem de ${notifyName}`,
+                 notifyText,
+                 () => {
+                   window.focus();
+                   const triggered = data.find(c => (c.lead_name || c.phone) === notifyName);
+                   if (triggered) {
+                     setSelectedConversation(triggered);
+                   }
                  }
-               }
-             );
+               );
+            }
           }
         }
         
