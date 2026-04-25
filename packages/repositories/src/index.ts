@@ -11,6 +11,10 @@
 export { LeadRepository } from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
 export { MessageRepository, type AIHistoryMessage } from './message.repository'
+export { ClinicDataRepository } from './clinic-data.repository'
+export { TemplateRepository } from './template.repository'
+export { BudgetRepository } from './budget.repository'
+export { InboxNotificationRepository } from './inbox-notification.repository'
 
 export type {
   Funnel,
