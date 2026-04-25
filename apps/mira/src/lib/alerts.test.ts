@@ -2,102 +2,31 @@
  * Testes do alert system (lib/alerts.ts) · F6 incidente 26 vouchers.
  *
  * Cobre:
- *   - alertSentry chama Sentry.captureException com tags + extras corretos
- *   - alertSentry vira no-op sem NEXT_PUBLIC_SENTRY_DSN
+ *   - alertSentry e no-op (Sentry desativado · re-adicionar quando criar conta)
  *   - alertSlack faz POST com payload JSON correto
  *   - alertSlack vira no-op sem SLACK_WEBHOOK_URL
  *   - alertSlack best-effort em http error · nao throws
- *   - alertCritical combina os dois
+ *   - alertCritical so dispara Slack enquanto Sentry esta noop
  *
  * Mocks:
- *   - vi.mock('@sentry/nextjs') · captura chamadas captureException + scope
  *   - vi.stubGlobal('fetch', ...) · intercepta POST pro Slack
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-
-// Mock Sentry · vi.mock e hoisted antes do import do modulo sob teste
-vi.mock('@sentry/nextjs', () => ({
-  captureException: vi.fn(),
-  withScope: vi.fn((cb: (scope: unknown) => void) => {
-    const scope = {
-      setTag: vi.fn(),
-      setExtra: vi.fn(),
-    }
-    cb(scope)
-    return scope
-  }),
-}))
-
-import * as Sentry from '@sentry/nextjs'
 import { alertSentry, alertSlack, alertCritical } from './alerts'
 
-describe('alertSentry', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+describe('alertSentry · noop enquanto Sentry desativado', () => {
+  it('nao throws com Error', () => {
+    expect(() => alertSentry(new Error('boom'), { clinic_id: 'c1' })).not.toThrow()
   })
 
-  afterEach(() => {
+  it('nao throws com unknown nao-Error', () => {
+    expect(() => alertSentry('string error', { handler: 'h' })).not.toThrow()
+  })
+
+  it('retorna void mesmo com DSN setado (sem-op total)', () => {
+    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://fake@sentry.io/1'
+    expect(alertSentry(new Error('boom'), {})).toBeUndefined()
     delete process.env.NEXT_PUBLIC_SENTRY_DSN
-  })
-
-  it('no-op sem NEXT_PUBLIC_SENTRY_DSN', () => {
-    delete process.env.NEXT_PUBLIC_SENTRY_DSN
-    alertSentry(new Error('boom'), { clinic_id: 'c1' })
-    expect(Sentry.captureException).not.toHaveBeenCalled()
-    expect(Sentry.withScope).not.toHaveBeenCalled()
-  })
-
-  it('chama withScope + captureException quando DSN setado', () => {
-    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://fake@sentry.io/1'
-    const err = new Error('boom')
-    alertSentry(err, { clinic_id: 'c1', queue_id: 'q1' })
-
-    expect(Sentry.withScope).toHaveBeenCalledOnce()
-    expect(Sentry.captureException).toHaveBeenCalledWith(err)
-  })
-
-  it('separa tags (clinic_id, handler, app) de extras (queue_id, etc)', () => {
-    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://fake@sentry.io/1'
-
-    // Captura o scope passado · withScope mock executa callback com scope mock
-    let capturedScope:
-      | { setTag: ReturnType<typeof vi.fn>; setExtra: ReturnType<typeof vi.fn> }
-      | null = null
-    ;(Sentry.withScope as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      (cb: (scope: unknown) => void) => {
-        const scope = { setTag: vi.fn(), setExtra: vi.fn() }
-        capturedScope = scope as typeof capturedScope
-        cb(scope)
-      },
-    )
-
-    alertSentry(new Error('boom'), {
-      clinic_id: 'c1',
-      handler: 'b2b-voucher-dispatch-worker',
-      queue_id: 'q1',
-      voucher_count: 5,
-    })
-
-    // app=mira default tag + clinic_id + handler · 3 tags
-    expect(capturedScope!.setTag).toHaveBeenCalledWith('app', 'mira')
-    expect(capturedScope!.setTag).toHaveBeenCalledWith('clinic_id', 'c1')
-    expect(capturedScope!.setTag).toHaveBeenCalledWith(
-      'handler',
-      'b2b-voucher-dispatch-worker',
-    )
-    // queue_id e voucher_count viram extras (nao sao tag keys)
-    expect(capturedScope!.setExtra).toHaveBeenCalledWith('queue_id', 'q1')
-    expect(capturedScope!.setExtra).toHaveBeenCalledWith('voucher_count', 5)
-  })
-
-  it('aceita unknown nao-Error · wrap em Error(String(err))', () => {
-    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://fake@sentry.io/1'
-    alertSentry('string error', { handler: 'h' })
-    expect(Sentry.captureException).toHaveBeenCalled()
-    const arg = (Sentry.captureException as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[0][0]
-    expect(arg).toBeInstanceOf(Error)
-    expect((arg as Error).message).toBe('string error')
   })
 })
 
@@ -147,7 +76,6 @@ describe('alertSlack', () => {
     process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/fake'
     fetchMock.mockResolvedValue({ ok: false, status: 500, text: async () => 'oops' })
 
-    // Console.error pode disparar · noop pra silenciar test output
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(alertSlack('test', 'warn', {})).resolves.toBeUndefined()
     consoleSpy.mockRestore()
@@ -189,23 +117,20 @@ describe('alertSlack', () => {
   })
 })
 
-describe('alertCritical · combina Sentry + Slack', () => {
+describe('alertCritical · enquanto Sentry esta noop, so Slack dispara', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    delete process.env.NEXT_PUBLIC_SENTRY_DSN
     delete process.env.SLACK_WEBHOOK_URL
   })
 
-  it('chama ambos canais quando ambas envs setadas', async () => {
-    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://fake@sentry.io/1'
+  it('dispara Slack quando webhook setado', async () => {
     process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/fake'
     fetchMock.mockResolvedValue({ ok: true, text: async () => '' })
 
@@ -214,7 +139,9 @@ describe('alertCritical · combina Sentry + Slack', () => {
       queue_id: 'q1',
     })
 
-    expect(Sentry.captureException).toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledOnce()
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.text).toContain('zumbi detectado')
+    expect(body.text).toContain('[mira/ERROR]')
   })
 })

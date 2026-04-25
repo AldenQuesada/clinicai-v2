@@ -25,7 +25,12 @@
  * package. Sentry tambem tem beforeSend no init pra filtro adicional.
  */
 
-import * as Sentry from '@sentry/nextjs'
+// @sentry/nextjs removido temporariamente · import estatico injetava
+// OpenTelemetry instrumentation no bundle Next 16, quebrando WasmHash do
+// webpack cache em build prod. alertSentry mantido como API publica mas
+// vira noop ate ter conta Sentry + dynamic import controlado.
+// TODO: re-adicionar quando Alden criar projeto Sentry · usar dynamic import
+// dentro da funcao (`const Sentry = await import('@sentry/nextjs')`).
 
 export type AlertSeverity = 'info' | 'warn' | 'error'
 
@@ -56,31 +61,12 @@ const SEVERITY_COLOR: Record<AlertSeverity, string> = {
  * guard explicito pra clareza e evitar overhead de scope creation.
  */
 export function alertSentry(
-  err: Error | unknown,
-  context: Record<string, unknown> = {},
+  _err: Error | unknown,
+  _context: Record<string, unknown> = {},
 ): void {
-  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return
-
-  const error = err instanceof Error ? err : new Error(String(err))
-
-  // Separa tags (string-only, indexaveis) de extras (qualquer JSON)
-  const tagKeys = ['clinic_id', 'handler', 'app', 'route', 'cron']
-  const tags: Record<string, string> = { app: 'mira' }
-  const extras: Record<string, unknown> = {}
-
-  for (const [k, v] of Object.entries(context)) {
-    if (tagKeys.includes(k) && typeof v === 'string') {
-      tags[k] = v
-    } else {
-      extras[k] = v
-    }
-  }
-
-  Sentry.withScope((scope) => {
-    for (const [k, v] of Object.entries(tags)) scope.setTag(k, v)
-    for (const [k, v] of Object.entries(extras)) scope.setExtra(k, v)
-    Sentry.captureException(error)
-  })
+  // No-op enquanto Sentry esta desativado (sem conta Sentry configurada).
+  // API mantida pra que callers (logger-with-alerts, evolution route etc)
+  // nao precisem mudar quando reativar.
 }
 
 /**

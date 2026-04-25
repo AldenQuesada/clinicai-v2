@@ -6,9 +6,10 @@
  *
  * CSP cravada · permite chamadas Evolution + Anthropic + Groq + Supabase.
  *
- * Sentry (F6 · alert system): wrapping com `withSentryConfig` so acontece se
- * `NEXT_PUBLIC_SENTRY_DSN` estiver setado · mantem dev local funcional sem DSN
- * e evita upload de sourcemaps em build sem credentials.
+ * Alertas (F6): apenas Slack ativo (alertSlack via webhook). Sentry pulado
+ * temporariamente · re-adicionar quando criar conta + usar dynamic import nos
+ * call sites (import estatico injetava OpenTelemetry no bundle e quebrava
+ * webpack cache em build prod).
  */
 
 import type { NextConfig } from 'next'
@@ -67,25 +68,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-// Wrapping condicional · DYNAMIC import pra evitar puxar @sentry/nextjs (e
-// toda instrumentacao OpenTelemetry junto) quando DSN nao esta setado. Import
-// estatico quebra o webpack cache do Next 16 (WasmHash undefined em build) ·
-// dynamic require so quando DSN existe.
-let finalConfig: NextConfig = nextConfig
-if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { withSentryConfig } = require('@sentry/nextjs') as typeof import('@sentry/nextjs')
-  finalConfig = withSentryConfig(nextConfig, {
-    org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
-    silent: !process.env.CI,
-    hideSourceMaps: true,
-    tunnelRoute: '/monitoring',
-    widenClientFileUpload: false,
-    authToken: process.env.SENTRY_AUTH_TOKEN,
-    disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-    disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-  })
-}
-
-export default finalConfig
+export default nextConfig
