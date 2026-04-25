@@ -33,13 +33,20 @@ export interface ClinicContext {
  *
  * Ordem de resolução:
  *   1. JWT claim `app_metadata.clinic_id` (canonical · custom_access_token_hook)
- *   2. Fallback RPC `_default_clinic_id()` (single-tenant Mirian) · log warn
+ *   2. Fallback RPC `_default_clinic_id()` (single-tenant Mirian) · log warn 1x
  *   3. null se nenhum funcionar
  *
  * Multi-tenant futuro: configurar custom_access_token_hook no Supabase Auth →
  * o JWT passa a ter clinic_id por user. Sem isso, qualquer user logado cai no
  * fallback (suficiente pra Mirian single-tenant atual).
+ *
+ * Cache fallback _default_clinic_id() em modulo · single-tenant nunca muda em
+ * runtime · economiza ~200-400ms por request. Em multi-tenant futuro o claim
+ * JWT vem antes e este cache nunca e usado.
  */
+let _cachedDefaultClinicId: string | null = null
+let _warnedAboutFallback = false
+
 export async function resolveClinicContext(
   supabase: SupabaseClient<Database>,
 ): Promise<ClinicContext | null> {
@@ -56,16 +63,22 @@ export async function resolveClinicContext(
   }
 
   // 2. Fallback RPC `_default_clinic_id()` · single-tenant Mirian
+  if (_cachedDefaultClinicId) {
+    return { clinic_id: _cachedDefaultClinicId, user_id: user.id, role }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc('_default_clinic_id')
   if (!error && data) {
-    if (typeof console !== 'undefined') {
+    _cachedDefaultClinicId = String(data)
+    if (!_warnedAboutFallback && typeof console !== 'undefined') {
+      _warnedAboutFallback = true
       console.warn(
-        `[tenant] user ${user.id} sem clinic_id no JWT · fallback _default_clinic_id() = ${data}. ` +
+        `[tenant] user ${user.id} sem clinic_id no JWT · fallback _default_clinic_id() = ${data} (cached). ` +
         `Configurar custom_access_token_hook no Supabase pra injetar claim.`,
       )
     }
-    return { clinic_id: String(data), user_id: user.id, role }
+    return { clinic_id: _cachedDefaultClinicId, user_id: user.id, role }
   }
 
   // 3. Sem fallback · user logado mas sem membership resolvivel
