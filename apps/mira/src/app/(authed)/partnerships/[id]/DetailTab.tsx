@@ -1,6 +1,9 @@
 /**
- * Partnership detail · tab "Detalhe" · dados gerais + edicao basica + acoes.
+ * Partnership detail · tab "Detalhe" · dados gerais + edicao + acoes.
  * Server Component · forms via Server Actions.
+ *
+ * Visual mirror b2b-config.css `.bcfg-admin-form` (gold tinted form),
+ * `.bcfg-about-row` (metadata grid), `.bcfg-form-actions`.
  */
 
 import {
@@ -18,59 +21,56 @@ export function DetailTab({
   canManage: boolean
 }) {
   return (
-    <div className="space-y-8">
-      {/* Dados gerais */}
-      <section className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-        <h3 className="text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
-          Dados gerais
-        </h3>
-
-        <form action={updatePartnershipBasicAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="flex flex-col gap-3">
+      {/* Dados gerais · gold tinted form */}
+      <Section title="Dados gerais">
+        <form
+          action={updatePartnershipBasicAction}
+          className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3"
+        >
           <input type="hidden" name="id" value={partnership.id} />
 
-          <Field label="Contato (nome)" name="contactName" defaultValue={partnership.contactName ?? ''} disabled={!canManage} />
-          <Field label="Telefone" name="contactPhone" defaultValue={partnership.contactPhone ?? ''} disabled={!canManage} />
-          <Field label="Email" name="contactEmail" defaultValue={partnership.contactEmail ?? ''} disabled={!canManage} />
-          <Field label="Instagram" name="contactInstagram" defaultValue={partnership.contactInstagram ?? ''} disabled={!canManage} />
-          <Field label="Pilar" name="pillar" defaultValue={partnership.pillar} disabled={!canManage} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <Field label="Contato (nome)" name="contactName" defaultValue={partnership.contactName ?? ''} disabled={!canManage} />
+            <Field label="Telefone" name="contactPhone" defaultValue={partnership.contactPhone ?? ''} disabled={!canManage} mono />
+            <Field label="Email" name="contactEmail" defaultValue={partnership.contactEmail ?? ''} disabled={!canManage} />
+            <Field label="Instagram" name="contactInstagram" defaultValue={partnership.contactInstagram ?? ''} disabled={!canManage} />
+            <Field label="Pilar" name="pillar" defaultValue={partnership.pillar} disabled={!canManage} />
+          </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
               Observações
             </label>
             <textarea
               name="notes"
               rows={3}
               disabled={!canManage}
-              className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] disabled:opacity-50 resize-y"
+              className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y"
             />
           </div>
 
-          <div className="md:col-span-2 flex items-center gap-3 pt-2">
-            {canManage && (
+          <div className="flex items-center gap-2 pt-1.5 border-t border-white/8">
+            {canManage ? (
               <button
                 type="submit"
-                className="px-5 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
+                className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
               >
                 Salvar
               </button>
-            )}
-            {!canManage && (
-              <span className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            ) : (
+              <span className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
                 Apenas owner/admin podem editar.
               </span>
             )}
           </div>
         </form>
-      </section>
+      </Section>
 
-      {/* Metadados */}
-      <section className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-        <h3 className="text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
-          Metadados
-        </h3>
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <Meta label="Slug" value={partnership.slug} />
+      {/* Metadados · about-row pattern */}
+      <Section title="Metadados">
+        <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3.5 py-2 flex flex-col">
+          <Meta label="Slug" value={partnership.slug} mono />
           <Meta label="Status" value={partnership.status} />
           <Meta label="Tipo" value={partnership.type} />
           <Meta label="Tier" value={partnership.tier?.toString() ?? '—'} />
@@ -79,23 +79,20 @@ export function DetailTab({
           <Meta label="Cap mensal" value={partnership.voucherMonthlyCap?.toString() ?? '—'} />
           <Meta label="Health" value={partnership.healthColor} />
           <Meta label="Criada em" value={fmtDate(partnership.createdAt)} />
-          <Meta label="Última atualização" value={fmtDate(partnership.updatedAt)} />
-        </dl>
-      </section>
+          <Meta label="Última atualização" value={fmtDate(partnership.updatedAt)} last />
+        </div>
+      </Section>
 
-      {/* Acoes (status) */}
+      {/* Acoes · status changes */}
       {canManage && (
-        <section className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-          <h3 className="text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
-            Ações
-          </h3>
-          <div className="flex flex-wrap gap-3">
+        <Section title="Ações">
+          <div className="flex flex-wrap gap-2">
             {partnership.status === 'dna_check' && (
               <form action={approvePartnershipAction}>
                 <input type="hidden" name="id" value={partnership.id} />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border border-[hsl(var(--success))]/30 hover:bg-[hsl(var(--success))]/25 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/25 transition-colors"
                 >
                   Aprovar parceria
                 </button>
@@ -109,7 +106,7 @@ export function DetailTab({
                 <input type="hidden" name="reason" value="paused_via_ui" />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))] border border-[hsl(var(--warning))]/30 hover:bg-[hsl(var(--warning))]/25 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/30 hover:bg-[#F59E0B]/25 transition-colors"
                 >
                   Pausar
                 </button>
@@ -123,15 +120,26 @@ export function DetailTab({
                 <input type="hidden" name="reason" value="reactivated_via_ui" />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border border-[hsl(var(--success))]/30 hover:bg-[hsl(var(--success))]/25 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/25 transition-colors"
                 >
                   Reativar
                 </button>
               </form>
             )}
           </div>
-        </section>
+        </Section>
       )}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
+        {title}
+      </h3>
+      {children}
     </div>
   )
 }
@@ -141,15 +149,17 @@ function Field({
   name,
   defaultValue,
   disabled,
+  mono,
 }: {
   label: string
   name: string
   defaultValue: string
   disabled?: boolean
+  mono?: boolean
 }) {
   return (
-    <div>
-      <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
         {label}
       </label>
       <input
@@ -157,19 +167,17 @@ function Field({
         name={name}
         defaultValue={defaultValue}
         disabled={disabled}
-        className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] disabled:opacity-50"
+        className={`w-full px-3 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
       />
     </div>
   )
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function Meta({ label, value, mono, last }: { label: string; value: string; mono?: boolean; last?: boolean }) {
   return (
-    <div className="flex justify-between border-b border-[hsl(var(--chat-border))] pb-2">
-      <dt className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-        {label}
-      </dt>
-      <dd className="text-[hsl(var(--foreground))]">{value}</dd>
+    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/8'}`}>
+      <span className="text-[#9CA3AF]">{label}</span>
+      <span className={`text-[#F5F5F5] ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
     </div>
   )
 }

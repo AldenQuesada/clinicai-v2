@@ -1,5 +1,6 @@
 /**
- * Tab "Vouchers" da parceria · lista vouchers desta parceria.
+ * Tab "Vouchers" da parceria · lista vouchers em rows densos.
+ * Mirror b2b-config.css `.bcfg-admin-row` pattern · grid denso ao inves de table.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -13,55 +14,68 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: 'Cancelado',
 }
 
+const STATUS_PILL: Record<string, string> = {
+  issued: 'bg-[#C9A96E]/18 text-[#C9A96E]',
+  delivered: 'bg-[#C9A96E]/18 text-[#C9A96E]',
+  opened: 'bg-[#10B981]/15 text-[#10B981]',
+  redeemed: 'bg-[#10B981]/15 text-[#10B981]',
+  expired: 'bg-white/8 text-[#9CA3AF]',
+  cancelled: 'bg-[#EF4444]/15 text-[#FCA5A5]',
+}
+
 export async function VouchersTab({ partnershipId }: { partnershipId: string }) {
   const { repos } = await loadMiraServerContext()
   const vouchers = await repos.b2bVouchers.listByPartnership(partnershipId, 100)
 
   if (vouchers.length === 0) {
     return (
-      <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-[12.5px] text-[#9CA3AF]">
         Esta parceria ainda não tem vouchers emitidos.
       </div>
     )
   }
 
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] overflow-hidden bg-[hsl(var(--chat-panel-bg))]">
-      <table className="w-full text-sm">
-        <thead className="bg-[hsl(var(--muted))]/30 border-b border-[hsl(var(--chat-border))]">
-          <tr className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            <th className="text-left px-4 py-3">Token</th>
-            <th className="text-left px-4 py-3">Recipient</th>
-            <th className="text-left px-4 py-3">Combo</th>
-            <th className="text-left px-4 py-3">Status</th>
-            <th className="text-left px-4 py-3">Emitido</th>
-            <th className="text-left px-4 py-3">Validade</th>
-          </tr>
-        </thead>
-        <tbody>
-          {vouchers.map((v) => (
-            <tr key={v.id} className="border-b border-[hsl(var(--chat-border))] last:border-0">
-              <td className="px-4 py-3 font-mono text-xs">{v.token}</td>
-              <td className="px-4 py-3 text-xs">
+    <div className="flex flex-col gap-1.5">
+      {vouchers.map((v) => {
+        const pill = STATUS_PILL[v.status] ?? 'bg-white/8 text-[#9CA3AF]'
+        const label = STATUS_LABEL[v.status] ?? v.status
+        return (
+          <div
+            key={v.id}
+            className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+          >
+            <span className="font-mono text-[11px] text-[#C9A96E]">{v.token}</span>
+
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <span className="text-xs text-[#F5F5F5] truncate">
                 {v.recipientName || '—'}
-                {v.recipientPhone && (
-                  <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {v.recipientPhone}
+                {v.combo && (
+                  <span className="ml-2 text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+                    {v.combo}
                   </span>
                 )}
-              </td>
-              <td className="px-4 py-3 text-xs">{v.combo || '—'}</td>
-              <td className="px-4 py-3">
-                <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-                  {STATUS_LABEL[v.status] ?? v.status}
+              </span>
+              {v.recipientPhone && (
+                <span className="text-[10.5px] font-mono text-[#9CA3AF]">
+                  {v.recipientPhone}
                 </span>
-              </td>
-              <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{fmt(v.issuedAt)}</td>
-              <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{fmt(v.validUntil)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              )}
+            </div>
+
+            <span
+              className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${pill}`}
+            >
+              {label}
+            </span>
+
+            <div className="flex flex-col items-end gap-0.5 text-[10px] text-[#6B7280] font-mono whitespace-nowrap">
+              <span>emit {fmt(v.issuedAt)}</span>
+              <span>até {fmt(v.validUntil)}</span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

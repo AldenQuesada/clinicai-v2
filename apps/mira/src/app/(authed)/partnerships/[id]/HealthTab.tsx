@@ -1,13 +1,23 @@
 /**
  * Tab "Health" · alerts ativos · b2b_partnership_alerts (best-effort).
+ * Visual mirror b2b-config.css `.bcfg-err-block` (vermelho dim) + cards densos.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
 
-const SEVERITY_STYLE: Record<string, string> = {
-  critical: 'border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5 text-[hsl(var(--danger))]',
-  warning: 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-[hsl(var(--warning))]',
-  info: 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--foreground))]',
+const SEVERITY_STYLE: Record<string, { wrap: string; text: string }> = {
+  critical: {
+    wrap: 'border-[#EF4444]/30 bg-[#EF4444]/8',
+    text: 'text-[#FCA5A5]',
+  },
+  warning: {
+    wrap: 'border-[#F59E0B]/30 bg-[#F59E0B]/8',
+    text: 'text-[#F59E0B]',
+  },
+  info: {
+    wrap: 'border-white/8 bg-white/[0.02]',
+    text: 'text-[#F5F5F5]',
+  },
 }
 
 export async function HealthTab({ partnershipId }: { partnershipId: string }) {
@@ -16,8 +26,8 @@ export async function HealthTab({ partnershipId }: { partnershipId: string }) {
 
   if (alerts.length === 0) {
     return (
-      <div className="rounded-card border border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5 p-8 text-center">
-        <div className="text-sm text-[hsl(var(--success))]">
+      <div className="rounded-lg border border-[#10B981]/30 bg-[#10B981]/8 p-5 text-center">
+        <div className="text-xs text-[#10B981] font-semibold">
           Nenhum alerta ativo · parceria saudável.
         </div>
       </div>
@@ -25,23 +35,26 @@ export async function HealthTab({ partnershipId }: { partnershipId: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      {alerts.map((a, i) => (
-        <div
-          key={i}
-          className={`rounded-card border px-4 py-3 ${SEVERITY_STYLE[a.severity] ?? SEVERITY_STYLE.info}`}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-display-uppercase text-[10px] tracking-widest">
-              {a.kind}
-            </span>
-            <span className="text-[10px] uppercase tracking-widest opacity-70">
-              {fmt(a.createdAt)}
-            </span>
+    <div className="flex flex-col gap-1.5">
+      {alerts.map((a, i) => {
+        const style = SEVERITY_STYLE[a.severity] ?? SEVERITY_STYLE.info
+        return (
+          <div
+            key={i}
+            className={`rounded-lg border px-3.5 py-2.5 ${style.wrap}`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className={`text-[10px] font-bold uppercase tracking-[1.2px] ${style.text}`}>
+                {a.kind}
+              </span>
+              <span className="text-[9px] uppercase tracking-[1.2px] text-[#9CA3AF] font-mono">
+                {fmt(a.createdAt)}
+              </span>
+            </div>
+            <p className={`text-xs ${style.text}`}>{a.message}</p>
           </div>
-          <p className="text-sm">{a.message}</p>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
