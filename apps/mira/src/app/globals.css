@@ -122,6 +122,89 @@
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Componentes b2b-* (replica 1:1 do clinic-dashboard/css/b2b.css)
+ *
+ * IMPORTANTE: estes nomes/valores sao IDENTICOS aos do CSS original ·
+ * NAO renomear sem atualizar TODOS os usos em React (vai quebrar a
+ * paridade visual com b2b-partners.html).
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Container e header da pagina ── */
+.b2b-page-container { max-width: 1640px; margin: 0 auto; padding: 40px 40px 80px; }
+
+.b2b-list-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.b2b-list-count {
+  font-size: 11px; color: var(--b2b-text-muted); letter-spacing: 0.5px;
+}
+.b2b-list-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Buttons ── */
+.b2b-btn {
+  font-size: 11px; padding: 8px 14px; border-radius: 6px;
+  background: var(--b2b-bg-2); color: var(--b2b-text);
+  border: 1px solid var(--b2b-border); cursor: pointer;
+  font-family: 'Montserrat', sans-serif; font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+.b2b-btn:hover { background: var(--b2b-bg-3); border-color: var(--b2b-border-strong); }
+.b2b-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.b2b-btn-primary {
+  background: var(--b2b-champagne); color: var(--b2b-bg-0);
+  border-color: var(--b2b-champagne); font-weight: 600;
+}
+.b2b-btn-primary:hover { background: var(--b2b-champagne-light); border-color: var(--b2b-champagne-light); }
+
+/* ── Group / rows (lista de parcerias) ── */
+.b2b-group { margin-bottom: 28px; }
+.b2b-group-hdr {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-champagne); font-weight: 600;
+  padding-bottom: 8px; border-bottom: 1px solid var(--b2b-border);
+  margin-bottom: 10px;
+}
+.b2b-row {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 14px 16px; background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border); border-radius: 6px;
+  margin-bottom: 6px; cursor: pointer; text-align: left;
+  font-family: inherit; color: var(--b2b-text); transition: background 0.15s;
+}
+.b2b-row:hover { background: var(--b2b-bg-2); }
+.b2b-health { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #9CA3AF; }
+.b2b-health[data-health="green"]   { background: #10B981 }
+.b2b-health[data-health="yellow"]  { background: #F59E0B }
+.b2b-health[data-health="red"]     { background: #EF4444 }
+.b2b-health[data-health="unknown"] { background: #9CA3AF }
+.b2b-row-body { flex: 1; min-width: 0; }
+.b2b-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.b2b-row-name { font-size: 14px; font-weight: 500; color: var(--b2b-ivory); }
+.b2b-row-meta {
+  font-size: 11px; color: var(--b2b-text-muted);
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+
+/* ── Pills ── */
+.b2b-pill {
+  padding: 2px 8px; font-size: 10px; font-weight: 500;
+  letter-spacing: 0.5px; border-radius: 10px;
+  background: var(--b2b-bg-3); color: var(--b2b-text-dim);
+}
+.b2b-pill-tier { background: rgba(201, 169, 110, 0.2); color: var(--b2b-champagne); font-weight: 600; }
+.b2b-pill-type { background: rgba(138, 158, 136, 0.15); color: var(--b2b-sage); }
+
+/* ── Empty state ── */
+.b2b-empty {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 8px; padding: 32px 20px; text-align: center;
+  color: var(--b2b-text-muted); font-size: 13px;
+}
+.b2b-empty-err { color: var(--b2b-red); border-color: rgba(217, 122, 122, 0.3); }
+
+
 /* Scrollbar custom · warm thumb */
 .custom-scrollbar {
   scrollbar-width: thin;

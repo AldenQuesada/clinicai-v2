@@ -30,6 +30,8 @@ export interface B2BPartnershipDTO {
   voucherMonthlyCap: number | null
   /** Duracao do contrato em meses · usado pra calcular renovacoes (default 12 quando null). */
   contractDurationMonths: number | null
+  /** Score DNA · 0-10 · null se nao avaliado */
+  dnaScore: number | null
   healthColor: 'unknown' | 'green' | 'yellow' | 'red'
   createdAt: string
   updatedAt: string
@@ -56,6 +58,7 @@ function mapPartnershipRow(row: any): B2BPartnershipDTO {
     voucherMonthlyCap: row.voucher_monthly_cap != null ? Number(row.voucher_monthly_cap) : null,
     contractDurationMonths:
       row.contract_duration_months != null ? Number(row.contract_duration_months) : null,
+    dnaScore: row.dna_score != null ? Number(row.dna_score) : null,
     healthColor: (row.health_color ?? 'unknown') as B2BPartnershipDTO['healthColor'],
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
