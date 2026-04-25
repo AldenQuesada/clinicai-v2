@@ -70,10 +70,10 @@ const SECTIONS: Section[] = [
   {
     key: 'disparos',
     label: 'Disparos',
-    defaultHref: '/templates',
-    match: ['/templates', '/b2b/segmento'],
+    defaultHref: '/b2b/disparos',
+    match: ['/b2b/disparos', '/templates', '/b2b/segmento'],
     subtabs: [
-      { href: '/templates', label: 'Templates', available: true },
+      { href: '/b2b/disparos', label: 'Templates', available: true },
       { href: '/b2b/segmento', label: 'Segmento', available: false },
     ],
   },

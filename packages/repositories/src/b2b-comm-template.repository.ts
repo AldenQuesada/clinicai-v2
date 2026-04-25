@@ -180,4 +180,178 @@ export class B2BCommTemplateRepository {
       .update({ is_active: false })
       .eq('id', id)
   }
+
+  // ─── RPC wrappers (espelho 1:1 do b2b.comm-templates.repository.js) ────
+  // Estes metodos retornam o shape RAW do RPC porque a UI Comm consome os
+  // campos snake_case originais (event_key, text_template, etc). Usar a UI
+  // de admin com camelCase exigiria reescrever 8 arquivos UI · nao vale.
+
+  /**
+   * Lista templates via RPC · usado pela tab Comm (Disparos · Templates).
+   * RPC: b2b_comm_templates_list(p_event_key, p_partnership_id).
+   * Retorna shape raw da tabela b2b_comm_templates.
+   */
+  async list(opts: {
+    eventKey?: string | null
+    partnershipId?: string | null
+  } = {}): Promise<B2BCommTemplateRaw[]> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_templates_list', {
+      p_event_key: opts.eventKey ?? null,
+      p_partnership_id: opts.partnershipId ?? null,
+    })
+    if (error || !Array.isArray(data)) return []
+    return data as B2BCommTemplateRaw[]
+  }
+
+  /**
+   * Upsert template via RPC · cria se id ausente, atualiza se presente.
+   * RPC: b2b_comm_template_upsert(p_payload jsonb).
+   * Aceita raw snake_case (editor da UI Comm produz nesse shape).
+   */
+  async upsert(
+    payload: Omit<Partial<B2BCommTemplateRaw>, 'id'> & { id?: string | null },
+  ): Promise<{ ok: boolean; id?: string; error?: string }> {
+    const dbPayload: Record<string, unknown> = {
+      id: payload.id || null,
+      partnership_id: payload.partnership_id ?? null,
+      event_key: payload.event_key,
+      channel: payload.channel ?? 'text',
+      recipient_role: payload.recipient_role ?? 'partner',
+      sender_instance: payload.sender_instance ?? 'mira-mirian',
+      delay_minutes: payload.delay_minutes ?? 0,
+      cron_expr: payload.cron_expr ?? null,
+      text_template: payload.text_template ?? null,
+      audio_script: payload.audio_script ?? null,
+      tts_voice: payload.tts_voice ?? null,
+      tts_instructions: payload.tts_instructions ?? null,
+      is_active: payload.is_active !== false,
+      priority: payload.priority ?? 100,
+      notes: payload.notes ?? null,
+    }
+    const { data, error } = await this.supabase.rpc('b2b_comm_template_upsert', {
+      p_payload: dbPayload,
+    })
+    if (error) return { ok: false, error: error.message }
+    const result = data as { ok?: boolean; id?: string; error?: string }
+    return { ok: result?.ok === true, id: result?.id, error: result?.error }
+  }
+
+  /**
+   * Remove template via RPC · soft delete.
+   * RPC: b2b_comm_template_delete(p_id).
+   */
+  async remove(id: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_template_delete', { p_id: id })
+    if (error) return { ok: false, error: error.message }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
+  /**
+   * Catalogo de eventos disponiveis · usado pra dropdown de eventKey.
+   * RPC: b2b_comm_events_catalog() retorna jsonb agrupado:
+   * [{group, events:[{key, label, trigger?, recipient}]}]
+   */
+  async eventsCatalog(): Promise<B2BCommEventCatalog> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_events_catalog')
+    if (error || !Array.isArray(data)) return []
+    return data as B2BCommEventCatalog
+  }
+
+  /**
+   * Stats de comm · KPIs pra sidebar (templates ativos, sent 30d, taxa
+   * envio, parceiras ativas).
+   * RPC: b2b_comm_stats() retorna shape raw com snake_case (active_templates,
+   * events_configured, sent_30d, failed_30d, attempted_30d, delivered_ok_30d,
+   * delivery_rate_30d, partners_with_send_30d).
+   */
+  async stats(): Promise<B2BCommStats | null> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_stats')
+    if (error || !data) return null
+    return data as B2BCommStats
+  }
+
+  /**
+   * Historico de envios · ultimas N dispatches.
+   * RPC: b2b_comm_history(p_limit, p_event_key, p_partnership_id) retorna
+   * tabela com snake_case (id, partnership_name, event_key, channel,
+   * recipient_role, recipient_phone, sender_instance, text_content, status,
+   * error_message, created_at).
+   */
+  async history(opts: {
+    limit?: number
+    eventKey?: string | null
+    partnershipId?: string | null
+  } = {}): Promise<B2BCommHistoryEntry[]> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_history', {
+      p_limit: opts.limit ?? 50,
+      p_event_key: opts.eventKey ?? null,
+      p_partnership_id: opts.partnershipId ?? null,
+    })
+    if (error || !Array.isArray(data)) return []
+    return data as B2BCommHistoryEntry[]
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tipos raw (snake_case · espelham os RPCs · UI Comm consome direto)
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface B2BCommTemplateRaw {
+  id: string
+  clinic_id: string
+  partnership_id: string | null
+  event_key: string
+  channel: 'text' | 'audio' | 'both'
+  recipient_role: 'partner' | 'beneficiary' | 'admin'
+  sender_instance: string
+  delay_minutes: number
+  cron_expr: string | null
+  text_template: string | null
+  audio_script: string | null
+  tts_voice: string | null
+  tts_instructions: string | null
+  is_active: boolean
+  priority: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface B2BCommEventDef {
+  key: string
+  label: string
+  trigger?: string
+  recipient?: 'partner' | 'beneficiary' | 'admin'
+}
+
+export type B2BCommEventCatalog = Array<{
+  group: string
+  events: B2BCommEventDef[]
+}>
+
+export interface B2BCommStats {
+  ok?: boolean
+  active_templates: number | null
+  events_configured: number | null
+  sent_30d: number | null
+  failed_30d?: number | null
+  attempted_30d?: number | null
+  delivered_ok_30d?: number | null
+  delivery_rate_30d: number | null
+  partners_with_send_30d: number | null
+}
+
+export interface B2BCommHistoryEntry {
+  id: string
+  partnership_id: string | null
+  partnership_name: string | null
+  event_key: string
+  channel: 'text' | 'audio' | 'both'
+  recipient_role: 'partner' | 'beneficiary' | 'admin'
+  recipient_phone: string | null
+  sender_instance: string
+  text_content: string | null
+  status: 'sent' | 'failed' | 'skipped'
+  error_message: string | null
+  created_at: string
 }

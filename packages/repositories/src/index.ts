@@ -91,6 +91,11 @@ export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repo
 export {
   B2BCommTemplateRepository,
   type B2BCommTemplateDTO,
+  type B2BCommTemplateRaw,
+  type B2BCommEventDef,
+  type B2BCommEventCatalog,
+  type B2BCommStats,
+  type B2BCommHistoryEntry,
 } from './b2b-comm-template.repository'
 export {
   WaProAuditRepository,

@@ -18,6 +18,7 @@
  */
 
 @import "@clinicai/ui/styles/globals.css";
+@import "./b2b-comm.css";
 
 @layer base {
   :root {

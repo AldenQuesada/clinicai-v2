@@ -25,6 +25,11 @@ dist/
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+# Compiled JS/d.ts artifacts in source dirs (only .ts is canonical source)
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+packages/*/src/**/*.js
+!packages/*/src/**/*.test.ts
 
 # Logs
 npm-debug.log*
@@ -43,3 +48,4 @@ yarn-error.log*
 # Misc
 *.pem
 .history/
+tmp/
