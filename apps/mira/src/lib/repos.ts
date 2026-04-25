@@ -35,6 +35,7 @@ import {
   B2BGeoRepository,
   B2BHealthRepository,
   B2BClosureRepository,
+  B2BCollabRepository,
   B2BWASenderRepository,
   B2BCommTemplateRepository,
   WaProAuditRepository,
@@ -68,6 +69,7 @@ export interface MiraRepos {
   b2bGeo: B2BGeoRepository
   b2bHealth: B2BHealthRepository
   b2bClosure: B2BClosureRepository
+  b2bCollab: B2BCollabRepository
   b2bSenders: B2BWASenderRepository
   b2bTemplates: B2BCommTemplateRepository
   waProAudit: WaProAuditRepository
@@ -101,6 +103,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bGeo: new B2BGeoRepository(supabase),
     b2bHealth: new B2BHealthRepository(supabase),
     b2bClosure: new B2BClosureRepository(supabase),
+    b2bCollab: new B2BCollabRepository(supabase),
     b2bSenders: new B2BWASenderRepository(supabase),
     b2bTemplates: new B2BCommTemplateRepository(supabase),
     waProAudit: new WaProAuditRepository(supabase),

@@ -74,7 +74,7 @@ const SECTIONS: Section[] = [
     match: ['/b2b/disparos', '/templates', '/b2b/segmento'],
     subtabs: [
       { href: '/b2b/disparos', label: 'Templates', available: true },
-      { href: '/b2b/segmento', label: 'Segmento', available: false },
+      { href: '/b2b/segmento', label: 'Segmento', available: true },
     ],
   },
   {

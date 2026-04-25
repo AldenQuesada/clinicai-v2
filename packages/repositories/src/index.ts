@@ -87,6 +87,14 @@ export {
   B2BClosureRepository,
   type ClosureCandidate,
 } from './b2b-closure.repository'
+export {
+  B2BCollabRepository,
+  type BroadcastFilters,
+  type BroadcastSampleEntry,
+  type BroadcastPreview,
+  type BroadcastPartnerIds,
+  type TeamManager,
+} from './b2b-collab.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,

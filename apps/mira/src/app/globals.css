@@ -690,6 +690,61 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 .b2b-similar-link:hover { background: var(--b2b-bg-2); }
 
 
+/* ── Segment broadcast preview (Disparos · Segmento) ── */
+.b2b-seg-shell { padding: 8px 0; }
+.b2b-seg-header { margin-bottom: 18px; }
+.b2b-seg-header h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 24px; font-weight: 500; margin: 0 0 4px;
+  color: var(--b2b-ivory);
+}
+.b2b-seg-header p {
+  font-size: 13px; color: var(--b2b-text-dim); margin: 0;
+}
+
+.b2b-seg-filters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+
+.b2b-seg-preview {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
+}
+.b2b-seg-preview-loading {
+  color: var(--b2b-text-muted); font-style: italic; text-align: center;
+}
+.b2b-seg-preview-empty {
+  color: var(--b2b-text-muted); text-align: center; font-size: 13px;
+}
+.b2b-seg-preview-hdr {
+  font-size: 14px; margin-bottom: 8px;
+  border-bottom: 1px solid var(--b2b-border); padding-bottom: 8px;
+  color: var(--b2b-text-dim);
+}
+.b2b-seg-preview-hdr strong {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px; color: var(--b2b-champagne); font-weight: 500;
+  margin-right: 4px;
+}
+.b2b-seg-preview-note { font-size: 11px; color: var(--b2b-text-muted); margin-bottom: 6px; }
+.b2b-seg-preview-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 380px; overflow-y: auto;
+}
+.b2b-seg-preview-list li { font-size: 13px; padding: 4px 0; color: var(--b2b-ivory); }
+.b2b-seg-meta { font-size: 11px; color: var(--b2b-text-muted); }
+
+.b2b-seg-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-top: 16px;
+}
+.b2b-seg-actions-hint {
+  font-size: 12px; color: var(--b2b-text-dim); flex: 1; min-width: 240px;
+  font-style: italic;
+}
+
 /* Scrollbar custom · warm thumb */
 .custom-scrollbar {
   scrollbar-width: thin;
