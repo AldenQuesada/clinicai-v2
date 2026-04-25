@@ -455,6 +455,45 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 }
 .b2b-app-acts .b2b-btn { font-size: 12px; padding: 6px 14px; }
 
+/* ── Map (WOW #3) ── */
+.b2b-map-wrap {
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.b2b-map-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+}
+.b2b-map-legend {
+  display: flex; gap: 14px; margin-top: 6px;
+  font-size: 11px; color: var(--b2b-text-muted);
+}
+.b2b-map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.b2b-map-legend i {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+.b2b-map-hint {
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--b2b-text-muted);
+}
+.b2b-map-leaflet {
+  width: 100%; height: 540px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--b2b-border);
+}
+.b2b-map-empty {
+  padding: 80px 24px; text-align: center;
+  color: var(--b2b-text-muted); font-size: 14px; line-height: 1.8;
+  background: rgba(10, 14, 20, 0.3); border-radius: 8px;
+}
+.b2b-sec-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 400;
+  color: var(--b2b-ivory);
+}
+
 /* ── Similar suggestions (form modal fuzzy) ── */
 .b2b-similar-warn {
   margin: 8px 0 16px;

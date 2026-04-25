@@ -75,6 +75,10 @@ export {
   type ApplicationDTO,
   type ApplicationStatus,
 } from './b2b-application.repository'
+export {
+  B2BGeoRepository,
+  type GeoPoint,
+} from './b2b-geo.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
