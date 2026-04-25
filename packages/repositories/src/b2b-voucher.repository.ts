@@ -246,9 +246,23 @@ export class B2BVoucherRepository {
   /**
    * Busca candidatos a follow-up · wraps RPC lara_voucher_followup_pick.
    * Cron passa p_now (default = now()) e ressecuta cada hora.
+   *
+   * Mig 800-09 · pick agora aceita p_limit (default 10, hard cap 100).
+   * O servidor seta lara_followup_picking_at = now() atomicamente nos rows
+   * retornados · evita 2 crons concorrentes pegarem os mesmos vouchers.
+   * Caller deve chamar markFollowupSent (libera lock) ou clearStuckFollowups
+   * (libera locks > 5min) pra eventualmente liberar vouchers.
+   *
+   * Ordem priorizada server-side:
+   *   bucket_priority DESC (72h > 48h > 24h) · audio_sent_at ASC.
    */
-  async findFollowupCandidates(now?: Date): Promise<LaraFollowupCandidateDTO[]> {
-    const args: Record<string, unknown> = {}
+  async findFollowupCandidates(
+    now?: Date,
+    limit = 10,
+  ): Promise<LaraFollowupCandidateDTO[]> {
+    const args: Record<string, unknown> = {
+      p_limit: Math.max(1, Math.min(100, Math.floor(limit))),
+    }
     if (now) args.p_now = now.toISOString()
     const { data, error } = await this.supabase.rpc('lara_voucher_followup_pick', args)
     if (error) return []
@@ -269,6 +283,21 @@ export class B2BVoucherRepository {
       audioSentAt: String(it.audio_sent_at ?? ''),
       bucket: (it.bucket as LaraFollowupBucket) ?? '24h',
     }))
+  }
+
+  /**
+   * Reset picking_at em vouchers stuck > 5min (mig 800-09) · wraps RPC
+   * lara_voucher_followup_clear_stuck. Cron chama antes do pick · evita
+   * que voucher fique permanentemente lockado se cron crashou no meio.
+   */
+  async clearStuckFollowups(): Promise<{ ok: boolean; cleared: number }> {
+    const { data, error } = await this.supabase.rpc('lara_voucher_followup_clear_stuck')
+    if (error) return { ok: false, cleared: 0 }
+    const result = data as { ok?: boolean; cleared?: number } | null
+    return {
+      ok: result?.ok === true,
+      cleared: typeof result?.cleared === 'number' ? result.cleared : 0,
+    }
   }
 
   /**
