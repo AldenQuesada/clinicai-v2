@@ -21,13 +21,9 @@ export async function GET(req: NextRequest) {
 
     if (!text) {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count } = await (supabase.from('leads') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .lt('updated_at', cutoff)
+      const count = await repos.leads.countInactiveSince(clinicId, cutoff)
 
-      if ((count ?? 0) === 0) {
+      if (count === 0) {
         return { inactive: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
       }
 

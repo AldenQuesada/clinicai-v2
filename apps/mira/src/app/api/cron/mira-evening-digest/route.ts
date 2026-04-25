@@ -24,12 +24,11 @@ export async function GET(req: NextRequest) {
       const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const dayAfterTomorrow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: apptsAmanha } = await (supabase.from('appointments') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .gte('starts_at', tomorrowDate + 'T00:00:00Z')
-        .lt('starts_at', dayAfterTomorrow + 'T00:00:00Z')
+      const apptsAmanha = await repos.appointments.countInRange(
+        clinicId,
+        tomorrowDate + 'T00:00:00Z',
+        dayAfterTomorrow + 'T00:00:00Z',
+      )
 
       const leadsHoje = await repos.leads.count(clinicId, { createdSince: todayIso })
       const vouchersHoje = await repos.b2bVouchers.countByPeriod(clinicId, todayIso)
@@ -39,7 +38,7 @@ export async function GET(req: NextRequest) {
         `• ${leadsHoje} lead${leadsHoje === 1 ? '' : 's'} hoje`,
         `• ${vouchersHoje} voucher${vouchersHoje === 1 ? '' : 's'} emitido${vouchersHoje === 1 ? '' : 's'}`,
         '',
-        `🗓️ Amanhã: ${apptsAmanha ?? 0} consulta${apptsAmanha === 1 ? '' : 's'}`,
+        `🗓️ Amanhã: ${apptsAmanha} consulta${apptsAmanha === 1 ? '' : 's'}`,
         '',
         'Bom descanso 💛',
       ].join('\n')

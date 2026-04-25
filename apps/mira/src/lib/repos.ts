@@ -30,6 +30,9 @@ import {
   B2BWASenderRepository,
   B2BCommTemplateRepository,
   WaProAuditRepository,
+  WaNumberRepository,
+  MiraChannelRepository,
+  AppointmentRepository,
 } from '@clinicai/repositories'
 
 export interface MiraRepos {
@@ -51,6 +54,9 @@ export interface MiraRepos {
   b2bSenders: B2BWASenderRepository
   b2bTemplates: B2BCommTemplateRepository
   waProAudit: WaProAuditRepository
+  waNumbers: WaNumberRepository
+  miraChannels: MiraChannelRepository
+  appointments: AppointmentRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,5 +78,8 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bSenders: new B2BWASenderRepository(supabase),
     b2bTemplates: new B2BCommTemplateRepository(supabase),
     waProAudit: new WaProAuditRepository(supabase),
+    waNumbers: new WaNumberRepository(supabase),
+    miraChannels: new MiraChannelRepository(supabase),
+    appointments: new AppointmentRepository(supabase),
   }
 }

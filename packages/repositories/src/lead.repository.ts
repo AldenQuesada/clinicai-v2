@@ -169,4 +169,38 @@ export class LeadRepository {
     }
     return map
   }
+
+  /**
+   * Conta leads sem update ha mais de N dias · cron mira-inactivity-radar.
+   */
+  async countInactiveSince(clinicId: string, sinceIso: string): Promise<number> {
+    const { count } = await this.supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .lt('updated_at', sinceIso)
+    return count ?? 0
+  }
+
+  /**
+   * Lista leads aniversariantes do dia (mes/dia matching). Usado pelo cron
+   * mira-birthday-alerts. Schema permissivo · birthday pode ser texto/jsonb/date.
+   */
+  async listBirthdaysOfDay(
+    clinicId: string,
+    monthDd: string,
+    limit = 20,
+  ): Promise<Array<{ name: string | null; phone: string; birthday: string | null }>> {
+    const { data } = await this.supabase
+      .from('leads')
+      .select('name, phone, birthday')
+      .eq('clinic_id', clinicId)
+      .like('birthday', `%-${monthDd}`)
+      .limit(limit)
+    return ((data ?? []) as Array<{ name?: string; phone?: string; birthday?: string }>).map((r) => ({
+      name: r.name ?? null,
+      phone: String(r.phone ?? ''),
+      birthday: r.birthday ?? null,
+    }))
+  }
 }

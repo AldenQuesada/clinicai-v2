@@ -24,21 +24,12 @@ export async function GET(req: NextRequest) {
       const mm = String(today.getMonth() + 1).padStart(2, '0')
       const dd = String(today.getDate()).padStart(2, '0')
 
-      // Query leads com birthday matching mes/dia · esquema pode variar
-      // (texto, jsonb, date) · best-effort
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.from('leads') as any)
-        .select('name, phone, birthday')
-        .eq('clinic_id', clinicId)
-        .like('birthday', `%-${mm}-${dd}`)
-        .limit(20)
-
-      const list = Array.isArray(data) ? data : []
+      const list = await repos.leads.listBirthdaysOfDay(clinicId, `${mm}-${dd}`, 20)
       if (list.length === 0) {
         return { birthdays: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
       }
 
-      const lines = list.map((l: { name?: string; phone?: string }) =>
+      const lines = list.map((l) =>
         `• ${l.name ?? 'sem nome'}${l.phone ? ` · ${l.phone}` : ''}`,
       )
       text = [

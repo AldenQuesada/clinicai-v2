@@ -24,12 +24,11 @@ export async function GET(req: NextRequest) {
       // Fallback minimo · count appointments do dia + leads novos hoje
       const today = new Date().toISOString().slice(0, 10)
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: apptsToday } = await (supabase.from('appointments') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .gte('starts_at', today + 'T00:00:00Z')
-        .lt('starts_at', tomorrow + 'T00:00:00Z')
+      const apptsToday = await repos.appointments.countInRange(
+        clinicId,
+        today + 'T00:00:00Z',
+        tomorrow + 'T00:00:00Z',
+      )
 
       const leadsToday = await repos.leads.count(clinicId, {
         createdSince: today + 'T00:00:00.000Z',
@@ -37,7 +36,7 @@ export async function GET(req: NextRequest) {
 
       text = [
         `Bom dia! ☀️ Agenda de hoje (${fmtBr(today)}):`,
-        `• ${apptsToday ?? 0} consulta${apptsToday === 1 ? '' : 's'} marcada${apptsToday === 1 ? '' : 's'}`,
+        `• ${apptsToday} consulta${apptsToday === 1 ? '' : 's'} marcada${apptsToday === 1 ? '' : 's'}`,
         `• ${leadsToday} lead${leadsToday === 1 ? '' : 's'} novo${leadsToday === 1 ? '' : 's'} hoje`,
         '',
         'Detalhes via /dashboard',

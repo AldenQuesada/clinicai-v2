@@ -36,6 +36,9 @@ export {
   type WaProMessageInput,
   type WaProAuditInput,
 } from './wa-pro-audit.repository'
+export { WaNumberRepository, type WaNumberDTO } from './wa-number.repository'
+export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
+export { AppointmentRepository } from './appointment.repository'
 
 export type {
   Funnel,

@@ -25,14 +25,12 @@ export async function GET(req: NextRequest) {
       // Heuristica minima · zero appointments amanha
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const dayAfter = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count } = await (supabase.from('appointments') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .gte('starts_at', tomorrow + 'T00:00:00Z')
-        .lt('starts_at', dayAfter + 'T00:00:00Z')
-
-      if ((count ?? 0) === 0) {
+      const count = await repos.appointments.countInRange(
+        clinicId,
+        tomorrow + 'T00:00:00Z',
+        dayAfter + 'T00:00:00Z',
+      )
+      if (count === 0) {
         text = `⚠️ Anomalia: ZERO consultas marcadas pra ${tomorrow}. Vale verificar agenda.`
       }
     }

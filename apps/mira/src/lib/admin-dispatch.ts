@@ -20,23 +20,11 @@ export interface AdminPhone {
 }
 
 export async function listActiveAdminPhones(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  repos: MiraRepos,
   clinicId: string,
 ): Promise<AdminPhone[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase.from('wa_numbers') as any)
-    .select('id, phone, is_active')
-    .eq('clinic_id', clinicId)
-    .eq('is_active', true)
-  if (!Array.isArray(data)) return []
-  return data
-    .map((r: { id: string; phone?: string | null; is_active?: boolean }) => ({
-      id: String(r.id),
-      phone: String(r.phone ?? ''),
-      isActive: r.is_active !== false,
-    }))
-    .filter((p) => p.phone.length >= 10)
+  const numbers = await repos.waNumbers.listActive(clinicId)
+  return numbers.map((n) => ({ id: n.id, phone: n.phone, isActive: n.isActive }))
 }
 
 export interface DispatchAdminResult {
@@ -53,7 +41,7 @@ export async function dispatchAdminText(opts: {
   eventKey: string
   text: string
 }): Promise<DispatchAdminResult> {
-  const phones = await listActiveAdminPhones(opts.supabase, opts.clinicId)
+  const phones = await listActiveAdminPhones(opts.repos, opts.clinicId)
   if (phones.length === 0) return { recipients: 0, sent: 0, failed: 0 }
 
   const wa = getEvolutionService('mira')
