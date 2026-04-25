@@ -24,9 +24,11 @@
  */
 
 import type { Role } from './role-resolver'
+import { looksLikeBulk } from './bulk-list-parser'
 
 export type Intent =
   | 'partner.emit_voucher'
+  | 'partner.bulk_emit_voucher'
   | 'partner.refer_lead'
   | 'partner.feedback_received'
   | 'partner.other'
@@ -48,6 +50,17 @@ export interface ClassificationResult {
 }
 
 // ── Tier 1 patterns ─────────────────────────────────────────────────────
+// Bulk voucher patterns · pegam ANTES do single (mesma keyword "voucher")
+const BULK_VOUCHER_PATTERNS: Array<{ intent: Intent; rx: RegExp }> = [
+  // "emite 3 vouchers", "5 vouchers pra", "lista de vouchers"
+  { intent: 'partner.bulk_emit_voucher',
+    rx: /\b(\d+)\s+vouchers?/i },
+  { intent: 'partner.bulk_emit_voucher',
+    rx: /\b(voucher|cortesia|cupom)s\s+(pra|para)\b/i },
+  { intent: 'partner.bulk_emit_voucher',
+    rx: /\blista\s+de\s+(voucher|cortesia|cupom)/i },
+]
+
 const PARTNER_PATTERNS: Array<{ intent: Intent; rx: RegExp }> = [
   { intent: 'partner.emit_voucher',
     rx: /\b(emit(e|ir)|gera|fazer?|manda|mandar|envia|enviar|presentei?a|presentear|cria|criar)\s+(o\s+|um\s+)?(voucher|cupom|presente|cortesia)/i },
@@ -101,6 +114,33 @@ export function classifyTier1(text: string, role: Role): ClassificationResult | 
   const normalized = normalize(text)
   if (!normalized) return null
 
+  // Bulk detection FIRST (parceira ou admin · ambos podem usar). Heuristico
+  // looksLikeBulk = >=2 phones na msg OU "N vouchers" com N>=2. Se bate,
+  // confirma com BULK_VOUCHER_PATTERNS pra evitar falso positivo (msg com
+  // 2 phones aleatorios sem mencionar voucher).
+  if (looksLikeBulk(text)) {
+    for (const p of BULK_VOUCHER_PATTERNS) {
+      const m = normalized.match(p.rx) || text.match(p.rx)
+      if (m) {
+        return {
+          intent: p.intent,
+          confidence: 0.92,
+          tier: 1,
+          match: { rx: p.rx.toString(), groups: m.slice(1).filter(Boolean), heuristic: 'bulk_phones' },
+        }
+      }
+    }
+    // Fallback: looksLikeBulk + alguma keyword voucher generica → bulk
+    if (/voucher|cupom|cortesia|presente/i.test(text)) {
+      return {
+        intent: 'partner.bulk_emit_voucher',
+        confidence: 0.85,
+        tier: 1,
+        match: { heuristic: 'multi_phone+voucher_keyword' },
+      }
+    }
+  }
+
   const patterns = role === 'admin' ? [...ADMIN_PATTERNS, ...PARTNER_PATTERNS] : PARTNER_PATTERNS
 
   for (const p of patterns) {
@@ -125,7 +165,8 @@ Receba uma mensagem e retorne SOMENTE um JSON com:
   { "intent": "<INTENT>", "confidence": <0-1> }
 
 Intents validas (escolhe a melhor):
-- partner.emit_voucher (parceira pedindo voucher pra alguem)
+- partner.emit_voucher (parceira pedindo voucher pra UMA pessoa)
+- partner.bulk_emit_voucher (parceira pedindo voucher pra DUAS OU MAIS · lista numerada / multilinha / "N vouchers")
 - partner.refer_lead (parceira indicando lead/amiga interessada)
 - partner.feedback_received (parceira contando que foi bom)
 - partner.other (parceira mas intent unclear)

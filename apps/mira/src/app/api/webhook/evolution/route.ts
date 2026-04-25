@@ -30,7 +30,9 @@ import { dedupCheckAndMark, isGlobalAdminCommand, STATE_KEY } from '@/lib/webhoo
 import {
   dispatchHandler,
   b2bVoucherConfirmHandler,
+  b2bBulkVoucherConfirmHandler,
   shouldHandleAsConfirmation,
+  shouldHandleAsBulkConfirmation,
   type HandlerAction,
 } from '@/lib/webhook/handlers'
 import { getEvolutionService } from '@/services/evolution.service'
@@ -146,6 +148,7 @@ export async function POST(req: NextRequest) {
   //    Estados B2B nao precisam de "shouldHandleAsConfirmation" porque sao
   //    multi-turn explicitos · qualquer texto e parte do fluxo.
   const voucherPending = await repos.miraState.get(msg.phone, STATE_KEY.VOUCHER_CONFIRM)
+  const bulkVoucherPending = await repos.miraState.get(msg.phone, STATE_KEY.BULK_VOUCHER_REVIEW)
   const rejectReasonPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_REASON)
   const approveSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_APPROVE_SELECT)
   const rejectSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_SELECT)
@@ -162,6 +165,17 @@ export async function POST(req: NextRequest) {
       role,
       text: content,
       intent: 'partner.other', // intent placeholder · handler nao usa
+      repos,
+      pushName: msg.pushName,
+    })
+  } else if (bulkVoucherPending && shouldHandleAsBulkConfirmation(content)) {
+    chosenIntent = 'preempt:bulk_voucher_review'
+    result = await b2bBulkVoucherConfirmHandler({
+      clinicId,
+      phone: msg.phone,
+      role,
+      text: content,
+      intent: 'partner.other', // placeholder · handler nao usa
       repos,
       pushName: msg.pushName,
     })

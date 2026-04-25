@@ -9,6 +9,8 @@ import type { Intent } from '../intent-classifier'
 import type { Handler } from './types'
 import { b2bEmitVoucherHandler } from './b2b-emit-voucher'
 import { b2bVoucherConfirmHandler } from './b2b-voucher-confirm'
+import { b2bBulkEmitVoucherHandler } from './b2b-bulk-emit-voucher'
+import { b2bBulkVoucherConfirmHandler } from './b2b-bulk-voucher-confirm'
 import { b2bReferLeadHandler } from './b2b-refer-lead'
 import { b2bAdminApproveHandler } from './b2b-admin-approve'
 import { b2bAdminRejectHandler } from './b2b-admin-reject'
@@ -21,13 +23,18 @@ import {
 } from './stubs'
 
 export { b2bVoucherConfirmHandler }
+export { b2bBulkEmitVoucherHandler }
+export { b2bBulkVoucherConfirmHandler }
 export { shouldHandleAsConfirmation } from './b2b-voucher-confirm'
+export { shouldHandleAsBulkConfirmation } from './b2b-bulk-voucher-confirm'
 export type { Handler, HandlerContext, HandlerResult, HandlerAction, StateTransition } from './types'
 
 export function dispatchHandler(intent: Intent): Handler {
   switch (intent) {
     case 'partner.emit_voucher':
       return b2bEmitVoucherHandler
+    case 'partner.bulk_emit_voucher':
+      return b2bBulkEmitVoucherHandler
     case 'partner.refer_lead':
       return b2bReferLeadHandler
     case 'partner.feedback_received':
