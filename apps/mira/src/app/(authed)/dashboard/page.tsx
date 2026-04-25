@@ -1,5 +1,5 @@
 /**
- * Dashboard · Mira · Server Component.
+ * Dashboard · Mira · admin denso (mirror mira-config antigo).
  *
  * KPIs B2B do dia + 7d + 30d:
  *   - Custo IA (BudgetRepository · compartilhado com Lara)
@@ -9,21 +9,10 @@
  *   - Top 5 parceiras 30d (rolling attributions)
  *   - Alerts criticos (best-effort via b2b_critical_alerts RPC se existir)
  *
- * Multi-tenant ADR-028 · ctx.clinic_id obrigatorio. ADR-012 · todo acesso via
- * repositories.
+ * Visual: max-w-[960px], gap denso, cards 8px radius, gold tinted accents.
+ * Sem cursive italic, sem shadow-luxury, sem rounded-card 20px.
  */
 
-import {
-  DollarSign,
-  Handshake,
-  Ticket,
-  TrendingUp,
-  AlertTriangle,
-  Sparkles,
-  Activity,
-  LayoutDashboard,
-  Trophy,
-} from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { createLogger } from '@clinicai/logger'
 
@@ -132,47 +121,41 @@ export default async function DashboardPage() {
     : 0
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-7xl mx-auto">
-        {/* Hero header */}
-        <div className="mb-8 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
-            <LayoutDashboard className="w-6 h-6" />
-          </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
+      <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
+        {/* Header denso */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/8">
           <div>
-            <h1 className="text-3xl font-light text-[hsl(var(--foreground))]">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">Visão geral</span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              Mira · saúde B2B · hoje + últimos 7/30 dias
+            <h1 className="text-base font-semibold text-[#F5F5F5]">Visão geral</h1>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+              Mira admin · saúde B2B · hoje + 7/30 dias
             </p>
+          </div>
+          <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+            Evolution API · WhatsApp B2B
           </div>
         </div>
 
-        {/* Stat cards principais */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            icon={<Handshake className="w-5 h-5" />}
+        {/* KPI cards densos · 4 colunas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <KpiCard
             label="Parcerias ativas"
             value={String(stats.partnershipsActive)}
             subtitle={`${stats.partnershipsPaused} pausadas · ${stats.partnershipsPending} aguardando`}
-            tone="success"
+            tone="ok"
           />
-          <StatCard
-            icon={<Ticket className="w-5 h-5" />}
+          <KpiCard
             label="Vouchers hoje"
             value={String(stats.vouchersToday)}
             subtitle={`7 dias: ${stats.vouchers7d}`}
           />
-          <StatCard
-            icon={<TrendingUp className="w-5 h-5" />}
+          <KpiCard
             label="Conversões 30d"
             value={`${stats.conversions30d}/${stats.vouchers30d}`}
             subtitle={`Taxa: ${conversionRate}%`}
-            tone={conversionRate >= 30 ? 'success' : conversionRate < 10 ? 'warn' : 'default'}
+            tone={conversionRate >= 30 ? 'ok' : conversionRate < 10 ? 'warn' : 'default'}
           />
-          <StatCard
-            icon={<DollarSign className="w-5 h-5" />}
+          <KpiCard
             label="Custo IA hoje"
             value={usd(stats.costTodayUsd)}
             subtitle={`7 dias: ${usd(stats.cost7dUsd)}`}
@@ -180,41 +163,40 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Top performers + alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SectionCard title="Top 5 parceiras · 30 dias" icon={<Trophy className="w-4 h-4" />}>
+        {/* Top performers + alerts · 2 colunas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-1">
+          <Section title="Top 5 parceiras · 30 dias">
             {stats.topPerformers.length === 0 ? (
-              <EmptyState
-                icon={<Sparkles className="w-10 h-10" />}
+              <EmptyBlock
                 message="Nenhuma atribuição nos últimos 30 dias."
-                hint="Vouchers resgatados aparecem aqui assim que rolar a primeira conversão."
+                hint="Vouchers resgatados aparecem aqui após a primeira conversão."
               />
             ) : (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-2.5">
                 {stats.topPerformers.map((tp, idx) => {
                   const max = stats.topPerformers[0]?.count ?? 1
                   const pct = max > 0 ? Math.round((tp.count / max) * 100) : 0
                   return (
                     <div key={`${tp.name}-${idx}`}>
-                      <div className="flex items-center justify-between mb-2 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-pill bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] text-[10px] font-bold shrink-0">
+                      <div className="flex items-center justify-between mb-1 text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-[#C9A96E]/18 text-[#C9A96E] text-[9px] font-bold shrink-0">
                             {idx + 1}
                           </span>
-                          <span className="text-[hsl(var(--foreground))] font-medium truncate">
+                          <span className="text-[#F5F5F5] font-medium truncate">
                             {tp.name}
                           </span>
-                          <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] shrink-0">
+                          <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280] shrink-0">
                             {tp.pillar}
                           </span>
                         </div>
-                        <span className="text-[hsl(var(--primary))] font-bold shrink-0 ml-2">
+                        <span className="text-[#C9A96E] font-mono font-bold shrink-0 ml-2 text-[11px]">
                           {tp.count} {tp.count === 1 ? 'lead' : 'leads'}
                         </span>
                       </div>
-                      <div className="h-2 bg-[hsl(var(--muted))] rounded-pill overflow-hidden">
+                      <div className="h-1 bg-white/5 rounded overflow-hidden">
                         <div
-                          className="h-full bg-[hsl(var(--primary))] rounded-pill transition-all"
+                          className="h-full bg-[#C9A96E] rounded transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -223,119 +205,106 @@ export default async function DashboardPage() {
                 })}
               </div>
             )}
-          </SectionCard>
+          </Section>
 
-          <SectionCard title="Alertas críticos" icon={<AlertTriangle className="w-4 h-4" />}>
+          <Section title="Alertas críticos">
             {stats.criticalAlerts.length === 0 ? (
-              <EmptyState
-                icon={<Activity className="w-10 h-10 text-[hsl(var(--success))]" />}
+              <EmptyBlock
                 message="Tudo verde · nenhum alerta crítico."
-                hint="Mira monitora parcerias com 0 conversões em 90d, vouchers expirando, e cap mensal."
-                tone="success"
+                hint="Mira monitora 0 conversões em 90d, vouchers expirando, cap mensal."
+                tone="ok"
               />
             ) : (
-              <div className="space-y-2">
-                {stats.criticalAlerts.map((a, i) => (
-                  <div
-                    key={i}
-                    className={`px-4 py-3 rounded-card border text-xs ${
-                      a.severity === 'critical'
-                        ? 'border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5'
-                        : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span
-                        className={`font-display-uppercase text-[10px] tracking-widest ${
-                          a.severity === 'critical'
-                            ? 'text-[hsl(var(--danger))]'
-                            : 'text-[hsl(var(--warning))]'
-                        }`}
-                      >
-                        {a.kind}
-                      </span>
-                      <span
-                        className={`text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-pill ${
-                          a.severity === 'critical'
-                            ? 'bg-[hsl(var(--danger))]/15 text-[hsl(var(--danger))]'
-                            : 'bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))]'
-                        }`}
-                      >
-                        {a.severity}
-                      </span>
+              <div className="flex flex-col gap-1.5">
+                {stats.criticalAlerts.map((a, i) => {
+                  const isCritical = a.severity === 'critical'
+                  return (
+                    <div
+                      key={i}
+                      className={`px-3 py-2 rounded-lg border text-xs ${
+                        isCritical
+                          ? 'border-[#EF4444]/30 bg-[#EF4444]/8'
+                          : 'border-[#F59E0B]/30 bg-[#F59E0B]/8'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-[1.2px] ${
+                            isCritical ? 'text-[#FCA5A5]' : 'text-[#F59E0B]'
+                          }`}
+                        >
+                          {a.kind}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded ${
+                            isCritical
+                              ? 'bg-[#EF4444]/18 text-[#FCA5A5]'
+                              : 'bg-[#F59E0B]/18 text-[#F59E0B]'
+                          }`}
+                        >
+                          {a.severity}
+                        </span>
+                      </div>
+                      <div className="text-[#F5F5F5] text-[12px]">{a.message}</div>
                     </div>
-                    <div className="text-[hsl(var(--foreground))]">{a.message}</div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
-          </SectionCard>
-        </div>
-
-        {/* Footer info */}
-        <div className="mt-8 text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-          <Sparkles className="w-3 h-3" />
-          Mira em produção · Evolution API · WhatsApp B2B + admin
+          </Section>
         </div>
       </div>
     </main>
   )
 }
 
-function StatCard({
-  icon,
+function KpiCard({
   label,
   value,
   subtitle,
   tone = 'default',
 }: {
-  icon: React.ReactNode
   label: string
   value: string
   subtitle?: string
-  tone?: 'default' | 'warn' | 'success'
+  tone?: 'default' | 'warn' | 'ok'
 }) {
-  const toneClasses =
+  const accentBadge =
     tone === 'warn'
-      ? 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
-      : tone === 'success'
-      ? 'border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5'
-      : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]'
-  const iconTone =
-    tone === 'warn'
-      ? 'text-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10'
-      : tone === 'success'
-      ? 'text-[hsl(var(--success))] bg-[hsl(var(--success))]/10'
-      : 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+      ? 'bg-[#F59E0B]/15 text-[#F59E0B]'
+      : tone === 'ok'
+      ? 'bg-[#10B981]/15 text-[#10B981]'
+      : 'bg-[#C9A96E]/18 text-[#C9A96E]'
+  const dotLabel =
+    tone === 'warn' ? 'Alerta' : tone === 'ok' ? 'OK' : 'Live'
   return (
-    <div className={`rounded-card border p-5 ${toneClasses} hover:shadow-luxury-sm transition-shadow`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className={`p-2 rounded-md ${iconTone}`}>{icon}</div>
+    <div className="bg-white/[0.02] border border-white/8 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+          {label}
+        </span>
+        <span className={`text-[9px] uppercase tracking-[1.2px] font-bold px-1.5 py-0.5 rounded ${accentBadge}`}>
+          {dotLabel}
+        </span>
       </div>
-      <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] font-display-uppercase">
-        {label}
-      </div>
-      <div className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{value}</div>
+      <div className="text-2xl font-semibold text-[#F5F5F5] font-mono leading-none">{value}</div>
       {subtitle && (
-        <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{subtitle}</div>
+        <div className="text-[11px] text-[#6B7280] mt-1.5">{subtitle}</div>
       )}
     </div>
   )
 }
 
-function SectionCard({
+function Section({
   title,
-  icon,
   children,
 }: {
   title: string
-  icon?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-      <h3 className="flex items-center gap-2 text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
-        {icon}
+    <div className="bg-white/[0.02] border border-white/8 rounded-lg p-4">
+      <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E] mb-3">
         {title}
       </h3>
       {children}
@@ -343,26 +312,19 @@ function SectionCard({
   )
 }
 
-function EmptyState({
-  icon,
+function EmptyBlock({
   message,
   hint,
   tone = 'default',
 }: {
-  icon: React.ReactNode
   message: string
   hint?: string
-  tone?: 'default' | 'success'
+  tone?: 'default' | 'ok'
 }) {
-  const iconTone =
-    tone === 'success'
-      ? 'text-[hsl(var(--success))]'
-      : 'text-[hsl(var(--muted-foreground))]/40'
   return (
-    <div className="py-8 text-center flex flex-col items-center gap-3">
-      <div className={iconTone}>{icon}</div>
-      <p className="text-sm text-[hsl(var(--foreground))]">{message}</p>
-      {hint && <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xs">{hint}</p>}
+    <div className={`py-5 text-center flex flex-col items-center gap-1.5 ${tone === 'ok' ? '' : ''}`}>
+      <p className={`text-xs ${tone === 'ok' ? 'text-[#10B981]' : 'text-[#F5F5F5]'}`}>{message}</p>
+      {hint && <p className="text-[11px] text-[#9CA3AF] max-w-xs">{hint}</p>}
     </div>
   )
 }
