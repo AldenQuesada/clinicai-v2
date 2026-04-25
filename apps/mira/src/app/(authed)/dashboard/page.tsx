@@ -23,6 +23,19 @@ import {
   Activity,
 } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { createLogger } from '@clinicai/logger'
+
+const log = createLogger({ app: 'mira' })
+
+// Wrapper · sempre retorna fallback se promise rejeitar · loga erro
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    log.warn({ kpi: label, err: (err as Error)?.message }, 'dashboard.kpi.failed')
+    return fallback
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +59,7 @@ async function loadStats(): Promise<DashboardStats> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // Cada KPI tolerante a erro · 1 falha nao crasha o dashboard inteiro
   const [
     costToday,
     cost7d,
@@ -58,18 +72,16 @@ async function loadStats(): Promise<DashboardStats> {
     vouchers30d,
     topPerformers,
   ] = await Promise.all([
-    repos.budget.getTodayCost(ctx.clinic_id),
-    repos.budget.getRecentCost(ctx.clinic_id, 7),
-    repos.b2bPartnerships.count(ctx.clinic_id, { status: 'active' }),
-    repos.b2bPartnerships.count(ctx.clinic_id, { status: 'paused' }),
-    repos.b2bPartnerships.count(ctx.clinic_id, { status: 'dna_check' }),
-    repos.b2bVouchers.countByPeriod(ctx.clinic_id, todayIso),
-    repos.b2bVouchers.countByPeriod(ctx.clinic_id, sevenDaysAgo),
-    repos.b2bVouchers.countByPeriod(ctx.clinic_id, thirtyDaysAgo, {
-      status: ['redeemed', 'opened'],
-    }),
-    repos.b2bVouchers.countByPeriod(ctx.clinic_id, thirtyDaysAgo),
-    repos.b2bPartnerships.topPerformers30d(ctx.clinic_id, 5),
+    safe('costToday',         () => repos.budget.getTodayCost(ctx.clinic_id), 0),
+    safe('cost7d',            () => repos.budget.getRecentCost(ctx.clinic_id, 7), 0),
+    safe('partnershipsActive',() => repos.b2bPartnerships.count(ctx.clinic_id, { status: 'active' }), 0),
+    safe('partnershipsPaused',() => repos.b2bPartnerships.count(ctx.clinic_id, { status: 'paused' }), 0),
+    safe('partnershipsPending',() => repos.b2bPartnerships.count(ctx.clinic_id, { status: 'dna_check' }), 0),
+    safe('vouchersToday',     () => repos.b2bVouchers.countByPeriod(ctx.clinic_id, todayIso), 0),
+    safe('vouchers7d',        () => repos.b2bVouchers.countByPeriod(ctx.clinic_id, sevenDaysAgo), 0),
+    safe('conversions30d',    () => repos.b2bVouchers.countByPeriod(ctx.clinic_id, thirtyDaysAgo, { status: ['redeemed', 'opened'] }), 0),
+    safe('vouchers30d',       () => repos.b2bVouchers.countByPeriod(ctx.clinic_id, thirtyDaysAgo), 0),
+    safe('topPerformers',     () => repos.b2bPartnerships.topPerformers30d(ctx.clinic_id, 5), [] as Awaited<ReturnType<typeof repos.b2bPartnerships.topPerformers30d>>),
   ])
 
   // Critical alerts · best-effort RPC
