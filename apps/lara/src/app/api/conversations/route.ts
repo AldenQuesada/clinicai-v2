@@ -1,99 +1,69 @@
 /**
- * GET /api/conversations — List all active conversations for inbox
+ * GET /api/conversations · lista conversas pro inbox.
+ *
+ * ADR-012: ConversationRepository.listByStatus + LeadRepository.findByPhones.
+ * Multi-tenant ADR-028: clinic_id resolvido via JWT (loadServerContext).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { loadServerContext } from '@clinicai/supabase';
+import { makeRepos } from '@/lib/repos';
+import type { StatusFilter } from '@clinicai/repositories';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    const { supabase, ctx } = await loadServerContext();
+    const repos = makeRepos(supabase);
 
-    // 1. Fetch conversations with optional status filter
     const { searchParams } = new URL(request.url);
-    const statusParam = searchParams.get('status') || 'active';
-    
-    let statusFilter: string[] = ['active', 'paused'];
-    if (statusParam === 'archived') statusFilter = ['archived'];
-    if (statusParam === 'resolved') statusFilter = ['resolved'];
-    if (statusParam === 'dra') statusFilter = ['dra'];
+    const statusParam = (searchParams.get('status') || 'active') as StatusFilter;
 
-    const { data: convData, error: convError } = await supabase
-      .from('wa_conversations')
-      .select('*')
-      .in('status', statusFilter)
-      .order('last_message_at', { ascending: false });
+    const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam);
 
-    if (convError) {
-      console.error('[API] Conversations error:', convError);
-      return NextResponse.json({ error: convError.message }, { status: 500 });
-    }
+    // Resolve leads em batch (1 query) · evita N+1 e mantem inbox rapido
+    const phones = conversations.map((c) => c.phone).filter(Boolean);
+    const leadsByPhone = await repos.leads.findByPhones(ctx.clinic_id, phones);
 
-    // 2. Fetch related leads using both lead_id and phone (safest fallback)
-    const phones = (convData || []).map((c: any) => c.phone).filter(Boolean);
-    
-    let leadsById: Record<string, any> = {};
-    let leadsByPhone: Record<string, any> = {};
-    
-    if (phones.length > 0) {
-      const { data: leadsData } = await supabase
-        .from('leads')
-        .select('id, name, phone, phase, temperature, funnel, queixas_faciais, ai_persona, lead_score, tags')
-        .in('phone', phones);
-        
-      if (leadsData) {
-        leadsData.forEach((l: any) => {
-          leadsById[l.id] = l;
-          leadsByPhone[l.phone] = l;
-        });
-      }
-    }
+    const enriched = conversations.map((c) => {
+      const lead = leadsByPhone.get(c.phone);
 
-    // 3. Transform and Merge
-    const conversations = (convData || []).map((c: any) => {
-      const lead = (c.lead_id ? leadsById[c.lead_id] : null) || leadsByPhone[c.phone];
-      
-      /**
-       * IDENTIFICADOR DE CANAL (Evolution vs Cloud)
-       * A Evolution API (projeto antigo) sempre preenche o campo 'remote_jid' (ex: 5511...@s.whatsapp.net).
-       * A nossa nova Cloud API deixa este campo NULL, usando apenas o ID interno e o Telefone.
-       */
-      const isCloud = !c.remote_jid;
+      // remote_jid presente = legacy Evolution · null = Cloud (canal novo)
+      const isCloud = !c.remoteJid;
 
       return {
         conversation_id: c.id,
         phone: c.phone,
-        lead_name: lead?.name || c.display_name || c.phone,
-        lead_id: c.lead_id || lead?.id,
+        lead_name: lead?.name || c.displayName || c.phone,
+        lead_id: c.leadId || lead?.id || null,
         status: c.status,
-        ai_enabled: c.ai_enabled,
-        ai_paused_until: c.ai_paused_until,
-        last_message_at: c.last_message_at,
-        last_message_text: c.last_message_text,
-        last_lead_msg: c.last_lead_msg,
+        ai_enabled: c.aiEnabled,
+        ai_paused_until: c.aiPausedUntil,
+        last_message_at: c.lastMessageAt,
+        last_message_text: c.lastMessageText,
+        last_lead_msg: c.lastLeadMsg,
         funnel: lead?.funnel || null,
         phase: lead?.phase || null,
         temperature: lead?.temperature || null,
-        queixas: lead?.queixas_faciais || [],
+        queixas: lead?.queixasFaciais || [],
         tags: lead?.tags || [],
-        lead_score: lead?.lead_score || 0,
+        lead_score: lead?.leadScore || 0,
         channel: isCloud ? 'cloud' : 'legacy',
-        is_urgent: isUrgent(c),
+        is_urgent: isUrgent(c.aiEnabled, c.lastLeadMsg),
       };
     });
 
-    return NextResponse.json(conversations);
+    return NextResponse.json(enriched);
   } catch (err: any) {
     console.error('[API] Conversations error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-function isUrgent(conv: any): boolean {
-  if (!conv.last_lead_msg) return false;
-  const lastMsg = new Date(conv.last_lead_msg);
+function isUrgent(aiEnabled: boolean, lastLeadMsg: string | null): boolean {
+  if (!lastLeadMsg) return false;
+  const lastMsg = new Date(lastLeadMsg);
   const minutesAgo = (Date.now() - lastMsg.getTime()) / 60000;
-  return !conv.ai_enabled && minutesAgo > 5;
+  return !aiEnabled && minutesAgo > 5;
 }

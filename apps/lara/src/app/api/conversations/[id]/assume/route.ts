@@ -1,10 +1,11 @@
 /**
- * POST /api/conversations/[id]/assume — Human assumes control
- * DELETE /api/conversations/[id]/assume — Release back to AI
+ * POST   /api/conversations/[id]/assume · humano assume controle (pausa IA 30min)
+ * DELETE /api/conversations/[id]/assume · libera de volta pra IA
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { loadServerContext } from '@clinicai/supabase';
+import { makeRepos } from '@/lib/repos';
 import { pauseAgent } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +15,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  
+
   try {
-    // Ao assumir a conversa, pausamos a IA por 30 minutos (mesmo comportamento do botão de pausa)
     const result = await pauseAgent(id, 30);
     return NextResponse.json({ ok: true, pauseStatus: result });
   } catch (err: any) {
@@ -29,20 +29,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = createServerClient();
+  const { supabase } = await loadServerContext();
+  const repos = makeRepos(supabase);
 
-  const { error } = await supabase
-    .from('wa_conversations')
-    .update({
-      ai_enabled: true,
-      ai_paused_until: null,
-      status: 'active'
-    })
-    .eq('id', id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await repos.conversations.updateAiPause(id, {
+    pausedUntil: null,
+    aiEnabled: true,
+    status: 'active',
+  });
 
   return NextResponse.json({ ok: true });
 }
