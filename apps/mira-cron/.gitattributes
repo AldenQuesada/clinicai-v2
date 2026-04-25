@@ -1,0 +1,4 @@
+# Forca LF em scripts shell · evita CRLF Windows quebrar entrypoint do alpine
+*.sh text eol=lf
+crontab.template text eol=lf
+Dockerfile text eol=lf
