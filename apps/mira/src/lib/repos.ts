@@ -31,6 +31,7 @@ import {
   B2BVoucherComboRepository,
   B2BSuggestionsRepository,
   B2BScoutRepository,
+  B2BApplicationRepository,
   B2BWASenderRepository,
   B2BCommTemplateRepository,
   WaProAuditRepository,
@@ -60,6 +61,7 @@ export interface MiraRepos {
   b2bVoucherCombos: B2BVoucherComboRepository
   b2bSuggestions: B2BSuggestionsRepository
   b2bScout: B2BScoutRepository
+  b2bApplications: B2BApplicationRepository
   b2bSenders: B2BWASenderRepository
   b2bTemplates: B2BCommTemplateRepository
   waProAudit: WaProAuditRepository
@@ -89,6 +91,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bVoucherCombos: new B2BVoucherComboRepository(supabase),
     b2bSuggestions: new B2BSuggestionsRepository(supabase),
     b2bScout: new B2BScoutRepository(supabase),
+    b2bApplications: new B2BApplicationRepository(supabase),
     b2bSenders: new B2BWASenderRepository(supabase),
     b2bTemplates: new B2BCommTemplateRepository(supabase),
     waProAudit: new WaProAuditRepository(supabase),

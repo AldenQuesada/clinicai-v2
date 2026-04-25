@@ -70,6 +70,11 @@ export {
   type ScoutSummaryDTO,
   type SimilarCandidateDTO,
 } from './b2b-scout.repository'
+export {
+  B2BApplicationRepository,
+  type ApplicationDTO,
+  type ApplicationStatus,
+} from './b2b-application.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
