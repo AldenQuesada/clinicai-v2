@@ -62,7 +62,7 @@ const SECTIONS: Section[] = [
     match: ['/semana', '/partnerships'],
     subtabs: [
       { href: '/partnerships', label: 'Pulse de parcerias', available: true },
-      { href: '/semana/performance', label: 'Performance', available: false },
+      { href: '/semana/performance', label: 'Performance', available: true },
       { href: '/semana/renovacoes', label: 'Renovações', available: false },
       { href: '/semana/comentarios', label: 'Comentários', available: false },
       { href: '/semana/encerramentos', label: 'Encerramentos', available: false },
