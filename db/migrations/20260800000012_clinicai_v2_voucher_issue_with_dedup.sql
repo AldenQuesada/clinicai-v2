@@ -20,16 +20,26 @@
 -- ║ Hoje raro (1 parceira ativa · Dani) · com 5+ parceiras simultaneas      ║
 -- ║ vira problema. Fix preventivo.                                           ║
 -- ║                                                                          ║
--- ║ Estrategia · single transaction RPC:                                     ║
--- ║   BEGIN;                                                                 ║
--- ║     SET LOCAL transaction_isolation = 'serializable';                    ║
--- ║     -- Lock + check dedup atomic (FOR UPDATE em leads/vouchers)         ║
--- ║     -- Se hit: RETURN dedup_blocked (sem insert)                        ║
--- ║     -- Se sem hit: INSERT em b2b_vouchers (gera token + RETURNING id)   ║
--- ║   COMMIT;                                                                ║
+-- ║ Estrategia · single function RPC com advisory lock:                      ║
+-- ║   1. pg_advisory_xact_lock(hashtext('b2b_v_dedup'), hashtext(phone))    ║
+-- ║      · keyed na primeira variante de phone · serializa concorrentes      ║
+-- ║      · transactional (auto-release no COMMIT/ROLLBACK)                   ║
+-- ║   2. Dedup checks (4 niveis · FOR UPDATE pra durar lock ate commit)     ║
+-- ║   3. Se hit: RETURN dedup_blocked (lock liberado no commit implicito)   ║
+-- ║   4. Se sem hit: INSERT em b2b_vouchers + return id                     ║
 -- ║                                                                          ║
--- ║   Em concorrencia: PG raise SQLSTATE 40001 (serialization_failure)      ║
--- ║   numa das transacoes. Caller (repository TS) retenta com backoff.       ║
+-- ║ Por que advisory lock em vez de SERIALIZABLE:                            ║
+-- ║   · SET LOCAL transaction_isolation dentro da funcao bate em             ║
+-- ║     "must be called before any query" porque a funcao roda dentro       ║
+-- ║     da transacao implicita que ja iniciou no caller (PostgREST).        ║
+-- ║   · Advisory lock funciona em qualquer isolation, e cooperativo,        ║
+-- ║     auto-release transactional (xact_lock = scope = transacao).         ║
+-- ║   · Garantia equivalente: 2 chamadas concorrentes pra mesmo phone       ║
+-- ║     serializam · 2a espera 1a commitar (ou abortar) · nao ve "vazio"   ║
+-- ║     no dedup quando deveria ver voucher recem-criado.                   ║
+-- ║                                                                          ║
+-- ║ Caller (repository TS) ainda retenta com backoff em casos extremos     ║
+-- ║ (deadlock detection, rede instavel) · 3 tentativas 100/300/700ms.       ║
 -- ║                                                                          ║
 -- ║ Compatibilidade:                                                         ║
 -- ║   · b2b_voucher_issue ORIGINAL e mantido intacto (callers legacy ok)    ║
@@ -51,6 +61,9 @@
 -- ║ GOLD #7: sanity check final                                              ║
 -- ║ GOLD #10: NOTIFY pgrst reload schema                                     ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
+
+-- ── DROP versao anterior (caso exista de aplicacao previa) ─────────────────
+DROP FUNCTION IF EXISTS public.b2b_voucher_issue_with_dedup(jsonb);
 
 -- ── RPC: b2b_voucher_issue_with_dedup ──────────────────────────────────────
 -- Inputs (p_payload jsonb):
@@ -94,15 +107,13 @@ DECLARE
   v_notes            text;
   v_phone_variants   text[];
   v_phone_variants_jsonb jsonb;
+  v_skip_dedup       boolean := false;
   v_lead_row         record;
   v_voucher_row      record;
   v_attrib_row       record;
   v_partnership_name text;
+  v_lock_key         text;
 BEGIN
-  -- Serializable: garante que dois caminhos concorrentes pra mesmo phone
-  -- nao coexistem · um vence, outro recebe SQLSTATE 40001 e retenta no caller.
-  SET LOCAL transaction_isolation = 'serializable';
-
   -- ── 1. Valida partnership_id ────────────────────────────────────────
   v_partnership_id := NULLIF(p_payload->>'partnership_id', '')::uuid;
   IF v_partnership_id IS NULL THEN
@@ -152,127 +163,135 @@ BEGIN
   -- Demo voucher pode ser pra propria parceira · skip dedup explicito
   -- (decisao Alden: voucher demo tem propria semantica, nao gera duplicata).
   IF v_is_demo OR array_length(v_phone_variants, 1) IS NULL THEN
-    GOTO insert_voucher;
+    v_skip_dedup := true;
   END IF;
 
-  -- ── 4. Dedup atomic com FOR UPDATE ──────────────────────────────────
+  -- ── 4. Dedup atomic com advisory lock + FOR UPDATE ──────────────────
   -- Hierarquia: patient > lead > voucher_recipient > partner_referral.
-  -- FOR UPDATE bloqueia rows que matcham ate fim da transacao · qualquer
-  -- INSERT concorrente em b2b_vouchers/leads pra mesmo phone vai esperar
-  -- ou (no isolamento serializable) levantar 40001.
-
-  -- 4a. Patient (leads.phase = 'patient' · prioridade maxima)
-  SELECT id, name, phone, created_at
-    INTO v_lead_row
-    FROM public.leads
-   WHERE clinic_id = v_clinic_id
-     AND phase = 'patient'
-     AND phone = ANY(v_phone_variants)
-   ORDER BY created_at ASC
-   LIMIT 1
-   FOR UPDATE;
-
-  IF FOUND THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'dedup_hit', jsonb_build_object(
-        'kind',  'patient',
-        'id',    v_lead_row.id,
-        'name',  v_lead_row.name,
-        'phone', v_lead_row.phone,
-        'since', v_lead_row.created_at
-      )
+  -- Advisory lock keyed em (clinic_id, phone[1]) serializa concorrentes
+  -- pra mesmo phone. FOR UPDATE bloqueia rows existentes ate commit.
+  -- Combinado: race fica impossivel pra mesma combinacao clinica+phone.
+  IF NOT v_skip_dedup THEN
+    -- Lock key: namespace 'b2b_v_dedup' + clinic_id + primeira variante
+    -- de phone. xact_lock = auto-release no COMMIT/ROLLBACK · cooperativo.
+    v_lock_key := 'b2b_v_dedup:' || v_clinic_id::text || ':' || v_phone_variants[1];
+    PERFORM pg_advisory_xact_lock(
+      hashtext('b2b_voucher_issue_with_dedup')::int,
+      hashtext(v_lock_key)::int
     );
-  END IF;
 
-  -- 4b. Lead (qualquer phase != patient)
-  SELECT id, name, phone, created_at
-    INTO v_lead_row
-    FROM public.leads
-   WHERE clinic_id = v_clinic_id
-     AND (phase IS NULL OR phase <> 'patient')
-     AND phone = ANY(v_phone_variants)
-   ORDER BY created_at ASC
-   LIMIT 1
-   FOR UPDATE;
+    -- 4a. Patient (leads.phase = 'patient' · prioridade maxima)
+    SELECT id, name, phone, created_at
+      INTO v_lead_row
+      FROM public.leads
+     WHERE clinic_id = v_clinic_id
+       AND phase = 'patient'
+       AND phone = ANY(v_phone_variants)
+     ORDER BY created_at ASC
+     LIMIT 1
+     FOR UPDATE;
 
-  IF FOUND THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'dedup_hit', jsonb_build_object(
-        'kind',  'lead',
-        'id',    v_lead_row.id,
-        'name',  v_lead_row.name,
-        'phone', v_lead_row.phone,
-        'since', v_lead_row.created_at
-      )
-    );
-  END IF;
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'ok', true,
+        'dedup_hit', jsonb_build_object(
+          'kind',  'patient',
+          'id',    v_lead_row.id,
+          'name',  v_lead_row.name,
+          'phone', v_lead_row.phone,
+          'since', v_lead_row.created_at
+        )
+      );
+    END IF;
 
-  -- 4c. voucher_recipient (b2b_vouchers · pega o mais antigo)
-  SELECT id, recipient_name, recipient_phone, partnership_id, issued_at
-    INTO v_voucher_row
-    FROM public.b2b_vouchers
-   WHERE clinic_id = v_clinic_id
-     AND recipient_phone = ANY(v_phone_variants)
-   ORDER BY issued_at ASC
-   LIMIT 1
-   FOR UPDATE;
+    -- 4b. Lead (qualquer phase != patient)
+    SELECT id, name, phone, created_at
+      INTO v_lead_row
+      FROM public.leads
+     WHERE clinic_id = v_clinic_id
+       AND (phase IS NULL OR phase <> 'patient')
+       AND phone = ANY(v_phone_variants)
+     ORDER BY created_at ASC
+     LIMIT 1
+     FOR UPDATE;
 
-  IF FOUND THEN
-    -- Resolve partnership name best-effort (sem lock)
-    SELECT name INTO v_partnership_name
-      FROM public.b2b_partnerships
-     WHERE id = v_voucher_row.partnership_id
-     LIMIT 1;
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'ok', true,
+        'dedup_hit', jsonb_build_object(
+          'kind',  'lead',
+          'id',    v_lead_row.id,
+          'name',  v_lead_row.name,
+          'phone', v_lead_row.phone,
+          'since', v_lead_row.created_at
+        )
+      );
+    END IF;
 
-    RETURN jsonb_build_object(
-      'ok', true,
-      'dedup_hit', jsonb_build_object(
-        'kind',             'voucher_recipient',
-        'id',               v_voucher_row.id,
-        'name',             v_voucher_row.recipient_name,
-        'phone',            v_voucher_row.recipient_phone,
-        'since',            v_voucher_row.issued_at,
-        'partnership_name', v_partnership_name
-      )
-    );
-  END IF;
+    -- 4c. voucher_recipient (b2b_vouchers · pega o mais antigo)
+    SELECT id, recipient_name, recipient_phone, partnership_id, issued_at
+      INTO v_voucher_row
+      FROM public.b2b_vouchers
+     WHERE clinic_id = v_clinic_id
+       AND recipient_phone = ANY(v_phone_variants)
+     ORDER BY issued_at ASC
+     LIMIT 1
+     FOR UPDATE;
 
-  -- 4d. partner_referral (b2b_attributions via lead.id) · ramo defensivo
-  -- (em pratica leads.findInAnySystem ja teria pego no 4b · mantemos por
-  --  consistencia com o contrato).
-  SELECT a.id, a.partnership_id, a.created_at, l.id AS lead_id, l.name AS lead_name
-    INTO v_attrib_row
-    FROM public.b2b_attributions a
-    JOIN public.leads l ON l.id = a.lead_id
-   WHERE l.clinic_id = v_clinic_id
-     AND l.phone = ANY(v_phone_variants)
-   ORDER BY a.created_at ASC
-   LIMIT 1
-   FOR UPDATE OF a;
+    IF FOUND THEN
+      -- Resolve partnership name best-effort (sem lock)
+      SELECT name INTO v_partnership_name
+        FROM public.b2b_partnerships
+       WHERE id = v_voucher_row.partnership_id
+       LIMIT 1;
 
-  IF FOUND THEN
-    SELECT name INTO v_partnership_name
-      FROM public.b2b_partnerships
-     WHERE id = v_attrib_row.partnership_id
-     LIMIT 1;
+      RETURN jsonb_build_object(
+        'ok', true,
+        'dedup_hit', jsonb_build_object(
+          'kind',             'voucher_recipient',
+          'id',               v_voucher_row.id,
+          'name',             v_voucher_row.recipient_name,
+          'phone',            v_voucher_row.recipient_phone,
+          'since',            v_voucher_row.issued_at,
+          'partnership_name', v_partnership_name
+        )
+      );
+    END IF;
 
-    RETURN jsonb_build_object(
-      'ok', true,
-      'dedup_hit', jsonb_build_object(
-        'kind',             'partner_referral',
-        'id',               v_attrib_row.lead_id,
-        'name',             v_attrib_row.lead_name,
-        'phone',            v_phone_variants[1],
-        'since',            v_attrib_row.created_at,
-        'partnership_name', v_partnership_name
-      )
-    );
+    -- 4d. partner_referral (b2b_attributions.lead_phone direto)
+    -- Schema clinic-dashboard mig 0360: b2b_attributions tem lead_phone
+    -- (nao FK pra leads). Lookup direto por lead_phone variants.
+    -- Em pratica este caminho raro · 4a/4b ja teriam pego se houvesse lead.
+    SELECT id, partnership_id, lead_phone, lead_name, created_at
+      INTO v_attrib_row
+      FROM public.b2b_attributions
+     WHERE clinic_id = v_clinic_id
+       AND lead_phone = ANY(v_phone_variants)
+     ORDER BY created_at ASC
+     LIMIT 1
+     FOR UPDATE;
+
+    IF FOUND THEN
+      SELECT name INTO v_partnership_name
+        FROM public.b2b_partnerships
+       WHERE id = v_attrib_row.partnership_id
+       LIMIT 1;
+
+      RETURN jsonb_build_object(
+        'ok', true,
+        'dedup_hit', jsonb_build_object(
+          'kind',             'partner_referral',
+          'id',               v_attrib_row.id,
+          'name',             v_attrib_row.lead_name,
+          'phone',            COALESCE(v_attrib_row.lead_phone, v_phone_variants[1]),
+          'since',            v_attrib_row.created_at,
+          'partnership_name', v_partnership_name
+        )
+      );
+    END IF;
   END IF;
 
   -- ── 5. Sem hit · INSERT voucher (mesma logica do b2b_voucher_issue) ──
-  <<insert_voucher>>
   LOOP
     v_token := lower(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
     BEGIN
@@ -351,15 +370,15 @@ BEGIN
       v_fn, v_legacy, v_grant;
   END IF;
 
-  IF v_src NOT LIKE '%transaction_isolation%' OR v_src NOT LIKE '%serializable%' THEN
-    RAISE EXCEPTION 'Sanity 800-12 FAIL · funcao sem SET LOCAL transaction_isolation serializable';
+  IF v_src NOT LIKE '%pg_advisory_xact_lock%' THEN
+    RAISE EXCEPTION 'Sanity 800-12 FAIL · funcao sem pg_advisory_xact_lock';
   END IF;
 
   IF v_src NOT LIKE '%FOR UPDATE%' THEN
     RAISE EXCEPTION 'Sanity 800-12 FAIL · funcao sem FOR UPDATE em dedup';
   END IF;
 
-  RAISE NOTICE 'Migration 800-12 OK · b2b_voucher_issue_with_dedup transactional + serializable + 4 niveis dedup';
+  RAISE NOTICE 'Migration 800-12 OK · b2b_voucher_issue_with_dedup advisory_xact_lock + FOR UPDATE + 4 niveis dedup';
 END $$;
 
 NOTIFY pgrst, 'reload schema';
