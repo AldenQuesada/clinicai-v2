@@ -55,6 +55,7 @@ on:
           - mira-inactivity-radar
           - b2b-voucher-dispatch-worker
           - lara-voucher-followup
+          - webhook-processing-worker
 
 jobs:
   dispatch:
@@ -69,7 +70,7 @@ jobs:
             ENDPOINTS="${{ github.event.inputs.job }}"
           else
             case "${{ github.event.schedule }}" in
-              "* * * * *")            ENDPOINTS="mira-state-cleanup mira-state-reminder-check b2b-voucher-dispatch-worker" ;;
+              "* * * * *")            ENDPOINTS="mira-state-cleanup mira-state-reminder-check b2b-voucher-dispatch-worker webhook-processing-worker" ;;
               "0 10 * * 1-6")         ENDPOINTS="mira-daily-digest" ;;
               "0 23 * * 1-6")         ENDPOINTS="mira-evening-digest" ;;
               "0 10 * * 1")           ENDPOINTS="mira-weekly-roundup" ;;
