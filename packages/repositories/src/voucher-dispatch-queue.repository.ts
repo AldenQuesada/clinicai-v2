@@ -38,6 +38,7 @@ export interface VoucherDispatchQueueDTO {
   errorMessage: string | null
   attempts: number
   lastAttemptAt: string | null
+  processingStartedAt: string | null
   batchId: string | null
   submittedBy: string | null
   createdAt: string
@@ -125,6 +126,7 @@ function mapQueueRow(row: any): VoucherDispatchQueueDTO {
     errorMessage: row.error_message ?? null,
     attempts: Number(row.attempts ?? 0),
     lastAttemptAt: row.last_attempt_at ?? null,
+    processingStartedAt: row.processing_started_at ?? null,
     batchId: row.batch_id ?? null,
     submittedBy: row.submitted_by ?? null,
     createdAt: String(row.created_at ?? new Date().toISOString()),
@@ -233,39 +235,133 @@ export class B2BVoucherDispatchQueueRepository {
 
   /**
    * Marca queue item como done · grava voucher_id emitido.
+   *
+   * Idempotency guard (mig 800-08): a RPC so atualiza WHERE status='processing'.
+   * Quando 0 rows affected (zumbi · item ja foi resetado/processado por outro
+   * worker), retorna { ok:false, error:'not_in_processing_state', currentStatus }.
+   * Caller (cron worker) loga warn e NAO retenta o complete (item ja saiu da
+   * fila ou foi resetado · proximo pick decide).
    */
   async complete(
     queueId: string,
     voucherId: string,
-  ): Promise<{ ok: boolean; updated?: number; error?: string }> {
+  ): Promise<{
+    ok: boolean
+    updated?: number
+    error?: string
+    currentStatus?: VoucherDispatchQueueStatus
+  }> {
     const { data, error } = await this.supabase.rpc('b2b_dispatch_queue_complete', {
       p_queue_id: queueId,
       p_voucher_id: voucherId,
     })
     if (error) return { ok: false, error: error.message }
-    const r = data as { ok?: boolean; updated?: number }
-    return { ok: r?.ok === true, updated: r?.updated }
+    const r = data as {
+      ok?: boolean
+      updated?: number
+      error?: string
+      current_status?: string
+    }
+    return {
+      ok: r?.ok === true,
+      updated: r?.updated,
+      error: r?.error,
+      currentStatus: r?.current_status as VoucherDispatchQueueStatus | undefined,
+    }
   }
 
   /**
    * Marca queue item como failed (ou volta pra pending se attempts < 3).
    * Retorna o new_status pro caller logar.
+   *
+   * Idempotency guard (mig 800-08): a RPC so atualiza WHERE status='processing'.
+   * Quando 0 rows affected (item ja saiu de processing), retorna
+   * { ok:false, error:'not_in_processing_state'|'race_status_changed_mid_fail',
+   *   currentStatus }. Caller loga warn — fail nao deve forcar status volta.
    */
   async fail(
     queueId: string,
     errorMessage: string,
-  ): Promise<{ ok: boolean; newStatus?: VoucherDispatchQueueStatus; attempts?: number; error?: string }> {
+  ): Promise<{
+    ok: boolean
+    newStatus?: VoucherDispatchQueueStatus
+    attempts?: number
+    error?: string
+    currentStatus?: VoucherDispatchQueueStatus
+  }> {
     const { data, error } = await this.supabase.rpc('b2b_dispatch_queue_fail', {
       p_queue_id: queueId,
       p_error: errorMessage,
     })
     if (error) return { ok: false, error: error.message }
-    const r = data as { ok?: boolean; new_status?: string; attempts?: number; error?: string }
+    const r = data as {
+      ok?: boolean
+      new_status?: string
+      attempts?: number
+      error?: string
+      current_status?: string
+    }
     return {
       ok: r?.ok === true,
       newStatus: r?.new_status as VoucherDispatchQueueStatus | undefined,
       attempts: r?.attempts,
       error: r?.error,
+      currentStatus: r?.current_status as VoucherDispatchQueueStatus | undefined,
+    }
+  }
+
+  /**
+   * Circuit breaker · reseta items 'processing' presos > thresholdMinutes
+   * (default 5) pra 'pending'. Worker chama antes de cada pick. Retorna
+   * count + lista de queue_ids resetados pra log/audit.
+   *
+   * Mig 800-08 · usa coluna processing_started_at (set pelo pick) pra detectar
+   * zumbis (worker que travou ou foi morto sem completar).
+   */
+  async resetStuck(
+    thresholdMinutes: number = 5,
+  ): Promise<{
+    ok: boolean
+    resetCount: number
+    thresholdMinutes: number
+    items: Array<{
+      queueId: string
+      attempts: number
+      processingStartedAt: string | null
+    }>
+    error?: string
+  }> {
+    const { data, error } = await this.supabase.rpc('b2b_dispatch_queue_reset_stuck', {
+      p_threshold_minutes: thresholdMinutes,
+    })
+    if (error) {
+      return {
+        ok: false,
+        resetCount: 0,
+        thresholdMinutes,
+        items: [],
+        error: error.message,
+      }
+    }
+    const r = data as {
+      ok?: boolean
+      reset_count?: number
+      threshold_minutes?: number
+      items?: Array<{
+        queue_id?: string
+        attempts?: number
+        processing_started_at?: string | null
+      }>
+    }
+    return {
+      ok: r?.ok === true,
+      resetCount: Number(r?.reset_count ?? 0),
+      thresholdMinutes: Number(r?.threshold_minutes ?? thresholdMinutes),
+      items: (r?.items ?? []).map((i) => ({
+        queueId: String(i.queue_id ?? ''),
+        attempts: Number(i.attempts ?? 0),
+        processingStartedAt: i.processing_started_at ?? null,
+      })),
     }
   }
 
