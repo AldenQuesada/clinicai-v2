@@ -58,7 +58,7 @@ const SECTIONS: Section[] = [
     subtabs: [
       { href: '/partnerships?filter=active', label: 'Ativas', available: true },
       { href: '/partnerships?filter=prospects', label: 'Prospects', available: true },
-      { href: '/b2b/candidatos', label: 'Candidatos', available: false },
+      { href: '/b2b/candidatos', label: 'Candidatos', available: true },
       { href: '/b2b/candidaturas', label: 'Candidaturas', available: false },
       { href: '/partnerships?filter=inactive', label: 'Inativas', available: true },
       { href: '/b2b/mapa', label: 'Mapa', available: false },

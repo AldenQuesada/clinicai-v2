@@ -204,6 +204,216 @@
 }
 .b2b-empty-err { color: var(--b2b-red); border-color: rgba(217, 122, 122, 0.3); }
 
+/* ── Overlay modal ── */
+.b2b-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; z-index: 1000; overflow-y: auto;
+}
+.b2b-modal {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 10px; max-width: 720px; width: 100%;
+  max-height: calc(100vh - 80px); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.b2b-modal-wide { max-width: 960px; }
+.b2b-modal-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 24px; border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-modal-hdr h2 {
+  font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400;
+  margin: 0; color: var(--b2b-ivory);
+}
+.b2b-close {
+  background: transparent; border: none; color: var(--b2b-text-muted);
+  font-size: 28px; cursor: pointer; line-height: 1; padding: 0 8px;
+}
+.b2b-close:hover { color: var(--b2b-ivory); }
+.b2b-modal-body { padding: 24px; overflow-y: auto; }
+
+/* ── Form ── */
+.b2b-form-sec {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-champagne); font-weight: 600;
+  padding: 16px 0 8px; border-bottom: 1px solid var(--b2b-border); margin-bottom: 14px;
+}
+.b2b-form-sec:first-child { margin-top: 0; }
+.b2b-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.b2b-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.b2b-field { display: block; margin-bottom: 12px; }
+.b2b-field-lbl {
+  display: block; font-size: 11px; color: var(--b2b-text-dim);
+  margin-bottom: 4px; font-weight: 500;
+}
+.b2b-field-lbl em { color: var(--b2b-red); font-style: normal; }
+.b2b-input {
+  width: 100%; padding: 9px 12px;
+  background: var(--b2b-bg-2);
+  border: 1px solid var(--b2b-border); border-radius: 5px;
+  color: var(--b2b-ivory); font-size: 13px; font-family: inherit;
+  color-scheme: dark;
+}
+.b2b-input:focus { outline: none; border-color: var(--b2b-champagne); }
+textarea.b2b-input { resize: vertical; min-height: 60px; }
+select.b2b-input { cursor: pointer; padding-right: 28px; }
+select.b2b-input option {
+  background: var(--b2b-bg-2);
+  color: var(--b2b-ivory);
+  padding: 6px 10px;
+}
+input.b2b-input[type="number"] { -moz-appearance: textfield; }
+input.b2b-input[type="number"]::-webkit-inner-spin-button,
+input.b2b-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+.b2b-form-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding-top: 20px; border-top: 1px solid var(--b2b-border); margin-top: 16px;
+}
+.b2b-form-err {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(217, 122, 122, 0.12); color: var(--b2b-red);
+  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: 5px; font-size: 12px;
+}
+
+/* ── Scout banner ── */
+.b2b-scout-banner {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.b2b-scout-banner-txt { font-size: 13px; color: var(--b2b-text-dim); flex: 1; min-width: 240px; }
+.b2b-scout-scan { display: flex; gap: 8px; align-items: center; }
+.b2b-scout-stats {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px;
+  font-size: 11px; color: var(--b2b-text-muted); letter-spacing: 0.3px;
+}
+.b2b-scout-stats span:not(:last-child)::after {
+  content: "·"; margin-left: 14px; color: var(--b2b-border-strong);
+}
+
+/* ── Scout summary (mini-dashboard) ── */
+.b2b-scout-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px; margin-bottom: 20px;
+}
+.b2b-scout-summary-card {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 8px; padding: 12px 16px; text-align: center;
+}
+.b2b-scout-summary-num {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 26px; font-weight: 500;
+  color: var(--b2b-champagne); line-height: 1.1;
+}
+.b2b-scout-summary-lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--b2b-text-muted); margin-top: 4px;
+}
+.b2b-scout-summary-meta {
+  grid-column: 1 / -1;
+  font-size: 11px; color: var(--b2b-text-muted);
+  text-align: center; margin-top: -4px;
+}
+
+/* ── Help icon ── */
+.b2b-help-icon {
+  display: inline-block; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--b2b-border-strong);
+  color: #fff; font-size: 11px; font-weight: 700;
+  line-height: 16px; text-align: center;
+  cursor: help; user-select: none;
+  margin-left: 4px; vertical-align: middle;
+}
+.b2b-help-icon:hover { background: var(--b2b-champagne); }
+
+/* ── Candidate stats + filters + rows ── */
+.b2b-cand-stats {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  padding: 6px 2px 14px;
+  font-size: 11px; color: var(--b2b-text-muted);
+  border-bottom: 1px solid var(--b2b-border);
+  margin-bottom: 14px;
+}
+.b2b-cand-stats strong { color: var(--b2b-champagne); font-weight: 600; }
+.b2b-cand-stats span:not(:last-child)::after {
+  content: "·"; margin-left: 14px; color: var(--b2b-border-strong);
+}
+
+.b2b-cand-filters { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+.b2b-cand-priority {
+  background: rgba(201, 169, 110, 0.05);
+  border: 1px solid rgba(201, 169, 110, 0.25);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;
+}
+.b2b-cand-priority-hdr {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-champagne); font-weight: 700; margin-bottom: 12px;
+}
+.b2b-cand-rest-hdr {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-text-muted); font-weight: 600; margin: 16px 0 10px;
+}
+
+.b2b-cand-list { display: flex; flex-direction: column; gap: 10px; }
+.b2b-cand-row {
+  display: grid; grid-template-columns: 60px 1fr auto;
+  gap: 16px; align-items: start;
+  padding: 14px 16px; background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border); border-radius: 6px;
+}
+.b2b-cand-score {
+  font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 400;
+  text-align: center; line-height: 1;
+}
+.b2b-cand-body { min-width: 0; }
+.b2b-cand-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.b2b-cand-top strong { color: var(--b2b-ivory); font-size: 14px; }
+.b2b-cand-meta {
+  font-size: 11px; color: var(--b2b-text-muted);
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px;
+}
+.b2b-cand-just {
+  font-size: 12px; color: var(--b2b-text-dim);
+  padding: 6px 10px; background: var(--b2b-bg-2); border-radius: 4px;
+  margin: 4px 0; font-style: italic;
+}
+.b2b-cand-reasons, .b2b-cand-risks { font-size: 11px; color: var(--b2b-text-dim); padding: 2px 0; }
+.b2b-cand-reasons strong { color: var(--b2b-sage); }
+.b2b-cand-risks strong { color: var(--b2b-red); }
+.b2b-cand-actions {
+  display: flex; flex-direction: column; gap: 4px; min-width: 130px;
+}
+.b2b-cand-actions .b2b-btn { font-size: 11px; padding: 6px 10px; }
+
+/* ── Similar suggestions (form modal fuzzy) ── */
+.b2b-similar-warn {
+  margin: 8px 0 16px;
+  padding: 10px 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+}
+.b2b-similar-hdr {
+  font-size: 11px; font-weight: 600; color: #F59E0B; margin-bottom: 8px;
+}
+.b2b-similar-item {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; padding: 6px 0;
+  border-top: 1px solid rgba(245, 158, 11, 0.15);
+  font-size: 12px;
+}
+.b2b-similar-main { color: var(--b2b-text-dim); }
+.b2b-similar-link {
+  background: transparent; border: 1px solid var(--b2b-border);
+  color: var(--b2b-champagne); font-size: 11px;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+}
+.b2b-similar-link:hover { background: var(--b2b-bg-2); }
+
 
 /* Scrollbar custom · warm thumb */
 .custom-scrollbar {

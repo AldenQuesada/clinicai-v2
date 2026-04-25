@@ -62,6 +62,14 @@ export {
   type SuggestionCategory,
   type SuggestionsSnapshot,
 } from './b2b-suggestions.repository'
+export {
+  B2BScoutRepository,
+  type CandidateDTO,
+  type CandidateStatus,
+  type ConsumptionDTO,
+  type ScoutSummaryDTO,
+  type SimilarCandidateDTO,
+} from './b2b-scout.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
