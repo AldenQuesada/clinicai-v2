@@ -1,16 +1,17 @@
 /**
- * Partnerships · lista premium em cards · Server Component.
+ * Partnerships · lista admin densa · Server Component.
  *
  * Filtros: status (active/paused/dna_check/closed/all), pillar.
  * ADR-012 · usa B2BPartnershipRepository.list.
  *
- * Click linha → /partnerships/[id] (4 abas: Detalhe / Vouchers / Performance / Health).
+ * Visual mirror mira-config antigo · status pills `.bcfg-pill` style,
+ * row pattern bg-white/[0.02] + border-white/8 + rounded-lg.
+ *
+ * Click linha → /partnerships/[id] (4 abas).
  */
 
 import Link from 'next/link'
 import {
-  Handshake,
-  Filter,
   ChevronRight,
   Mail,
   Phone,
@@ -30,14 +31,24 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'closed', label: 'Encerradas' },
 ]
 
-const STATUS_BADGE: Record<string, { bg: string; label: string }> = {
-  active: { bg: 'bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]', label: 'Ativa' },
-  paused: { bg: 'bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]', label: 'Pausada' },
-  dna_check: { bg: 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]', label: 'DNA check' },
-  prospect: { bg: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', label: 'Prospect' },
-  contract: { bg: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', label: 'Contrato' },
-  closed: { bg: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', label: 'Encerrada' },
-  review: { bg: 'bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]', label: 'Em review' },
+const STATUS_PILL: Record<string, string> = {
+  active: 'bg-[#10B981]/15 text-[#10B981]',
+  paused: 'bg-[#F59E0B]/15 text-[#F59E0B]',
+  dna_check: 'bg-[#C9A96E]/18 text-[#C9A96E]',
+  prospect: 'bg-white/8 text-[#9CA3AF]',
+  contract: 'bg-white/8 text-[#9CA3AF]',
+  closed: 'bg-white/8 text-[#6B7280]',
+  review: 'bg-[#F59E0B]/15 text-[#F59E0B]',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Ativa',
+  paused: 'Pausada',
+  dna_check: 'DNA',
+  prospect: 'Prospect',
+  contract: 'Contrato',
+  closed: 'Encerrada',
+  review: 'Review',
 }
 
 interface PageProps {
@@ -55,164 +66,147 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
 
   const pillars = Array.from(new Set(list.map((p) => p.pillar))).sort()
 
-  // Counts por status pra status-pills com numero
   const counts = list.reduce<Record<string, number>>((acc, p) => {
     acc[p.status] = (acc[p.status] ?? 0) + 1
     return acc
   }, {})
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
-            <Handshake className="w-6 h-6" />
-          </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
+      <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
+        {/* Header denso */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/8">
           <div>
-            <h1 className="text-2xl font-light">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">Parcerias</span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              {list.length} parceria{list.length === 1 ? '' : 's'} no recorte · clique pra abrir detalhe
+            <h1 className="text-base font-semibold text-[#F5F5F5]">Parcerias</h1>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+              {list.length} parceria{list.length === 1 ? '' : 's'} no recorte
             </p>
           </div>
         </div>
 
-        {/* Status pills + filter form */}
-        <form className="mb-6 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-4 space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 text-[hsl(var(--muted-foreground))] mr-1" />
-            <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] font-display-uppercase">
-              Status
-            </label>
-            {STATUS_OPTIONS.map((opt) => {
-              const isActive = (params.status || '') === opt.value
-              const count = opt.value === '' ? list.length : (counts[opt.value] ?? 0)
-              const href = opt.value
-                ? `/partnerships?status=${opt.value}${params.pillar ? `&pillar=${params.pillar}` : ''}`
-                : params.pillar
-                ? `/partnerships?pillar=${params.pillar}`
-                : '/partnerships'
-              return (
-                <Link
-                  key={opt.value || 'all'}
-                  href={href}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[10px] uppercase tracking-widest transition-all ${
-                    isActive
-                      ? 'bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] border border-[hsl(var(--primary))]/30'
-                      : 'bg-[hsl(var(--chat-bg))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--chat-border))] hover:text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]/40'
+        {/* Status pills · denso */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#6B7280] mr-1">
+            Status
+          </span>
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive = (params.status || '') === opt.value
+            const count = opt.value === '' ? list.length : (counts[opt.value] ?? 0)
+            const href = opt.value
+              ? `/partnerships?status=${opt.value}${params.pillar ? `&pillar=${params.pillar}` : ''}`
+              : params.pillar
+              ? `/partnerships?pillar=${params.pillar}`
+              : '/partnerships'
+            return (
+              <Link
+                key={opt.value || 'all'}
+                href={href}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] transition-colors ${
+                  isActive
+                    ? 'bg-[#C9A96E]/18 text-[#C9A96E] border border-[#C9A96E]/30'
+                    : 'bg-white/[0.02] text-[#9CA3AF] border border-white/8 hover:border-white/14 hover:text-[#F5F5F5]'
+                }`}
+              >
+                {opt.label}
+                <span
+                  className={`text-[9px] font-bold ${
+                    isActive ? 'text-[#C9A96E]' : 'text-[#6B7280]'
                   }`}
                 >
-                  {opt.label}
-                  <span
-                    className={`text-[9px] font-bold px-1 ${
-                      isActive ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </Link>
-              )
-            })}
-          </div>
+                  {count}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
 
-          {pillars.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[hsl(var(--chat-border))]">
-              <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] font-display-uppercase">
-                Pilar
-              </label>
-              <input type="hidden" name="status" value={params.status || ''} />
-              <select
-                name="pillar"
-                defaultValue={params.pillar || ''}
-                className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-xs text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))]"
-              >
-                <option value="">Todos</option>
-                {pillars.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all font-display-uppercase"
-              >
-                Aplicar
-              </button>
-            </div>
-          )}
-        </form>
+        {/* Pillar filter · gold tinted form */}
+        {pillars.length > 0 && (
+          <form className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] px-3.5 py-3 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+              Pilar
+            </span>
+            <input type="hidden" name="status" value={params.status || ''} />
+            <select
+              name="pillar"
+              defaultValue={params.pillar || ''}
+              className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#C9A96E]/50"
+            >
+              <option value="">Todos</option>
+              {pillars.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
+            >
+              Aplicar
+            </button>
+          </form>
+        )}
 
-        {/* Lista de cards */}
+        {/* Lista densa · row pattern */}
         {list.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
             {list.map((p) => {
-              const badge = STATUS_BADGE[p.status] ?? STATUS_BADGE.prospect
+              const pill = STATUS_PILL[p.status] ?? STATUS_PILL.prospect
+              const label = STATUS_LABEL[p.status] ?? p.status
               return (
                 <Link
                   key={p.id}
                   href={`/partnerships/${p.id}`}
-                  className="group rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5 hover:border-[hsl(var(--primary))]/40 hover:shadow-luxury-sm transition-all"
+                  className="group grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-3 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-medium text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors truncate">
+                  <div className="min-w-0 flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-[#F5F5F5] group-hover:text-[#C9A96E] transition-colors truncate">
                         {p.name}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <span className="inline-block text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--accent))]/15 text-[hsl(var(--primary))]">
-                          {p.pillar}
+                      </span>
+                      <span className="inline-block text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-[#C9A96E]/18 text-[#C9A96E]">
+                        {p.pillar}
+                      </span>
+                      {p.tier !== null && p.tier !== undefined && (
+                        <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280] font-mono">
+                          T{p.tier}
                         </span>
-                        {p.tier !== null && p.tier !== undefined && (
-                          <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                            Tier {p.tier}
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-[#9CA3AF] flex-wrap">
+                      {p.contactName && (
+                        <ContactLine icon={<User className="w-3 h-3" />} value={p.contactName} />
+                      )}
+                      {p.contactPhone && (
+                        <ContactLine icon={<Phone className="w-3 h-3" />} value={p.contactPhone} mono />
+                      )}
+                      {p.contactEmail && (
+                        <ContactLine icon={<Mail className="w-3 h-3" />} value={p.contactEmail} />
+                      )}
+                      {p.contactInstagram && (
+                        <ContactLine icon={<AtSign className="w-3 h-3" />} value={p.contactInstagram} />
+                      )}
+                      {!p.contactName &&
+                        !p.contactPhone &&
+                        !p.contactEmail &&
+                        !p.contactInstagram && (
+                          <span className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+                            Sem contato
                           </span>
                         )}
-                      </div>
                     </div>
-                    <span
-                      className={`shrink-0 inline-block px-2.5 py-1 rounded-pill text-[10px] uppercase tracking-widest font-display-uppercase ${badge.bg}`}
-                    >
-                      {badge.label}
-                    </span>
                   </div>
 
-                  {/* Contato preview */}
-                  <div className="space-y-1.5 text-xs text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--chat-border))] pt-3">
-                    {p.contactName && (
-                      <ContactLine icon={<User className="w-3 h-3" />} value={p.contactName} />
-                    )}
-                    {p.contactPhone && (
-                      <ContactLine icon={<Phone className="w-3 h-3" />} value={p.contactPhone} />
-                    )}
-                    {p.contactEmail && (
-                      <ContactLine icon={<Mail className="w-3 h-3" />} value={p.contactEmail} />
-                    )}
-                    {p.contactInstagram && (
-                      <ContactLine
-                        icon={<AtSign className="w-3 h-3" />}
-                        value={p.contactInstagram}
-                      />
-                    )}
-                    {!p.contactName &&
-                      !p.contactPhone &&
-                      !p.contactEmail &&
-                      !p.contactInstagram && (
-                        <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]/60">
-                          Sem contato cadastrado
-                        </div>
-                      )}
-                  </div>
+                  <span
+                    className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${pill}`}
+                  >
+                    {label}
+                  </span>
 
-                  {/* CTA chevron */}
-                  <div className="mt-3 flex items-center justify-end text-[10px] uppercase tracking-widest text-[hsl(var(--primary))] opacity-60 group-hover:opacity-100 transition-opacity">
-                    Abrir
-                    <ChevronRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#6B7280] group-hover:text-[#C9A96E] group-hover:translate-x-0.5 transition-all" />
                 </Link>
               )
             })}
@@ -223,23 +217,20 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
   )
 }
 
-function ContactLine({ icon, value }: { icon: React.ReactNode; value: string }) {
+function ContactLine({ icon, value, mono }: { icon: React.ReactNode; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-2 truncate">
-      <span className="text-[hsl(var(--primary))] shrink-0">{icon}</span>
-      <span className="truncate">{value}</span>
-    </div>
+    <span className="inline-flex items-center gap-1 truncate">
+      <span className="text-[#6B7280] shrink-0">{icon}</span>
+      <span className={`truncate ${mono ? 'font-mono text-[10.5px]' : ''}`}>{value}</span>
+    </span>
   )
 }
 
 function EmptyState() {
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-12 text-center flex flex-col items-center gap-3">
-      <Handshake className="w-12 h-12 text-[hsl(var(--muted-foreground))]/40" />
-      <p className="text-sm text-[hsl(var(--foreground))]">
-        Nenhuma parceria com esses filtros.
-      </p>
-      <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xs">
+    <div className="rounded-lg border border-white/8 bg-white/[0.02] p-8 text-center flex flex-col gap-2">
+      <p className="text-sm text-[#F5F5F5]">Nenhuma parceria com esses filtros.</p>
+      <p className="text-[11px] text-[#9CA3AF] max-w-md mx-auto">
         Limpe os filtros ou cadastre uma nova parceria via Mira no WhatsApp ·
         envie um áudio com o nome e a Mira inicia o DNA check.
       </p>
