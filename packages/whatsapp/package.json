@@ -7,7 +7,12 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./cloud": "./src/cloud.ts"
+    "./cloud": "./src/cloud.ts",
+    "./evolution": "./src/evolution.ts",
+    "./provider": "./src/provider.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@clinicai/logger": "workspace:*",

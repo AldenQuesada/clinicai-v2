@@ -15,6 +15,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
+import type {
+  WhatsAppMediaDownload,
+  WhatsAppProvider,
+  WhatsAppSendResult,
+} from './provider'
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0'
 const log = createLogger({ app: 'shared' })
@@ -26,18 +31,11 @@ export interface WaNumberConfig {
   access_token: string
 }
 
-export interface WhatsAppSendResult {
-  ok: boolean
-  data?: unknown
-  error?: string
-}
+// Re-export pra retrocompat · packages/whatsapp/src/index.ts ja exporta da provider.
+export type { WhatsAppSendResult, WhatsAppMediaDownload }
 
-export interface WhatsAppMediaDownload {
-  buffer: Buffer
-  contentType: string
-}
-
-export class WhatsAppCloudService {
+export class WhatsAppCloudService implements WhatsAppProvider {
+  readonly providerName = 'cloud' as const
   private accessToken: string
   private phoneNumberId: string
   private clinic_id: string
@@ -121,7 +119,25 @@ export class WhatsAppCloudService {
     }
   }
 
-  async downloadMedia(mediaId: string): Promise<WhatsAppMediaDownload | null> {
+  /**
+   * sendVoice · Meta Cloud usa media upload + audio message ID. P0 nao tem
+   * upload pipeline aqui (Lara nao envia audio outbound) · stub fail-soft pra
+   * cumprir contrato WhatsAppProvider sem quebrar caller.
+   *
+   * Quando precisar de fato, implementar 2-step:
+   *   1. POST /{phone_number_id}/media (multipart) → media_id
+   *   2. POST /{phone_number_id}/messages com type=audio, audio.id=media_id
+   */
+  async sendVoice(_to: string, _audioUrl: string): Promise<WhatsAppSendResult> {
+    log.warn(
+      { wa_number_id: this.wa_number_id },
+      'cloud.sendVoice nao implementado · use Evolution provider pra audio',
+    )
+    return { ok: false, error: 'sendVoice nao suportado em Cloud provider', messageId: null }
+  }
+
+  async downloadMedia(idOrKey: string | Record<string, unknown>): Promise<WhatsAppMediaDownload | null> {
+    const mediaId = typeof idOrKey === 'string' ? idOrKey : String(idOrKey?.id ?? '')
     try {
       const metaRes = await fetch(`${GRAPH_API}/${mediaId}`, {
         headers: { Authorization: `Bearer ${this.accessToken}` },
