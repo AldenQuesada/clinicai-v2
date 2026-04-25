@@ -195,11 +195,15 @@ async function countByPeriodRange(
   endIso: string,
   status?: RedeemableStatus,
 ): Promise<number> {
-  // countByPeriod nao tem upper bound · pra previous month, usamos
-  // (countAtPrevMonthStart) - (countAtCurrentMonthStart) como aproximacao.
+  // countByPeriod nao tem upper bound (conta de sinceIso ate agora). Pra
+  // contar [startIso, endIso) uso diff: count_desde_start - count_desde_end.
+  // Como startIso < endIso (start mais antigo), o diff sempre eh >= 0.
+  // Math.max(0, ...) eh safety net contra race ou regressao do dado.
   const filters = status ? { status } : {}
-  const fromStart = await repos.b2bVouchers.countByPeriod(clinicId, startIso, filters)
-  const fromEnd = await repos.b2bVouchers.countByPeriod(clinicId, endIso, filters)
+  const [fromStart, fromEnd] = await Promise.all([
+    repos.b2bVouchers.countByPeriod(clinicId, startIso, filters),
+    repos.b2bVouchers.countByPeriod(clinicId, endIso, filters),
+  ])
   return Math.max(0, fromStart - fromEnd)
 }
 

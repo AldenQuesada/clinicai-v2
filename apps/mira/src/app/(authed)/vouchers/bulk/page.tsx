@@ -112,10 +112,11 @@ export default async function VoucherBulkPage() {
               <ArrowLeft className="w-3.5 h-3.5" />
             </Link>
             <div>
-              <h1 className="text-base font-semibold text-[#F5F5F5]">
+              <span className="eyebrow text-[#C9A96E]">Hoje · Vouchers em curso</span>
+              <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
                 Emitir lote de vouchers
               </h1>
-              <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+              <p className="text-[11px] text-[#9CA3AF] mt-1">
                 Cole a lista (1 por linha) · sistema valida dedup e agenda dispatch
               </p>
             </div>

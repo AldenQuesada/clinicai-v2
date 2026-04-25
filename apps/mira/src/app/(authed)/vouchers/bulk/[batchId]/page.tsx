@@ -113,12 +113,13 @@ export default async function BatchDetailPage({ params }: PageProps) {
               <ArrowLeft className="w-3.5 h-3.5" />
             </Link>
             <div className="min-w-0">
-              <h1 className="text-base font-semibold text-[#F5F5F5] flex items-center gap-2">
-                <span className="font-mono text-[#C9A96E]">
+              <span className="eyebrow text-[#C9A96E]">Hoje · Lote de vouchers</span>
+              <h1 className="font-display text-xl text-[#F5F0E8] mt-1 flex items-center gap-2">
+                <span className="font-mono text-[#C9A96E] text-base">
                   #{batchId.slice(0, 8)}
                 </span>
                 <span className="text-[#6B7280] text-sm">·</span>
-                <span className="text-sm text-[#F5F5F5] truncate">
+                <span className="text-sm text-[#F5F0E8] truncate font-sans">
                   {partnership?.name ?? 'Parceria desconhecida'}
                 </span>
               </h1>

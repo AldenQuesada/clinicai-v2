@@ -12,7 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createLogger } from '@clinicai/logger'
+import { createLogger, hashPhone } from '@clinicai/logger'
 import type { B2BWASenderRepository } from '@clinicai/repositories'
 
 const log = createLogger({ app: 'mira' })
@@ -64,7 +64,7 @@ export async function resolveRole(
 
     return null
   } catch (err) {
-    log.warn({ err, phone }, 'mira.resolveRole.fail_closed')
+    log.warn({ err, phoneHash: hashPhone(phone) }, 'mira.resolveRole.fail_closed')
     return null
   }
 }

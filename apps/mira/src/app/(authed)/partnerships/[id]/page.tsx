@@ -59,10 +59,11 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
 
         {/* Header denso */}
         <div className="pb-2 border-b border-white/8">
-          <h1 className="text-base font-semibold text-[#F5F5F5]">
+          <span className="eyebrow text-[#C9A96E]">Semana · Detalhe da parceria</span>
+          <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
             {partnership.name}
           </h1>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5 font-mono">
+          <p className="text-[11px] text-[#9CA3AF] mt-1 font-mono">
             {partnership.pillar} · {partnership.type} · slug: {partnership.slug}
           </p>
         </div>

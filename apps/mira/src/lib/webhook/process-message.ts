@@ -35,7 +35,7 @@ import {
 } from './handlers'
 import { getEvolutionService } from '@/services/evolution.service'
 import { transcribeAudio } from '@/services/transcription.service'
-import { createLogger } from '@clinicai/logger'
+import { createLogger, hashPhone } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
 
@@ -96,7 +96,7 @@ export async function processWebhookMessage(
       content = transcribed
       transcribedFromAudio = true
     } catch (err) {
-      log.error({ err, phone: msg.phone }, 'mira.process.audio_pipeline_exception')
+      log.error({ err, phoneHash: hashPhone(msg.phone) }, 'mira.process.audio_pipeline_exception')
       return { ok: false, error: 'audio_pipeline_exception' }
     }
   }

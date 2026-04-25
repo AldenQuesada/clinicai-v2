@@ -81,8 +81,9 @@ export default async function VouchersPage({ searchParams }: PageProps) {
         {/* Header denso */}
         <div className="flex items-center justify-between pb-2 border-b border-white/8">
           <div>
-            <h1 className="text-base font-semibold text-[#F5F5F5]">Vouchers</h1>
-            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+            <span className="eyebrow text-[#C9A96E]">Hoje · Vouchers em curso</span>
+            <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Vouchers</h1>
+            <p className="text-[11px] text-[#9CA3AF] mt-1">
               {vouchers.length} voucher{vouchers.length === 1 ? '' : 's'} no recorte
             </p>
           </div>
