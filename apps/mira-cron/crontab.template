@@ -1,0 +1,23 @@
+# Crontab · Mira P0 · 11 jobs proativos.
+# MIRA_TARGET_BASE substituido pelo entrypoint (ex: http://mira:3006).
+# MIRA_CRON_SECRET injetado via env e substituido no entrypoint.
+#
+# Schedule (M H DoM Mon DoW · UTC ou TZ container · America/Sao_Paulo).
+# curl flags: -f fail on http error, -s silent, -S show errors, -m 60 timeout 60s.
+
+# State maintenance (cada minuto)
+* * * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-state-cleanup >> /var/log/mira-cron.log 2>&1
+* * * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-state-reminder-check >> /var/log/mira-cron.log 2>&1
+
+# Digests admin
+0 10 * * 1-6 curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-daily-digest >> /var/log/mira-cron.log 2>&1
+0 23 * * 1-6 curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-evening-digest >> /var/log/mira-cron.log 2>&1
+0 10 * * 1 curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-weekly-roundup >> /var/log/mira-cron.log 2>&1
+
+# Alerts e checks
+*/5 11-23 * * 1-6 curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-preconsult-alerts >> /var/log/mira-cron.log 2>&1
+0 1 * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-anomaly-check >> /var/log/mira-cron.log 2>&1
+0 10 * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-birthday-alerts >> /var/log/mira-cron.log 2>&1
+*/5 * * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-task-reminders >> /var/log/mira-cron.log 2>&1
+0 12 * * * curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-followup-suggestions >> /var/log/mira-cron.log 2>&1
+0 21 * * 5 curl -fsS -m 60 -H "x-cron-secret: $MIRA_CRON_SECRET" $MIRA_TARGET_BASE/api/cron/mira-inactivity-radar >> /var/log/mira-cron.log 2>&1
