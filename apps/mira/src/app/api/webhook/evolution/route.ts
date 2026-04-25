@@ -135,18 +135,82 @@ export async function POST(req: NextRequest) {
     return jsonRes({ ok: true, skip: 'empty_message' })
   }
 
-  // 7. State preemption · voucher_confirm pendente bypassa classifier
+  // 7. State preemption · estados pendentes bypassam classifier
+  //    Ordem de prioridade (Alden):
+  //      1. voucher_confirm (parceira respondendo SIM/NAO)
+  //      2. admin_reject_reason (admin mandando motivo de rejeicao)
+  //      3. admin_approve_select / admin_reject_select (admin escolhendo
+  //         numero entre candidatas multi-match)
+  //      4. cp_* (wizard de cadastro de parceria · multi-turno)
+  //
+  //    Estados B2B nao precisam de "shouldHandleAsConfirmation" porque sao
+  //    multi-turn explicitos · qualquer texto e parte do fluxo.
   const voucherPending = await repos.miraState.get(msg.phone, STATE_KEY.VOUCHER_CONFIRM)
+  const rejectReasonPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_REASON)
+  const approveSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_APPROVE_SELECT)
+  const rejectSelectPending = await repos.miraState.get(msg.phone, STATE_KEY.ADMIN_REJECT_SELECT)
+  const cpStepPending = await repos.miraState.get(msg.phone, STATE_KEY.CP_STEP)
+
   let result
-  let chosenIntent = 'preempt:voucher_confirm'
+  let chosenIntent = 'unknown'
 
   if (voucherPending && shouldHandleAsConfirmation(content)) {
+    chosenIntent = 'preempt:voucher_confirm'
     result = await b2bVoucherConfirmHandler({
       clinicId,
       phone: msg.phone,
       role,
       text: content,
       intent: 'partner.other', // intent placeholder · handler nao usa
+      repos,
+      pushName: msg.pushName,
+    })
+  } else if (role === 'admin' && rejectReasonPending) {
+    // Admin no meio de "rejeitar" · proximo turno e o motivo
+    chosenIntent = 'preempt:admin_reject_reason'
+    const handler = dispatchHandler('admin.reject')
+    result = await handler({
+      clinicId,
+      phone: msg.phone,
+      role,
+      text: content,
+      intent: 'admin.reject',
+      repos,
+      pushName: msg.pushName,
+    })
+  } else if (role === 'admin' && approveSelectPending) {
+    chosenIntent = 'preempt:admin_approve_select'
+    const handler = dispatchHandler('admin.approve')
+    result = await handler({
+      clinicId,
+      phone: msg.phone,
+      role,
+      text: content,
+      intent: 'admin.approve',
+      repos,
+      pushName: msg.pushName,
+    })
+  } else if (role === 'admin' && rejectSelectPending) {
+    chosenIntent = 'preempt:admin_reject_select'
+    const handler = dispatchHandler('admin.reject')
+    result = await handler({
+      clinicId,
+      phone: msg.phone,
+      role,
+      text: content,
+      intent: 'admin.reject',
+      repos,
+      pushName: msg.pushName,
+    })
+  } else if (role === 'admin' && cpStepPending) {
+    chosenIntent = 'preempt:cp_step'
+    const handler = dispatchHandler('admin.create_partnership')
+    result = await handler({
+      clinicId,
+      phone: msg.phone,
+      role,
+      text: content,
+      intent: 'admin.create_partnership',
       repos,
       pushName: msg.pushName,
     })

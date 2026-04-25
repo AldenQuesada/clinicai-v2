@@ -11,8 +11,8 @@ import { b2bEmitVoucherHandler } from './b2b-emit-voucher'
 import { b2bVoucherConfirmHandler } from './b2b-voucher-confirm'
 import { b2bReferLeadHandler } from './b2b-refer-lead'
 import { b2bAdminApproveHandler } from './b2b-admin-approve'
+import { b2bAdminRejectHandler } from './b2b-admin-reject'
 import {
-  b2bAdminRejectHandler,
   b2bAdminQueryHandler,
   b2bCreatePartnershipHandler,
   b2bFeedbackReceivedHandler,
