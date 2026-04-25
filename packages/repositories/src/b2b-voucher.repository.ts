@@ -3,9 +3,27 @@
  *
  * issue() wraps RPC `b2b_voucher_issue(payload)` · token gerado server-side
  * (8 chars base36 + retry em colisao). Retorna { ok, id, token, valid_until }.
+ *
+ * Lara follow-up (mig 800-07):
+ *   - findRecentByRecipientPhone: lookup recipient pra detectar voucher recente
+ *   - findFollowupCandidates: cron pega buckets 24h/48h/72h
+ *   - markEngaged: webhook seta engaged quando recipient responde
+ *   - markFollowupSent: cron registra envio do follow-up
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { phoneVariants } from '@clinicai/utils'
+
+export type LaraFollowupState =
+  | 'pending'
+  | 'engaged'
+  | 'cold_24h'
+  | 'cold_48h'
+  | 'cold_72h'
+  | 'scheduled'
+  | 'cancelled'
+
+export type LaraFollowupBucket = '24h' | '48h' | '72h'
 
 export interface B2BVoucherDTO {
   id: string
@@ -22,6 +40,25 @@ export interface B2BVoucherDTO {
   deliveredAt: string | null
   openedAt: string | null
   redeemedAt: string | null
+  audioSentAt?: string | null
+  laraFollowupState?: LaraFollowupState
+  laraEngagedAt?: string | null
+}
+
+export interface LaraFollowupCandidateDTO {
+  voucherId: string
+  clinicId: string
+  partnershipId: string
+  partnershipName: string | null
+  partnerContactName: string | null
+  partnerContactPhone: string | null
+  partnerFirstName: string | null
+  recipientName: string | null
+  recipientFirstName: string | null
+  recipientPhone: string
+  combo: string | null
+  audioSentAt: string
+  bucket: LaraFollowupBucket
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,6 +78,9 @@ function mapVoucherRow(row: any): B2BVoucherDTO {
     deliveredAt: row.delivered_at ?? null,
     openedAt: row.opened_at ?? null,
     redeemedAt: row.redeemed_at ?? null,
+    audioSentAt: row.audio_sent_at ?? null,
+    laraFollowupState: (row.lara_followup_state ?? 'pending') as LaraFollowupState,
+    laraEngagedAt: row.lara_engaged_at ?? null,
   }
 }
 
@@ -164,6 +204,100 @@ export class B2BVoucherRepository {
     }
     const { count } = await q
     return count ?? 0
+  }
+
+  // ── Lara follow-up (mig 800-07) ────────────────────────────────────────
+
+  /**
+   * Busca voucher recente do recipient por phone variants · usado pelo webhook
+   * Lara pra detectar "essa pessoa e beneficiaria de voucher emitido nas
+   * ultimas 72h e ainda nao foi engaged/cancelled".
+   *
+   * Multi-tenant strict (clinicId). Filtra:
+   *   - status NOT IN ('cancelled', 'expired')
+   *   - audio_sent_at IS NOT NULL (so vouchers ja despachados pra recipient)
+   *   - audio_sent_at >= now() - 72h
+   *   - lara_followup_state NOT IN ('cancelled', 'scheduled')
+   * Ordena por audio_sent_at DESC · pega o mais recente.
+   */
+  async findRecentByRecipientPhone(
+    clinicId: string,
+    phone: string,
+    windowHours = 72,
+  ): Promise<B2BVoucherDTO | null> {
+    const variants = phoneVariants(phone)
+    if (variants.length === 0) return null
+    const sinceIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString()
+    const { data } = await this.supabase
+      .from('b2b_vouchers')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .in('recipient_phone', variants)
+      .not('audio_sent_at', 'is', null)
+      .gte('audio_sent_at', sinceIso)
+      .not('status', 'in', '("cancelled","expired")')
+      .not('lara_followup_state', 'in', '("cancelled","scheduled")')
+      .order('audio_sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return data ? mapVoucherRow(data) : null
+  }
+
+  /**
+   * Busca candidatos a follow-up · wraps RPC lara_voucher_followup_pick.
+   * Cron passa p_now (default = now()) e ressecuta cada hora.
+   */
+  async findFollowupCandidates(now?: Date): Promise<LaraFollowupCandidateDTO[]> {
+    const args: Record<string, unknown> = {}
+    if (now) args.p_now = now.toISOString()
+    const { data, error } = await this.supabase.rpc('lara_voucher_followup_pick', args)
+    if (error) return []
+    const result = data as { ok?: boolean; items?: unknown[] } | null
+    if (!result?.ok || !Array.isArray(result.items)) return []
+    return (result.items as Array<Record<string, unknown>>).map((it) => ({
+      voucherId: String(it.voucher_id ?? ''),
+      clinicId: String(it.clinic_id ?? ''),
+      partnershipId: String(it.partnership_id ?? ''),
+      partnershipName: (it.partnership_name as string | null) ?? null,
+      partnerContactName: (it.partner_contact_name as string | null) ?? null,
+      partnerContactPhone: (it.partner_contact_phone as string | null) ?? null,
+      partnerFirstName: (it.partner_first_name as string | null) ?? null,
+      recipientName: (it.recipient_name as string | null) ?? null,
+      recipientFirstName: (it.recipient_first_name as string | null) ?? null,
+      recipientPhone: String(it.recipient_phone ?? ''),
+      combo: (it.combo as string | null) ?? null,
+      audioSentAt: String(it.audio_sent_at ?? ''),
+      bucket: (it.bucket as LaraFollowupBucket) ?? '24h',
+    }))
+  }
+
+  /**
+   * Marca voucher como engaged · recipient respondeu no whats. Wraps RPC.
+   * Idempotente: so atualiza se state em (pending, cold_*).
+   */
+  async markEngaged(voucherId: string): Promise<{ ok: boolean }> {
+    const { data, error } = await this.supabase.rpc('lara_voucher_mark_engaged', {
+      p_voucher_id: voucherId,
+    })
+    if (error) return { ok: false }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
+  /**
+   * Marca follow-up enviado · cron chama apos disparar mensagem em cada bucket.
+   * Atualiza coluna timestamp + state (cold_<bucket>).
+   */
+  async markFollowupSent(
+    voucherId: string,
+    bucket: LaraFollowupBucket,
+  ): Promise<{ ok: boolean; newState?: string }> {
+    const { data, error } = await this.supabase.rpc('lara_voucher_mark_followup_sent', {
+      p_voucher_id: voucherId,
+      p_bucket: bucket,
+    })
+    if (error) return { ok: false }
+    const result = data as { ok?: boolean; new_state?: string } | null
+    return { ok: result?.ok === true, newState: result?.new_state }
   }
 
   /**

@@ -24,6 +24,9 @@ export {
   B2BVoucherRepository,
   type B2BVoucherDTO,
   type IssueVoucherInput,
+  type LaraFollowupState,
+  type LaraFollowupBucket,
+  type LaraFollowupCandidateDTO,
 } from './b2b-voucher.repository'
 export {
   B2BVoucherDispatchQueueRepository,
