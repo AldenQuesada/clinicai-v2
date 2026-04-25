@@ -7,7 +7,9 @@
     "build": "next build --webpack",
     "start": "next start -p 3006",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:cron": "esbuild scripts/cron.ts --bundle --platform=node --target=node20 --outfile=dist/cron.js --external:node-cron",
+    "cron": "node dist/cron.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
@@ -26,6 +28,7 @@
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "catalog:",
+    "node-cron": "^3.0.3",
     "react": "catalog:",
     "react-dom": "catalog:",
     "uuid": "catalog:",
@@ -35,9 +38,11 @@
     "@clinicai/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/uuid": "catalog:",
+    "esbuild": "^0.24.0",
     "eslint": "catalog:",
     "eslint-config-next": "catalog:",
     "tailwindcss": "catalog:",
