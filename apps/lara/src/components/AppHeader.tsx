@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
-import { LogOut, ExternalLink, LayoutDashboard, MessageSquare } from 'lucide-react'
+import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -48,6 +48,8 @@ export async function AppHeader() {
   const pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
   const isOnDashboard = pathname.startsWith('/dashboard')
   const isOnConversas = pathname.startsWith('/conversas')
+  const isOnConfig = pathname.startsWith('/configuracoes')
+  const canManageConfig = !role || ['owner', 'admin'].includes(role)
 
   return (
     <header className="h-14 shrink-0 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-5 z-20">
@@ -73,6 +75,11 @@ export async function AppHeader() {
           <NavLink href="/conversas" icon={<MessageSquare className="w-4 h-4" />} active={isOnConversas}>
             Conversas
           </NavLink>
+          {canManageConfig && (
+            <NavLink href="/configuracoes" icon={<Settings className="w-4 h-4" />} active={isOnConfig}>
+              Configurações
+            </NavLink>
+          )}
         </nav>
       </div>
 
