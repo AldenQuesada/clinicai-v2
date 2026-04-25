@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   Sparkles,
   Activity,
+  LayoutDashboard,
+  Trophy,
 } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { createLogger } from '@clinicai/logger'
@@ -132,15 +134,19 @@ export default async function DashboardPage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-light text-[hsl(var(--foreground))]">
-            <span className="font-cursive-italic text-[hsl(var(--primary))]">
-              Visão geral
-            </span>
-          </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-            Mira · saúde B2B · hoje + últimos 7/30 dias
-          </p>
+        {/* Hero header */}
+        <div className="mb-8 flex items-start gap-4">
+          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
+            <LayoutDashboard className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-light text-[hsl(var(--foreground))]">
+              <span className="font-cursive-italic text-[hsl(var(--primary))]">Visão geral</span>
+            </h1>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+              Mira · saúde B2B · hoje + últimos 7/30 dias
+            </p>
+          </div>
         </div>
 
         {/* Stat cards principais */}
@@ -176,26 +182,33 @@ export default async function DashboardPage() {
 
         {/* Top performers + alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SectionCard title="Top 5 parceiras · 30 dias" icon={<Sparkles className="w-4 h-4" />}>
+          <SectionCard title="Top 5 parceiras · 30 dias" icon={<Trophy className="w-4 h-4" />}>
             {stats.topPerformers.length === 0 ? (
-              <div className="text-sm text-[hsl(var(--muted-foreground))] py-6 text-center">
-                Nenhuma atribuição nos últimos 30 dias.
-              </div>
+              <EmptyState
+                icon={<Sparkles className="w-10 h-10" />}
+                message="Nenhuma atribuição nos últimos 30 dias."
+                hint="Vouchers resgatados aparecem aqui assim que rolar a primeira conversão."
+              />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {stats.topPerformers.map((tp, idx) => {
                   const max = stats.topPerformers[0]?.count ?? 1
                   const pct = max > 0 ? Math.round((tp.count / max) * 100) : 0
                   return (
                     <div key={`${tp.name}-${idx}`}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-[hsl(var(--foreground))]">
-                          {idx + 1}. {tp.name}
-                          <span className="ml-2 text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                      <div className="flex items-center justify-between mb-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-pill bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] text-[10px] font-bold shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="text-[hsl(var(--foreground))] font-medium truncate">
+                            {tp.name}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] shrink-0">
                             {tp.pillar}
                           </span>
-                        </span>
-                        <span className="text-[hsl(var(--muted-foreground))]">
+                        </div>
+                        <span className="text-[hsl(var(--primary))] font-bold shrink-0 ml-2">
                           {tp.count} {tp.count === 1 ? 'lead' : 'leads'}
                         </span>
                       </div>
@@ -214,23 +227,42 @@ export default async function DashboardPage() {
 
           <SectionCard title="Alertas críticos" icon={<AlertTriangle className="w-4 h-4" />}>
             {stats.criticalAlerts.length === 0 ? (
-              <div className="text-sm text-[hsl(var(--muted-foreground))] py-6 text-center flex items-center justify-center gap-2">
-                <Activity className="w-4 h-4 text-[hsl(var(--success))]" />
-                Tudo verde · nenhum alerta crítico aberto.
-              </div>
+              <EmptyState
+                icon={<Activity className="w-10 h-10 text-[hsl(var(--success))]" />}
+                message="Tudo verde · nenhum alerta crítico."
+                hint="Mira monitora parcerias com 0 conversões em 90d, vouchers expirando, e cap mensal."
+                tone="success"
+              />
             ) : (
               <div className="space-y-2">
                 {stats.criticalAlerts.map((a, i) => (
                   <div
                     key={i}
-                    className={`px-3 py-2 rounded-md border text-xs ${
+                    className={`px-4 py-3 rounded-card border text-xs ${
                       a.severity === 'critical'
-                        ? 'border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5 text-[hsl(var(--danger))]'
-                        : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-[hsl(var(--warning))]'
+                        ? 'border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5'
+                        : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
                     }`}
                   >
-                    <div className="font-display-uppercase text-[10px] tracking-widest mb-1">
-                      {a.kind}
+                    <div className="flex items-center justify-between mb-1">
+                      <span
+                        className={`font-display-uppercase text-[10px] tracking-widest ${
+                          a.severity === 'critical'
+                            ? 'text-[hsl(var(--danger))]'
+                            : 'text-[hsl(var(--warning))]'
+                        }`}
+                      >
+                        {a.kind}
+                      </span>
+                      <span
+                        className={`text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-pill ${
+                          a.severity === 'critical'
+                            ? 'bg-[hsl(var(--danger))]/15 text-[hsl(var(--danger))]'
+                            : 'bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))]'
+                        }`}
+                      >
+                        {a.severity}
+                      </span>
                     </div>
                     <div className="text-[hsl(var(--foreground))]">{a.message}</div>
                   </div>
@@ -240,7 +272,9 @@ export default async function DashboardPage() {
           </SectionCard>
         </div>
 
-        <div className="mt-8 text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest">
+        {/* Footer info */}
+        <div className="mt-8 text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
+          <Sparkles className="w-3 h-3" />
           Mira em produção · Evolution API · WhatsApp B2B + admin
         </div>
       </div>
@@ -274,11 +308,11 @@ function StatCard({
       ? 'text-[hsl(var(--success))] bg-[hsl(var(--success))]/10'
       : 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
   return (
-    <div className={`rounded-card border p-4 ${toneClasses}`}>
+    <div className={`rounded-card border p-5 ${toneClasses} hover:shadow-luxury-sm transition-shadow`}>
       <div className="flex items-center justify-between mb-3">
         <div className={`p-2 rounded-md ${iconTone}`}>{icon}</div>
       </div>
-      <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+      <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] font-display-uppercase">
         {label}
       </div>
       <div className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{value}</div>
@@ -305,6 +339,30 @@ function SectionCard({
         {title}
       </h3>
       {children}
+    </div>
+  )
+}
+
+function EmptyState({
+  icon,
+  message,
+  hint,
+  tone = 'default',
+}: {
+  icon: React.ReactNode
+  message: string
+  hint?: string
+  tone?: 'default' | 'success'
+}) {
+  const iconTone =
+    tone === 'success'
+      ? 'text-[hsl(var(--success))]'
+      : 'text-[hsl(var(--muted-foreground))]/40'
+  return (
+    <div className="py-8 text-center flex flex-col items-center gap-3">
+      <div className={iconTone}>{icon}</div>
+      <p className="text-sm text-[hsl(var(--foreground))]">{message}</p>
+      {hint && <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xs">{hint}</p>}
     </div>
   )
 }
