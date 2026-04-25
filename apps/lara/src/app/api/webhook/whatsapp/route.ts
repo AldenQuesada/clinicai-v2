@@ -454,6 +454,7 @@ async function processInboundMessage(
         message_count: currentMsgCount,
         conversation_count: 1,
         is_audio_message: isAudioMessage, // Informa à IA que a mensagem veio de um áudio
+        clinic_id, // ADR-028 · ai.service usa pra ler prompt overrides do DB
       },
       messages,
       currentMsgCount

@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
-import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText } from 'lucide-react'
+import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -50,6 +50,7 @@ export async function AppHeader() {
   const isOnConversas = pathname.startsWith('/conversas')
   const isOnConfig = pathname.startsWith('/configuracoes')
   const isOnTemplates = pathname.startsWith('/templates')
+  const isOnPrompts = pathname.startsWith('/prompts')
   const canManageConfig = !role || ['owner', 'admin'].includes(role)
 
   return (
@@ -80,9 +81,14 @@ export async function AppHeader() {
             Templates
           </NavLink>
           {canManageConfig && (
-            <NavLink href="/configuracoes" icon={<Settings className="w-4 h-4" />} active={isOnConfig}>
-              Configurações
-            </NavLink>
+            <>
+              <NavLink href="/prompts" icon={<Sparkles className="w-4 h-4" />} active={isOnPrompts}>
+                Prompts
+              </NavLink>
+              <NavLink href="/configuracoes" icon={<Settings className="w-4 h-4" />} active={isOnConfig}>
+                Configurações
+              </NavLink>
+            </>
           )}
         </nav>
       </div>

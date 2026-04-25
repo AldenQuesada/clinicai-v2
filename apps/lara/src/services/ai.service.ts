@@ -1,9 +1,16 @@
 /**
  * AI Service — Lara Agent
  *
- * Replaces the inline Claude call from the n8n workflow.
- * Loads the prompt from prompt/lara-prompt.md, injects lead context,
- * and calls Anthropic Claude with low temperature for clinical adherence.
+ * Compõe system prompt em camadas: lara-base + flow do funil + prices-defense.
+ *
+ * Cada camada tenta DB override em clinic_data primeiro · fallback pro arquivo
+ * `.md` no repo (seed default). Permite editar prompts via UI sem rebuild.
+ *
+ * Keys em clinic_data.settings:
+ *   - lara_prompt_base
+ *   - lara_prompt_olheiras
+ *   - lara_prompt_fullface
+ *   - lara_prompt_prices_defense
  */
 
 import { getAnthropicClient } from '@/lib/anthropic';
@@ -11,40 +18,88 @@ import { createServerClient } from '@/lib/supabase';
 import * as fs from 'fs';
 import * as path from 'path';
 
-function getSystemPromptText(funnel?: string): string {
-  try {
-    const promptPath = path.resolve(process.cwd(), 'src', 'prompt', 'lara-prompt.md');
-    let prompt = fs.readFileSync(promptPath, 'utf-8');
+const PROMPT_KEYS = {
+  base: 'lara_prompt_base',
+  olheiras: 'lara_prompt_olheiras',
+  fullface: 'lara_prompt_fullface',
+  prices_defense: 'lara_prompt_prices_defense',
+} as const;
 
-    const flowsPath = path.resolve(process.cwd(), 'src', 'prompt', 'flows');
-    
+const FILE_PATHS = {
+  base: ['src', 'prompt', 'lara-prompt.md'],
+  olheiras: ['src', 'prompt', 'flows', 'olheiras-flow.md'],
+  fullface: ['src', 'prompt', 'flows', 'fullface-flow.md'],
+  prices_defense: ['src', 'prompt', 'flows', 'prices-defense-flow.md'],
+} as const;
+
+function readFromFile(key: keyof typeof FILE_PATHS): string | null {
+  try {
+    const fullPath = path.resolve(process.cwd(), ...FILE_PATHS[key]);
+    if (fs.existsSync(fullPath)) {
+      return fs.readFileSync(fullPath, 'utf-8');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function readPromptLayer(
+  clinicId: string | null,
+  key: keyof typeof PROMPT_KEYS,
+): Promise<string | null> {
+  // 1. Tenta DB override · clinic_data.settings (key=PROMPT_KEYS[key])
+  if (clinicId) {
+    try {
+      const supabase = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from('clinic_data') as any)
+        .select('value')
+        .eq('clinic_id', clinicId)
+        .eq('key', PROMPT_KEYS[key])
+        .maybeSingle();
+
+      if (data?.value && typeof data.value === 'string' && data.value.trim().length > 0) {
+        return data.value as string;
+      }
+      if (data?.value?.content && typeof data.value.content === 'string') {
+        return data.value.content as string;
+      }
+    } catch {
+      // falha silenciosa · cai pro filesystem
+    }
+  }
+
+  // 2. Fallback pro arquivo no repo
+  return readFromFile(key);
+}
+
+async function getSystemPromptText(funnel: string | undefined, clinicId: string | null): Promise<string> {
+  try {
+    const base = await readPromptLayer(clinicId, 'base');
+    let prompt = base || 'Você é a Lara, assistente virtual da Dra. Mirian de Paula.';
+
     if (funnel === 'olheiras') {
-      const olheirasPath = path.join(flowsPath, 'olheiras-flow.md');
-      if (fs.existsSync(olheirasPath)) {
-        prompt += '\n\n' + fs.readFileSync(olheirasPath, 'utf-8');
-      }
+      const olheiras = await readPromptLayer(clinicId, 'olheiras');
+      if (olheiras) prompt += '\n\n' + olheiras;
     } else if (funnel === 'fullface') {
-      const fullfacePath = path.join(flowsPath, 'fullface-flow.md');
-      if (fs.existsSync(fullfacePath)) {
-        prompt += '\n\n' + fs.readFileSync(fullfacePath, 'utf-8');
-      }
+      const fullface = await readPromptLayer(clinicId, 'fullface');
+      if (fullface) prompt += '\n\n' + fullface;
     } else {
       // Se não tem funil, empurra ambos para ela decidir e descobrir o funnel do cliente
-      const olheirasPath = path.join(flowsPath, 'olheiras-flow.md');
-      const fullfacePath = path.join(flowsPath, 'fullface-flow.md');
-      if (fs.existsSync(olheirasPath)) prompt += '\n\n' + fs.readFileSync(olheirasPath, 'utf-8');
-      if (fs.existsSync(fullfacePath)) prompt += '\n\n' + fs.readFileSync(fullfacePath, 'utf-8');
+      const olheiras = await readPromptLayer(clinicId, 'olheiras');
+      const fullface = await readPromptLayer(clinicId, 'fullface');
+      if (olheiras) prompt += '\n\n' + olheiras;
+      if (fullface) prompt += '\n\n' + fullface;
     }
 
-    // Sempre injeta o módulo de defesa de preços
-    const pricesDefensePath = path.join(flowsPath, 'prices-defense-flow.md');
-    if (fs.existsSync(pricesDefensePath)) {
-      prompt += '\n\n' + fs.readFileSync(pricesDefensePath, 'utf-8');
-    }
+    // Sempre injeta defesa de preços
+    const prices = await readPromptLayer(clinicId, 'prices_defense');
+    if (prices) prompt += '\n\n' + prices;
 
     return prompt;
   } catch (e) {
-    console.error('Falha ao ler construtores de prompt:', e);
+    console.error('Falha ao compor prompt:', e);
     return 'Você é a Lara, assistente virtual da Dra. Mirian de Paula. Responda de forma calorosa e profissional.';
   }
 }
@@ -65,6 +120,7 @@ interface LeadContext {
   message_count?: number;
   conversation_count?: number;
   is_audio_message?: boolean; // true quando o lead enviou um áudio (já transcrito)
+  clinic_id?: string; // multi-tenant ADR-028 · resolvido pelo webhook via wa_numbers
 }
 
 interface ChatMessage {
@@ -84,8 +140,8 @@ export async function generateResponse(
 
   const persona = leadContext.ai_persona || 'onboarder';
   const funnel = leadContext.funnel;
-  
-  const basePrompt = getSystemPromptText(funnel);
+
+  const basePrompt = await getSystemPromptText(funnel, leadContext.clinic_id || null);
   const isReturning = leadContext.is_returning || false;
 
   const systemPrompt = `${basePrompt}
