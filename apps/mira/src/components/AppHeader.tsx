@@ -62,7 +62,7 @@ const SECTIONS: Section[] = [
       { href: '/b2b/candidaturas', label: 'Candidaturas', available: true },
       { href: '/partnerships?filter=inactive', label: 'Inativas', available: true },
       { href: '/b2b/mapa', label: 'Mapa', available: true },
-      { href: '/semana/performance', label: 'Saúde', available: true },
+      { href: '/b2b/saude', label: 'Saúde', available: true },
       { href: '/semana/gaps', label: 'Gaps do plano', available: true },
       { href: '/semana/encerramentos', label: 'Encerramentos', available: true },
     ],
