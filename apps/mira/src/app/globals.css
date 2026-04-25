@@ -4,13 +4,66 @@
  * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
  * vivem em packages/ui/styles/globals.css. Mira reusa o re-skin Mirian já
  * cravado pela Lara · single source of truth pra branding.
+ *
+ * Tokens legacy (--chat-bg, --chat-panel-bg, --chat-border, --success, --warning,
+ * --danger, --foreground em formato HSL) replicados aqui pra `hsl(var(--*))`
+ * funcionar nas pages premium · mirror exato do mapping da Lara.
  */
 
 @import "@clinicai/ui/styles/globals.css";
 
+/* ─── Mapeamento legacy · mirror Lara ────────────────────────────── */
+@layer base {
+  :root {
+    /* Surfaces · luxury Mirian */
+    --chat-bg: 60 5% 7%;              /* #121212 · base background */
+    --chat-panel-bg: 30 8% 12%;       /* #1F1C19 · panel elevated warm */
+    --chat-border: 30 5% 18%;         /* #2D2A26 · sutil divisor */
+
+    /* Primary CTA · champagne forte */
+    --primary: 35 36% 64%;            /* #C8A97E */
+    --primary-foreground: 40 8% 12%;  /* dark luxury */
+
+    /* Border + muted · pra inputs, dropdowns */
+    --border: 30 5% 18%;
+    --input: 30 5% 18%;
+    --muted: 30 5% 14%;
+    --muted-foreground: 38 8% 55%;    /* #8A847B · subdued warm */
+    --foreground: 38 35% 92%;         /* #F5F0E8 · marfim */
+    --ring: 35 36% 64%;
+
+    /* Estados semânticos · luxury dessaturados */
+    --accent: 28 30% 70%;             /* #D4B894 · champagne soft */
+    --accent-foreground: 40 8% 12%;
+    --success: 145 22% 48%;           /* #6B8B6A · sage muted */
+    --warning: 35 60% 52%;            /* #C2924A · amber luxury */
+    --danger: 6 60% 55%;              /* #D14F47 · vermelho terra */
+  }
+}
+
 @layer base {
   body {
-    background-color: hsl(60 5% 7%);
-    color: hsl(38 35% 92%);
+    background-color: hsl(var(--chat-bg));
+    color: hsl(var(--foreground));
   }
+}
+
+/* Scrollbar custom · re-tematizada Mirian */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--chat-border)) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--chat-border));
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary) / 0.6);
 }

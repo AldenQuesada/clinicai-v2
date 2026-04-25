@@ -67,14 +67,14 @@ export async function AppHeader() {
     <header className="h-14 shrink-0 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-5 z-20">
       <div className="flex items-center gap-6">
         <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="w-8 h-8 rounded-pill bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold text-sm shadow-luxury-sm">
+          <div className="w-9 h-9 rounded-pill bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] font-cursive-italic font-semibold text-lg shadow-luxury-sm group-hover:shadow-luxury-md transition-shadow">
             M
           </div>
           <div className="flex flex-col leading-none">
             <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">
               Mira
             </span>
-            <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mt-0.5">
               Clínica AI · B2B
             </span>
           </div>
