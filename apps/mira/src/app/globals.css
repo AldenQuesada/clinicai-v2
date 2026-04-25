@@ -2,20 +2,20 @@
  * Mira · globals.css.
  *
  * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
- * vivem em packages/ui/styles/globals.css. Mira reusa o re-skin Mirian já
- * cravado pela Lara · single source of truth pra branding.
+ * vivem em packages/ui/styles/globals.css.
  *
- * Tokens legacy (--chat-bg, --chat-panel-bg, --chat-border, --success, --warning,
- * --danger, --foreground em formato HSL) replicados aqui pra `hsl(var(--*))`
- * funcionar nas pages premium · mirror exato do mapping da Lara.
+ * Mira NÃO replica o re-skin luxury Mirian · ela espelha o mira-config antigo
+ * do clinic-dashboard (admin denso · namespace `.bcfg-*` / `--bcomm-*`).
+ * Tokens `--bcfg-*` adicionados abaixo · usados via `text-[hsl(var(--bcfg-*))]`
+ * ou em arbitrary values direto (`text-[#C9A96E]`).
  */
 
 @import "@clinicai/ui/styles/globals.css";
 
-/* ─── Mapeamento legacy · mirror Lara ────────────────────────────── */
+/* ─── Mapeamento legacy + Mira admin tokens ──────────────────────── */
 @layer base {
   :root {
-    /* Surfaces · luxury Mirian */
+    /* Surfaces · base mantida (dark) */
     --chat-bg: 60 5% 7%;              /* #121212 · base background */
     --chat-panel-bg: 30 8% 12%;       /* #1F1C19 · panel elevated warm */
     --chat-border: 30 5% 18%;         /* #2D2A26 · sutil divisor */
@@ -28,16 +28,29 @@
     --border: 30 5% 18%;
     --input: 30 5% 18%;
     --muted: 30 5% 14%;
-    --muted-foreground: 38 8% 55%;    /* #8A847B · subdued warm */
-    --foreground: 38 35% 92%;         /* #F5F0E8 · marfim */
+    --muted-foreground: 38 8% 55%;
+    --foreground: 38 35% 92%;
     --ring: 35 36% 64%;
 
-    /* Estados semânticos · luxury dessaturados */
-    --accent: 28 30% 70%;             /* #D4B894 · champagne soft */
+    /* Estados semânticos */
+    --accent: 28 30% 70%;
     --accent-foreground: 40 8% 12%;
-    --success: 145 22% 48%;           /* #6B8B6A · sage muted */
-    --warning: 35 60% 52%;            /* #C2924A · amber luxury */
-    --danger: 6 60% 55%;              /* #D14F47 · vermelho terra */
+    --success: 145 22% 48%;
+    --warning: 35 60% 52%;
+    --danger: 6 60% 55%;
+
+    /* ─── Mira admin (mirror b2b-config.css · `.bcfg-*` / `--bcomm-*`) ───
+     * Estilo denso operacional · NÃO luxury generoso.
+     * Cores cravadas em hex no CSS antigo · replicadas aqui em HSL pra
+     * usar via `text-[hsl(var(--bcfg-*))]` no Tailwind.
+     */
+    --bcfg-gold: 38 47% 61%;          /* #C9A96E · gold suave */
+    --bcfg-text: 0 0% 96%;             /* #F5F5F5 · branco-ish */
+    --bcfg-text-mut: 220 9% 65%;       /* #9CA3AF · slate cinza */
+    --bcfg-text-dim: 220 9% 46%;       /* #6B7280 · ainda mais cinza */
+    --bcfg-ok: 160 84% 39%;            /* #10B981 · emerald */
+    --bcfg-warn: 38 92% 50%;           /* #F59E0B · amber */
+    --bcfg-danger: 0 87% 82%;          /* #FCA5A5 · light red */
   }
 }
 

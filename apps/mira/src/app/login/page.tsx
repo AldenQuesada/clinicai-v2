@@ -1,17 +1,14 @@
 /**
- * Login page · Mira.
+ * Login page · Mira · admin tone (mirror mira-config antigo).
  *
- * Server-rendered · usa Server Actions pra login (sem JS client necessario).
- * Apos login, redireciona pra ?redirect=<path> ou /dashboard (default).
- *
- * Tokens da marca Mirian · Cormorant Garamond italic + Montserrat uppercase.
- * Mirror estrutural da Lara · usa apenas tokens `hsl(var(--*))`.
+ * Server-rendered · usa Server Actions pra login. Sem cursive italic, sem ícone
+ * box gigante luxury · estilo operacional B2B · Inter only, gold accent.
  */
 
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
-import { Sparkles, AlertTriangle, ExternalLink } from 'lucide-react'
+import { AlertTriangle, ExternalLink } from 'lucide-react'
 import { loginAction } from './actions'
 
 interface PageProps {
@@ -40,32 +37,30 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[hsl(var(--chat-bg))]">
-      <div className="w-full max-w-md">
-        {/* Brand mark + tagline */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] mb-6 shadow-luxury-sm">
-            <Sparkles className="w-7 h-7" />
+      <div className="w-full max-w-[400px]">
+        {/* Brand mark · denso */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-md bg-[#C9A96E]/18 border border-[#C9A96E]/30 text-[#C9A96E] font-bold text-base mb-4">
+            M
           </div>
-          <div className="inline-block px-3 py-1 rounded-pill text-[10px] uppercase tracking-widest border border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))] mb-6 font-display-uppercase">
-            Clínica AI · Mirian de Paula
-          </div>
-          <h1 className="text-5xl font-light leading-tight">
-            <span className="font-cursive-italic text-[hsl(var(--primary))]">Mira</span>
-          </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-3">
-            Painel B2B · parcerias e vouchers
+          <h1 className="text-base font-semibold text-[#F5F5F5]">Mira</h1>
+          <p className="text-[11px] text-[#9CA3AF] mt-1">
+            Admin · B2B · Clínica AI
           </p>
+          <div className="mt-3 inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] bg-[#C9A96E]/15 text-[#C9A96E]">
+            Mirian de Paula
+          </div>
         </div>
 
-        {/* Card luxury */}
-        <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-6 shadow-luxury-md">
-          <form action={loginAction} className="space-y-5">
+        {/* Card flat denso */}
+        <div className="rounded-lg border border-white/8 bg-white/[0.02] p-5">
+          <form action={loginAction} className="flex flex-col gap-3.5">
             <input type="hidden" name="redirect" value={redirectTo} />
 
-            <div>
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="email"
-                className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2 font-display-uppercase"
+                className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]"
               >
                 Email
               </label>
@@ -75,15 +70,15 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 name="email"
                 required
                 autoComplete="email"
-                className="w-full px-4 py-3 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+                className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
                 placeholder="seu@email.com"
               />
             </div>
 
-            <div>
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="password"
-                className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2 font-display-uppercase"
+                className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]"
               >
                 Senha
               </label>
@@ -93,21 +88,21 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 name="password"
                 required
                 autoComplete="current-password"
-                className="w-full px-4 py-3 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+                className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
                 placeholder="••••••••"
               />
             </div>
 
             {errorMsg && (
-              <div className="flex items-start gap-2 px-3 py-2 rounded-md text-xs bg-[hsl(var(--danger))]/10 border border-[hsl(var(--danger))]/30 text-[hsl(var(--danger))]">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md text-xs bg-[#EF4444]/8 border border-[#EF4444]/30 text-[#FCA5A5]">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>{decodeURIComponent(errorMsg)}</span>
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full mt-2 px-6 py-3 rounded-pill font-display-uppercase text-xs tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all hover:-translate-y-px shadow-luxury-sm hover:shadow-luxury-md"
+              className="w-full mt-1 px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
             >
               Entrar
             </button>
@@ -115,11 +110,11 @@ export default async function LoginPage({ searchParams }: PageProps) {
         </div>
 
         {/* Footer link */}
-        <div className="mt-8 text-center text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+        <div className="mt-6 text-center text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
           {process.env.NEXT_PUBLIC_PAINEL_URL && (
             <a
               href={process.env.NEXT_PUBLIC_PAINEL_URL}
-              className="inline-flex items-center gap-1.5 hover:text-[hsl(var(--primary))] transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-[#C9A96E] transition-colors"
             >
               Voltar ao painel CRM
               <ExternalLink className="w-3 h-3" />
