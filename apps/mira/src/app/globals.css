@@ -499,6 +499,31 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 .b2b-hrow-meta { font-size: 11px; color: var(--b2b-text-muted); }
 .b2b-hrow-arrow { color: var(--b2b-champagne); font-size: 16px; }
 
+/* ── Closure list (tab Encerramentos) ── */
+.b2b-clos-row {
+  display: grid; grid-template-columns: 12px 1fr auto;
+  gap: 14px; align-items: center;
+  background: var(--b2b-bg-1); border: 1px solid rgba(217,122,122,0.3);
+  border-radius: 6px; padding: 14px 16px; margin-bottom: 8px;
+}
+.b2b-clos-body { min-width: 0; }
+.b2b-clos-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.b2b-clos-top strong { color: var(--b2b-ivory); font-size: 13px; }
+.b2b-clos-meta { font-size: 11px; color: var(--b2b-text-muted); line-height: 1.5; }
+.b2b-clos-meta strong { color: var(--b2b-red); font-weight: 600; }
+.b2b-clos-acts { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+.b2b-clos-acts .b2b-btn { font-size: 11px; padding: 6px 10px; white-space: nowrap; }
+.b2b-clos-letter {
+  margin-top: 24px; background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border); border-radius: 8px; padding: 16px;
+}
+.b2b-clos-letter textarea {
+  font-family: 'Cormorant Garamond', serif; font-size: 14px; line-height: 1.7;
+  width: 100%; background: var(--b2b-bg-2); color: var(--b2b-ivory);
+  border: 1px solid var(--b2b-border); border-radius: 5px; padding: 9px 12px;
+  resize: vertical;
+}
+
 /* ── Suggestions (tab Gaps) ── */
 .b2b-sug-head {
   display: flex; justify-content: space-between; align-items: flex-start;

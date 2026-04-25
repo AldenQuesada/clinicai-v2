@@ -2,7 +2,8 @@
 
 /**
  * Server Actions · /semana/encerramentos.
- * Reativar (closed → paused) e encerrar definitivo (active/paused → closed).
+ * Espelho 1:1 das chamadas do b2b-closure.ui.js · 4 RPCs:
+ *   detectInactive, listPending (no page server), approve, dismiss.
  */
 
 import { revalidatePath } from 'next/cache'
@@ -14,30 +15,46 @@ function assertCanManage(role: string | null | undefined) {
   }
 }
 
-export async function reactivatePartnershipAction(formData: FormData) {
+export async function detectInactiveAction(): Promise<{ ok: boolean; flagged: number; error?: string }> {
   const { ctx, repos } = await loadMiraServerContext()
   assertCanManage(ctx.role)
-
-  const id = String(formData.get('id') || '').trim()
-  if (!id) throw new Error('id obrigatorio')
-
-  const ok = await repos.b2bPartnerships.setStatus(id, 'paused', 'reactivated_via_ui')
-  if (!ok) throw new Error('Erro ao reativar parceria')
-
-  revalidatePath('/semana/encerramentos')
-  revalidatePath('/partnerships')
+  try {
+    const r = await repos.b2bClosure.detectInactive()
+    revalidatePath('/semana/encerramentos')
+    return r
+  } catch (e) {
+    return { ok: false, flagged: 0, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
-export async function closePartnershipAction(formData: FormData) {
+export async function approveClosureAction(
+  id: string,
+  reason: string | null,
+  templateKey = 'default',
+): Promise<{ ok: boolean; letter?: string; error?: string }> {
   const { ctx, repos } = await loadMiraServerContext()
   assertCanManage(ctx.role)
+  try {
+    const r = await repos.b2bClosure.approve(id, reason, templateKey)
+    revalidatePath('/semana/encerramentos')
+    revalidatePath('/partnerships')
+    return r
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
-  const id = String(formData.get('id') || '').trim()
-  if (!id) throw new Error('id obrigatorio')
-
-  const ok = await repos.b2bPartnerships.setStatus(id, 'closed', 'closed_via_ui')
-  if (!ok) throw new Error('Erro ao encerrar parceria')
-
-  revalidatePath('/semana/encerramentos')
-  revalidatePath('/partnerships')
+export async function dismissClosureAction(
+  id: string,
+  note: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  try {
+    const r = await repos.b2bClosure.dismiss(id, note)
+    revalidatePath('/semana/encerramentos')
+    return r
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }

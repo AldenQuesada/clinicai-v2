@@ -83,6 +83,10 @@ export {
   B2BHealthRepository,
   type HealthSnapshot,
 } from './b2b-health.repository'
+export {
+  B2BClosureRepository,
+  type ClosureCandidate,
+} from './b2b-closure.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
