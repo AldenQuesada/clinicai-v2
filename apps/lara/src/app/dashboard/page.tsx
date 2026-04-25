@@ -2,15 +2,15 @@
  * Dashboard · Lara · Server Component.
  *
  * Mostra metricas do dia + 7 dias:
- *   - Custo IA (Anthropic + Groq) via v_ai_budget_today
- *   - Mensagens trafegadas (inbound + outbound)
- *   - Conversas ativas / aguardando humano / transbordadas
+ *   - Custo IA (Anthropic + Groq) via BudgetRepository
+ *   - Mensagens trafegadas via MessageRepository.countByDirection
+ *   - Conversas ativas / aguardando humano / transbordadas via ConversationRepository.count
  *   - Funnel breakdown (olheiras vs fullface vs procedimentos)
  *
- * Multi-tenant ADR-028 · queries escopadas por clinic_id resolvido via JWT.
+ * Multi-tenant ADR-028 · queries escopadas por clinic_id (JWT).
+ * ADR-012 · todo acesso via Repositories (sem supabase.from inline).
  */
 
-import { loadServerContext } from '@clinicai/supabase'
 import {
   DollarSign,
   MessageCircle,
@@ -20,6 +20,7 @@ import {
   Phone,
   Clock,
 } from 'lucide-react'
+import { loadServerReposContext } from '@/lib/repos'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,119 +40,62 @@ interface Stats {
 }
 
 async function loadStats(): Promise<Stats> {
-  const { supabase, ctx } = await loadServerContext()
+  const { ctx, repos } = await loadServerReposContext()
   const today = new Date().toISOString().slice(0, 10)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const todayIso = new Date(today + 'T00:00:00.000Z').toISOString()
 
-  // Cost via v_ai_budget_today (hoje · single row por clinic_id)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const todayBudget = await (supabase.from('v_ai_budget_today') as any)
-    .select('total_cost_usd')
-    .eq('clinic_id', ctx.clinic_id)
-    .maybeSingle()
+  // Custo IA · hoje + 7 dias
+  const [costToday, cost7d] = await Promise.all([
+    repos.budget.getTodayCost(ctx.clinic_id),
+    repos.budget.getRecentCost(ctx.clinic_id, 7),
+  ])
 
-  // Cost 7 dias · soma direta na tabela
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sevenDayBudget = await (supabase.from('_ai_budget') as any)
-    .select('cost_usd')
-    .eq('clinic_id', ctx.clinic_id)
-    .gte('day_bucket', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
-
-  const cost_7d_usd = (sevenDayBudget.data ?? []).reduce(
-    (sum: number, r: { cost_usd: number }) => sum + Number(r.cost_usd ?? 0),
-    0,
-  )
-
-  // Mensagens hoje (inbound + outbound separado)
-  const [msgsTodayIn, msgsTodayOut, msgs7dIn, msgs7dOut] = await Promise.all([
-    supabase
-      .from('wa_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('direction', 'inbound')
-      .gte('sent_at', todayIso),
-    supabase
-      .from('wa_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('direction', 'outbound')
-      .gte('sent_at', todayIso),
-    supabase
-      .from('wa_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('direction', 'inbound')
-      .gte('sent_at', sevenDaysAgo),
-    supabase
-      .from('wa_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('direction', 'outbound')
-      .gte('sent_at', sevenDaysAgo),
+  // Mensagens (in/out) hoje + 7 dias · 1 query por janela
+  const [todayMsgs, weekMsgs] = await Promise.all([
+    repos.messages.countByDirection(ctx.clinic_id, todayIso),
+    repos.messages.countByDirection(ctx.clinic_id, sevenDaysAgo),
   ])
 
   // Conversas
   const [activeConvs, waitingHuman, transbordoToday] = await Promise.all([
-    supabase
-      .from('wa_conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('status', 'active'),
-    supabase
-      .from('wa_conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('ai_enabled', false)
-      .in('status', ['active', 'paused']),
-    supabase
-      .from('wa_conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('status', 'dra')
-      .gte('last_message_at', todayIso),
+    repos.conversations.count(ctx.clinic_id, { statuses: ['active'] }),
+    repos.conversations.count(ctx.clinic_id, {
+      statuses: ['active', 'paused'],
+      aiEnabled: false,
+    }),
+    repos.conversations.count(ctx.clinic_id, {
+      statuses: ['dra'],
+      lastMessageSince: todayIso,
+    }),
   ])
 
-  // Funnel breakdown · agregação manual (Postgres agg via RPC seria ideal, mas count por filter funciona)
-  const funnels = ['olheiras', 'fullface', 'procedimentos']
-  const funnelEntries = await Promise.all(
-    funnels.map(async (f) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count } = await (supabase.from('leads') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', ctx.clinic_id)
-        .eq('funnel', f)
-      return [f, count ?? 0] as [string, number]
-    }),
-  )
-  const funnel_breakdown = Object.fromEntries(funnelEntries)
+  // Funnel breakdown via LeadRepository.countByFunnels
+  const funnel_breakdown = await repos.leads.countByFunnels(ctx.clinic_id, [
+    'olheiras',
+    'fullface',
+    'procedimentos',
+  ])
 
-  // Leads totais
+  // Leads totais + criados hoje
   const [totalLeads, leadsToday] = await Promise.all([
-    supabase
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id),
-    supabase
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', ctx.clinic_id)
-      .gte('created_at', todayIso),
+    repos.leads.count(ctx.clinic_id),
+    repos.leads.count(ctx.clinic_id, { createdSince: todayIso }),
   ])
 
   return {
-    cost_today_usd: Number(todayBudget.data?.total_cost_usd ?? 0),
-    cost_7d_usd,
-    msgs_today_in: msgsTodayIn.count ?? 0,
-    msgs_today_out: msgsTodayOut.count ?? 0,
-    msgs_7d_in: msgs7dIn.count ?? 0,
-    msgs_7d_out: msgs7dOut.count ?? 0,
-    active_conversations: activeConvs.count ?? 0,
-    waiting_human: waitingHuman.count ?? 0,
-    transbordo_today: transbordoToday.count ?? 0,
+    cost_today_usd: costToday,
+    cost_7d_usd: cost7d,
+    msgs_today_in: todayMsgs.inbound,
+    msgs_today_out: todayMsgs.outbound,
+    msgs_7d_in: weekMsgs.inbound,
+    msgs_7d_out: weekMsgs.outbound,
+    active_conversations: activeConvs,
+    waiting_human: waitingHuman,
+    transbordo_today: transbordoToday,
     funnel_breakdown,
-    total_leads: totalLeads.count ?? 0,
-    leads_today: leadsToday.count ?? 0,
+    total_leads: totalLeads,
+    leads_today: leadsToday,
   }
 }
 

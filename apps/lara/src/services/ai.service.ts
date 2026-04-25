@@ -15,6 +15,7 @@
 
 import { getAnthropicClient } from '@/lib/anthropic';
 import { createServerClient } from '@/lib/supabase';
+import { ClinicDataRepository } from '@clinicai/repositories';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -48,22 +49,23 @@ async function readPromptLayer(
   clinicId: string | null,
   key: keyof typeof PROMPT_KEYS,
 ): Promise<string | null> {
-  // 1. Tenta DB override · clinic_data.settings (key=PROMPT_KEYS[key])
+  // 1. Tenta DB override · ClinicDataRepository.getSetting (ADR-012)
   if (clinicId) {
     try {
       const supabase = createServerClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.from('clinic_data') as any)
-        .select('value')
-        .eq('clinic_id', clinicId)
-        .eq('key', PROMPT_KEYS[key])
-        .maybeSingle();
+      const clinicData = new ClinicDataRepository(supabase);
+      const value = await clinicData.getSetting<unknown>(clinicId, PROMPT_KEYS[key]);
 
-      if (data?.value && typeof data.value === 'string' && data.value.trim().length > 0) {
-        return data.value as string;
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
       }
-      if (data?.value?.content && typeof data.value.content === 'string') {
-        return data.value.content as string;
+      if (
+        value &&
+        typeof value === 'object' &&
+        'content' in value &&
+        typeof (value as { content: unknown }).content === 'string'
+      ) {
+        return (value as { content: string }).content;
       }
     } catch {
       // falha silenciosa · cai pro filesystem

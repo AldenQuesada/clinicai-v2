@@ -109,6 +109,39 @@ export class LeadRepository {
   }
 
   /**
+   * Conta leads · suporta filtro opcional por funnel ou createdSince (dashboard).
+   */
+  async count(
+    clinicId: string,
+    filter: { funnel?: string; createdSince?: string } = {},
+  ): Promise<number> {
+    let q = this.supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+
+    if (filter.funnel) q = q.eq('funnel', filter.funnel)
+    if (filter.createdSince) q = q.gte('created_at', filter.createdSince)
+
+    const { count } = await q
+    return count ?? 0
+  }
+
+  /**
+   * Breakdown por funnel · 1 query por funil (head:true · barato).
+   * Returns Record<funnel, count>.
+   */
+  async countByFunnels(
+    clinicId: string,
+    funnels: string[],
+  ): Promise<Record<string, number>> {
+    const entries = await Promise.all(
+      funnels.map(async (f) => [f, await this.count(clinicId, { funnel: f })] as const),
+    )
+    return Object.fromEntries(entries)
+  }
+
+  /**
    * Busca leads por lista de telefones · usado pelo /api/conversations join.
    * Retorna lookup map (phone -> DTO) pra evitar N+1 no caller.
    */

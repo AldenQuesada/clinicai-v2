@@ -1,24 +1,21 @@
 /**
  * Editor visual de prompts da Lara · Server Component.
  *
- * 4 prompts em camadas (clinic_data.settings):
- *   - lara_prompt_base           → identidade/regras gerais
- *   - lara_prompt_olheiras       → flow Smooth Eyes
- *   - lara_prompt_fullface       → flow Lifting 5D
- *   - lara_prompt_prices_defense → playbook obrigatório de preço
+ * 4 prompts em camadas (clinic_data via ClinicDataRepository):
+ *   - lara_prompt_base
+ *   - lara_prompt_olheiras
+ *   - lara_prompt_fullface
+ *   - lara_prompt_prices_defense
  *
- * Quando vazio · ai.service.ts usa fallback do filesystem (.md no repo).
- * Quando preenchido · DB override · sem rebuild necessário.
- *
- * Apenas owner/admin podem editar (RBAC).
+ * ADR-012 · usa repos.clinicData.getSettings (batch, evita 4 queries).
  */
 
-import { loadServerContext } from '@clinicai/supabase'
 import { redirect } from 'next/navigation'
 import * as fs from 'fs'
 import * as path from 'path'
 import { Sparkles, AlertTriangle } from 'lucide-react'
 import { savePromptAction } from './actions'
+import { loadServerReposContext } from '@/lib/repos'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,13 +59,31 @@ interface PromptData {
   hasOverride: boolean
 }
 
+function valueToString(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (
+    value &&
+    typeof value === 'object' &&
+    'content' in value &&
+    typeof (value as { content: unknown }).content === 'string'
+  ) {
+    return (value as { content: string }).content
+  }
+  return null
+}
+
 async function loadPrompts(): Promise<{ prompts: PromptData[]; canManage: boolean }> {
-  const { supabase, ctx } = await loadServerContext()
+  const { ctx, repos } = await loadServerReposContext()
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+
+  // Batch fetch dos overrides · 1 query em vez de 4 (LAYERS.length)
+  const overrides = await repos.clinicData.getSettings(
+    ctx.clinic_id,
+    LAYERS.map((l) => l.key),
+  )
 
   const prompts: PromptData[] = []
   for (const layer of LAYERS) {
-    // Filesystem default · seed do repo
     let fsDefault = ''
     try {
       const fullPath = path.resolve(process.cwd(), ...layer.file)
@@ -79,20 +94,7 @@ async function loadPrompts(): Promise<{ prompts: PromptData[]; canManage: boolea
       fsDefault = '(arquivo não encontrado)'
     }
 
-    // DB override
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase.from('clinic_data') as any)
-      .select('value')
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('key', layer.key)
-      .maybeSingle()
-
-    const override =
-      typeof data?.value === 'string'
-        ? data.value
-        : data?.value?.content && typeof data.value.content === 'string'
-        ? (data.value.content as string)
-        : null
+    const override = valueToString(overrides.get(layer.key))
 
     prompts.push({
       key: layer.key,

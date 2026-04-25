@@ -1,24 +1,21 @@
 /**
  * Templates de resposta rápida · Server Component.
  *
- * Reutiliza tabela wa_message_templates (existente · 42+ rows). Filtro por
- * clinic_id resolvido via JWT (multi-tenant ADR-028).
- *
- * Atendente pode:
- *   - Ver todos templates ativos
- *   - Criar novo (Server Action createTemplateAction)
- *   - Copiar pro clipboard pra colar no chat
- *   - Editar/excluir (apenas owner/admin)
+ * ADR-012 · TemplateRepository.listAll · separa active/inactive no caller
+ * pra preservar UX de "mostrar inativos como collapse".
+ * Multi-tenant ADR-028 · clinic_id resolvido via JWT.
  */
 
-import { loadServerContext } from '@clinicai/supabase'
 import { FileText, Plus } from 'lucide-react'
 import { TemplateRow } from './TemplateRow'
 import { createTemplateAction } from './actions'
+import { loadServerReposContext } from '@/lib/repos'
+import type { TemplateDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
 
-interface Template {
+// Shape esperado pelo TemplateRow · snake_case (legacy frontend não migrou)
+interface TemplateView {
   id: string
   name: string
   message: string | null
@@ -31,18 +28,26 @@ interface Template {
   created_at: string
 }
 
-async function loadTemplates(): Promise<{ templates: Template[]; canManage: boolean }> {
-  const { supabase, ctx } = await loadServerContext()
+function toView(t: TemplateDTO): TemplateView {
+  return {
+    id: t.id,
+    name: t.name,
+    message: t.message,
+    content: t.content,
+    category: t.category,
+    trigger_phase: t.triggerPhase,
+    active: t.active,
+    is_active: t.isActive,
+    sort_order: t.sortOrder,
+    created_at: t.createdAt,
+  }
+}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase.from('wa_message_templates') as any)
-    .select('id, name, message, content, category, trigger_phase, active, is_active, sort_order, created_at')
-    .eq('clinic_id', ctx.clinic_id)
-    .order('sort_order', { ascending: true, nullsFirst: false })
-    .order('name', { ascending: true })
-
+async function loadTemplates(): Promise<{ templates: TemplateView[]; canManage: boolean }> {
+  const { ctx, repos } = await loadServerReposContext()
+  const dtos = await repos.templates.listAll(ctx.clinic_id)
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
-  return { templates: (data ?? []) as Template[], canManage }
+  return { templates: dtos.map(toView), canManage }
 }
 
 export default async function TemplatesPage() {

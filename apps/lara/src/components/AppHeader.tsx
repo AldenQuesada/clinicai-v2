@@ -6,6 +6,7 @@
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
+import { ProfileRepository } from '@clinicai/repositories'
 import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { NotificationToggle } from '@/components/NotificationToggle'
@@ -30,12 +31,9 @@ export async function AppHeader() {
   let firstName = ''
   let role = ''
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase.from('profiles') as any)
-      .select('first_name, role')
-      .eq('id', user.id)
-      .maybeSingle()
-    firstName = profile?.first_name ?? ''
+    const profiles = new ProfileRepository(supabase)
+    const profile = await profiles.getById(user.id)
+    firstName = profile?.firstName ?? ''
     role = profile?.role ?? ''
   } catch {
     // ignore · profile pode nao existir em dev

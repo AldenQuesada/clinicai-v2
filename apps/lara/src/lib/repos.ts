@@ -19,6 +19,7 @@ import {
   TemplateRepository,
   BudgetRepository,
   InboxNotificationRepository,
+  ProfileRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -30,6 +31,7 @@ export interface Repos {
   templates: TemplateRepository
   budget: BudgetRepository
   inboxNotifications: InboxNotificationRepository
+  profiles: ProfileRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,6 +44,7 @@ export function makeRepos(supabase: SupabaseClient<any>): Repos {
     templates: new TemplateRepository(supabase),
     budget: new BudgetRepository(supabase),
     inboxNotifications: new InboxNotificationRepository(supabase),
+    profiles: new ProfileRepository(supabase),
   }
 }
 

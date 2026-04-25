@@ -1,21 +1,15 @@
 /**
  * Configurações da Lara · Server Component.
  *
- * Permite ajustar settings que afetam comportamento da IA:
- *   - Modelo Claude (sonnet-4-6 / haiku / opus)
- *   - Daily budget USD (cost control)
- *   - Daily message limit (anti-loop)
- *   - Auto-pause minutes default (quando humano assume)
- *   - Cooldown entre conversa e disparo manual (semantico)
- *
- * Persiste em clinic_data.settings (jsonb · key="lara_config"). Lê via JOIN
- * por clinic_id (resolvido via JWT). Server Actions pra UPDATE.
+ * Persiste em clinic_data (jsonb · key='lara_config') via ClinicDataRepository.
+ * Multi-tenant ADR-028 · escopa por clinic_id (JWT).
+ * ADR-012 · loadServerReposContext + repos.clinicData.getSetting<T>.
  */
 
-import { loadServerContext } from '@clinicai/supabase'
 import { Settings, AlertTriangle } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
+import { loadServerReposContext } from '@/lib/repos'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,16 +30,11 @@ const DEFAULT_CONFIG: LaraConfig = {
 }
 
 async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> {
-  const { supabase, ctx } = await loadServerContext()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase.from('clinic_data') as any)
-    .select('value')
-    .eq('clinic_id', ctx.clinic_id)
-    .eq('key', 'lara_config')
-    .maybeSingle()
-
-  const stored = (data?.value as Partial<LaraConfig>) || {}
+  const { ctx, repos } = await loadServerReposContext()
+  const stored = (await repos.clinicData.getSetting<Partial<LaraConfig>>(
+    ctx.clinic_id,
+    'lara_config',
+  )) ?? {}
   return {
     config: { ...DEFAULT_CONFIG, ...stored },
     clinic_id: ctx.clinic_id,

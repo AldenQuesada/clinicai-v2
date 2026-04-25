@@ -1,7 +1,12 @@
 'use server'
 
+/**
+ * Server Actions · salvar/resetar prompts em clinic_data.
+ * ADR-012 · ClinicDataRepository.upsertSetting/deleteSetting.
+ */
+
 import { revalidatePath } from 'next/cache'
-import { loadServerContext } from '@clinicai/supabase'
+import { loadServerReposContext } from '@/lib/repos'
 
 const ALLOWED_KEYS = [
   'lara_prompt_base',
@@ -15,7 +20,7 @@ export async function savePromptAction(key: string, formData: FormData) {
     throw new Error(`Key invalida: ${key}`)
   }
 
-  const { supabase, ctx } = await loadServerContext()
+  const { ctx, repos } = await loadServerReposContext()
   if (ctx.role && !['owner', 'admin'].includes(ctx.role)) {
     throw new Error('Permissao insuficiente · apenas owner/admin')
   }
@@ -23,35 +28,14 @@ export async function savePromptAction(key: string, formData: FormData) {
   const action = String(formData.get('action') || 'save')
 
   if (action === 'reset') {
-    // Remove override · ai.service cai no fallback do filesystem
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from('clinic_data') as any)
-      .delete()
-      .eq('clinic_id', ctx.clinic_id)
-      .eq('key', key)
-    if (error) throw new Error(`Falha ao resetar: ${error.message}`)
+    await repos.clinicData.deleteSetting(ctx.clinic_id, key)
   } else {
     const content = String(formData.get('content') || '').trim()
     if (!content) {
       // Vazio = remove override (mesmo efeito de reset)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('clinic_data') as any)
-        .delete()
-        .eq('clinic_id', ctx.clinic_id)
-        .eq('key', key)
+      await repos.clinicData.deleteSetting(ctx.clinic_id, key)
     } else {
-      // UPSERT em clinic_data
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from('clinic_data') as any).upsert(
-        {
-          clinic_id: ctx.clinic_id,
-          key,
-          value: content,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'clinic_id,key' },
-      )
-      if (error) throw new Error(`Falha ao salvar: ${error.message}`)
+      await repos.clinicData.upsertSetting(ctx.clinic_id, key, content)
     }
   }
 
