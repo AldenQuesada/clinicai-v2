@@ -1,0 +1,54 @@
+/**
+ * Handler dispatcher · mapeia Intent → Handler.
+ *
+ * Tem prioridade especial pra confirmacoes (state voucher_confirm ativo bypassa
+ * o classifier · "sim"/"nao" curto vai pro b2bVoucherConfirmHandler).
+ */
+
+import type { Intent } from '../intent-classifier'
+import type { Handler } from './types'
+import { b2bEmitVoucherHandler } from './b2b-emit-voucher'
+import { b2bVoucherConfirmHandler } from './b2b-voucher-confirm'
+import {
+  b2bReferLeadHandler,
+  b2bAdminApproveHandler,
+  b2bAdminRejectHandler,
+  b2bAdminQueryHandler,
+  b2bCreatePartnershipHandler,
+  b2bFeedbackReceivedHandler,
+  b2bAdminHelpHandler,
+  b2bOtherHandler,
+} from './stubs'
+
+export { b2bVoucherConfirmHandler }
+export { shouldHandleAsConfirmation } from './b2b-voucher-confirm'
+export type { Handler, HandlerContext, HandlerResult, HandlerAction, StateTransition } from './types'
+
+export function dispatchHandler(intent: Intent): Handler {
+  switch (intent) {
+    case 'partner.emit_voucher':
+      return b2bEmitVoucherHandler
+    case 'partner.refer_lead':
+      return b2bReferLeadHandler
+    case 'partner.feedback_received':
+      return b2bFeedbackReceivedHandler
+    case 'partner.other':
+      return b2bOtherHandler
+
+    case 'admin.approve':
+      return b2bAdminApproveHandler
+    case 'admin.reject':
+      return b2bAdminRejectHandler
+    case 'admin.create_partnership':
+      return b2bCreatePartnershipHandler
+    case 'admin.query':
+      return b2bAdminQueryHandler
+    case 'admin.help':
+      return b2bAdminHelpHandler
+    case 'admin.other':
+      return b2bOtherHandler
+
+    default:
+      return b2bOtherHandler
+  }
+}
