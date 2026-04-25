@@ -11,8 +11,7 @@
  *   - Editar/excluir (apenas owner/admin)
  */
 
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 import { FileText, Plus } from 'lucide-react'
 import { TemplateRow } from './TemplateRow'
 import { createTemplateAction } from './actions'
@@ -33,17 +32,7 @@ interface Template {
 }
 
 async function loadTemplates(): Promise<{ templates: Template[]; canManage: boolean }> {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase.from('wa_message_templates') as any)

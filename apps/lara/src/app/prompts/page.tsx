@@ -13,8 +13,7 @@
  * Apenas owner/admin podem editar (RBAC).
  */
 
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 import { redirect } from 'next/navigation'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -64,17 +63,7 @@ interface PromptData {
 }
 
 async function loadPrompts(): Promise<{ prompts: PromptData[]; canManage: boolean }> {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
 
   const prompts: PromptData[] = []

@@ -45,10 +45,10 @@ export async function POST(
   const supabase = createServerClient();
   const wa = new WhatsAppCloudService();
 
-  // Get conversation phone
+  // Resolve phone + clinic_id da conversation · clinic_id NUNCA literal (regra GOLD #1)
   const { data: conv } = await supabase
     .from('wa_conversations')
-    .select('phone')
+    .select('phone, clinic_id')
     .eq('id', id)
     .single();
 
@@ -60,7 +60,7 @@ export async function POST(
   const msgId = uuidv4();
   await supabase.from('wa_messages').insert({
     id: msgId,
-    clinic_id: '00000000-0000-0000-0000-000000000001',
+    clinic_id: conv.clinic_id,
     conversation_id: id,
     direction: 'outbound',
     sender: 'humano',

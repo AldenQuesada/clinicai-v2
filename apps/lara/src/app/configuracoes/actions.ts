@@ -6,21 +6,10 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 
 export async function saveLaraConfigAction(formData: FormData) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
 
   // Roles owner + admin podem mexer em config · viewer/receptionist nao
   if (ctx.role && !['owner', 'admin'].includes(ctx.role)) {

@@ -20,37 +20,26 @@ import { checkGuard } from '@/lib/guard';
 import { generateResponse, getFixedResponse } from '@/services/ai.service';
 import { transcribeAudio } from '@/services/transcription.service';
 import { phoneVariants } from '@clinicai/utils';
+import { createLogger, hashPhone } from '@clinicai/logger';
 import { v4 as uuidv4 } from 'uuid';
 
-// Fallback pro clinic_id da Mirian · usado SOMENTE se RPC retornar null.
-// No caminho feliz, clinic_id e dinamico via wa_numbers_resolve.
-const FALLBACK_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
+import { detectFunnel, shouldOverrideFunnel } from '@/lib/webhook/funnel-detect';
+import {
+  parseScore,
+  parseTags,
+  parseFunnel,
+  hasHandoffTag,
+  stripHandoffTag,
+} from '@/lib/webhook/ai-tags-parser';
+import { resolveMediaDispatch } from '@/lib/webhook/media-dispatch';
+import {
+  resolveLead,
+  resolveConversation,
+  extractContent,
+} from '@/lib/webhook/lead-conversation';
 
-/**
- * Resolve clinic_id + wa_number_id via RPC wa_numbers_resolve_by_phone_number_id.
- * ADR-028 multi-tenant · clinic_id NUNCA hardcoded em request.
- */
-async function resolveTenantContext(
-  supabase: ReturnType<typeof createServerClient>,
-  phoneNumberId: string | null,
-): Promise<{ clinic_id: string; wa_number_id: string | null }> {
-  if (!phoneNumberId) {
-    console.warn('[Tenant] phone_number_id ausente · usando fallback Mirian');
-    return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null };
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc('wa_numbers_resolve_by_phone_number_id', {
-    p_phone_number_id: phoneNumberId,
-  });
-  if (error || !data?.ok) {
-    console.warn(`[Tenant] resolve falhou phone_number_id=${phoneNumberId} · usando fallback · err=${error?.message ?? data?.error}`);
-    return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null };
-  }
-  return {
-    clinic_id: data.clinic_id as string,
-    wa_number_id: data.wa_number_id as string,
-  };
-}
+const log = createLogger({ app: 'lara' });
 
 export const dynamic = 'force-dynamic';
 
@@ -62,11 +51,11 @@ export async function GET(request: NextRequest) {
   const challenge = searchParams.get('hub.challenge');
 
   if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    console.log('✅ Webhook verified');
+    log.info({ mode }, 'webhook.verified');
     return new Response(challenge || '', { status: 200, headers: { 'Content-Type': 'text/plain' } });
   }
 
-  console.error('❌ Webhook verification failed');
+  log.warn({ mode }, 'webhook.verification.failed');
   return new Response('Forbidden', { status: 403 });
 }
 
@@ -107,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('❌ Webhook error:', err);
+    log.error({ err: (err as Error)?.message, stack: (err as Error)?.stack }, 'webhook.error');
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -126,135 +115,30 @@ async function processInboundMessage(
   // ADR-028: resolve clinic_id por request via wa_numbers · NUNCA hardcoded
   const { clinic_id } = await resolveTenantContext(supabase, phoneNumberId);
 
-  // Phone variants pra lookup legacy (Evolution 13 chars com 9 vs Cloud 12 chars sem)
-  const variants = phoneVariants(phone);
-
   // 1. Mark as read immediately
   wa.markAsRead(message.id);
 
-  // 2. Find or create lead · busca em todas variantes
-  let { data: lead } = await supabase
-    .from('leads')
-    .select('*')
-    .in('phone', variants)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 2. Lead + conversation lookup/create/revive · helpers extraídos
+  const lead = await resolveLead({ supabase, clinic_id, phone, pushName });
+  if (!lead) return;
 
-  if (!lead) {
-    const { data: newLead, error: leadErr } = await supabase
-      .from('leads')
-      .insert({
-        id: uuidv4(),
-        clinic_id,
-        phone,
-        name: pushName || null,
-        phase: 'lead',
-        temperature: 'warm',
-        ai_persona: 'onboarder',
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+  const conv = await resolveConversation({ supabase, clinic_id, phone, lead, pushName });
+  if (!conv) return;
 
-    if (leadErr) {
-      console.error('[Webhook] Failed to create lead for', phone, leadErr);
-      return;
-    }
-    lead = newLead;
-  }
-
-  // 3. Find or create conversation · busca em todas variantes E status amplo
-  // (incluir 'archived' tambem · se conversation foi mergeada/arquivada com
-  // historico legacy, ainda quero recuperar antes de criar nova)
-  let { data: conv } = await supabase
-    .from('wa_conversations')
-    .select('*')
-    .in('phone', variants)
-    .in('status', ['active', 'paused', 'archived'])
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-
-  // Se a conversation encontrada estava archived (mergeada antes), reativa
-  if (conv && conv.status === 'archived') {
-    await supabase
-      .from('wa_conversations')
-      .update({ status: 'active', ai_enabled: true })
-      .eq('id', conv.id);
-    conv.status = 'active';
-    conv.ai_enabled = true;
-  }
-
-  if (!conv) {
-    const { data: newConv, error: convErr } = await supabase
-      .from('wa_conversations')
-      .insert({
-        id: uuidv4(),
-        clinic_id,
-        phone,
-        lead_id: lead.id,
-        display_name: pushName || lead.name || phone,
-        status: 'active',
-        ai_enabled: true,
-        created_at: new Date().toISOString(),
-        last_message_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (convErr) {
-      console.error('[Webhook] Failed to create conversation for', phone, convErr);
-      return;
-    }
-    conv = newConv;
-  }
-
-  // 4. Determine content type and extract text
-  let contentType = message.type || 'text';
-  let textContent = '';
-  let mediaId: string | null = null;
+  // 3. Extract content from Meta payload · text/image/audio/video/sticker
+  const extracted = extractContent(message);
+  const contentType = extracted.contentType;
+  const mediaId = extracted.mediaId;
+  let textContent = extracted.textContent;
   let mediaUrl: string | null = null;
 
-  switch (contentType) {
-    case 'text':
-      textContent = message.text?.body || '';
-      break;
-    case 'image':
-      textContent = message.image?.caption || '[imagem recebida]';
-      mediaId = message.image?.id || null;
-      break;
-    case 'audio':
-      textContent = '[audio recebido]'; // placeholder; será substituído pela transcrição abaixo
-      mediaId = message.audio?.id || null;
-      break;
-    case 'video':
-      textContent = '[video recebido]';
-      mediaId = message.video?.id || null;
-      break;
-    case 'sticker':
-      textContent = '[sticker recebido]';
-      mediaId = message.sticker?.id || null;
-      break;
-    default:
-      textContent = `[${contentType} recebido]`;
-  }
-
-  // 4.5 Auto-Detect Funnel if missing or generic
-  const genericFunnels = [null, '', 'procedimentos', 'geral', 'Geral', 'Procedimentos Gerais'];
-  if (lead && genericFunnels.includes(lead.funnel) && textContent && textContent.length > 5 && !textContent.startsWith('[')) {
-    const txt = textContent.toLowerCase();
-    const olheirasKeywords = ['olheira', 'olho', 'palpebra', 'pálpebra', 'cansada', 'escuro', 'escurec'];
-    const fullFaceKeywords = ['ruga', 'flacidez', 'rosto', 'contorno', 'bigode', 'chinês', 'sulco', 'derretendo', 'papada', 'lifting', 'fio', 'bochecha', 'cai', 'caido', 'mancha'];
-    
-    let detectedFunnel = null;
-    if (olheirasKeywords.some(k => txt.includes(k))) detectedFunnel = 'olheiras';
-    else if (fullFaceKeywords.some(k => txt.includes(k))) detectedFunnel = 'fullface';
-
-    if (detectedFunnel) {
-      await supabase.from('leads').update({ funnel: detectedFunnel }).eq('id', lead.id);
-      lead.funnel = detectedFunnel;
-      console.log(`🎯 [NLP] Funil do lead ${phone} atualizado para: ${detectedFunnel}`);
+  // 4.5 Auto-Detect Funnel · só sobrescreve quando atual é genérico/null
+  if (lead && shouldOverrideFunnel(lead.funnel)) {
+    const detected = detectFunnel(textContent);
+    if (detected) {
+      await supabase.from('leads').update({ funnel: detected }).eq('id', lead.id);
+      lead.funnel = detected;
+      log.info({ clinic_id, phone_hash: hashPhone(phone), funnel: detected, source: 'text' }, 'funnel.detected');
     }
   }
 
@@ -286,7 +170,7 @@ async function processInboundMessage(
         // 5.1 Transcrição de Áudio (Groq Whisper)
         if (contentType === 'audio') {
           isAudioMessage = true;
-          console.log(`🎙️ [Transcription] Transcrevendo áudio de ${phone}...`);
+          log.debug({ clinic_id, phone_hash: hashPhone(phone) }, 'transcription.start');
           const transcription = await transcribeAudio(
             mediaData.buffer,
             mediaData.contentType,
@@ -295,34 +179,26 @@ async function processInboundMessage(
 
           if (transcription) {
             textContent = transcription;
-            console.log(`🎙️ [Transcription] Áudio de ${phone} transcrito com sucesso.`);
+            log.debug({ clinic_id, phone_hash: hashPhone(phone), chars: transcription.length }, 'transcription.done');
 
-            // 5.2 Re-rodar detecção de funil sobre o texto transcrito do áudio
-            // (A detecção no passo 4.5 não consegue rodar porque textContent ainda era placeholder)
-            const genericFunnels = [null, '', 'procedimentos', 'geral', 'Geral'];
-            if (lead && genericFunnels.includes(lead.funnel) && transcription.length > 5) {
-              const txt = transcription.toLowerCase();
-              const olheirasKw = ['olheira', 'olho', 'palpebra', 'pálpebra', 'cansada', 'escuro', 'escurec'];
-              const fullFaceKw = ['ruga', 'flacidez', 'rosto', 'contorno', 'bigode', 'chinês', 'sulco', 'derretendo', 'papada', 'lifting', 'fio', 'bochecha', 'cai', 'caido', 'mancha'];
-
-              let detectedFunnel: string | null = null;
-              if (olheirasKw.some(k => txt.includes(k))) detectedFunnel = 'olheiras';
-              else if (fullFaceKw.some(k => txt.includes(k))) detectedFunnel = 'fullface';
-
-              if (detectedFunnel) {
-                await supabase.from('leads').update({ funnel: detectedFunnel }).eq('id', lead.id);
-                lead.funnel = detectedFunnel;
-                console.log(`🎯 [NLP/Audio] Funil do lead ${phone} atualizado via áudio para: ${detectedFunnel}`);
+            // 5.2 Re-rodar detecção de funil sobre o texto transcrito
+            // (passo 4.5 não conseguiu porque textContent ainda era placeholder)
+            if (lead && shouldOverrideFunnel(lead.funnel)) {
+              const detected = detectFunnel(transcription);
+              if (detected) {
+                await supabase.from('leads').update({ funnel: detected }).eq('id', lead.id);
+                lead.funnel = detected;
+                log.info({ clinic_id, phone_hash: hashPhone(phone), funnel: detected, source: 'audio' }, 'funnel.detected');
               }
             }
           } else {
             textContent = '[áudio recebido — transcrição indisponível]';
-            console.warn(`[Transcription] Falha ao transcrever áudio de ${phone}.`);
+            log.warn({ clinic_id, phone_hash: hashPhone(phone) }, 'transcription.failed');
           }
         }
       }
     } catch (err) {
-      console.error('[Webhook] Media download/transcription failed:', err);
+      log.error({ clinic_id, phone_hash: hashPhone(phone), err: (err as Error)?.message }, 'media.download_or_transcription.failed');
     }
   }
 
@@ -336,7 +212,7 @@ async function processInboundMessage(
     .maybeSingle();
 
   if (duplicateMsg) {
-    console.log(`[Webhook] Mensagem idêntica detectada para ${phone}, ignorando retry da Meta`);
+    log.debug({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook.duplicate.ignored');
     return;
   }
 
@@ -356,7 +232,7 @@ async function processInboundMessage(
     sent_at: sentAtStr,
   });
   if (msgErr) {
-    console.error('[Webhook] Failed to save inbound message:', msgErr);
+    log.error({ clinic_id, phone_hash: hashPhone(phone), err: msgErr.message }, 'message.inbound.save.failed');
   }
 
   // Update conversation last message
@@ -384,14 +260,14 @@ async function processInboundMessage(
     .single();
 
   if (latestMsg && new Date(latestMsg.sent_at).getTime() > new Date(sentAtStr).getTime() + 10) {
-    console.log(`[Debounce] Ignorando este processamento intermediário para ${phone}. A rota mais recente assumirá a IA.`);
+    log.debug({ clinic_id, phone_hash: hashPhone(phone) }, 'debounce.skipped.intermediate');
     return;
   }
 
   // 7. Check guard — AI allowed to respond?
   const guard = await checkGuard(conv.id);
   if (!guard.allowed) {
-    console.log(`[Guard] Blocked AI for ${phone}: ${guard.reason}`);
+    log.info({ clinic_id, phone_hash: hashPhone(phone), reason: guard.reason }, 'guard.blocked');
     return;
   }
 
@@ -432,10 +308,13 @@ async function processInboundMessage(
       messages.push({ role: 'user', content: textContent });
     }
 
-    console.log('\n=======================================');
-    console.log(`🧠 [AI CALL DEBUG] Lead: ${lead.name || pushName}`);
-    console.log(`🎯 [AI CALL DEBUG] Funil no Banco (Lead): ${lead.funnel || 'NULO/NÃO ATRIBUÍDO'}`);
-    console.log('=======================================\n');
+    log.debug({
+      clinic_id,
+      phone_hash: hashPhone(phone),
+      lead_name: lead.name || pushName,
+      funnel: lead.funnel || null,
+      msg_count: currentMsgCount,
+    }, 'ai.call.start');
 
     aiResponse = await generateResponse(
       {
@@ -459,12 +338,16 @@ async function processInboundMessage(
       messages,
       currentMsgCount
     );
-    console.log(`\n🤖 [AI RAW RESPONSE] ${phone}:\n${aiResponse}\n`);
+    log.debug({
+      clinic_id,
+      phone_hash: hashPhone(phone),
+      response_chars: aiResponse?.length ?? 0,
+    }, 'ai.call.done');
   }
 
   // 10.5 Human HandOff (Pausa Automática)
-  if (aiResponse.includes('[ACIONAR_HUMANO]')) {
-    aiResponse = aiResponse.replace(/\[ACIONAR_HUMANO\]/g, '').trim();
+  if (hasHandoffTag(aiResponse)) {
+    aiResponse = stripHandoffTag(aiResponse);
 
     // Pausa a IA para este lead por 24 horas
     const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -492,113 +375,64 @@ async function processInboundMessage(
         },
       });
     } catch (notifErr) {
-      console.warn(`[Notif] Falha ao gravar inbox_notifications: ${(notifErr as Error)?.message}`);
+      log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message }, 'inbox_notification.failed');
     }
 
-    console.log(`⚠️ [HandOff] AI pausada 24h + notificacao gravada · ${phone}`);
+    log.info({ clinic_id, phone_hash: hashPhone(phone) }, 'handoff.activated');
   }
 
-  // 10.5.5 Score and Tagging (Gatilhos de Qualificação)
-  const scoreMatch = aiResponse.match(/\[SCORE:(\d+)\]/);
-  if (scoreMatch) {
-    const newScore = parseInt(scoreMatch[1], 10);
-    aiResponse = aiResponse.replace(scoreMatch[0], '').trim();
-    await supabase.from('leads').update({ lead_score: newScore }).eq('id', lead.id);
-    console.log(`⭐ [Score] Lead ${phone} pontuado para ${newScore}`);
+  // 10.5.5 Score / Tags / Funnel · parsers extraídos pra ai-tags-parser.ts
+  const scoreParsed = parseScore(aiResponse);
+  if (scoreParsed.newScore !== null) {
+    aiResponse = scoreParsed.textCleaned;
+    await supabase.from('leads').update({ lead_score: scoreParsed.newScore }).eq('id', lead.id);
+    log.info({ clinic_id, phone_hash: hashPhone(phone), score: scoreParsed.newScore }, 'lead.score.updated');
   }
 
-  const tagMatch = aiResponse.match(/\[ADD_TAG:([^\]]+)\]/g);
-  if (tagMatch) {
-    for (const match of tagMatch) {
-      const tagName = match.replace('[ADD_TAG:', '').replace(']', '').trim();
-      aiResponse = aiResponse.replace(match, '').trim();
-      
-      // Busca tags atuais
-      const { data: currentLead } = await supabase.from('leads').select('tags').eq('id', lead.id).single();
-      const existingTags = currentLead?.tags || [];
-      if (!existingTags.includes(tagName)) {
-        await supabase.from('leads').update({ 
-          tags: [...existingTags, tagName] 
-        }).eq('id', lead.id);
-        console.log(`🏷️ [Tag] Adicionada tag '${tagName}' para ${phone}`);
+  const tagsParsed = parseTags(aiResponse);
+  if (tagsParsed.tags.length > 0) {
+    aiResponse = tagsParsed.textCleaned;
+    const { data: currentLead } = await supabase.from('leads').select('tags').eq('id', lead.id).single();
+    const existingTags: string[] = currentLead?.tags || [];
+    const newTags = tagsParsed.tags.filter((t) => !existingTags.includes(t));
+    if (newTags.length > 0) {
+      await supabase.from('leads').update({ tags: [...existingTags, ...newTags] }).eq('id', lead.id);
+      for (const tag of newTags) {
+        log.info({ clinic_id, phone_hash: hashPhone(phone), tag }, 'lead.tag.added');
       }
     }
   }
 
-  const funnelMatch = aiResponse.match(/\[SET_FUNNEL:(olheiras|fullface|procedimentos)\]/i);
-  if (funnelMatch) {
-    const newFunnel = funnelMatch[1].toLowerCase();
-    aiResponse = aiResponse.replace(funnelMatch[0], '').trim();
-    await supabase.from('leads').update({ funnel: newFunnel }).eq('id', lead.id);
-    lead.funnel = newFunnel;
-    console.log(`🎯 [AI Funnel] Lead ${phone} reclassificado para ${newFunnel}`);
+  const funnelParsed = parseFunnel(aiResponse);
+  if (funnelParsed.newFunnel) {
+    aiResponse = funnelParsed.textCleaned;
+    await supabase.from('leads').update({ funnel: funnelParsed.newFunnel }).eq('id', lead.id);
+    lead.funnel = funnelParsed.newFunnel;
+    log.info({ clinic_id, phone_hash: hashPhone(phone), funnel: funnelParsed.newFunnel, source: 'ai' }, 'funnel.updated');
   }
 
-  // 10.6 Auto-Dispatch Mídias Ricas (Fotos)
+  // 10.6 Auto-Dispatch Mídias Ricas · helper resolveMediaDispatch (lib/webhook/media-dispatch.ts)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let sendResult: any = { ok: false };
-  let outboundContentType = 'text';
+  let outboundContentType: 'text' | 'image' = 'text';
   let outboundMediaUrl: string | null = null;
-  
-  // Extrai a tag inteligente de disparo de foto e o funil que a IA decidiu
-  const photoMatch = aiResponse.match(/\s*\[ENVIAR_FOTO:(olheiras|fullface)\]\s*/i);
-  
-  // Tratamento de fallback clássico caso a IA desobedeça e envie a tag legada
-  const legacyMatch = !photoMatch ? aiResponse.match(/\s*\[(?:ENVIAR_FOTO|FOTO:[^\]]+)\]\s*/i) : null;
-  const activeMatch = photoMatch || legacyMatch;
 
-  if (activeMatch) {
-    let photoName = 'resultado.jpg'; // Usado primariamente para log caso a roleta falhe
-    
-    // Removemos a tag da resposta para não aparecer pro usuário
-    let textWithoutTag = aiResponse.replace(activeMatch[0], '\n\n').trim();
-    
-    // Roteamento de Pasta Dinâmico: A tag da IA governa se existir, senão usa o banco, senão tenta deduzir
-    let computedFunnel = 'olheiras'; // padrão
-    if (photoMatch && photoMatch[1]) {
-         computedFunnel = photoMatch[1].toLowerCase(); // 'olheiras' ou 'fullface' ditado pela IA
-    } else {
-         computedFunnel = lead?.funnel || (aiResponse.toLowerCase().includes('olheiras') ? 'olheiras' : 'fullface');
-    }
-    
-    let basePath = 'before-after/olheiras';
-    if (computedFunnel === 'olheiras') {
-       basePath = process.env.BUCKET_FUNIL_OLHEIRAS || 'before-after/olheiras';
-    } else {
-       basePath = process.env.BUCKET_FUNIL_FULLFACE || 'before-after/fullface';
-    }
+  const media = await resolveMediaDispatch({
+    supabase,
+    clinic_id,
+    phone,
+    aiResponse,
+    leadFunnel: lead.funnel,
+  });
 
-    // ROLETA DE IMAGENS ALEATÓRIAS
-    try {
-      // 1. Tenta listar imagens da gaveta específica do funil
-      let { data: files } = await supabase.storage.from('media').list(basePath);
-      let validFiles = files?.filter(f => f.name.match(/\.(jpg|jpeg|png)$/i)) || [];
-      
-      // 2. Puxa a foto randômica
-      if (validFiles.length > 0) {
-         const randomIndex = Math.floor(Math.random() * validFiles.length);
-         photoName = validFiles[randomIndex].name; 
-      } else {
-         console.log(`[Roleta] Nenhuma foto válida encontrada em ${basePath}.`);
-      }
-    } catch (e) {
-       console.log('Erro ao sortear imagem, caindo pro nome padrão...');
-    }
-    
-    const { data: urlData } = supabase.storage.from('media').getPublicUrl(`${basePath}/${photoName}`);
-    
-    if (urlData?.publicUrl) {
-       console.log(`📸 [Media] Enviando foto ${photoName} para ${phone}`);
-       sendResult = await wa.sendImage(phone, urlData.publicUrl, textWithoutTag);
-       
-       aiResponse = textWithoutTag;
-       outboundContentType = 'image';
-       outboundMediaUrl = urlData.publicUrl;
-    } else {
-       aiResponse = textWithoutTag;
-       sendResult = await wa.sendText(phone, aiResponse);
-    }
+  if (media.photoUrl) {
+    aiResponse = media.textCleaned;
+    sendResult = await wa.sendImage(phone, media.photoUrl, aiResponse);
+    outboundContentType = 'image';
+    outboundMediaUrl = media.photoUrl;
   } else {
-    // 11. Send response via WhatsApp (Somente Texto)
+    // Sem foto · só texto (limpa tag se chegou aqui)
+    aiResponse = media.textCleaned;
     sendResult = await wa.sendText(phone, aiResponse);
   }
 
@@ -622,5 +456,5 @@ async function processInboundMessage(
     .update({ last_response_at: new Date().toISOString() })
     .eq('id', lead.id);
 
-  console.log(`✅ [${phone}] AI responded (${aiResponse.length} chars)`);
+  log.info({ clinic_id, phone_hash: hashPhone(phone), chars: aiResponse.length, ok: sendResult.ok }, 'ai.response.sent');
 }

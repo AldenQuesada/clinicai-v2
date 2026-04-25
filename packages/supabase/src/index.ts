@@ -1,5 +1,6 @@
 export { createServerClient, createServiceRoleClient } from './server'
 export { createBrowserClient } from './browser'
 export { createMiddlewareClient } from './middleware'
-export { resolveClinicContext, requireClinicContext, type ClinicContext } from './tenant'
+export { resolveClinicContext, requireClinicContext, resolveClinicByPhoneNumberId, type ClinicContext } from './tenant'
+export { loadServerContext, loadOptionalServerContext } from './context'
 export type { Database } from './types'

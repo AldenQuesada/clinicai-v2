@@ -10,8 +10,7 @@
  * Multi-tenant ADR-028 · queries escopadas por clinic_id resolvido via JWT.
  */
 
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 import {
   DollarSign,
   MessageCircle,
@@ -40,17 +39,7 @@ interface Stats {
 }
 
 async function loadStats(): Promise<Stats> {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
   const today = new Date().toISOString().slice(0, 10)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const todayIso = new Date(today + 'T00:00:00.000Z').toISOString()

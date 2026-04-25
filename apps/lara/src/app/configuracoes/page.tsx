@@ -12,8 +12,7 @@
  * por clinic_id (resolvido via JWT). Server Actions pra UPDATE.
  */
 
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 import { Settings, AlertTriangle } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
@@ -37,17 +36,7 @@ const DEFAULT_CONFIG: LaraConfig = {
 }
 
 async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase.from('clinic_data') as any)

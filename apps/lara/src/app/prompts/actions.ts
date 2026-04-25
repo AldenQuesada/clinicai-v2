@@ -1,8 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
-import { createServerClient, requireClinicContext } from '@clinicai/supabase'
+import { loadServerContext } from '@clinicai/supabase'
 
 const ALLOWED_KEYS = [
   'lara_prompt_base',
@@ -16,17 +15,7 @@ export async function savePromptAction(key: string, formData: FormData) {
     throw new Error(`Key invalida: ${key}`)
   }
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
-    },
-  })
-
-  const ctx = await requireClinicContext(supabase)
+  const { supabase, ctx } = await loadServerContext()
   if (ctx.role && !['owner', 'admin'].includes(ctx.role)) {
     throw new Error('Permissao insuficiente · apenas owner/admin')
   }
