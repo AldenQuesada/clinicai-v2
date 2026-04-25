@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
     match: ['/estudio', '/templates', '/configuracoes'],
     subtabs: [
       { href: '/templates', label: 'Templates WA', available: true },
-      { href: '/estudio/cadastrar', label: 'Cadastrar parceria', available: false },
+      { href: '/estudio/cadastrar', label: 'Cadastrar parceria', available: true },
       { href: '/estudio/combos', label: 'Combos voucher', available: false },
       { href: '/configuracoes?tab=professionals', label: 'Admins WhatsApp', available: true },
       { href: '/configuracoes?tab=channels', label: 'Channels Evolution', available: true },

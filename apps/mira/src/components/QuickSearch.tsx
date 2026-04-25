@@ -57,6 +57,7 @@ type Item = ActionItem | PartnerItem
 const ACTIONS: Omit<ActionItem, 'kind'>[] = [
   { key: 'new-voucher', label: 'Emitir voucher', hint: 'rapido', href: '/vouchers/novo', icon: <Plus className="w-3.5 h-3.5" /> },
   { key: 'new-bulk', label: 'Lote de vouchers', hint: 'preview dedup', href: '/vouchers/bulk', icon: <Plus className="w-3.5 h-3.5" /> },
+  { key: 'new-partnership', label: 'Cadastrar parceria', hint: 'wizard 3-step', href: '/estudio/cadastrar', icon: <Plus className="w-3.5 h-3.5" /> },
   { key: 'partnerships', label: 'Pulse de parcerias', hint: 'Semana', href: '/partnerships', icon: <Users className="w-3.5 h-3.5" /> },
   { key: 'templates', label: 'Templates WA', hint: 'Estudio', href: '/templates', icon: <FileText className="w-3.5 h-3.5" /> },
   { key: 'health', label: 'Saúde do sistema', hint: 'Hoje', href: '/configuracoes?tab=overview', icon: <Activity className="w-3.5 h-3.5" /> },
