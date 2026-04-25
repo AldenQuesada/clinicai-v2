@@ -8,6 +8,8 @@
     "start": "next start -p 3006",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build:cron": "esbuild scripts/cron.ts --bundle --platform=node --target=node20 --outfile=dist/cron.js --external:node-cron",
     "cron": "node dist/cron.js"
   },

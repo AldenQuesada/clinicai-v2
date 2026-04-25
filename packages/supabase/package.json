@@ -13,6 +13,10 @@
     "./tenant": "./src/tenant.ts",
     "./types": "./src/types.ts"
   },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@supabase/supabase-js": "catalog:",
     "@supabase/ssr": "catalog:"
