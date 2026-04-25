@@ -123,6 +123,70 @@ async function processInboundMessage(
   });
   if (!conv) return;
 
+  // 2.5 Voucher B2B detection (mig 800-07) · se recipient tem voucher recente,
+  // marca engaged e ancora resposta em torno do agendamento.
+  let voucherContext: {
+    voucher_id: string;
+    partnership_name: string | null;
+    partner_first_name: string | null;
+    combo: string | null;
+    recipient_first_name: string | null;
+    audio_sent_at: string | null;
+  } | null = null;
+  try {
+    const voucher = await repos.b2bVouchers.findRecentByRecipientPhone(clinic_id, phone, 72);
+    if (voucher) {
+      // Resolve dados da parceria pra contexto
+      const { data: partnerRow } = await supabase
+        .from('b2b_partnerships')
+        .select('name, contact_name')
+        .eq('id', voucher.partnershipId)
+        .maybeSingle();
+
+      const partnershipName = (partnerRow as { name?: string } | null)?.name ?? null;
+      const partnerContactName = (partnerRow as { contact_name?: string } | null)?.contact_name ?? null;
+
+      // first name fallback chain: contact_name -> partnership_name
+      const partnerFirstName =
+        (partnerContactName || partnershipName || '').split(' ')[0] || null;
+
+      const recipientFirstName = (voucher.recipientName || '').split(' ')[0] || null;
+
+      voucherContext = {
+        voucher_id: voucher.id,
+        partnership_name: partnershipName,
+        partner_first_name: partnerFirstName,
+        combo: voucher.combo || null,
+        recipient_first_name: recipientFirstName,
+        audio_sent_at: voucher.audioSentAt ?? null,
+      };
+
+      // Marca engaged · idempotente, RPC so atualiza se state em pending/cold_*
+      try {
+        await repos.b2bVouchers.markEngaged(voucher.id);
+        log.info(
+          {
+            clinic_id,
+            phone_hash: hashPhone(phone),
+            voucher_id: voucher.id,
+            partnership_id: voucher.partnershipId,
+          },
+          'voucher.recipient.engaged',
+        );
+      } catch (markErr) {
+        log.warn(
+          { clinic_id, phone_hash: hashPhone(phone), err: (markErr as Error)?.message },
+          'voucher.mark_engaged.failed',
+        );
+      }
+    }
+  } catch (err) {
+    log.warn(
+      { clinic_id, phone_hash: hashPhone(phone), err: (err as Error)?.message },
+      'voucher.lookup.failed',
+    );
+  }
+
   // 3. Extract content from Meta payload
   const extracted = extractContent(message);
   const contentType = extracted.contentType;
@@ -281,6 +345,8 @@ async function processInboundMessage(
         conversation_count: 1,
         is_audio_message: isAudioMessage,
         clinic_id,
+        is_voucher_recipient: voucherContext !== null,
+        voucher: voucherContext ?? undefined,
       },
       messages,
       currentMsgCount

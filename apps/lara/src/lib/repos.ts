@@ -20,6 +20,7 @@ import {
   BudgetRepository,
   InboxNotificationRepository,
   ProfileRepository,
+  B2BVoucherRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -32,6 +33,7 @@ export interface Repos {
   budget: BudgetRepository
   inboxNotifications: InboxNotificationRepository
   profiles: ProfileRepository
+  b2bVouchers: B2BVoucherRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +47,7 @@ export function makeRepos(supabase: SupabaseClient<any>): Repos {
     budget: new BudgetRepository(supabase),
     inboxNotifications: new InboxNotificationRepository(supabase),
     profiles: new ProfileRepository(supabase),
+    b2bVouchers: new B2BVoucherRepository(supabase),
   }
 }
 

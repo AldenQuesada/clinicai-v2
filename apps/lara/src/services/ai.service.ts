@@ -24,6 +24,7 @@ const PROMPT_KEYS = {
   olheiras: 'lara_prompt_olheiras',
   fullface: 'lara_prompt_fullface',
   prices_defense: 'lara_prompt_prices_defense',
+  voucher_recipient: 'lara_prompt_voucher_recipient',
 } as const;
 
 const FILE_PATHS = {
@@ -31,6 +32,7 @@ const FILE_PATHS = {
   olheiras: ['src', 'prompt', 'flows', 'olheiras-flow.md'],
   fullface: ['src', 'prompt', 'flows', 'fullface-flow.md'],
   prices_defense: ['src', 'prompt', 'flows', 'prices-defense-flow.md'],
+  voucher_recipient: ['src', 'prompt', 'flows', 'voucher-recipient-flow.md'],
 } as const;
 
 function readFromFile(key: keyof typeof FILE_PATHS): string | null {
@@ -76,7 +78,11 @@ async function readPromptLayer(
   return readFromFile(key);
 }
 
-async function getSystemPromptText(funnel: string | undefined, clinicId: string | null): Promise<string> {
+async function getSystemPromptText(
+  funnel: string | undefined,
+  clinicId: string | null,
+  isVoucherRecipient = false,
+): Promise<string> {
   try {
     const base = await readPromptLayer(clinicId, 'base');
     let prompt = base || 'Você é a Lara, assistente virtual da Dra. Mirian de Paula.';
@@ -99,11 +105,26 @@ async function getSystemPromptText(funnel: string | undefined, clinicId: string 
     const prices = await readPromptLayer(clinicId, 'prices_defense');
     if (prices) prompt += '\n\n' + prices;
 
+    // Voucher recipient layer · so injeta quando o lead e beneficiaria
+    if (isVoucherRecipient) {
+      const voucher = await readPromptLayer(clinicId, 'voucher_recipient');
+      if (voucher) prompt += '\n\n' + voucher;
+    }
+
     return prompt;
   } catch (e) {
     console.error('Falha ao compor prompt:', e);
     return 'Você é a Lara, assistente virtual da Dra. Mirian de Paula. Responda de forma calorosa e profissional.';
   }
+}
+
+interface VoucherContext {
+  voucher_id: string;
+  partnership_name: string | null;
+  partner_first_name: string | null;
+  combo: string | null;
+  recipient_first_name: string | null;
+  audio_sent_at: string | null;
 }
 
 interface LeadContext {
@@ -123,6 +144,8 @@ interface LeadContext {
   conversation_count?: number;
   is_audio_message?: boolean; // true quando o lead enviou um áudio (já transcrito)
   clinic_id?: string; // multi-tenant ADR-028 · resolvido pelo webhook via wa_numbers
+  is_voucher_recipient?: boolean; // true quando paciente e beneficiaria de voucher B2B (mig 800-07)
+  voucher?: VoucherContext; // dados do voucher pra ancorar resposta · prompt usa
 }
 
 interface ChatMessage {
@@ -143,8 +166,24 @@ export async function generateResponse(
   const persona = leadContext.ai_persona || 'onboarder';
   const funnel = leadContext.funnel;
 
-  const basePrompt = await getSystemPromptText(funnel, leadContext.clinic_id || null);
+  const isVoucherRecipient = leadContext.is_voucher_recipient === true;
+  const basePrompt = await getSystemPromptText(funnel, leadContext.clinic_id || null, isVoucherRecipient);
   const isReturning = leadContext.is_returning || false;
+
+  const voucherBlock = isVoucherRecipient && leadContext.voucher
+    ? `\n\n## Voucher B2B ATIVO (paciente e beneficiaria)
+- Parceira que indicou: ${leadContext.voucher.partnership_name || 'parceira'} (${leadContext.voucher.partner_first_name || 'parceira'})
+- Combo presenteado: ${leadContext.voucher.combo || 'consulta cortesia'}
+- Voucher emitido em: ${leadContext.voucher.audio_sent_at || 'recente'}
+- Recipient first name: ${leadContext.voucher.recipient_first_name || 'paciente'}
+
+REGRAS PRA ESSA CONVERSA (sobrepoem outras):
+- Reconheca a indicacao da parceira pelo primeiro nome (ex: "Vi que a ${leadContext.voucher.partner_first_name || 'parceira'} te presenteou! Que carinho!")
+- NAO peca contato (ja temos phone). NAO peca CPF. NAO peca quiz.
+- Foque 100% em AGENDAR a consulta · proponha 2 horarios.
+- O combo ja vem incluso no voucher · NAO negocie preco, NAO mencione valor.
+- Se ela tiver duvida sobre o procedimento, responde curto e volta pra agendar.`
+    : '';
 
   const systemPrompt = `${basePrompt}
 
@@ -161,7 +200,7 @@ export async function generateResponse(
 - Funil: ${funnel === 'fullface' ? 'FULL FACE (lifting 5D)' : funnel === 'olheiras' ? 'OLHEIRAS (smooth eyes)' : funnel === 'procedimentos' ? 'PROCEDIMENTOS ISOLADOS' : 'nao definido'}
 - Última resposta: ${leadContext.last_response_at || 'primeira mensagem'}
 - É retorno: ${isReturning ? 'SIM (' + messageCount + ' mensagens trocadas)' : 'NÃO (primeira mensagem)'}
-- Total de conversas: ${leadContext.conversation_count || 0}
+- Total de conversas: ${leadContext.conversation_count || 0}${voucherBlock}
 
 ## Regras desta conversa:
 - Persona: ${persona.toUpperCase()}
