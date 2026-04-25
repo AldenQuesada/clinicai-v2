@@ -57,6 +57,11 @@ export {
   B2BVoucherComboRepository,
   type B2BVoucherComboDTO,
 } from './b2b-voucher-combo.repository'
+export {
+  B2BSuggestionsRepository,
+  type SuggestionCategory,
+  type SuggestionsSnapshot,
+} from './b2b-suggestions.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,
