@@ -63,10 +63,10 @@ const SECTIONS: Section[] = [
     subtabs: [
       { href: '/partnerships', label: 'Pulse de parcerias', available: true },
       { href: '/semana/performance', label: 'Performance', available: true },
-      { href: '/semana/renovacoes', label: 'Renovações', available: false },
+      { href: '/semana/renovacoes', label: 'Renovações', available: true },
       { href: '/semana/comentarios', label: 'Comentários', available: true },
       { href: '/semana/encerramentos', label: 'Encerramentos', available: true },
-      { href: '/semana/relatorios', label: 'Relatórios', available: false },
+      { href: '/semana/relatorios', label: 'Relatórios', available: true },
     ],
   },
   {
@@ -77,12 +77,12 @@ const SECTIONS: Section[] = [
     subtabs: [
       { href: '/templates', label: 'Templates WA', available: true },
       { href: '/estudio/cadastrar', label: 'Cadastrar parceria', available: true },
-      { href: '/estudio/combos', label: 'Combos voucher', available: false },
+      { href: '/estudio/combos', label: 'Combos voucher', available: true },
       { href: '/configuracoes?tab=professionals', label: 'Admins WhatsApp', available: true },
       { href: '/configuracoes?tab=channels', label: 'Channels Evolution', available: true },
       { href: '/estudio/padroes', label: 'Padrões clínica', available: true },
       { href: '/configuracoes?tab=logs', label: 'Diagnóstico', available: true },
-      { href: '/estudio/lgpd', label: 'LGPD', available: false },
+      { href: '/estudio/lgpd', label: 'LGPD', available: true },
       { href: '/estudio/sobre', label: 'Sobre', available: true },
     ],
   },

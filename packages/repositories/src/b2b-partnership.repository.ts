@@ -28,6 +28,8 @@ export interface B2BPartnershipDTO {
   voucherCombo: string | null
   voucherValidityDays: number
   voucherMonthlyCap: number | null
+  /** Duracao do contrato em meses · usado pra calcular renovacoes (default 12 quando null). */
+  contractDurationMonths: number | null
   healthColor: 'unknown' | 'green' | 'yellow' | 'red'
   createdAt: string
   updatedAt: string
@@ -52,6 +54,8 @@ function mapPartnershipRow(row: any): B2BPartnershipDTO {
     voucherCombo: row.voucher_combo ?? null,
     voucherValidityDays: Number(row.voucher_validity_days ?? 30),
     voucherMonthlyCap: row.voucher_monthly_cap != null ? Number(row.voucher_monthly_cap) : null,
+    contractDurationMonths:
+      row.contract_duration_months != null ? Number(row.contract_duration_months) : null,
     healthColor: (row.health_color ?? 'unknown') as B2BPartnershipDTO['healthColor'],
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
@@ -437,6 +441,35 @@ export class B2BPartnershipRepository {
       .eq('id', id)
     if (error) return { ok: false, error: error.message }
     return { ok: true }
+  }
+
+  /**
+   * Anonimiza PII da parceria · LGPD compliance (clinic-dashboard mig 0769).
+   * Irreversivel · audita ANTES via RPC. Reason obrigatorio (min 5 chars).
+   */
+  async anonymize(
+    partnershipId: string,
+    reason: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_anonymize', {
+      p_partnership_id: partnershipId,
+      p_reason: reason,
+    })
+    if (error) return { ok: false, error: error.message }
+    const result = data as { ok?: boolean; error?: string }
+    return { ok: result?.ok === true, error: result?.error }
+  }
+
+  /**
+   * Export full JSON da parceria pra direito de portabilidade (LGPD art 18 V).
+   * Returns blob de dados ou null se nao encontrado.
+   */
+  async exportData(partnershipId: string): Promise<unknown | null> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_export_data', {
+      p_partnership_id: partnershipId,
+    })
+    if (error) return null
+    return data
   }
 
   async upsert(slug: string, payload: Record<string, unknown>): Promise<{ id?: string; ok: boolean; error?: string }> {
