@@ -7,8 +7,14 @@
  */
 
 import { STATE_KEY } from '../state-machine'
+import { formatDedupReply } from './b2b-dedup-reply'
 import type { Handler, HandlerResult } from './types'
 import type { VoucherConfirmState } from '../state-machine'
+
+function firstName(full: string | null | undefined): string {
+  if (!full) return 'parceira'
+  return String(full).trim().split(/\s+/)[0] || 'parceira'
+}
 
 const SIM_RX = /\b(sim|s|claro|pode|emite|emitir|ok|aprovo|aprovado|confirma(do)?|confirmo|vai|manda)\b/i
 const NAO_RX = /\b(nao|n[aã]o|esquece|esquec[ae]|cancela|cancelar|deixa|para)\b/i
@@ -46,6 +52,62 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
       actions: [],
       stateTransitions: [{ op: 'clear', key: STATE_KEY.VOUCHER_CONFIRM }],
       meta: { handler: 'b2b-voucher-confirm', decision: 'no' },
+    }
+  }
+
+  // SIM · double-check dedup global ANTES do RPC (sanity recheck).
+  // Edge case: state criado ha 30min, recipient virou paciente nesse meio tempo
+  // (ou outra parceira indicou) · evita race condition de double-emit.
+  // Refs: DECISAO ALDEN 2026-04-25 (case Dani Mendes 26 vouchers).
+  const dupHit = await repos.leads.findInAnySystem(
+    clinicId,
+    stateRow.value.recipient_phone,
+    stateRow.value.recipient_name,
+  )
+  if (dupHit) {
+    const partnership = await repos.b2bPartnerships.getById(stateRow.value.partnership_id)
+    const partnerFirst = firstName(partnership?.contactName ?? null)
+    // Audit log · bloqueio detectado no recheck (mais critico que pre-emit)
+    await repos.waProAudit.logQuery({
+      msg: {
+        clinicId,
+        phone,
+        direction: 'inbound',
+        content: text,
+        intent: 'partner.dedup_blocked',
+        intentData: {
+          partnership_id: stateRow.value.partnership_id,
+          recipient_phone: stateRow.value.recipient_phone,
+          recipient_name: stateRow.value.recipient_name,
+          hit_kind: dupHit.kind,
+          hit_id: dupHit.id,
+          hit_since: dupHit.since,
+          stage: 'voucher_confirm_recheck',
+        },
+        status: 'sent',
+      },
+      audit: {
+        clinicId,
+        phone,
+        query: text,
+        intent: 'partner.dedup_blocked',
+        rpcCalled: 'leads.findInAnySystem',
+        success: true,
+        resultSummary: `Recheck dedup hit ${dupHit.kind} · ${dupHit.id.slice(0, 8)} · since ${dupHit.since}`,
+      },
+    })
+    return {
+      replyText: formatDedupReply(dupHit, partnerFirst, stateRow.value.recipient_name),
+      actions: [],
+      stateTransitions: [{ op: 'clear', key: STATE_KEY.VOUCHER_CONFIRM }],
+      meta: {
+        handler: 'b2b-voucher-confirm',
+        decision: 'yes',
+        dedup_blocked: true,
+        hit_kind: dupHit.kind,
+        hit_id: dupHit.id,
+        stage: 'recheck',
+      },
     }
   }
 
