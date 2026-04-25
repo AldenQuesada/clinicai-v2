@@ -1,18 +1,20 @@
-import { Metadata } from 'next';
+import { Metadata } from 'next'
+import { AppHeader } from '@/components/AppHeader'
 
 export const metadata: Metadata = {
-  title: 'Central WhatsApp | ClinicAI',
-};
+  title: 'Conversas · Lara · Clinica AI',
+}
 
 export default function ConversasLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    // Pega altura total da tela e corta overflow. Fundo principal.
-    <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))]">
-      {children}
+    // Layout: header + chat full-height
+    <div className="flex flex-col h-screen w-full overflow-hidden bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))]">
+      <AppHeader />
+      <div className="flex flex-1 min-h-0">{children}</div>
     </div>
-  );
+  )
 }

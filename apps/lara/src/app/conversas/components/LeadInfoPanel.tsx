@@ -1,6 +1,9 @@
-import { UserCircle, Calendar, Tag, ShieldAlert, UserPlus, CheckCircle, Archive, Stethoscope } from 'lucide-react';
+import { UserCircle, Calendar, Tag, ShieldAlert, UserPlus, CheckCircle, Archive, Stethoscope, ExternalLink, CalendarPlus } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import { AgentPauseSection } from './AgentPauseSection';
+
+// URL do painel CRM legacy (clinic-dashboard) · usado pra abrir lead/agenda em nova aba
+const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
 
 interface LeadInfoPanelProps {
   selectedConversation: Conversation | null;
@@ -125,6 +128,39 @@ export function LeadInfoPanel({
                 <p className="text-xs text-gray-500">Nenhuma queixa analisada ainda.</p>
               )}
             </div>
+          </div>
+
+          {/* Atalhos pro painel CRM legacy · abre em nova aba */}
+          <div className="pt-2 border-t border-[hsl(var(--chat-border))] space-y-2">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Atalhos
+            </h4>
+            {selectedConversation.lead_id && (
+              <a
+                href={`${PAINEL_URL}/index.html?page=leads&lead=${selectedConversation.lead_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors group"
+              >
+                <span className="flex items-center gap-2">
+                  <UserCircle className="w-4 h-4" />
+                  Ver lead no CRM
+                </span>
+                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            )}
+            <a
+              href={`${PAINEL_URL}/index.html?page=agenda&phone=${selectedConversation.phone}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors group"
+            >
+              <span className="flex items-center gap-2">
+                <CalendarPlus className="w-4 h-4" />
+                Abrir agenda
+              </span>
+              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
           </div>
         </div>
       </div>
