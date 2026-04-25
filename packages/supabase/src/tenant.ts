@@ -30,7 +30,15 @@ export interface ClinicContext {
 
 /**
  * Resolve clinic_id de Server Component / Server Action via JWT do user logado.
- * Lança se user não autenticado ou JWT sem claim clinic_id.
+ *
+ * Ordem de resolução:
+ *   1. JWT claim `app_metadata.clinic_id` (canonical · custom_access_token_hook)
+ *   2. Fallback RPC `_default_clinic_id()` (single-tenant Mirian) · log warn
+ *   3. null se nenhum funcionar
+ *
+ * Multi-tenant futuro: configurar custom_access_token_hook no Supabase Auth →
+ * o JWT passa a ter clinic_id por user. Sem isso, qualquer user logado cai no
+ * fallback (suficiente pra Mirian single-tenant atual).
  */
 export async function resolveClinicContext(
   supabase: SupabaseClient<Database>,
@@ -38,17 +46,30 @@ export async function resolveClinicContext(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // custom_access_token_hook (Supabase) injeta clinic_id + app_role
+  // 1. JWT claim canonical
   const claims = (user.app_metadata ?? {}) as Record<string, unknown>
-  const clinic_id = (claims.clinic_id as string | undefined) ?? null
+  const clinicIdClaim = (claims.clinic_id as string | undefined) ?? null
   const role = (claims.app_role as ClinicContext['role']) ?? null
 
-  if (!clinic_id) {
-    // User logado mas sem clinic membership · provavelmente bug de onboarding
-    return null
+  if (clinicIdClaim) {
+    return { clinic_id: clinicIdClaim, user_id: user.id, role }
   }
 
-  return { clinic_id, user_id: user.id, role }
+  // 2. Fallback RPC `_default_clinic_id()` · single-tenant Mirian
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('_default_clinic_id')
+  if (!error && data) {
+    if (typeof console !== 'undefined') {
+      console.warn(
+        `[tenant] user ${user.id} sem clinic_id no JWT · fallback _default_clinic_id() = ${data}. ` +
+        `Configurar custom_access_token_hook no Supabase pra injetar claim.`,
+      )
+    }
+    return { clinic_id: String(data), user_id: user.id, role }
+  }
+
+  // 3. Sem fallback · user logado mas sem membership resolvivel
+  return null
 }
 
 /**
