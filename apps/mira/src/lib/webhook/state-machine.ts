@@ -29,7 +29,11 @@ export const STATE_KEY = {
   PROCESSED_PREFIX: '__processed__:',
   CP_STEP: 'cp_step',
   ADMIN_REJECT_REASON: 'admin_reject_reason',
+  ADMIN_APPROVE_SELECT: 'admin_approve_select',
+  ADMIN_REJECT_SELECT: 'admin_reject_select',
 } as const
+
+export const TTL_ADMIN_SELECT_MIN = 5
 
 export interface VoucherConfirmState {
   partnership_id: string

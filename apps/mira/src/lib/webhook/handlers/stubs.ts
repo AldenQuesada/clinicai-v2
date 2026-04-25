@@ -28,11 +28,6 @@ function makeStub(name: string, replyText: string): Handler {
   })
 }
 
-export const b2bAdminApproveHandler = makeStub(
-  'b2b-admin-approve',
-  ADMIN_FALLBACK,
-)
-
 export const b2bAdminRejectHandler = makeStub(
   'b2b-admin-reject',
   ADMIN_FALLBACK,

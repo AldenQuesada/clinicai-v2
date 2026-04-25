@@ -10,8 +10,8 @@ import type { Handler } from './types'
 import { b2bEmitVoucherHandler } from './b2b-emit-voucher'
 import { b2bVoucherConfirmHandler } from './b2b-voucher-confirm'
 import { b2bReferLeadHandler } from './b2b-refer-lead'
+import { b2bAdminApproveHandler } from './b2b-admin-approve'
 import {
-  b2bAdminApproveHandler,
   b2bAdminRejectHandler,
   b2bAdminQueryHandler,
   b2bCreatePartnershipHandler,
