@@ -35,10 +35,13 @@
 
 import { normalizePhoneBR } from '@clinicai/utils'
 
-// 10-14 digitos com formatacao opcional (parens, espacos, hifens, +)
-// Match conservador · evita comer "44" puro de uma rua/idade.
-// Min 10 digitos = celular sem DDI (DDD + 8 digitos), max 14 = +DDI13.
-const PHONE_RX = /(\+?\d{2}\s?\(?\d{2}\)?[\s\-]?\d{4,5}[\s\-]?\d{4}|\+?\d{10,14})/
+// 3 branches alternativas (caller normaliza via normalizePhoneBR depois):
+//   1. DDI 55 explicito · "+55 (44) 99876-5432" / "5544991234567"
+//   2. Digits puros longos · "5544991234567" / "+5544991234567"
+//   3. BR sem DDI · "(44) 99876-5432" / "44 99222-2222" / "44991234567"
+//      (normalizePhoneBR adiciona 55 quando recebe 10-11 digitos puros)
+const PHONE_RX =
+  /(\+?55\s?\(?\d{2}\)?[\s\-]?9?\d{4,5}[\s\-]?\d{4}|\+?\d{12,14}|\(?\d{2}\)?[\s\-]?9?\d{4}[\s\-]?\d{4})/
 
 // Verbos/preposicoes/keywords de comando (removidos do nome)
 const VERB_RX =
@@ -216,8 +219,10 @@ export function looksLikeBulk(text: string): boolean {
   const declared = t.match(COUNT_HINT_RX)
   if (declared && Number(declared[1]) >= 2) return true
 
-  // Conta phones (qualquer formato)
-  const phones = t.match(/\+?\d{2}\s?\(?\d{2}\)?[\s\-]?\d{4,5}[\s\-]?\d{4}|\+?\d{10,14}/g)
+  // Conta phones (qualquer formato · mesmas 3 branches do PHONE_RX)
+  const phones = t.match(
+    /\+?55\s?\(?\d{2}\)?[\s\-]?9?\d{4,5}[\s\-]?\d{4}|\+?\d{12,14}|\(?\d{2}\)?[\s\-]?9?\d{4}[\s\-]?\d{4}/g,
+  )
   if (!phones) return false
   return phones.length >= 2
 }

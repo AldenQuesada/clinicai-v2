@@ -39,9 +39,6 @@ describe('parseBulkList · formato a (inline numerado)', () => {
 
 describe('parseBulkList · formato b (multilinha simples)', () => {
   it('parses multilinha com phones em formatos suportados', () => {
-    // KNOWN GAP: PHONE_RX exige DDI explicito (2 digits + space + DDD).
-    // Formato "(44) 99222-2222" puro (sem DDI) NAO e capturado · cobrir
-    // esse caso requer expandir PHONE_RX (escopo: nao mudar code aqui).
     const text = [
       'voucher pra:',
       'Maria 5544991111111',
@@ -55,6 +52,23 @@ describe('parseBulkList · formato b (multilinha simples)', () => {
     expect(r.items[2]).toEqual({ name: 'Bia', phone: '5544993333333' })
   })
 
+  it('parses multilinha com phones BR sem DDI (formato local)', () => {
+    // Cobre o gap historico do PHONE_RX original · agora 3 branches incluem
+    // formato BR puro (parens/espaco/hifen, sem 55 inicial).
+    const text = [
+      'voucher pra:',
+      'Maria (44) 99876-5432',
+      'Ana 44 99222-2222',
+      'Bia 44991234567',
+    ].join('\n')
+    const r = parseBulkList(text)
+    expect(r.items).toHaveLength(3)
+    // Todos normalizados pra DDI 55 via normalizePhoneBR
+    expect(r.items[0]).toEqual({ name: 'Maria', phone: '5544998765432' })
+    expect(r.items[1]).toEqual({ name: 'Ana', phone: '5544992222222' })
+    expect(r.items[2]).toEqual({ name: 'Bia', phone: '5544991234567' })
+  })
+
   it('ignora linhas vazias entre items', () => {
     const text = ['Maria 44991111111', '', '', 'Ana 44992222222', '   ', 'Bia 44993333333'].join(
       '\n',
@@ -66,13 +80,22 @@ describe('parseBulkList · formato b (multilinha simples)', () => {
 
 describe('parseBulkList · formato c (nome composto)', () => {
   it('parses nomes longos antes do phone (com DDI)', () => {
-    // KNOWN GAP: ver formato b · phones sem DDI nao sao capturados pelo
-    // PHONE_RX atual. Caller (b2b-emit-voucher handler) recebe texto cru
-    // que ja inclui DDI 55 na maioria dos casos prod (Evolution
-    // injects DDI antes de chamar parser).
     const text = [
       'Maria Luiiza Pavezi Mendes 5544991234567',
       'Gabriela Romangnoli 5544998765432',
+    ].join('\n')
+    const r = parseBulkList(text)
+    expect(r.items).toHaveLength(2)
+    expect(r.items[0].name).toBe('Maria Luiiza Pavezi Mendes')
+    expect(r.items[0].phone).toBe('5544991234567')
+    expect(r.items[1].name).toBe('Gabriela Romangnoli')
+    expect(r.items[1].phone).toBe('5544998765432')
+  })
+
+  it('parses nomes compostos com phone BR formatado sem DDI', () => {
+    const text = [
+      'Maria Luiiza Pavezi Mendes (44) 99123-4567',
+      'Gabriela Romangnoli 44 99876-5432',
     ].join('\n')
     const r = parseBulkList(text)
     expect(r.items).toHaveLength(2)
