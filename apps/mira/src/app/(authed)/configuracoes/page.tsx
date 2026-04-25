@@ -3,11 +3,14 @@
  *
  * Restrito a owner/admin. Cada tab e Server Component dedicado.
  * Tabs via search param ?tab= (sem JS client).
+ *
+ * Visual MIRROR mira-config antigo · header denso, tabs com border-b 2px gold
+ * no active, max-w-[960px], sem icon-box luxury, Inter only.
  */
 
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Settings, BarChart3, Users, Network, Activity } from 'lucide-react'
+import { BarChart3, Users, Network, Activity } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { OverviewTab } from './OverviewTab'
 import { ProfessionalsTab } from './ProfessionalsTab'
@@ -17,7 +20,7 @@ import { LogsTab } from './LogsTab'
 export const dynamic = 'force-dynamic'
 
 const TABS = [
-  { key: 'overview', label: 'Overview', icon: BarChart3 },
+  { key: 'overview', label: 'Visão geral', icon: BarChart3 },
   { key: 'professionals', label: 'Profissionais', icon: Users },
   { key: 'channels', label: 'Canais', icon: Network },
   { key: 'logs', label: 'Logs', icon: Activity },
@@ -45,24 +48,20 @@ export default async function ConfigPage({ searchParams }: PageProps) {
     | 'overview' | 'professionals' | 'channels' | 'logs'
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-            <Settings className="w-6 h-6" />
-          </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
+      <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
+        {/* Header denso */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/8">
           <div>
-            <h1 className="text-2xl font-light">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">Configurações</span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              Mira · saúde interna + admins + canais + audit logs
+            <h1 className="text-base font-semibold text-[#F5F5F5]">Configurações</h1>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+              Mira admin · saúde interna · profissionais · canais · audit logs
             </p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-[hsl(var(--chat-border))] mb-6 flex flex-wrap gap-1">
+        {/* Tabs · border-b 2px gold mirror b2b-config tab pattern */}
+        <div className="flex gap-1 border-b border-white/8 -mt-1">
           {TABS.map((t) => {
             const Icon = t.icon
             const isActive = activeTab === t.key
@@ -70,13 +69,13 @@ export default async function ConfigPage({ searchParams }: PageProps) {
               <Link
                 key={t.key}
                 href={`/configuracoes?tab=${t.key}`}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-xs uppercase tracking-widest border-b-2 transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-[1px] border-b-2 transition-colors ${
                   isActive
-                    ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
-                    : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                    ? 'text-[#C9A96E] border-[#C9A96E]'
+                    : 'text-[#9CA3AF] border-transparent hover:text-[#F5F5F5]'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5" />
                 {t.label}
               </Link>
             )

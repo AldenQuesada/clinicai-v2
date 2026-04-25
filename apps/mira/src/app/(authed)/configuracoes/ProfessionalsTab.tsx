@@ -1,8 +1,8 @@
 /**
- * Tab Professionals · lista wa_numbers (admins autorizados).
+ * Tab Profissionais · lista wa_numbers (admins autorizados).
  *
- * P1: read-only · CRUD via clinic-dashboard (Alden cadastra phone_number_id
- * + label) e Mira reflete. UI futura (P2) pode expor edicao inline.
+ * P1: read-only · CRUD via clinic-dashboard. Visual mirror b2b-config
+ * `.bcfg-admin-row` linha 116 · row denso ao inves de table.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -13,48 +13,51 @@ export async function ProfessionalsTab() {
 
   if (numbers.length === 0) {
     return (
-      <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-        Nenhum número WhatsApp cadastrado em <code>wa_numbers</code> · Mira não tem
-        admins autorizados ainda.
+      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+        Nenhum número WhatsApp cadastrado em <code className="font-mono text-[#C9A96E]">wa_numbers</code> ·
+        Mira não tem admins autorizados ainda.
       </div>
     )
   }
 
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] overflow-hidden bg-[hsl(var(--chat-panel-bg))]">
-      <table className="w-full text-sm">
-        <thead className="bg-[hsl(var(--muted))]/30 border-b border-[hsl(var(--chat-border))]">
-          <tr className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            <th className="text-left px-4 py-3">Label</th>
-            <th className="text-left px-4 py-3">Phone</th>
-            <th className="text-left px-4 py-3">Phone Number ID</th>
-            <th className="text-left px-4 py-3">Status</th>
-            <th className="text-left px-4 py-3">Cadastrado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {numbers.map((n) => (
-            <tr key={n.id} className="border-b border-[hsl(var(--chat-border))] last:border-0">
-              <td className="px-4 py-3 text-[hsl(var(--foreground))]">{n.label || '—'}</td>
-              <td className="px-4 py-3 font-mono text-xs">{n.phone}</td>
-              <td className="px-4 py-3 font-mono text-xs text-[hsl(var(--muted-foreground))]">{n.phoneNumberId || '—'}</td>
-              <td className="px-4 py-3">
-                {n.isActive ? (
-                  <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]">
-                    Ativo
-                  </span>
-                ) : (
-                  <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-                    Inativo
-                  </span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{fmt(n.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="px-4 py-3 text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--chat-border))]">
+    <div className="flex flex-col gap-1.5">
+      {numbers.map((n) => (
+        <div
+          key={n.id}
+          className={`grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors ${
+            n.isActive ? '' : 'opacity-60'
+          }`}
+        >
+          <div className="min-w-0 flex flex-col gap-0.5">
+            <span className="text-sm font-semibold text-[#F5F5F5] truncate">
+              {n.label || '—'}
+            </span>
+            <div className="flex items-center gap-3 text-[11px] text-[#9CA3AF] flex-wrap font-mono">
+              <span>{n.phone}</span>
+              {n.phoneNumberId && (
+                <span className="text-[10.5px] text-[#6B7280]">id: {n.phoneNumberId}</span>
+              )}
+            </div>
+          </div>
+
+          <span
+            className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${
+              n.isActive
+                ? 'bg-[#10B981]/15 text-[#10B981]'
+                : 'bg-white/8 text-[#9CA3AF]'
+            }`}
+          >
+            {n.isActive ? 'Ativo' : 'Inativo'}
+          </span>
+
+          <span className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] font-mono whitespace-nowrap">
+            {fmt(n.createdAt)}
+          </span>
+        </div>
+      ))}
+
+      <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] mt-1 px-1">
         CRUD owner via clinic-dashboard · Mira reflete automaticamente.
       </div>
     </div>

@@ -1,6 +1,8 @@
 /**
- * Tab Channels · lista mira_channels (function_key → wa_number_id + Evolution).
- * Edicao inline restrita a owner/admin.
+ * Tab Canais · lista mira_channels (function_key → wa_number_id + Evolution).
+ *
+ * Edicao inline restrita a owner/admin · expand → form gold-tinted
+ * (mirror bcfg-admin-form).
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -13,57 +15,65 @@ export async function ChannelsTab() {
 
   if (channels.length === 0) {
     return (
-      <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-        Nenhum canal configurado em <code>mira_channels</code> · seeds da P0 cobrem
-        <code className="mx-1">mira_admin_outbound</code>,<code className="mx-1">mih_recipient_voucher</code>.
+      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+        Nenhum canal configurado em <code className="font-mono text-[#C9A96E]">mira_channels</code> ·
+        seeds da P0 cobrem
+        <code className="font-mono text-[#C9A96E] mx-1">mira_admin_outbound</code>,
+        <code className="font-mono text-[#C9A96E] mx-1">mih_recipient_voucher</code>.
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-1.5">
       {channels.map((c) => (
         <details
           key={c.id}
-          className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]"
+          className="rounded-lg border border-white/8 bg-white/[0.02] hover:border-white/14 transition-colors"
         >
-          <summary className="cursor-pointer px-4 py-3 flex items-center justify-between gap-3 hover:bg-[hsl(var(--muted))]/20 rounded-card transition-colors">
-            <div className="flex-1">
-              <div className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--primary))]">
+          <summary className="cursor-pointer px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/[0.02] rounded-lg transition-colors">
+            <div className="flex-1 min-w-0">
+              <div className="font-mono text-[11px] font-bold text-[#C9A96E]">
                 {c.functionKey}
               </div>
-              <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mt-1">
+              <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] mt-1 font-mono">
                 instance: {c.evolutionInstance ?? '—'} · wa_number_id: {c.waNumberId ?? '—'}
               </div>
             </div>
-            <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill ${
-              c.isActive
-                ? 'bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]'
-                : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-            }`}>
+            <span
+              className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${
+                c.isActive
+                  ? 'bg-[#10B981]/15 text-[#10B981]'
+                  : 'bg-white/8 text-[#9CA3AF]'
+              }`}
+            >
               {c.isActive ? 'Ativo' : 'Inativo'}
             </span>
           </summary>
 
-          <form action={updateChannelAction} className="p-4 border-t border-[hsl(var(--chat-border))] space-y-3">
+          <form
+            action={updateChannelAction}
+            className="px-3.5 pb-3.5 pt-1 flex flex-col gap-2.5 border-t border-[#C9A96E]/15 bg-[#C9A96E]/[0.04] rounded-b-lg"
+          >
             <input type="hidden" name="id" value={c.id} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-2.5">
               <Field
                 label="Evolution Instance"
                 name="evolutionInstance"
                 defaultValue={c.evolutionInstance ?? ''}
                 disabled={!canManage}
+                mono
               />
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
                   Ativo
                 </label>
                 <select
                   name="isActive"
                   defaultValue={c.isActive ? 'true' : 'false'}
                   disabled={!canManage}
-                  className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] disabled:opacity-50"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs disabled:opacity-50"
                 >
                   <option value="true">Sim</option>
                   <option value="false">Não</option>
@@ -71,8 +81,8 @@ export async function ChannelsTab() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
                 Notes
               </label>
               <textarea
@@ -80,17 +90,19 @@ export async function ChannelsTab() {
                 defaultValue={c.notes ?? ''}
                 disabled={!canManage}
                 rows={2}
-                className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] disabled:opacity-50 resize-y"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs disabled:opacity-50 resize-y"
               />
             </div>
 
             {canManage && (
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
-              >
-                Salvar
-              </button>
+              <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
             )}
           </form>
         </details>
@@ -104,15 +116,17 @@ function Field({
   name,
   defaultValue,
   disabled,
+  mono,
 }: {
   label: string
   name: string
   defaultValue: string
   disabled?: boolean
+  mono?: boolean
 }) {
   return (
-    <div>
-      <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
         {label}
       </label>
       <input
@@ -120,7 +134,7 @@ function Field({
         name={name}
         defaultValue={defaultValue}
         disabled={disabled}
-        className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] disabled:opacity-50 font-mono text-xs"
+        className={`w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
       />
     </div>
   )

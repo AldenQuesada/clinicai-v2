@@ -1,11 +1,14 @@
 /**
- * Tab Overview · KPIs internos da Mira.
+ * Tab Visão geral · KPIs internos da Mira (mirror b2b-config Overview).
  *
  * - wa_numbers ativos
  * - Queries today/week/month (count wa_pro_audit_log)
  * - Avg response_ms
  * - Error rate
  * - Top 5 intents
+ *
+ * Visual: KPI cards 8px com gold accent, top intents bar com mini-bar gold
+ * tinted, latency stack mirror .bcfg-about-row pattern.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -27,39 +30,41 @@ export async function OverviewTab() {
   const errorRate = month.total > 0 ? Math.round((month.failure / month.total) * 100) : 0
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Admins ativos" value={String(activeAdmins)} />
+    <div className="flex flex-col gap-3">
+      {/* KPI cards · 4 colunas densos */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <Stat label="Admins ativos" value={String(activeAdmins)} tone="ok" />
         <Stat label="Queries hoje" value={String(today.total)} subtitle={`${today.failure} falhas`} />
         <Stat label="Queries 7 dias" value={String(week.total)} subtitle={`avg ${week.avgResponseMs}ms`} />
         <Stat
           label="Error rate 30d"
           value={`${errorRate}%`}
           subtitle={`${month.failure}/${month.total}`}
-          tone={errorRate >= 10 ? 'warn' : errorRate <= 2 ? 'success' : 'default'}
+          tone={errorRate >= 10 ? 'warn' : errorRate <= 2 ? 'ok' : 'default'}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Top intents · 30 dias">
+      {/* Top intents + latencia */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="Top intents · 30 dias">
           {month.topIntents.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))] py-3">
+            <p className="text-xs text-[#9CA3AF] py-2">
               Sem dados nos últimos 30 dias.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-2">
               {month.topIntents.map((it) => {
                 const max = month.topIntents[0]?.count ?? 1
                 const pct = Math.round((it.count / max) * 100)
                 return (
                   <div key={it.intent}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-mono text-[hsl(var(--foreground))]">{it.intent}</span>
-                      <span className="text-[hsl(var(--muted-foreground))]">{it.count}</span>
+                    <div className="flex justify-between text-[11px] mb-1">
+                      <span className="font-mono text-[#F5F5F5]">{it.intent}</span>
+                      <span className="text-[#C9A96E] font-mono font-bold">{it.count}</span>
                     </div>
-                    <div className="h-2 bg-[hsl(var(--muted))] rounded-pill overflow-hidden">
+                    <div className="h-1 bg-white/5 rounded overflow-hidden">
                       <div
-                        className="h-full bg-[hsl(var(--primary))] rounded-pill"
+                        className="h-full bg-[#C9A96E] rounded"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -68,15 +73,15 @@ export async function OverviewTab() {
               })}
             </div>
           )}
-        </SectionCard>
+        </Section>
 
-        <SectionCard title="Latência média">
-          <dl className="text-sm space-y-2">
+        <Section title="Latência média">
+          <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3.5 py-2 flex flex-col">
             <Row label="Hoje" value={`${today.avgResponseMs} ms`} />
             <Row label="7 dias" value={`${week.avgResponseMs} ms`} />
-            <Row label="30 dias" value={`${month.avgResponseMs} ms`} />
-          </dl>
-        </SectionCard>
+            <Row label="30 dias" value={`${month.avgResponseMs} ms`} last />
+          </div>
+        </Section>
       </div>
     </div>
   )
@@ -91,29 +96,35 @@ function Stat({
   label: string
   value: string
   subtitle?: string
-  tone?: 'default' | 'warn' | 'success'
+  tone?: 'default' | 'warn' | 'ok'
 }) {
-  const cls =
+  const accentBadge =
     tone === 'warn'
-      ? 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
-      : tone === 'success'
-      ? 'border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5'
-      : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]'
+      ? 'bg-[#F59E0B]/15 text-[#F59E0B]'
+      : tone === 'ok'
+      ? 'bg-[#10B981]/15 text-[#10B981]'
+      : 'bg-[#C9A96E]/18 text-[#C9A96E]'
+  const dotLabel = tone === 'warn' ? 'Alerta' : tone === 'ok' ? 'OK' : 'Live'
   return (
-    <div className={`rounded-card border p-4 ${cls}`}>
-      <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-        {label}
+    <div className="bg-white/[0.02] border border-white/8 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+          {label}
+        </span>
+        <span className={`text-[9px] uppercase tracking-[1.2px] font-bold px-1.5 py-0.5 rounded ${accentBadge}`}>
+          {dotLabel}
+        </span>
       </div>
-      <div className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{value}</div>
-      {subtitle && <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{subtitle}</div>}
+      <div className="text-2xl font-semibold text-[#F5F5F5] font-mono leading-none">{value}</div>
+      {subtitle && <div className="text-[11px] text-[#6B7280] mt-1.5">{subtitle}</div>}
     </div>
   )
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-      <h3 className="text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
+    <div className="bg-white/[0.02] border border-white/8 rounded-lg p-4">
+      <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E] mb-3">
         {title}
       </h3>
       {children}
@@ -121,11 +132,11 @@ function SectionCard({ title, children }: { title: string; children: React.React
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className="flex justify-between border-b border-[hsl(var(--chat-border))] last:border-0 py-2">
-      <dt className="text-[hsl(var(--muted-foreground))]">{label}</dt>
-      <dd className="text-[hsl(var(--foreground))] font-bold">{value}</dd>
+    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/8'}`}>
+      <span className="text-[#9CA3AF]">{label}</span>
+      <span className="text-[#F5F5F5] font-mono">{value}</span>
     </div>
   )
 }
