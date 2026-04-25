@@ -33,7 +33,7 @@ on:
     - cron: '*/5 * * * *'         # task reminders cada 5min
     - cron: '0 12 * * *'          # followup suggestions 12h
     - cron: '0 21 * * 5'          # inactivity radar sex 21h
-    - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07)
+    - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07 + 800-09 batch limit)
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
