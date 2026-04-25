@@ -8,9 +8,15 @@
  *      crash, deploy mid-flight). Loga warn + audit se reset > 0.
  *   1. pickPending(10) · marca items como 'processing' via FOR UPDATE SKIP LOCKED
  *      + SET processing_started_at (mig 800-08 · multi-worker safe).
- *   2. Pra cada item: chama RPC b2b_voucher_issue (via repos.b2bVouchers.issue)
- *      · OK   → voucherQueue.complete(queueId, voucherId)
- *      · erro → voucherQueue.fail(queueId, error) · retry < 3, senao 'failed'
+ *   2. Pra cada item: chama RPC b2b_voucher_issue_with_dedup (mig 800-12 ·
+ *      Fix F5 race-safe) via repos.b2bVouchers.issueWithDedup
+ *      · OK              → voucherQueue.complete(queueId, voucherId)
+ *      · dedup_hit       → voucherQueue.complete com voucher_id=null e
+ *                           error_message='dedup_hit:<kind>' (decisao
+ *                           semantica · nao houve erro tecnico, voucher
+ *                           ja existia ou foi indicada antes)
+ *      · erro            → voucherQueue.fail(queueId, error) · retry < 3,
+ *                           senao 'failed'
  *      Idempotency guard (mig 800-08): complete/fail so atualizam WHERE
  *      status='processing'. Em ok=false (zumbi · status mudou), loga error
  *      + audit log pra investigacao manual (Sentry P2).
@@ -93,17 +99,27 @@ export async function GET(req: NextRequest) {
     const picked = await repos.voucherQueue.pickPending(PICK_LIMIT)
 
     if (picked.length === 0) {
-      return { picked: 0, completed: 0, failed: 0, reset_stuck: reset.resetCount }
+      return {
+        picked: 0,
+        completed: 0,
+        failed: 0,
+        dedup_blocked: 0,
+        reset_stuck: reset.resetCount,
+      }
     }
 
     let completed = 0
     let failed = 0
+    let dedupBlocked = 0
     let guardHits = 0
 
     for (let i = 0; i < picked.length; i++) {
       const item = picked[i]
       try {
-        const issueResult = await repos.b2bVouchers.issue({
+        // Fix F5 · mig 800-12: usa issueWithDedup (race-safe vs concorrencia
+        // cross-parceria pra mesmo phone). RPC roda em transacao serializable
+        // + FOR UPDATE em leads/b2b_vouchers/b2b_attributions.
+        const issueResult = await repos.b2bVouchers.issueWithDedup({
           partnershipId: item.partnershipId,
           combo: item.combo ?? undefined,
           recipientName: item.recipientName,
@@ -111,6 +127,82 @@ export async function GET(req: NextRequest) {
           recipientCpf: item.recipientCpf ?? undefined,
           notes: item.notes ?? undefined,
         })
+
+        // Dedup hit · queue item vira done com error_message='dedup_hit:<kind>'.
+        // Decisao semantica: nao foi falha tecnica, recipient ja existia OU
+        // outra parceira indicou no meio do processamento (race vencida pela
+        // outra). UI admin filtra por error_message LIKE 'dedup_hit:%' pra
+        // distinguir done-emitido de done-bloqueado.
+        if (issueResult.dedupHit) {
+          dedupBlocked++
+          const dh = issueResult.dedupHit
+          const c = await repos.voucherQueue.markDedupHit(item.queueId, dh.kind)
+          if (c.ok) {
+            log.info(
+              {
+                queue_id: item.queueId,
+                partnership_id: item.partnershipId,
+                recipient_name: item.recipientName,
+                recipient_phone: item.recipientPhone,
+                batch_id: item.batchId,
+                hit_kind: dh.kind,
+                hit_id: dh.id,
+                hit_since: dh.since,
+                retries: issueResult.retries,
+              },
+              'voucher_dispatch.item.dedup_blocked',
+            )
+            // Audit log · ajuda investigacao "por que esse voucher nao saiu"
+            try {
+              await repos.waProAudit.logQuery({
+                msg: {
+                  clinicId,
+                  phone: item.recipientPhone || 'system:cron',
+                  direction: 'inbound',
+                  content: `voucher_dispatch.dedup_blocked queue=${item.queueId} kind=${dh.kind}`,
+                  intent: 'voucher_dispatch.dedup_blocked',
+                  intentData: {
+                    queue_id: item.queueId,
+                    partnership_id: item.partnershipId,
+                    recipient_phone: item.recipientPhone,
+                    recipient_name: item.recipientName,
+                    hit_kind: dh.kind,
+                    hit_id: dh.id,
+                    hit_since: dh.since,
+                    retries: issueResult.retries,
+                  },
+                  status: 'sent',
+                },
+                audit: {
+                  clinicId,
+                  phone: item.recipientPhone || 'system:cron',
+                  query: 'b2b_voucher_issue_with_dedup',
+                  intent: 'voucher_dispatch.dedup_blocked',
+                  rpcCalled: 'b2b_voucher_issue_with_dedup',
+                  success: true,
+                  resultSummary: `dedup_hit ${dh.kind} · ${dh.id.slice(0, 8)} since ${dh.since}`,
+                },
+              })
+            } catch {
+              // best-effort
+            }
+          } else {
+            // markDedupHit guard hit · status mudou entre pick e marcar.
+            guardHits++
+            log.error(
+              {
+                queue_id: item.queueId,
+                partnership_id: item.partnershipId,
+                error: c.error,
+                current_status: c.currentStatus,
+                hit_kind: dh.kind,
+              },
+              'voucher_dispatch.item.dedup_mark_guard_hit',
+            )
+          }
+          if (i < picked.length - 1) await sleep(SPACING_MS)
+          continue
+        }
 
         if (issueResult.ok && issueResult.id) {
           const c = await repos.voucherQueue.complete(item.queueId, issueResult.id)
@@ -273,6 +365,7 @@ export async function GET(req: NextRequest) {
         picked: picked.length,
         completed,
         failed,
+        dedup_blocked: dedupBlocked,
         guard_hits: guardHits,
         reset_stuck: reset.resetCount,
       },
@@ -283,6 +376,7 @@ export async function GET(req: NextRequest) {
       picked: picked.length,
       completed,
       failed,
+      dedup_blocked: dedupBlocked,
       guard_hits: guardHits,
       reset_stuck: reset.resetCount,
     }

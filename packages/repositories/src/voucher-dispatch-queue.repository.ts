@@ -271,6 +271,59 @@ export class B2BVoucherDispatchQueueRepository {
   }
 
   /**
+   * Marca queue item como done com voucher_id=null + error_message
+   * 'dedup_hit:<kind>'. Decisao semantica (Fix F5 · mig 800-12): dedup
+   * hit em bulk worker NAO e erro tecnico, e que o voucher ja existia
+   * ou recipient ja era cliente · semelhante a complete() mas sem voucher.
+   *
+   * Idempotency guard manual: WHERE status='processing'. Em 0 rows
+   * affected (race · status mudou), retorna { ok:false, error,
+   * currentStatus } pro caller logar.
+   *
+   * Nao usa RPC porque b2b_dispatch_queue_complete clobbera error_message
+   * pra NULL · esse caminho preserva a tag dedup_hit pra UI admin.
+   */
+  async markDedupHit(
+    queueId: string,
+    dedupKind: string,
+  ): Promise<{
+    ok: boolean
+    error?: string
+    currentStatus?: VoucherDispatchQueueStatus
+  }> {
+    const errorTag = `dedup_hit:${dedupKind}`
+    const { data, error } = await this.supabase
+      .from('b2b_voucher_dispatch_queue')
+      .update({
+        status: 'done',
+        voucher_id: null,
+        error_message: errorTag,
+        last_attempt_at: new Date().toISOString(),
+      })
+      .eq('id', queueId)
+      .eq('status', 'processing')
+      .select('id, status')
+      .maybeSingle()
+
+    if (error) return { ok: false, error: error.message }
+    if (!data) {
+      // Idempotency guard hit · status mudou entre o pick e o markDedupHit.
+      // Le status atual pra debug.
+      const { data: cur } = await this.supabase
+        .from('b2b_voucher_dispatch_queue')
+        .select('status')
+        .eq('id', queueId)
+        .maybeSingle()
+      return {
+        ok: false,
+        error: 'not_in_processing_state',
+        currentStatus: cur?.status as VoucherDispatchQueueStatus | undefined,
+      }
+    }
+    return { ok: true }
+  }
+
+  /**
    * Marca queue item como failed (ou volta pra pending se attempts < 3).
    * Retorna o new_status pro caller logar.
    *
