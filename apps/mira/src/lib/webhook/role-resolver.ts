@@ -9,11 +9,15 @@
  * Match por last8 (BR phone com/sem 9 inicial · cobre LID Evolution sem 9).
  *
  * Fail-closed: erro de DB → null (defensivo · evita responder estranho).
+ *
+ * ADR-012 compliant: queries delegadas a Repositories (zero supabase.from).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger, hashPhone } from '@clinicai/logger'
-import type { B2BWASenderRepository } from '@clinicai/repositories'
+import type {
+  B2BWASenderRepository,
+  WaNumberRepository,
+} from '@clinicai/repositories'
 
 const log = createLogger({ app: 'mira' })
 
@@ -28,8 +32,7 @@ function last8(phone: string): string {
 }
 
 export async function resolveRole(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  waNumbers: WaNumberRepository,
   b2bSenders: B2BWASenderRepository,
   clinicId: string,
   phone: string,
@@ -43,18 +46,10 @@ export async function resolveRole(
     // ── 1. admin via wa_numbers ─────────────────────────────────────────
     // Fonte canonica: wa_numbers.number_type='professional_private', is_active=true.
     // Match por last11 OU last8 (cobre formatos 12d/13d/14d).
-    const { data: waRows } = await supabase
-      .from('wa_numbers')
-      .select('phone')
-      .eq('is_active', true)
-      .eq('number_type', 'professional_private')
-
-    if (Array.isArray(waRows)) {
-      for (const row of waRows) {
-        const rowPhone = String((row as { phone?: string })?.phone ?? '')
-        if (last11(rowPhone) === phoneLast11 || last8(rowPhone) === phoneLast8) {
-          return 'admin'
-        }
+    const adminPhones = await waNumbers.listAdminPrivatePhones()
+    for (const adminPhone of adminPhones) {
+      if (last11(adminPhone) === phoneLast11 || last8(adminPhone) === phoneLast8) {
+        return 'admin'
       }
     }
 

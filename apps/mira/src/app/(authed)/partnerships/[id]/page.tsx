@@ -58,7 +58,7 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
         </Link>
 
         {/* Header denso */}
-        <div className="pb-2 border-b border-white/8">
+        <div className="pb-2 border-b border-white/10">
           <span className="eyebrow text-[#C9A96E]">Semana · Detalhe da parceria</span>
           <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
             {partnership.name}
@@ -69,7 +69,7 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
         </div>
 
         {/* Tabs · border-b 2px gold mirror b2b-config */}
-        <div className="flex gap-1 border-b border-white/8 -mt-1">
+        <div className="flex gap-1 border-b border-white/10 -mt-1">
           {TABS.map((t) => {
             const Icon = t.icon
             const isActive = activeTab === t.key
@@ -80,7 +80,7 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-[1px] border-b-2 transition-colors ${
                   isActive
                     ? 'text-[#C9A96E] border-[#C9A96E]'
-                    : 'text-[#9CA3AF] border-transparent hover:text-[#F5F5F5]'
+                    : 'text-[#9CA3AF] border-transparent hover:text-[#F5F0E8]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />

@@ -13,7 +13,7 @@ export async function ProfessionalsTab() {
 
   if (numbers.length === 0) {
     return (
-      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
         Nenhum número WhatsApp cadastrado em <code className="font-mono text-[#C9A96E]">wa_numbers</code> ·
         Mira não tem admins autorizados ainda.
       </div>
@@ -25,12 +25,12 @@ export async function ProfessionalsTab() {
       {numbers.map((n) => (
         <div
           key={n.id}
-          className={`grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors ${
+          className={`grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors ${
             n.isActive ? '' : 'opacity-60'
           }`}
         >
           <div className="min-w-0 flex flex-col gap-0.5">
-            <span className="text-sm font-semibold text-[#F5F5F5] truncate">
+            <span className="text-sm font-semibold text-[#F5F0E8] truncate">
               {n.label || '—'}
             </span>
             <div className="flex items-center gap-3 text-[11px] text-[#9CA3AF] flex-wrap font-mono">
@@ -45,7 +45,7 @@ export async function ProfessionalsTab() {
             className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${
               n.isActive
                 ? 'bg-[#10B981]/15 text-[#10B981]'
-                : 'bg-white/8 text-[#9CA3AF]'
+                : 'bg-white/10 text-[#9CA3AF]'
             }`}
           >
             {n.isActive ? 'Ativo' : 'Inativo'}

@@ -103,11 +103,11 @@ export default async function VoucherBulkPage() {
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[860px] mx-auto px-6 py-6 flex flex-col gap-3">
         {/* Header denso */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div className="flex items-center gap-3">
             <Link
               href="/vouchers"
-              className="p-1 rounded text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
+              className="p-1 rounded text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
             </Link>
@@ -141,7 +141,7 @@ export default async function VoucherBulkPage() {
                 name="partnership_id"
                 defaultValue={preview?.partnershipId ?? ''}
                 required
-                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#C9A96E]/50"
+                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
               >
                 <option value="">Selecionar parceria ativa…</option>
                 {partnerships.map((p) => (
@@ -170,7 +170,7 @@ export default async function VoucherBulkPage() {
                 type="text"
                 placeholder="default = combo da parceria"
                 defaultValue={preview?.combo ?? ''}
-                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] placeholder:text-[#6B7280] focus:outline-none focus:border-[#C9A96E]/50"
+                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] placeholder:text-[#6B7280] focus:outline-none focus:border-[#C9A96E]/50"
               />
             </div>
           </div>
@@ -191,7 +191,7 @@ export default async function VoucherBulkPage() {
                 'Maria 5544991111111\nAna Paula (44) 99222-2222\nBia Mendes 44 99333-3333\n...'
               }
               defaultValue={preview?.listText ?? ''}
-              className="px-3 py-2.5 rounded-lg bg-[#0a0a0a]/60 border border-white/8 text-xs font-mono text-[#F5F5F5] placeholder:text-[#6B7280] focus:outline-none focus:border-[#C9A96E]/50 resize-y"
+              className="px-3 py-2.5 rounded-lg bg-[#0a0a0a]/60 border border-white/10 text-xs font-mono text-[#F5F0E8] placeholder:text-[#6B7280] focus:outline-none focus:border-[#C9A96E]/50 resize-y"
             />
             <span className="text-[10px] text-[#6B7280]">
               Aceita: <span className="text-[#9CA3AF]">Nome 5544991111111</span>{' '}
@@ -214,7 +214,7 @@ export default async function VoucherBulkPage() {
                 name="scheduled_at"
                 type="datetime-local"
                 defaultValue={defaultScheduled}
-                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#C9A96E]/50"
+                className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -222,7 +222,7 @@ export default async function VoucherBulkPage() {
                 <button
                   type="submit"
                   formAction={clearBulkPreviewAction}
-                  className="px-3 py-2 rounded text-[10px] font-bold uppercase tracking-[1px] border border-white/8 text-[#9CA3AF] hover:text-[#F5F5F5] hover:border-white/14 transition-colors"
+                  className="px-3 py-2 rounded text-[10px] font-bold uppercase tracking-[1px] border border-white/10 text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-white/14 transition-colors"
                 >
                   Limpar
                 </button>
@@ -251,7 +251,7 @@ export default async function VoucherBulkPage() {
             </span>
           </div>
           {recentBatches.length === 0 ? (
-            <div className="rounded-lg border border-white/8 bg-white/[0.02] p-5 text-center text-xs text-[#9CA3AF]">
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5 text-center text-xs text-[#9CA3AF]">
               Nenhum lote enviado ainda · valide e enfileire seu primeiro acima.
             </div>
           ) : (
@@ -263,13 +263,13 @@ export default async function VoucherBulkPage() {
                   <Link
                     key={b.batchId}
                     href={`/vouchers/bulk/${b.batchId}`}
-                    className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+                    className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
                   >
                     <span className="font-mono text-[11px] text-[#C9A96E]">
                       #{b.batchId.slice(0, 8)}
                     </span>
                     <div className="min-w-0 flex flex-col gap-0.5">
-                      <span className="text-xs text-[#F5F5F5] truncate">
+                      <span className="text-xs text-[#F5F0E8] truncate">
                         {partnershipNameById.get(b.partnershipId) ?? '—'}
                         <span className="ml-2 text-[10.5px] text-[#9CA3AF]">
                           {b.total} item{b.total === 1 ? '' : 's'}
@@ -312,21 +312,21 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
           <span className="text-[10px] uppercase tracking-[1px] font-bold text-[#FCA5A5]">
             Não consegui validar
           </span>
-          <span className="text-xs text-[#F5F5F5]">{preview.fatalError}</span>
+          <span className="text-xs text-[#F5F0E8]">{preview.fatalError}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-white/8 bg-white/[0.02] flex flex-col">
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] flex flex-col">
       {/* Resumo header */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/8">
+      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10">
         <div className="flex items-center gap-3">
           <span className="text-[10px] uppercase tracking-[1px] font-bold text-[#C9A96E]">
             Preview
           </span>
-          <span className="text-xs text-[#F5F5F5]">
+          <span className="text-xs text-[#F5F0E8]">
             {preview.partnershipName}
           </span>
           <span className="text-[10px] text-[#6B7280]">
@@ -349,7 +349,7 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
       </div>
 
       {/* CTA confirmar · disabled se eligibleCount=0 */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 border-t border-white/8">
+      <div className="flex items-center justify-between px-3.5 py-2.5 border-t border-white/10">
         <span className="text-[10px] text-[#6B7280]">
           {preview.declaredCount != null && (
             <>declarados {preview.declaredCount} · </>
@@ -377,7 +377,7 @@ function PreviewRow({ item }: { item: BulkPreviewItem }) {
       <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center px-3.5 py-2 hover:bg-white/[0.01] transition-colors">
         <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />
         <div className="min-w-0 flex flex-col gap-0.5">
-          <span className="text-xs text-[#F5F5F5] truncate">{item.name}</span>
+          <span className="text-xs text-[#F5F0E8] truncate">{item.name}</span>
           <span className="text-[10.5px] font-mono text-[#9CA3AF]">
             {formatPhoneBR(item.phone)}
           </span>
@@ -393,7 +393,7 @@ function PreviewRow({ item }: { item: BulkPreviewItem }) {
     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center px-3.5 py-2 bg-[#DC2626]/[0.04] hover:bg-[#DC2626]/[0.07] transition-colors">
       <XCircle className="w-3.5 h-3.5 text-[#FCA5A5]" />
       <div className="min-w-0 flex flex-col gap-0.5">
-        <span className="text-xs text-[#F5F5F5] truncate">
+        <span className="text-xs text-[#F5F0E8] truncate">
           {item.name}
           <span className="text-[10.5px] font-mono text-[#9CA3AF] ml-2">
             {formatPhoneBR(item.phone)}

@@ -78,7 +78,7 @@ export default async function RelatoriosPage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[920px] mx-auto px-6 py-6 flex flex-col gap-5">
-        <div className="pb-2 border-b border-white/8">
+        <div className="pb-2 border-b border-white/10">
           <span className="eyebrow text-[#C9A96E]">Semana · Relatórios</span>
           <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Digests do período</h1>
           <p className="text-[11px] text-[#9CA3AF] mt-1">
@@ -145,7 +145,7 @@ export default async function RelatoriosPage() {
                 ver todas →
               </Link>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] divide-y divide-white/8">
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] divide-y divide-white/10">
               {topPerformers.map((tp, i) => (
                 <Link
                   key={tp.partnership.id}

@@ -28,7 +28,7 @@ export function TemplateRow({
   return (
     <details
       className={`rounded-lg border bg-white/[0.02] hover:border-white/14 transition-colors ${
-        inactive ? 'border-white/8 opacity-60' : 'border-white/8'
+        inactive ? 'border-white/10 opacity-60' : 'border-white/10'
       }`}
     >
       <summary className="cursor-pointer px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/[0.02] rounded-lg transition-colors">
@@ -43,7 +43,7 @@ export function TemplateRow({
               </span>
             )}
             {inactive && (
-              <span className="text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-white/8 text-[#9CA3AF]">
+              <span className="text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-white/10 text-[#9CA3AF]">
                 Inativo
               </span>
             )}
@@ -70,7 +70,7 @@ export function TemplateRow({
           disabled={!canManage}
         />
 
-        <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/8">
+        <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/10">
           <div className="flex items-center gap-1.5">
             <label className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
               Canal
@@ -79,7 +79,7 @@ export function TemplateRow({
               name="channel"
               defaultValue={template.channel}
               disabled={!canManage}
-              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] disabled:opacity-50"
+              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] disabled:opacity-50"
             >
               {CHANNEL_OPTIONS.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -95,7 +95,7 @@ export function TemplateRow({
               name="isActive"
               defaultValue={template.isActive ? 'true' : 'false'}
               disabled={!canManage}
-              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] disabled:opacity-50"
+              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] disabled:opacity-50"
             >
               <option value="true">Sim</option>
               <option value="false">Não</option>

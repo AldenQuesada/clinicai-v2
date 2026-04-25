@@ -69,4 +69,22 @@ export class WaNumberRepository {
       .map(mapRow)
       .filter((n) => n.phone.length >= 10)
   }
+
+  /**
+   * Lista phones de admins privados ativos (number_type=professional_private,
+   * is_active=true). Usado pelo role-resolver da Mira pra detectar admin
+   * vs partner. Retorna apenas array de phones (string) pra match rapido.
+   */
+  async listAdminPrivatePhones(): Promise<string[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (this.supabase
+      .from('wa_numbers') as any)
+      .select('phone')
+      .eq('is_active', true)
+      .eq('number_type', 'professional_private')
+    if (!Array.isArray(data)) return []
+    return (data as Array<{ phone?: string }>)
+      .map((r) => String(r?.phone ?? ''))
+      .filter((p) => p.length > 0)
+  }
 }

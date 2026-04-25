@@ -63,7 +63,7 @@ export default async function PerformancePage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[1100px] mx-auto px-6 py-6 flex flex-col gap-5">
-        <div className="pb-2 border-b border-white/8">
+        <div className="pb-2 border-b border-white/10">
           <span className="eyebrow text-[#C9A96E]">Semana · Performance</span>
           <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
             Como cada parceria está performando

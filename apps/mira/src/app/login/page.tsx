@@ -43,7 +43,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
           <div className="inline-flex items-center justify-center w-10 h-10 rounded-md bg-[#C9A96E]/18 border border-[#C9A96E]/30 text-[#C9A96E] font-bold text-base mb-4">
             M
           </div>
-          <h1 className="text-base font-semibold text-[#F5F5F5]">Mira</h1>
+          <h1 className="text-base font-semibold text-[#F5F0E8]">Mira</h1>
           <p className="text-[11px] text-[#9CA3AF] mt-1">
             Admin · B2B · Clínica AI
           </p>
@@ -53,7 +53,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
         </div>
 
         {/* Card flat denso */}
-        <div className="rounded-lg border border-white/8 bg-white/[0.02] p-5">
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
           <form action={loginAction} className="flex flex-col gap-3.5">
             <input type="hidden" name="redirect" value={redirectTo} />
 
@@ -70,7 +70,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 name="email"
                 required
                 autoComplete="email"
-                className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
+                className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
                 placeholder="seu@email.com"
               />
             </div>
@@ -88,7 +88,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 name="password"
                 required
                 autoComplete="current-password"
-                className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
+                className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A96E]/50 transition-colors"
                 placeholder="••••••••"
               />
             </div>

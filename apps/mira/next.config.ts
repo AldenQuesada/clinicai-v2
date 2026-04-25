@@ -17,10 +17,12 @@ import type { NextConfig } from 'next'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://oqboitkpcvuaudouwvkl.supabase.co'
 const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution.aldenquesada.site'
 
+// CSP cravada pro Mira · principio de menor privilegio.
+// jsdelivr removido (Mira nao consome CDN externa) · gstatic so pra fontes.
 const csp = [
   `default-src 'self' ${SUPABASE_URL}`,
-  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net`,
-  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net`,
+  `script-src 'self' 'unsafe-inline'`,
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com data:`,
   `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https://api.anthropic.com https://api.groq.com ${EVOLUTION_URL}`,
   `img-src 'self' data: blob: https:`,

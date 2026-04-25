@@ -19,7 +19,7 @@ const STATUS_PILL: Record<string, string> = {
   delivered: 'bg-[#C9A96E]/18 text-[#C9A96E]',
   opened: 'bg-[#10B981]/15 text-[#10B981]',
   redeemed: 'bg-[#10B981]/15 text-[#10B981]',
-  expired: 'bg-white/8 text-[#9CA3AF]',
+  expired: 'bg-white/10 text-[#9CA3AF]',
   cancelled: 'bg-[#EF4444]/15 text-[#FCA5A5]',
 }
 
@@ -29,7 +29,7 @@ export async function VouchersTab({ partnershipId }: { partnershipId: string }) 
 
   if (vouchers.length === 0) {
     return (
-      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-[12.5px] text-[#9CA3AF]">
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-[12.5px] text-[#9CA3AF]">
         Esta parceria ainda não tem vouchers emitidos.
       </div>
     )
@@ -38,17 +38,17 @@ export async function VouchersTab({ partnershipId }: { partnershipId: string }) 
   return (
     <div className="flex flex-col gap-1.5">
       {vouchers.map((v) => {
-        const pill = STATUS_PILL[v.status] ?? 'bg-white/8 text-[#9CA3AF]'
+        const pill = STATUS_PILL[v.status] ?? 'bg-white/10 text-[#9CA3AF]'
         const label = STATUS_LABEL[v.status] ?? v.status
         return (
           <div
             key={v.id}
-            className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+            className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
           >
             <span className="font-mono text-[11px] text-[#C9A96E]">{v.token}</span>
 
             <div className="min-w-0 flex flex-col gap-0.5">
-              <span className="text-xs text-[#F5F5F5] truncate">
+              <span className="text-xs text-[#F5F0E8] truncate">
                 {v.recipientName || '—'}
                 {v.combo && (
                   <span className="ml-2 text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">

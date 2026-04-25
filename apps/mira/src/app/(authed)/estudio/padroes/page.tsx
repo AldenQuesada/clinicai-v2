@@ -17,7 +17,7 @@ export default async function PadroesPage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[640px] mx-auto px-6 py-6 flex flex-col gap-4">
-        <div className="pb-2 border-b border-white/8">
+        <div className="pb-2 border-b border-white/10">
           <span className="eyebrow text-[#C9A96E]">Estúdio · Padrões</span>
           <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
             Padrões da clínica
@@ -66,7 +66,7 @@ export default async function PadroesPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+          <div className="flex items-center gap-2 pt-2 border-t border-white/10">
             <button
               type="submit"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"

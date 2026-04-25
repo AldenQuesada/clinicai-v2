@@ -32,6 +32,19 @@ export async function addCommentAction(formData: FormData) {
   if (!partnershipId) throw new Error('partnership_id obrigatorio')
   if (!body) throw new Error('Comentario nao pode estar vazio')
 
+  // G.4 audit fix · Idempotency contra double-click ou retry: se ja existe
+  // comentario identico (mesmo body) na partnership nos ultimos 10s, retorna
+  // sem reinserir. Janela curta nao bloqueia duplicatas deliberadas.
+  const recent = await repos.b2bPartnerships.listCommentsByPartnership(partnershipId)
+  const tenSecondsAgo = Date.now() - 10_000
+  const isDuplicate = recent.some(
+    (c) => c.body === body && new Date(c.createdAt).getTime() >= tenSecondsAgo,
+  )
+  if (isDuplicate) {
+    revalidatePath('/semana/comentarios')
+    return
+  }
+
   const result = await repos.b2bPartnerships.addComment(partnershipId, body, authorName)
   if (!result.ok) throw new Error(result.error || 'Erro ao salvar comentario')
 

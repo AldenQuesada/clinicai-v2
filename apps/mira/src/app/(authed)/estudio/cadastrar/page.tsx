@@ -15,7 +15,7 @@ export default function CadastrarPartnershipPage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[720px] mx-auto px-6 py-6 flex flex-col gap-4">
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div className="flex items-center gap-3">
             <Link
               href="/partnerships"

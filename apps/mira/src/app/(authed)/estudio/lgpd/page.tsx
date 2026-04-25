@@ -27,7 +27,7 @@ export default async function LgpdPage() {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[820px] mx-auto px-6 py-6 flex flex-col gap-5">
-        <div className="pb-2 border-b border-white/8">
+        <div className="pb-2 border-b border-white/10">
           <span className="eyebrow text-[#C9A96E]">Estúdio · LGPD</span>
           <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Compliance e privacidade</h1>
           <p className="text-[11px] text-[#9CA3AF] mt-1">
@@ -117,7 +117,7 @@ export default async function LgpdPage() {
                 Já anonimizadas ({alreadyAnon.length})
               </span>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] divide-y divide-white/8">
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] divide-y divide-white/10">
               {alreadyAnon.map((p) => (
                 <div key={p.id} className="px-3.5 py-2.5 flex items-center justify-between gap-3">
                   <span className="text-[11.5px] text-[#9CA3AF] font-mono">{p.name}</span>

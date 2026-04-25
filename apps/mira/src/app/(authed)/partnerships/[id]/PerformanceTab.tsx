@@ -22,7 +22,7 @@ const BUCKETS: Record<Bucket['key'], Bucket> = {
   aceitavel: { key: 'aceitavel', label: 'Aceitável', pillClass: 'bg-[#F59E0B]/15 text-[#F59E0B]', description: '2-3 leads em 90 dias' },
   abaixo: { key: 'abaixo', label: 'Abaixo', pillClass: 'bg-[#F59E0B]/15 text-[#F59E0B]', description: '1 lead em 90 dias · revisar' },
   critico: { key: 'critico', label: 'Crítico', pillClass: 'bg-[#EF4444]/15 text-[#FCA5A5]', description: 'Zero conversão em 90 dias · acionar' },
-  inativa: { key: 'inativa', label: 'Inativa', pillClass: 'bg-white/8 text-[#9CA3AF]', description: 'Nunca produziu lead' },
+  inativa: { key: 'inativa', label: 'Inativa', pillClass: 'bg-white/10 text-[#9CA3AF]', description: 'Nunca produziu lead' },
 }
 
 function classify(opts: {
@@ -62,12 +62,12 @@ export async function PerformanceTab({ partnership }: { partnership: B2BPartners
     <div className="flex flex-col gap-3">
       {/* Classificacao · health card */}
       <Section title="Classificação rolling 90 dias">
-        <div className="rounded-lg border border-white/8 bg-white/[0.02] p-3.5 flex items-center gap-3">
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex items-center gap-3">
           <span className={`shrink-0 inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[1.2px] ${bucket.pillClass}`}>
             {bucket.label}
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-[#F5F5F5]">{bucket.description}</p>
+            <p className="text-xs text-[#F5F0E8]">{bucket.description}</p>
             <p className="text-[10.5px] text-[#9CA3AF] mt-0.5 font-mono">
               {count90d} {count90d === 1 ? 'lead' : 'leads'} · {daysSinceActivation} dias desde criação
             </p>
@@ -78,20 +78,20 @@ export async function PerformanceTab({ partnership }: { partnership: B2BPartners
       {/* Atribuicoes recentes */}
       <Section title={`Últimas atribuições · ${recentList.length}`}>
         {recentList.length === 0 ? (
-          <div className="rounded-lg border border-white/8 bg-white/[0.02] p-5 text-center text-xs text-[#9CA3AF]">
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5 text-center text-xs text-[#9CA3AF]">
             Nenhuma atribuição registrada ainda.
           </div>
         ) : (
-          <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3.5 py-1.5 flex flex-col">
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-1.5 flex flex-col">
             {recentList.map((a, i) => (
               <div
                 key={a.id}
                 className={`flex items-center justify-between py-2 ${
-                  i === recentList.length - 1 ? '' : 'border-b border-dashed border-white/8'
+                  i === recentList.length - 1 ? '' : 'border-b border-dashed border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-[#F5F5F5] font-mono text-[11px]">{a.attributionType}</span>
+                  <span className="text-[#F5F0E8] font-mono text-[11px]">{a.attributionType}</span>
                   <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280]">
                     weight {a.weight}
                   </span>

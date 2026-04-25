@@ -40,7 +40,7 @@ export default async function TemplatesPage() {
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
         {/* Header denso */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div>
             <span className="eyebrow text-[#C9A96E]">Estúdio · Templates WA</span>
             <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Templates B2B</h1>
@@ -64,13 +64,13 @@ export default async function TemplatesPage() {
                     name="eventKey"
                     required
                     placeholder="ex: referral_acknowledged"
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 font-mono"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 font-mono"
                   />
                 </FormField>
                 <FormField label="Recipient">
                   <select
                     name="recipientRole"
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50"
                   >
                     {RECIPIENT_OPTIONS.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
@@ -80,7 +80,7 @@ export default async function TemplatesPage() {
                 <FormField label="Canal">
                   <select
                     name="channel"
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50"
                   >
                     {CHANNEL_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label}</option>
@@ -100,12 +100,12 @@ export default async function TemplatesPage() {
                   <input
                     name="senderInstance"
                     defaultValue="mira-mirian"
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 font-mono"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 font-mono"
                   />
                 </FormField>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
                 <button
                   type="submit"
                   className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
@@ -118,7 +118,7 @@ export default async function TemplatesPage() {
         )}
 
         {templates.length === 0 ? (
-          <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
             Nenhum template B2B cadastrado · use o formulário acima.
           </div>
         ) : (
@@ -128,7 +128,7 @@ export default async function TemplatesPage() {
             ))}
             {inactive.length > 0 && (
               <details className="mt-3">
-                <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[1px] text-[#6B7280] hover:text-[#F5F5F5] py-2 px-1">
+                <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[1px] text-[#6B7280] hover:text-[#F5F0E8] py-2 px-1">
                   Inativos ({inactive.length})
                 </summary>
                 <div className="flex flex-col gap-1.5 mt-1.5">

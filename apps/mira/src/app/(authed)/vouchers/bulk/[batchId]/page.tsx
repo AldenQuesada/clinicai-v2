@@ -104,11 +104,11 @@ export default async function BatchDetailPage({ params }: PageProps) {
       )}
       <div className="max-w-[860px] mx-auto px-6 py-6 flex flex-col gap-3">
         {/* Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/vouchers/bulk"
-              className="p-1 rounded text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
+              className="p-1 rounded text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
             </Link>
@@ -178,7 +178,7 @@ export default async function BatchDetailPage({ params }: PageProps) {
               return (
                 <div
                   key={it.id}
-                  className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+                  className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
                 >
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${pill}`}
@@ -187,7 +187,7 @@ export default async function BatchDetailPage({ params }: PageProps) {
                   </span>
 
                   <div className="min-w-0 flex flex-col gap-0.5">
-                    <span className="text-xs text-[#F5F5F5] truncate">
+                    <span className="text-xs text-[#F5F0E8] truncate">
                       {it.recipientName || '—'}
                     </span>
                     <span className="text-[10.5px] font-mono text-[#9CA3AF]">
@@ -252,7 +252,7 @@ function KpiCard({
     cancelled: 'text-[#6B7280]',
   }
   return (
-    <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2.5 flex flex-col gap-0.5">
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 flex flex-col gap-0.5">
       <span className="text-[10px] uppercase tracking-[1px] font-bold text-[#9CA3AF]">
         {label}
       </span>

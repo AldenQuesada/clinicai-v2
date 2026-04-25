@@ -248,6 +248,6 @@ function statusClass(s: string): string {
     case 'closed':
       return 'bg-[#EF4444]/15 text-[#FCA5A5]'
     default:
-      return 'bg-white/8 text-[#9CA3AF]'
+      return 'bg-white/10 text-[#9CA3AF]'
   }
 }

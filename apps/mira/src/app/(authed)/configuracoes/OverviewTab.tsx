@@ -59,7 +59,7 @@ export async function OverviewTab() {
                 return (
                   <div key={it.intent}>
                     <div className="flex justify-between text-[11px] mb-1">
-                      <span className="font-mono text-[#F5F5F5]">{it.intent}</span>
+                      <span className="font-mono text-[#F5F0E8]">{it.intent}</span>
                       <span className="text-[#C9A96E] font-mono font-bold">{it.count}</span>
                     </div>
                     <div className="h-1 bg-white/5 rounded overflow-hidden">
@@ -76,7 +76,7 @@ export async function OverviewTab() {
         </Section>
 
         <Section title="Latência média">
-          <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3.5 py-2 flex flex-col">
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2 flex flex-col">
             <Row label="Hoje" value={`${today.avgResponseMs} ms`} />
             <Row label="7 dias" value={`${week.avgResponseMs} ms`} />
             <Row label="30 dias" value={`${month.avgResponseMs} ms`} last />
@@ -106,7 +106,7 @@ function Stat({
       : 'bg-[#C9A96E]/18 text-[#C9A96E]'
   const dotLabel = tone === 'warn' ? 'Alerta' : tone === 'ok' ? 'OK' : 'Live'
   return (
-    <div className="bg-white/[0.02] border border-white/8 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
+    <div className="bg-white/[0.02] border border-white/10 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
       <div className="flex justify-between items-center mb-1.5">
         <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
           {label}
@@ -115,7 +115,7 @@ function Stat({
           {dotLabel}
         </span>
       </div>
-      <div className="text-2xl font-semibold text-[#F5F5F5] font-mono leading-none">{value}</div>
+      <div className="text-2xl font-semibold text-[#F5F0E8] font-mono leading-none">{value}</div>
       {subtitle && <div className="text-[11px] text-[#6B7280] mt-1.5">{subtitle}</div>}
     </div>
   )
@@ -123,7 +123,7 @@ function Stat({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white/[0.02] border border-white/8 rounded-lg p-4">
+    <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4">
       <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E] mb-3">
         {title}
       </h3>
@@ -134,9 +134,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/8'}`}>
+    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/10'}`}>
       <span className="text-[#9CA3AF]">{label}</span>
-      <span className="text-[#F5F5F5] font-mono">{value}</span>
+      <span className="text-[#F5F0E8] font-mono">{value}</span>
     </div>
   )
 }

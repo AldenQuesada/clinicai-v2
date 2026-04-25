@@ -15,8 +15,8 @@ const SEVERITY_STYLE: Record<string, { wrap: string; text: string }> = {
     text: 'text-[#F59E0B]',
   },
   info: {
-    wrap: 'border-white/8 bg-white/[0.02]',
-    text: 'text-[#F5F5F5]',
+    wrap: 'border-white/10 bg-white/[0.02]',
+    text: 'text-[#F5F0E8]',
   },
 }
 

@@ -230,7 +230,7 @@ export function WizardClient() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-3 border-t border-white/8">
+      <div className="flex items-center gap-2 pt-3 border-t border-white/10">
         <button
           type="button"
           onClick={back}

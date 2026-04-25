@@ -124,7 +124,7 @@ export default async function DashboardPage() {
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
         {/* Header denso */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div>
             <span className="eyebrow text-[#C9A96E]">Hoje · Caixa do dia</span>
             <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Visão geral</h1>
@@ -184,7 +184,7 @@ export default async function DashboardPage() {
                           <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-[#C9A96E]/18 text-[#C9A96E] text-[9px] font-bold shrink-0">
                             {idx + 1}
                           </span>
-                          <span className="text-[#F5F5F5] font-medium truncate">
+                          <span className="text-[#F5F0E8] font-medium truncate">
                             {tp.name}
                           </span>
                           <span className="text-[9px] uppercase tracking-[1.2px] text-[#6B7280] shrink-0">
@@ -246,7 +246,7 @@ export default async function DashboardPage() {
                           {a.severity}
                         </span>
                       </div>
-                      <div className="text-[#F5F5F5] text-[12px]">{a.message}</div>
+                      <div className="text-[#F5F0E8] text-[12px]">{a.message}</div>
                     </div>
                   )
                 })}
@@ -279,7 +279,7 @@ function KpiCard({
   const dotLabel =
     tone === 'warn' ? 'Alerta' : tone === 'ok' ? 'OK' : 'Live'
   return (
-    <div className="bg-white/[0.02] border border-white/8 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
+    <div className="bg-white/[0.02] border border-white/10 rounded-lg px-3.5 py-3 hover:border-white/14 transition-colors">
       <div className="flex justify-between items-center mb-1.5">
         <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
           {label}
@@ -288,7 +288,7 @@ function KpiCard({
           {dotLabel}
         </span>
       </div>
-      <div className="text-2xl font-semibold text-[#F5F5F5] font-mono leading-none">{value}</div>
+      <div className="text-2xl font-semibold text-[#F5F0E8] font-mono leading-none">{value}</div>
       {subtitle && (
         <div className="text-[11px] text-[#6B7280] mt-1.5">{subtitle}</div>
       )}
@@ -304,7 +304,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-white/[0.02] border border-white/8 rounded-lg p-4">
+    <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4">
       <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E] mb-3">
         {title}
       </h3>
@@ -324,7 +324,7 @@ function EmptyBlock({
 }) {
   return (
     <div className={`py-5 text-center flex flex-col items-center gap-1.5 ${tone === 'ok' ? '' : ''}`}>
-      <p className={`text-xs ${tone === 'ok' ? 'text-[#10B981]' : 'text-[#F5F5F5]'}`}>{message}</p>
+      <p className={`text-xs ${tone === 'ok' ? 'text-[#10B981]' : 'text-[#F5F0E8]'}`}>{message}</p>
       {hint && <p className="text-[11px] text-[#9CA3AF] max-w-xs">{hint}</p>}
     </div>
   )

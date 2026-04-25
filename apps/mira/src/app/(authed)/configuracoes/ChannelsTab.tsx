@@ -15,7 +15,7 @@ export async function ChannelsTab() {
 
   if (channels.length === 0) {
     return (
-      <div className="rounded-lg border border-white/8 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
         Nenhum canal configurado em <code className="font-mono text-[#C9A96E]">mira_channels</code> ·
         seeds da P0 cobrem
         <code className="font-mono text-[#C9A96E] mx-1">mira_admin_outbound</code>,
@@ -29,7 +29,7 @@ export async function ChannelsTab() {
       {channels.map((c) => (
         <details
           key={c.id}
-          className="rounded-lg border border-white/8 bg-white/[0.02] hover:border-white/14 transition-colors"
+          className="rounded-lg border border-white/10 bg-white/[0.02] hover:border-white/14 transition-colors"
         >
           <summary className="cursor-pointer px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/[0.02] rounded-lg transition-colors">
             <div className="flex-1 min-w-0">
@@ -44,7 +44,7 @@ export async function ChannelsTab() {
               className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${
                 c.isActive
                   ? 'bg-[#10B981]/15 text-[#10B981]'
-                  : 'bg-white/8 text-[#9CA3AF]'
+                  : 'bg-white/10 text-[#9CA3AF]'
               }`}
             >
               {c.isActive ? 'Ativo' : 'Inativo'}
@@ -73,7 +73,7 @@ export async function ChannelsTab() {
                   name="isActive"
                   defaultValue={c.isActive ? 'true' : 'false'}
                   disabled={!canManage}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs disabled:opacity-50"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs disabled:opacity-50"
                 >
                   <option value="true">Sim</option>
                   <option value="false">Não</option>
@@ -90,12 +90,12 @@ export async function ChannelsTab() {
                 defaultValue={c.notes ?? ''}
                 disabled={!canManage}
                 rows={2}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs disabled:opacity-50 resize-y"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs disabled:opacity-50 resize-y"
               />
             </div>
 
             {canManage && (
-              <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
                 <button
                   type="submit"
                   className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
@@ -134,7 +134,7 @@ function Field({
         name={name}
         defaultValue={defaultValue}
         disabled={disabled}
-        className={`w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
+        className={`w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
       />
     </div>
   )

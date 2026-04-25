@@ -46,11 +46,11 @@ export function DetailTab({
               name="notes"
               rows={3}
               disabled={!canManage}
-              className="w-full px-3 py-2 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y"
+              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y"
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-1.5 border-t border-white/8">
+          <div className="flex items-center gap-2 pt-1.5 border-t border-white/10">
             {canManage ? (
               <button
                 type="submit"
@@ -69,7 +69,7 @@ export function DetailTab({
 
       {/* Metadados · about-row pattern */}
       <Section title="Metadados">
-        <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3.5 py-2 flex flex-col">
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2 flex flex-col">
           <Meta label="Slug" value={partnership.slug} mono />
           <Meta label="Status" value={partnership.status} />
           <Meta label="Tipo" value={partnership.type} />
@@ -167,7 +167,7 @@ function Field({
         name={name}
         defaultValue={defaultValue}
         disabled={disabled}
-        className={`w-full px-3 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
+        className={`w-full px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
       />
     </div>
   )
@@ -175,9 +175,9 @@ function Field({
 
 function Meta({ label, value, mono, last }: { label: string; value: string; mono?: boolean; last?: boolean }) {
   return (
-    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/8'}`}>
+    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/10'}`}>
       <span className="text-[#9CA3AF]">{label}</span>
-      <span className={`text-[#F5F5F5] ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
+      <span className={`text-[#F5F0E8] ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
     </div>
   )
 }

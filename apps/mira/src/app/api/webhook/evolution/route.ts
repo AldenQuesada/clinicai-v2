@@ -36,6 +36,7 @@ import { resolveRole } from '@/lib/webhook/role-resolver'
 import { dedupCheckAndMark } from '@/lib/webhook/state-machine'
 import { processWebhookMessage } from '@/lib/webhook/process-message'
 import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
+import { hashPhone } from '@clinicai/logger'
 import { alertCritical } from '@/lib/alerts'
 
 // F6 · logger com alerts integrados · .error() dispara Sentry alem do Pino.
@@ -106,9 +107,9 @@ export async function POST(req: NextRequest) {
   const clinicId = await resolveClinicId(supabase)
 
   // 4. Role gate (ALDEN: Mira NUNCA responde unknown)
-  const role = await resolveRole(supabase, repos.b2bSenders, clinicId, msg.phone)
+  const role = await resolveRole(repos.waNumbers, repos.b2bSenders, clinicId, msg.phone)
   if (role === null) {
-    log.info({ phone: msg.phone }, 'mira.webhook.unauthorized_phone_silent')
+    log.info({ phoneHash: hashPhone(msg.phone) }, 'mira.webhook.unauthorized_phone_silent')
     return jsonRes({ ok: true, skip: 'unauthorized_phone' })
   }
 

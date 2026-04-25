@@ -5,7 +5,7 @@
  * ADR-012 · usa B2BPartnershipRepository.list.
  *
  * Visual mirror mira-config antigo · status pills `.bcfg-pill` style,
- * row pattern bg-white/[0.02] + border-white/8 + rounded-lg.
+ * row pattern bg-white/[0.02] + border-white/10 + rounded-lg.
  *
  * Click linha → /partnerships/[id] (4 abas).
  */
@@ -35,9 +35,9 @@ const STATUS_PILL: Record<string, string> = {
   active: 'bg-[#10B981]/15 text-[#10B981]',
   paused: 'bg-[#F59E0B]/15 text-[#F59E0B]',
   dna_check: 'bg-[#C9A96E]/18 text-[#C9A96E]',
-  prospect: 'bg-white/8 text-[#9CA3AF]',
-  contract: 'bg-white/8 text-[#9CA3AF]',
-  closed: 'bg-white/8 text-[#6B7280]',
+  prospect: 'bg-white/10 text-[#9CA3AF]',
+  contract: 'bg-white/10 text-[#9CA3AF]',
+  closed: 'bg-white/10 text-[#6B7280]',
   review: 'bg-[#F59E0B]/15 text-[#F59E0B]',
 }
 
@@ -75,7 +75,7 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
         {/* Header denso */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/8">
+        <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div>
             <span className="eyebrow text-[#C9A96E]">Semana · Pulse de parcerias</span>
             <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">Parcerias</h1>
@@ -105,7 +105,7 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] transition-colors ${
                   isActive
                     ? 'bg-[#C9A96E]/18 text-[#C9A96E] border border-[#C9A96E]/30'
-                    : 'bg-white/[0.02] text-[#9CA3AF] border border-white/8 hover:border-white/14 hover:text-[#F5F5F5]'
+                    : 'bg-white/[0.02] text-[#9CA3AF] border border-white/10 hover:border-white/14 hover:text-[#F5F0E8]'
                 }`}
               >
                 {opt.label}
@@ -131,7 +131,7 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
             <select
               name="pillar"
               defaultValue={params.pillar || ''}
-              className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#C9A96E]/50"
+              className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
             >
               <option value="">Todos</option>
               {pillars.map((p) => (
@@ -161,11 +161,11 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
                 <Link
                   key={p.id}
                   href={`/partnerships/${p.id}`}
-                  className="group grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-3 bg-white/[0.02] border border-white/8 rounded-lg hover:border-white/14 transition-colors"
+                  className="group grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3.5 py-3 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
                 >
                   <div className="min-w-0 flex flex-col gap-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-[#F5F5F5] group-hover:text-[#C9A96E] transition-colors truncate">
+                      <span className="text-sm font-semibold text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors truncate">
                         {p.name}
                       </span>
                       <span className="inline-block text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-[#C9A96E]/18 text-[#C9A96E]">
@@ -229,8 +229,8 @@ function ContactLine({ icon, value, mono }: { icon: React.ReactNode; value: stri
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-white/8 bg-white/[0.02] p-8 text-center flex flex-col gap-2">
-      <p className="text-sm text-[#F5F5F5]">Nenhuma parceria com esses filtros.</p>
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-8 text-center flex flex-col gap-2">
+      <p className="text-sm text-[#F5F0E8]">Nenhuma parceria com esses filtros.</p>
       <p className="text-[11px] text-[#9CA3AF] max-w-md mx-auto">
         Limpe os filtros ou cadastre uma nova parceria via Mira no WhatsApp ·
         envie um áudio com o nome e a Mira inicia o DNA check.
