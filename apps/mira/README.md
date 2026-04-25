@@ -61,6 +61,45 @@ pnpm.cmd --filter @clinicai/mira build
 pnpm.cmd start:mira
 ```
 
+## Tests
+
+Vitest configurado no monorepo. Testes rodam offline (mocks pra Supabase / Anthropic / Slack / Sentry · zero hit em prod).
+
+```bash
+# Mira app · 48 testes (bulk-list-parser, intent-classifier, alerts)
+pnpm --filter @clinicai/mira test
+
+# Watch mode (dev local)
+pnpm --filter @clinicai/mira test:watch
+
+# Repositories · 26 testes (idempotency + retry policy)
+pnpm --filter @clinicai/repositories test
+
+# Supabase · 10 testes (resolveClinicContext + cache)
+pnpm --filter @clinicai/supabase test
+
+# Roda tudo via turbo
+pnpm test
+```
+
+Cobertura mira nas Waves 1-3 fixes do incidente 26 vouchers (2026-04-25):
+
+| Test file | Cobertura |
+|---|---|
+| `apps/mira/src/lib/webhook/bulk-list-parser.test.ts` | 3 formatos bulk + edge cases + dedup + scheduleHint |
+| `apps/mira/src/lib/webhook/intent-classifier.test.ts` | Tier 1 regex + Tier 2 fallback Anthropic mockado |
+| `apps/mira/src/lib/alerts.test.ts` | Sentry tags/extras, Slack payload, alertCritical |
+| `packages/repositories/src/voucher-dispatch-queue.repository.test.ts` | enqueue / pickPending / complete / markDedupHit / resetStuck / fail (zumbi guards) |
+| `packages/repositories/src/b2b-voucher.repository.test.ts` | issueWithDedup retry policy (SQLSTATE 40001 + backoff 100/300/700ms) |
+| `packages/supabase/src/tenant.test.ts` | resolveClinicContext (JWT claim + RPC fallback + cache + warning unico) |
+
+### Coverage report
+
+```bash
+pnpm --filter @clinicai/mira test -- --coverage
+# HTML: apps/mira/coverage/index.html
+```
+
 ## Migrations
 
 P0 introduz 5 migrations em `db/migrations/`:
