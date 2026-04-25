@@ -1,4 +1,5 @@
 {
   "extends": "@clinicai/tsconfig/library.json",
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "node_modules"]
 }
