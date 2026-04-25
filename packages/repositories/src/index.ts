@@ -34,6 +34,7 @@ export {
   type EnqueueResultDTO,
   type EnqueueResultItemDTO,
   type PickedQueueItemDTO,
+  type BatchSummaryDTO,
 } from './voucher-dispatch-queue.repository'
 export { B2BAttributionRepository, type B2BAttributionDTO } from './b2b-attribution.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'

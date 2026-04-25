@@ -90,6 +90,24 @@ export interface PickedQueueItemDTO {
   submittedBy: string | null
 }
 
+/**
+ * Resumo agregado de um batch · UI admin "ultimos lotes da clinica".
+ * Computado client-side a partir do listByPartnership/raw query (sem RPC).
+ */
+export interface BatchSummaryDTO {
+  batchId: string
+  partnershipId: string
+  total: number
+  pending: number
+  processing: number
+  done: number
+  failed: number
+  cancelled: number
+  scheduledAt: string
+  submittedAt: string
+  submittedBy: string | null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapQueueRow(row: any): VoucherDispatchQueueDTO {
   return {
@@ -308,6 +326,91 @@ export class B2BVoucherDispatchQueueRepository {
       .eq('batch_id', batchId)
       .order('created_at', { ascending: true })
     return (data ?? []).map(mapQueueRow)
+  }
+
+  /**
+   * Lista resumo dos N batches mais recentes da clinica · UI admin
+   * "/vouchers/bulk" mostra ultimos lotes pra retomar/cancelar.
+   *
+   * Implementacao: SELECT raw com batch_id NOT NULL · agrega client-side em JS
+   * (Supabase JS nao expoe GROUP BY direto · alternativa seria RPC dedicada,
+   * mas pra <= 10 batches o N de rows e baixo · OK in-memory).
+   *
+   * Multi-tenant ADR-028 · clinic_id obrigatorio.
+   */
+  async listRecentBatches(
+    clinicId: string,
+    limit: number = 10,
+  ): Promise<BatchSummaryDTO[]> {
+    if (!clinicId) return []
+    const safeLimit = Math.max(1, Math.min(limit, 50))
+
+    // Pega ate ~500 rows pros N batches mais recentes (heuristica · 50 items por batch x 10 batches).
+    const rowCap = Math.min(safeLimit * 100, 1000)
+
+    const { data, error } = await this.supabase
+      .from('b2b_voucher_dispatch_queue')
+      .select(
+        'batch_id, partnership_id, status, scheduled_at, created_at, submitted_by',
+      )
+      .eq('clinic_id', clinicId)
+      .not('batch_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(rowCap)
+
+    if (error || !data) return []
+
+    type RawRow = {
+      batch_id: string | null
+      partnership_id: string
+      status: string
+      scheduled_at: string
+      created_at: string
+      submitted_by: string | null
+    }
+
+    const grouped = new Map<string, BatchSummaryDTO>()
+    for (const r of data as RawRow[]) {
+      const id = r.batch_id
+      if (!id) continue
+      const existing = grouped.get(id)
+      if (!existing) {
+        grouped.set(id, {
+          batchId: id,
+          partnershipId: String(r.partnership_id),
+          total: 1,
+          pending: r.status === 'pending' ? 1 : 0,
+          processing: r.status === 'processing' ? 1 : 0,
+          done: r.status === 'done' ? 1 : 0,
+          failed: r.status === 'failed' ? 1 : 0,
+          cancelled: r.status === 'cancelled' ? 1 : 0,
+          scheduledAt: String(r.scheduled_at ?? r.created_at),
+          submittedAt: String(r.created_at),
+          submittedBy: r.submitted_by ?? null,
+        })
+        continue
+      }
+      existing.total += 1
+      if (r.status === 'pending') existing.pending += 1
+      else if (r.status === 'processing') existing.processing += 1
+      else if (r.status === 'done') existing.done += 1
+      else if (r.status === 'failed') existing.failed += 1
+      else if (r.status === 'cancelled') existing.cancelled += 1
+      // scheduled_at = MIN
+      if (r.scheduled_at && r.scheduled_at < existing.scheduledAt) {
+        existing.scheduledAt = String(r.scheduled_at)
+      }
+      // submittedAt = MAX created_at (pra "lote enviado em")
+      if (r.created_at && r.created_at > existing.submittedAt) {
+        existing.submittedAt = String(r.created_at)
+      }
+      // first non-null submittedBy ja foi setado no insert · noop
+    }
+
+    // Ordena por submittedAt DESC e corta no limit
+    return Array.from(grouped.values())
+      .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))
+      .slice(0, safeLimit)
   }
 
   /**
