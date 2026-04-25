@@ -86,6 +86,12 @@ export default async function VouchersPage({ searchParams }: PageProps) {
               {vouchers.length} voucher{vouchers.length === 1 ? '' : 's'} no recorte
             </p>
           </div>
+          <Link
+            href="/vouchers/bulk"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity"
+          >
+            + Lote
+          </Link>
         </div>
 
         {/* Filtros · gold tinted form */}
