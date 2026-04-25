@@ -1,0 +1,60 @@
+# Dockerfile · mira-cron · scheduler standalone Node.
+# Mirror estrutural do apps/mira/Dockerfile · multi-stage deps -> build -> runtime.
+#
+# Diferenca pro web: nao roda Next.js standalone · roda dist/cron.js (esbuild
+# bundle) com node-cron disparando fetch contra /api/cron/* do mira web.
+#
+# Service Easypanel: mira-cron · mesma project network do service mira (DNS
+# interno resolve http://mira:3006).
+
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat tzdata
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# ─── Stage 1: prune subgraph da Mira ──────────────────────────────
+# turbo prune extrai so as deps necessarias pro @clinicai/mira · economiza
+# tempo de install vs trazer o workspace inteiro.
+FROM base AS pruner
+WORKDIR /app
+COPY . .
+RUN pnpm dlx turbo prune @clinicai/mira --docker
+
+# ─── Stage 2: install + build cron bundle ─────────────────────────
+FROM base AS builder
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+RUN pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+
+# Builda apenas o cron bundle · dist/cron.js fica em apps/mira/dist/cron.js
+# Nao roda `next build` aqui · cron nao precisa do .next bundle (so dispara HTTP).
+RUN pnpm --filter @clinicai/mira build:cron
+
+# ─── Stage 3: runtime minimal ─────────────────────────────────────
+# Copia so o bundle + node_modules necessarios pro node-cron rodar.
+# node-cron e marked como --external no esbuild (nao bundla nativos).
+FROM base AS runner
+WORKDIR /app
+
+# Timezone default · pode ser sobrescrito via env MIRA_CRON_TZ.
+ENV TZ=America/Sao_Paulo
+ENV NODE_ENV=production
+
+# Bundle compilado.
+COPY --from=builder /app/apps/mira/dist ./apps/mira/dist
+
+# node_modules root + apps/mira (resolucao pnpm hoist · node-cron vive aqui).
+# Como pnpm usa symlinks pra .pnpm store, copiamos o tree completo do builder.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/mira/node_modules ./apps/mira/node_modules
+
+# Working dir final aponta pra apps/mira pra resolver node_modules locais.
+WORKDIR /app/apps/mira
+
+# Healthcheck: nao expomos HTTP · checa que o processo esta vivo via ps.
+# Easypanel deve marcar este service como "background" (sem port mapping).
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+  CMD pgrep -f "node dist/cron.js" > /dev/null || exit 1
+
+# Sem EXPOSE · este container nao recebe trafego HTTP.
+CMD ["node", "dist/cron.js"]
