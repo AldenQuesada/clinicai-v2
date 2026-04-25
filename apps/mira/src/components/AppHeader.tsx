@@ -18,10 +18,12 @@
 
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
-import { createServerClient } from '@clinicai/supabase'
-import { ProfileRepository } from '@clinicai/repositories'
+import { createServerClient, resolveClinicContext } from '@clinicai/supabase'
+import { ProfileRepository, B2BPartnershipRepository } from '@clinicai/repositories'
 import { LogOut, ExternalLink, Plus, Search } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
+import { QuickSearch, type QuickPartner } from './QuickSearch'
+import { SearchHint } from './SearchHint'
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
 
@@ -145,6 +147,25 @@ export async function AppHeader() {
     // ignore
   }
 
+  // Pre-fetch parcerias compactas pra Quick Search · zero N+1, 1 query
+  let quickPartners: QuickPartner[] = []
+  try {
+    const ctx = await resolveClinicContext(supabase)
+    if (ctx) {
+      const partnerRepo = new B2BPartnershipRepository(supabase)
+      const all = await partnerRepo.list(ctx.clinic_id, {})
+      quickPartners = all.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug ?? null,
+        status: p.status ?? null,
+        pillar: p.pillar ?? null,
+      }))
+    }
+  } catch {
+    // Quick search degradado pra apenas acoes · ok
+  }
+
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
 
@@ -159,6 +180,8 @@ export async function AppHeader() {
   const activeSubtab = detectActiveSubtab(pathname, searchParams, activeSection)
 
   return (
+    <>
+    <QuickSearch partners={quickPartners} />
     <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
       {/* === Father row · 3 sections + brand + quick actions + user === */}
       <div className="h-13 flex items-center justify-between px-5 border-b border-white/5">
@@ -190,15 +213,7 @@ export async function AppHeader() {
 
         {/* Quick actions + user */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            title="Buscar (Ctrl+K) — em breve"
-            className="hidden md:inline-flex items-center gap-2 px-2.5 py-1.5 rounded border border-white/10 text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors text-[11px]"
-            disabled
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span className="font-mono text-[10px] opacity-70">⌘K</span>
-          </button>
+          <SearchHint />
 
           <QuickAction href="/hoje/vouchers" label="Voucher" />
           <QuickAction href="/estudio/cadastrar" label="Parceria" />
@@ -244,6 +259,7 @@ export async function AppHeader() {
         </nav>
       </div>
     </header>
+    </>
   )
 }
 
