@@ -55,26 +55,38 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
     }
   }
 
-  // SIM · double-check dedup global ANTES do RPC (sanity recheck).
-  // Edge case: state criado ha 30min, recipient virou paciente nesse meio tempo
-  // (ou outra parceira indicou) · evita race condition de double-emit.
+  // SIM · emite voucher com dedup transactional (Fix F5 · mig 800-12).
+  // issueWithDedup faz dedup + create numa unica transacao serializable
+  // com FOR UPDATE em leads/b2b_vouchers/b2b_attributions. Elimina a race
+  // que existia entre o pre-check (b2b-emit-voucher) e o create. Caso 2
+  // parceiras simultaneas mandem voucher pra mesmo phone:
+  //   - vencedora: emite voucher OK
+  //   - perdedora: pega dedup_hit (voucher_recipient · acabou de criar)
+  //                ou serialization_failure (retry interno). Caller responde
+  //                mensagem dedup ao inves de "voucher emitido".
   // Refs: DECISAO ALDEN 2026-04-25 (case Dani Mendes 26 vouchers).
-  const dupHit = await repos.leads.findInAnySystem(
-    clinicId,
-    stateRow.value.recipient_phone,
-    stateRow.value.recipient_name,
-  )
-  if (dupHit) {
+  const result = await repos.b2bVouchers.issueWithDedup({
+    partnershipId: stateRow.value.partnership_id,
+    combo: stateRow.value.combo,
+    recipientName: stateRow.value.recipient_name,
+    recipientPhone: stateRow.value.recipient_phone,
+  })
+
+  // Dedup hit · pode ser pre-existente OU race vencida pela outra parceira.
+  // Usa novo intent partner.voucher_dedup_late_block pra audit (raro mas
+  // possivel · indica que o gap entre emit e confirm foi suficiente pra
+  // recipient virar paciente / outra parceira indicar).
+  if (result.dedupHit) {
+    const dupHit = result.dedupHit
     const partnership = await repos.b2bPartnerships.getById(stateRow.value.partnership_id)
     const partnerFirst = firstName(partnership?.contactName ?? null)
-    // Audit log · bloqueio detectado no recheck (mais critico que pre-emit)
     await repos.waProAudit.logQuery({
       msg: {
         clinicId,
         phone,
         direction: 'inbound',
         content: text,
-        intent: 'partner.dedup_blocked',
+        intent: 'partner.voucher_dedup_late_block',
         intentData: {
           partnership_id: stateRow.value.partnership_id,
           recipient_phone: stateRow.value.recipient_phone,
@@ -82,7 +94,8 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
           hit_kind: dupHit.kind,
           hit_id: dupHit.id,
           hit_since: dupHit.since,
-          stage: 'voucher_confirm_recheck',
+          stage: 'voucher_confirm_transactional',
+          retries: result.retries,
         },
         status: 'sent',
       },
@@ -90,10 +103,10 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
         clinicId,
         phone,
         query: text,
-        intent: 'partner.dedup_blocked',
-        rpcCalled: 'leads.findInAnySystem',
+        intent: 'partner.voucher_dedup_late_block',
+        rpcCalled: 'b2b_voucher_issue_with_dedup',
         success: true,
-        resultSummary: `Recheck dedup hit ${dupHit.kind} · ${dupHit.id.slice(0, 8)} · since ${dupHit.since}`,
+        resultSummary: `Late dedup ${dupHit.kind} · ${dupHit.id.slice(0, 8)} · since ${dupHit.since}`,
       },
     })
     return {
@@ -106,25 +119,24 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
         dedup_blocked: true,
         hit_kind: dupHit.kind,
         hit_id: dupHit.id,
-        stage: 'recheck',
+        stage: 'transactional',
+        retries: result.retries,
       },
     }
   }
-
-  // SIM · emite voucher
-  const result = await repos.b2bVouchers.issue({
-    partnershipId: stateRow.value.partnership_id,
-    combo: stateRow.value.combo,
-    recipientName: stateRow.value.recipient_name,
-    recipientPhone: stateRow.value.recipient_phone,
-  })
 
   if (!result.ok) {
     return {
       replyText: `Tive um problema pra emitir agora · erro: ${result.error ?? 'unknown'}. Tenta de novo daqui a pouco?`,
       actions: [],
       stateTransitions: [{ op: 'clear', key: STATE_KEY.VOUCHER_CONFIRM }],
-      meta: { handler: 'b2b-voucher-confirm', decision: 'yes', issue_failed: true, error: result.error },
+      meta: {
+        handler: 'b2b-voucher-confirm',
+        decision: 'yes',
+        issue_failed: true,
+        error: result.error,
+        retries: result.retries,
+      },
     }
   }
 
