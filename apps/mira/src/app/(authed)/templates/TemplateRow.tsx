@@ -1,6 +1,8 @@
 /**
  * TemplateRow · linha editavel inline pra b2b_comm_templates.
- * Server-rendered (form completo) · funciona sem JS no client.
+ *
+ * Visual mirror b2b-config.css `.bcfg-admin-row` collapsed → `.bcfg-admin-form`
+ * gold-tinted quando expandido. Server-rendered (form completo · sem JS).
  */
 
 import { saveTemplateAction, deleteTemplateById } from './actions'
@@ -24,43 +26,44 @@ export function TemplateRow({
 
   return (
     <details
-      className={`rounded-card border bg-[hsl(var(--chat-panel-bg))] ${
-        inactive
-          ? 'border-[hsl(var(--chat-border))] opacity-60'
-          : 'border-[hsl(var(--chat-border))]'
+      className={`rounded-lg border bg-white/[0.02] hover:border-white/14 transition-colors ${
+        inactive ? 'border-white/8 opacity-60' : 'border-white/8'
       }`}
     >
-      <summary className="cursor-pointer px-4 py-3 flex items-center justify-between gap-3 hover:bg-[hsl(var(--muted))]/20 rounded-card transition-colors">
+      <summary className="cursor-pointer px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/[0.02] rounded-lg transition-colors">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--primary))]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-[11px] font-bold text-[#C9A96E]">
               {template.eventKey}
             </span>
             {isOverride && (
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))]">
+              <span className="text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B]">
                 Override
               </span>
             )}
             {inactive && (
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-pill bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
+              <span className="text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-white/8 text-[#9CA3AF]">
                 Inativo
               </span>
             )}
           </div>
-          <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mt-1">
+          <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] mt-1 font-mono">
             {template.recipientRole} · {template.channel} · prio {template.priority} · {template.senderInstance}
           </div>
         </div>
-        <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] shrink-0">
+        <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] font-mono shrink-0">
           {fmt(template.updatedAt)}
         </div>
       </summary>
 
-      <form action={saveTemplateAction} className="p-4 border-t border-[hsl(var(--chat-border))] space-y-3">
+      <form
+        action={saveTemplateAction}
+        className="px-3.5 pb-3.5 pt-1 flex flex-col gap-2.5 border-t border-[#C9A96E]/15 bg-[#C9A96E]/[0.04] rounded-b-lg"
+      >
         <input type="hidden" name="id" value={template.id} />
 
-        <div>
-          <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">
+        <div className="flex flex-col gap-1 mt-2.5">
+          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
             Texto (text_template)
           </label>
           <textarea
@@ -68,12 +71,12 @@ export function TemplateRow({
             rows={5}
             defaultValue={template.textTemplate ?? ''}
             disabled={!canManage}
-            className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] disabled:opacity-50 resize-y font-mono text-xs"
+            className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y font-mono"
           />
         </div>
 
-        <div>
-          <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
             Audio Script (audio_script)
           </label>
           <textarea
@@ -81,42 +84,48 @@ export function TemplateRow({
             rows={3}
             defaultValue={template.audioScript ?? ''}
             disabled={!canManage}
-            className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] disabled:opacity-50 resize-y font-mono text-xs"
+            className="w-full px-2.5 py-1.5 rounded-lg border border-white/8 bg-white/[0.02] text-[#F5F5F5] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y font-mono"
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Canal</label>
-          <select
-            name="channel"
-            defaultValue={template.channel}
-            disabled={!canManage}
-            className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-sm disabled:opacity-50"
-          >
-            {CHANNEL_OPTIONS.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+              Canal
+            </label>
+            <select
+              name="channel"
+              defaultValue={template.channel}
+              disabled={!canManage}
+              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] disabled:opacity-50"
+            >
+              {CHANNEL_OPTIONS.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </div>
 
-          <label className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] ml-2">
-            Ativo
-          </label>
-          <select
-            name="isActive"
-            defaultValue={template.isActive ? 'true' : 'false'}
-            disabled={!canManage}
-            className="px-3 py-1.5 rounded-md bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-sm disabled:opacity-50"
-          >
-            <option value="true">Sim</option>
-            <option value="false">Não</option>
-          </select>
+          <div className="flex items-center gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
+              Ativo
+            </label>
+            <select
+              name="isActive"
+              defaultValue={template.isActive ? 'true' : 'false'}
+              disabled={!canManage}
+              className="px-2.5 py-1 rounded-lg bg-white/[0.02] border border-white/8 text-xs text-[#F5F5F5] disabled:opacity-50"
+            >
+              <option value="true">Sim</option>
+              <option value="false">Não</option>
+            </select>
+          </div>
         </div>
 
         {canManage && (
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-2 pt-2 border-t border-white/8">
             <button
               type="submit"
-              className="px-4 py-2 rounded-pill text-[10px] uppercase tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
+              className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
             >
               Salvar
             </button>
@@ -134,7 +143,7 @@ function DeleteForm({ id }: { id: string }) {
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"
-        className="px-3 py-2 rounded-pill text-[10px] uppercase tracking-widest border border-[hsl(var(--danger))]/30 text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))]/10 transition-colors"
+        className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] border border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/8 transition-colors"
       >
         Desativar
       </button>
