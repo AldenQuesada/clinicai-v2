@@ -34,6 +34,7 @@ import {
   WaNumberRepository,
   MiraChannelRepository,
   AppointmentRepository,
+  WebhookProcessingQueueRepository,
 } from '@clinicai/repositories'
 
 export interface MiraRepos {
@@ -59,6 +60,7 @@ export interface MiraRepos {
   waNumbers: WaNumberRepository
   miraChannels: MiraChannelRepository
   appointments: AppointmentRepository
+  webhookQueue: WebhookProcessingQueueRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,5 +86,6 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     waNumbers: new WaNumberRepository(supabase),
     miraChannels: new MiraChannelRepository(supabase),
     appointments: new AppointmentRepository(supabase),
+    webhookQueue: new WebhookProcessingQueueRepository(supabase),
   }
 }
