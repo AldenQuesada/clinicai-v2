@@ -1,0 +1,104 @@
+# GitHub Actions cron · 11 jobs proativos da Mira.
+#
+# Por que aqui (e nao no Easypanel): a versao do Easypanel em uso nao expoe
+# Cron Jobs schedulaveis nativamente (so "Scripts" on-demand). Workflows do
+# GitHub Actions sao gratis, versionados, com logs auditaveis e notificacao
+# automatica em falha.
+#
+# Lag: GitHub Actions cron tem 1-3min de lag tipico por carga global. Aceito
+# porque nossos jobs nao sao real-time critico (reminder pre-expiry tem 30min
+# de folga, digests diarios tem janela de horas).
+#
+# Setup necessario:
+#   GitHub repo → Settings → Secrets and variables → Actions → New repo secret
+#     · MIRA_CRON_SECRET = <mesmo valor do Easypanel env do service mira>
+#
+# A URL e fixa pro dominio publico (mira.miriandpaula.com.br). Se quiser
+# trocar pra ambiente staging futuramente, parametrize via inputs.
+
+name: Mira proactive crons
+
+on:
+  schedule:
+    # Cada minuto · state cleanup + reminder check (lag 1-3min aceito)
+    - cron: '* * * * *'
+    # Digests admin
+    - cron: '0 10 * * 1-6'   # daily 10h Sao Paulo (-3 UTC) · cron eh UTC
+    - cron: '0 23 * * 1-6'   # evening 23h SP
+    - cron: '0 10 * * 1'     # weekly seg 10h SP
+    # Alerts
+    - cron: '*/5 11-23 * * 1-6'  # preconsult 30min antes
+    - cron: '0 1 * * *'           # anomaly diario 01h
+    - cron: '0 10 * * *'          # birthday diario 10h
+    - cron: '*/5 * * * *'         # task reminders cada 5min
+    - cron: '0 12 * * *'          # followup suggestions 12h
+    - cron: '0 21 * * 5'          # inactivity radar sex 21h
+  # Permite trigger manual via UI
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Qual cron disparar manualmente'
+        required: true
+        type: choice
+        options:
+          - mira-state-cleanup
+          - mira-state-reminder-check
+          - mira-daily-digest
+          - mira-evening-digest
+          - mira-weekly-roundup
+          - mira-preconsult-alerts
+          - mira-anomaly-check
+          - mira-birthday-alerts
+          - mira-task-reminders
+          - mira-followup-suggestions
+          - mira-inactivity-radar
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve which cron to fire based on schedule
+        id: route
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENDPOINTS="${{ github.event.inputs.job }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "* * * * *")            ENDPOINTS="mira-state-cleanup mira-state-reminder-check" ;;
+              "0 10 * * 1-6")         ENDPOINTS="mira-daily-digest" ;;
+              "0 23 * * 1-6")         ENDPOINTS="mira-evening-digest" ;;
+              "0 10 * * 1")           ENDPOINTS="mira-weekly-roundup" ;;
+              "*/5 11-23 * * 1-6")    ENDPOINTS="mira-preconsult-alerts" ;;
+              "0 1 * * *")            ENDPOINTS="mira-anomaly-check" ;;
+              "0 10 * * *")           ENDPOINTS="mira-birthday-alerts" ;;
+              "*/5 * * * *")          ENDPOINTS="mira-task-reminders" ;;
+              "0 12 * * *")           ENDPOINTS="mira-followup-suggestions" ;;
+              "0 21 * * 5")           ENDPOINTS="mira-inactivity-radar" ;;
+              *)                      echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
+            esac
+          fi
+          echo "endpoints=$ENDPOINTS" >> "$GITHUB_OUTPUT"
+          echo "Disparando: $ENDPOINTS"
+
+      - name: Fire crons
+        env:
+          MIRA_CRON_SECRET: ${{ secrets.MIRA_CRON_SECRET }}
+        run: |
+          set -e
+          BASE="https://mira.miriandpaula.com.br"
+          for ep in ${{ steps.route.outputs.endpoints }}; do
+            echo "→ $ep"
+            HTTP_CODE=$(curl -fsS -o /tmp/resp.json -w "%{http_code}" \
+              -H "x-cron-secret: $MIRA_CRON_SECRET" \
+              -m 60 \
+              "$BASE/api/cron/$ep" || echo "000")
+            echo "  status=$HTTP_CODE"
+            if [ -f /tmp/resp.json ]; then
+              echo "  resp=$(cat /tmp/resp.json | head -c 300)"
+            fi
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::warning::$ep retornou $HTTP_CODE"
+            fi
+          done
