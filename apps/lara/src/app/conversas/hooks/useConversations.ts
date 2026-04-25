@@ -1,0 +1,230 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+export interface Conversation {
+  conversation_id: string;
+  phone: string;
+  lead_name: string;
+  lead_id: string;
+  status: string;
+  ai_enabled: boolean;
+  ai_paused_until: string | null;
+  last_message_text: string | null;
+  last_message_at: string | null;
+  is_urgent: boolean;
+  phase: string | null;
+  funnel: string | null;
+  lead_score: number;
+  tags: string[];
+  queixas: string[];
+  channel?: 'cloud' | 'legacy' | string;
+}
+
+export const playNotificationSound = () => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        const playTone = (freq: number, startTime: number, duration: number) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(0.2, startTime + 0.05); // attack
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration); // decay
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration + 0.1);
+        };
+        
+        const now = ctx.currentTime;
+        // WhatsApp like dual tone pop
+        playTone(600, now, 0.15);
+        playTone(800, now + 0.1, 0.25);
+    } catch (e) {
+        // Ignora erros caso o navegador bloqueie autoplay
+    }
+};
+
+export const sendBrowserNotification = (title: string, body: string, onClick?: () => void) => {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    const n = new Notification(title, { body, icon: '/favicon.ico', tag: 'clinicai-inbox' });
+    if (onClick) n.onclick = onClick;
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') {
+        const n = new Notification(title, { body, icon: '/favicon.ico', tag: 'clinicai-inbox' });
+        if (onClick) n.onclick = onClick;
+      }
+    });
+  }
+};
+
+export const updateTabTitle = (conversations: Conversation[]) => {
+  const pending = conversations.filter(c => c.is_urgent || (!c.ai_enabled && !c.is_urgent)).length;
+  document.title = pending > 0 ? `(${pending}) Central de Atendimento` : 'ClinicAI';
+};
+
+export function useConversations() {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'resolved' | 'dra'>('active');
+  const selectedIdRef = useRef<string | null>(null);
+  const prevDataRef = useRef<Conversation[]>([]);
+  const prevStatusRef = useRef(statusFilter);
+
+  // Mantém o ID selecionado sem causar re-render
+  useEffect(() => {
+    selectedIdRef.current = selectedConversation?.conversation_id || null;
+  }, [selectedConversation]);
+
+  // Request Notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission !== 'denied' && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/conversations?status=${statusFilter}`);
+      if (res.ok) {
+        const data: Conversation[] = await res.json();
+        
+        // Atualiza Título da Aba
+        updateTabTitle(data);
+        
+        // Verifica Novas Mensagens / Notificações
+        // SÓ verifica se NÃO houve troca de aba de status (filtro principal)
+        const isTabChange = prevStatusRef.current !== statusFilter;
+        prevStatusRef.current = statusFilter;
+
+        let hasNewActivity = false;
+        let isUrgent = false;
+        let notifyName = '';
+        let notifyText = '';
+
+        if (!isTabChange && prevDataRef.current.length > 0) {
+          data.forEach(conv => {
+            const prev = prevDataRef.current.find(p => p.conversation_id === conv.conversation_id);
+            // Notifica APENAS se a mensagem mudou E o timestamp é mais recente que o anterior
+            if (prev && conv.last_message_at !== prev.last_message_at && conv.last_message_text !== prev.last_message_text) {
+               // Verifica se a mensagem é realmente do lead (evita notificar msg do sistema/humano se quiser ser rigoroso)
+               hasNewActivity = true;
+               if (conv.is_urgent) {
+                 isUrgent = true;
+               }
+               notifyName = conv.lead_name || conv.phone;
+               notifyText = conv.last_message_text || '';
+            }
+          });
+        }
+        
+        if (hasNewActivity) {
+          playNotificationSound();
+          if (document.hidden || isUrgent) {
+             sendBrowserNotification(
+               isUrgent ? `🚨 URGENTE: ${notifyName}` : `Nova mensagem de ${notifyName}`, 
+               notifyText,
+               () => {
+                 window.focus();
+                 // Se encontrarmos o ID da conversa que gerou o alerta, selecionamos ela
+                 const triggered = data.find(c => (c.lead_name || c.phone) === notifyName);
+                 if (triggered) {
+                   setSelectedConversation(triggered);
+                 }
+               }
+             );
+          }
+        }
+        
+        prevDataRef.current = data;
+        setConversations(data);
+        
+        // Atualiza APENAS os metadados da conversa selecionada (ex: last_message_text)
+        // sem trocar a referência do objeto — evita re-mount do useMessages
+        if (selectedIdRef.current) {
+          const updated = data.find(c => c.conversation_id === selectedIdRef.current);
+          if (updated) {
+            setSelectedConversation(prev => {
+              if (!prev) return updated;
+              
+              // Verifica se algo mudou
+              const hasChanged = 
+                prev.last_message_text !== updated.last_message_text ||
+                prev.last_message_at !== updated.last_message_at ||
+                prev.ai_enabled !== updated.ai_enabled ||
+                prev.ai_paused_until !== updated.ai_paused_until ||
+                prev.lead_name !== updated.lead_name ||
+                prev.funnel !== updated.funnel ||
+                prev.phase !== updated.phase ||
+                JSON.stringify(prev.tags) !== JSON.stringify(updated.tags) ||
+                JSON.stringify(prev.queixas) !== JSON.stringify(updated.queixas);
+
+              if (hasChanged) {
+                console.log(`[useConversations] Atualizando conversa selecionada:`, {
+                  id: updated.conversation_id,
+                  funnel: updated.funnel,
+                  msg: updated.last_message_text?.substring(0, 20)
+                });
+                return updated;
+              }
+              return prev;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching conversations:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [statusFilter]); // Depende apenas do statusFilter
+
+  useEffect(() => {
+    // 1. Carga inicial
+    fetchConversations();
+
+    // 2. SSE: Escuta atualizações em tempo real do banco (silencioso)
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/conversations/sse');
+      eventSource.onmessage = () => {
+        // Atualiza a lista silenciosamente sem recarregar a página
+        fetchConversations();
+      };
+      eventSource.onerror = () => {
+        eventSource?.close();
+        eventSource = null;
+      };
+    } catch {
+      // SSE não suportado — fallback silencioso
+    }
+
+    // 3. Fallback: polling relaxado a cada 30s para economizar banda do servidor
+    const interval = setInterval(fetchConversations, 30000);
+
+    return () => {
+      clearInterval(interval);
+      eventSource?.close();
+    };
+  }, [fetchConversations]);
+
+  return {
+    conversations,
+    isLoading,
+    selectedConversation,
+    setSelectedConversation,
+    statusFilter,
+    setStatusFilter,
+    refreshConversations: fetchConversations
+  };
+}

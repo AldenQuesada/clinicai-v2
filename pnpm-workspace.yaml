@@ -1,0 +1,33 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Catalog (pnpm 9.5+) · versoes sincronizadas centralmente. Cada package usa
+# "react": "catalog:" em vez de literal · evita drift entre apps.
+catalog:
+  react: ^19.2.4
+  react-dom: ^19.2.4
+  next: ^16.2.4
+  typescript: ^5
+  tailwindcss: ^4
+  "@tailwindcss/postcss": ^4
+  "@types/node": ^20
+  "@types/react": ^19
+  "@types/react-dom": ^19
+  "@anthropic-ai/sdk": ^0.89.0
+  "@supabase/supabase-js": ^2.103.2
+  "@supabase/ssr": ^0.5.2
+  groq-sdk: ^1.1.2
+  date-fns: ^4.1.0
+  uuid: ^13.0.0
+  "@types/uuid": ^10.0.0
+  lucide-react: ^1.8.0
+  zod: ^3.23.8
+  clsx: ^2.1.1
+  tailwind-merge: ^2.5.4
+  class-variance-authority: ^0.7.1
+  pino: ^9.5.0
+  pino-pretty: ^11.3.0
+  next-themes: ^0.4.4
+  eslint: ^9
+  eslint-config-next: 16.2.4

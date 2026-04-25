@@ -1,0 +1,20 @@
+{
+  "name": "@clinicai/whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cloud": "./src/cloud.ts"
+  },
+  "dependencies": {
+    "@clinicai/logger": "workspace:*",
+    "@clinicai/supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@clinicai/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,67 @@
+/**
+ * Next.js config · @clinicai/lara.
+ *
+ * - transpilePackages: necessário pra Next.js 16 consumir TS direto dos
+ *   workspace packages (sem build step intermediário). HMR funciona em dev.
+ * - headers: CSP cravada (Gap 1 do MIGRATION_DOCTRINE) · espelha hardening
+ *   do clinic-dashboard `_headers`/`nginx.conf` mas adaptado pra Next.
+ * - output: standalone · Dockerfile minimal pro Easypanel.
+ */
+
+import type { NextConfig } from 'next'
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://oqboitkpcvuaudouwvkl.supabase.co'
+
+const csp = [
+  `default-src 'self' ${SUPABASE_URL}`,
+  // 'unsafe-inline' em script-src é necessário pro Next inline boot script ·
+  // mitigado por nonce em produção (TODO Fase 2).
+  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net`,
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net`,
+  `font-src 'self' https://fonts.gstatic.com data:`,
+  `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https://api.anthropic.com https://api.groq.com https://graph.facebook.com`,
+  `img-src 'self' data: blob: https:`,
+  `media-src 'self' data: blob: https:`,
+  `frame-ancestors 'none'`,
+  `base-uri 'self'`,
+  `form-action 'self'`,
+].join('; ')
+
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  output: 'standalone',
+  transpilePackages: [
+    '@clinicai/ui',
+    '@clinicai/utils',
+    '@clinicai/supabase',
+    '@clinicai/ai',
+    '@clinicai/whatsapp',
+    '@clinicai/logger',
+  ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'oqboitkpcvuaudouwvkl.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: csp },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ]
+  },
+}
+
+export default nextConfig

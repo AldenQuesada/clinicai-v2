@@ -1,0 +1,72 @@
+/**
+ * Lara · globals.css.
+ *
+ * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
+ * vivem em packages/ui/styles/globals.css. Aqui ficam APENAS os mapeamentos
+ * legacy de variáveis CSS que os componentes da Lara (importados do Ivan)
+ * usam · ex: --chat-bg, --chat-msg-user, etc.
+ *
+ * Estratégia de re-skin (Gap 8 do MIGRATION_DOCTRINE): em vez de reescrever
+ * cada componente Lara pra usar tokens da marca direto (`bg-champagne`),
+ * mantemos a estrutura mas remapeamos as variáveis legacy pros tokens
+ * Mirian. Ganha: zero refactor de componente · perdas: 0.
+ */
+
+@import "@clinicai/ui/styles/globals.css";
+
+/* ─── Mapeamento legacy do Ivan → tokens Mirian ────────────────── */
+@layer base {
+  :root {
+    /* Lara fundo geral · era azul escuro do Ivan · agora luxury Mirian */
+    --chat-bg: 60 5% 7%;              /* #121212 · era 224 71% 4% (azul) */
+    --chat-panel-bg: 30 8% 12%;       /* #1F1C19 · panel elevated com tom warm */
+    --chat-border: 30 5% 18%;         /* #2D2A26 · sutil */
+
+    /* Mensagem do paciente (user) · era azul · agora champagne soft */
+    --chat-msg-user: 35 36% 64%;      /* #C8A97E champagne */
+    --chat-msg-user-text: 40 8% 12%;  /* #1F1C19 luxury sobre champagne */
+
+    /* Mensagem da Lara (bot) · marfim sobre dark sutil */
+    --chat-msg-bot: 30 5% 18%;        /* #2D2A26 */
+    --chat-msg-bot-text: 38 35% 92%;  /* #F5F0E8 marfim */
+
+    /* Primary CTA · champagne forte */
+    --primary: 35 36% 64%;            /* #C8A97E */
+    --primary-foreground: 40 8% 12%;  /* dark luxury */
+
+    /* Border + muted · pra inputs, dropdowns, etc */
+    --border: 30 5% 18%;
+    --input: 30 5% 18%;
+    --muted: 30 5% 14%;
+    --muted-foreground: 38 8% 55%;    /* #8A847B · subdued warm */
+    --foreground: 38 35% 92%;
+    --ring: 35 36% 64%;               /* champagne pra focus rings */
+  }
+}
+
+@layer base {
+  body {
+    background-color: hsl(var(--chat-bg));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Scrollbar custom da Lara · re-tematizada */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--chat-border)) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--chat-border));
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary) / 0.6);
+}

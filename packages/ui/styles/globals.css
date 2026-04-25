@@ -1,0 +1,170 @@
+/* ─────────────────────────────────────────────────────────────────
+ * @clinicai/ui · globals.css
+ *
+ * Sistema de design unificado da Clínica Mirian de Paula. Tokens em
+ * @theme (Tailwind 4 CSS-first config). Importado pelos 3 apps:
+ *   apps/lara/src/app/globals.css
+ *   apps/mira/src/app/globals.css
+ *   apps/dashboard/src/app/globals.css
+ *
+ * Marca: dark luxury · champagne #C8A97E · marfim #F5F0E8.
+ * Fontes: Inter (sans), Montserrat (display uppercase), Cormorant
+ * Garamond (cursive italic accents).
+ *
+ * Tailwind 4: cores em oklch() pra wider gamut + interpolação correta.
+ * ───────────────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+
+/* Source paths · onde Tailwind encontra classes pra gerar CSS */
+@source "../src/**/*.{ts,tsx}";
+@source "../../../apps/*/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ─── Cores da marca (paleta principal) ──────────────────────── */
+  --color-champagne: oklch(0.78 0.05 75);          /* #C8A97E */
+  --color-champagne-soft: oklch(0.84 0.04 78);     /* #D4AF7A · accent dourado em dark cards */
+  --color-marfim: oklch(0.95 0.02 80);             /* #F5F0E8 */
+  --color-marfim-warm: oklch(0.92 0.03 78);        /* #ECE3D2 · variação quente */
+
+  --color-luxury: oklch(0.18 0.005 60);            /* #1A1A1C · dark base */
+  --color-luxury-warm: oklch(0.22 0.015 50);       /* #2A2119 · gradient end */
+  --color-luxury-deep: oklch(0.12 0 0);            /* #0F0F10 · bg mais profundo */
+
+  --color-tan-light: oklch(0.82 0.06 65);          /* tan claro */
+  --color-tan-deep: oklch(0.45 0.08 50);           /* bronze escuro · #5C3B1C */
+
+  /* ─── Estados ────────────────────────────────────────────────── */
+  --color-success: oklch(0.62 0.06 145);           /* #6B8B6A */
+  --color-warning: oklch(0.72 0.16 65);            /* #D97706 */
+  --color-error: oklch(0.55 0.20 25);              /* #DC2626 */
+  --color-info: oklch(0.65 0.12 230);              /* azul info */
+
+  /* ─── Texto ──────────────────────────────────────────────────── */
+  --color-text: var(--color-marfim);
+  --color-text-muted: oklch(0.62 0.005 60);        /* #9B9B9B */
+  --color-text-subtle: oklch(0.45 0 0);            /* #707070 */
+
+  /* ─── Borders & surfaces ─────────────────────────────────────── */
+  --color-border: oklch(0.28 0.005 60);            /* #2A2A2C */
+  --color-border-soft: oklch(0.22 0.005 60);       /* #1F1F21 */
+  --color-surface: var(--color-luxury);
+  --color-surface-elevated: var(--color-luxury-warm);
+
+  /* ─── Tipografia ─────────────────────────────────────────────── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Montserrat', sans-serif;
+  --font-cursive: 'Cormorant Garamond', 'Times New Roman', serif;
+
+  /* ─── Espaçamento custom ─────────────────────────────────────── */
+  --spacing-luxury: 1.875rem;                      /* 30px · ritmo "premium" */
+
+  /* ─── Border radius ──────────────────────────────────────────── */
+  --radius-card: 1.25rem;                          /* 20px · cards */
+  --radius-card-mobile: 1rem;                      /* 16px · cards mobile */
+  --radius-pill: 9999px;                           /* CTA pills */
+
+  /* ─── Sombras (luxury) ───────────────────────────────────────── */
+  --shadow-luxury-sm: 0 4px 12px oklch(0 0 0 / 0.18);
+  --shadow-luxury-md: 0 8px 24px oklch(0 0 0 / 0.28);
+  --shadow-luxury-lg: 0 20px 60px -15px oklch(0 0 0 / 0.4);
+
+  /* ─── Animação ───────────────────────────────────────────────── */
+  --ease-luxury: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Theme tokens (light + dark) ────────────────────────────────
+ * Default DARK · marca Mirian é luxury escura. Light disponível
+ * via classe `.light` no <html> caso necessário.
+ * ─────────────────────────────────────────────────────────────── */
+:root {
+  --background: var(--color-luxury);
+  --foreground: var(--color-marfim);
+  --card: var(--color-luxury-warm);
+  --card-foreground: var(--color-marfim);
+  --popover: var(--color-luxury-warm);
+  --popover-foreground: var(--color-marfim);
+  --primary: var(--color-champagne);
+  --primary-foreground: var(--color-luxury);
+  --secondary: var(--color-marfim);
+  --secondary-foreground: var(--color-luxury);
+  --muted: var(--color-border);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-champagne-soft);
+  --accent-foreground: var(--color-luxury);
+  --destructive: var(--color-error);
+  --destructive-foreground: var(--color-marfim);
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: var(--color-champagne);
+}
+
+.light {
+  --background: var(--color-marfim);
+  --foreground: var(--color-luxury);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--color-luxury);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--color-luxury);
+  --primary: var(--color-tan-deep);
+  --primary-foreground: var(--color-marfim);
+  --secondary: var(--color-marfim-warm);
+  --secondary-foreground: var(--color-luxury);
+  --muted: oklch(0.92 0.01 80);
+  --muted-foreground: var(--color-text-subtle);
+  --accent: var(--color-champagne);
+  --accent-foreground: var(--color-luxury);
+  --destructive: var(--color-error);
+  --destructive-foreground: var(--color-marfim);
+  --border: oklch(0.88 0.01 80);
+  --input: oklch(0.88 0.01 80);
+  --ring: var(--color-champagne);
+}
+
+/* ─── Globals base ──────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+/* ─── Componentes base · classes utilitárias ────────────────────── */
+.font-display-uppercase {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.font-cursive-italic {
+  font-family: var(--font-cursive);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
+/* Scrollbar premium dark */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-champagne);
+}

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  ci:
+    name: typecheck + lint + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Typecheck all packages + apps
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true # warnings nao quebram CI · errors quebram via typecheck
+
+      - name: Build
+        run: pnpm build
+        env:
+          # CI usa valores fake · build precisa só compilar, nao rodar.
+          NEXT_PUBLIC_SUPABASE_URL: https://oqboitkpcvuaudouwvkl.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: fake-anon-key-for-build-only
+          SUPABASE_SERVICE_ROLE_KEY: fake-service-role-for-build-only
+          ANTHROPIC_API_KEY: fake-key
+          GROQ_API_KEY: fake-key

@@ -1,0 +1,24 @@
+{
+  "name": "@clinicai/ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./anthropic": "./src/anthropic.ts",
+    "./groq": "./src/groq.ts",
+    "./budget": "./src/budget.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@clinicai/logger": "workspace:*",
+    "@clinicai/supabase": "workspace:*",
+    "groq-sdk": "catalog:"
+  },
+  "devDependencies": {
+    "@clinicai/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
