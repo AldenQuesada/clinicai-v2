@@ -9,6 +9,7 @@
  */
 
 export { LeadRepository } from './lead.repository'
+export { ConversationRepository, type StatusFilter } from './conversation.repository'
 
 export type {
   Funnel,
