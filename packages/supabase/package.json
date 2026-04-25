@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
     "./browser": "./src/browser.ts",
+    "./middleware": "./src/middleware.ts",
     "./tenant": "./src/tenant.ts",
     "./types": "./src/types.ts"
   },
@@ -16,10 +17,19 @@
     "@supabase/supabase-js": "catalog:",
     "@supabase/ssr": "catalog:"
   },
+  "peerDependencies": {
+    "next": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@clinicai/tsconfig": "workspace:*",
     "@clinicai/logger": "workspace:*",
     "@types/node": "catalog:",
+    "next": "catalog:",
     "typescript": "catalog:"
   }
 }

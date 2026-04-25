@@ -325,6 +325,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 20.19.39
+      next:
+        specifier: 'catalog:'
+        version: 16.2.4(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

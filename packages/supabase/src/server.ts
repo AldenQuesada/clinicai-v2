@@ -2,37 +2,45 @@
  * Supabase clients server-side · Next.js App Router (RSC + Server Actions).
  *
  * Dois modos:
- * - createServerClient(): respeita JWT do cookie · usar em RSC autenticado.
- *   RLS aplicada · clinic_id vem do JWT via custom_access_token_hook.
+ * - createServerClient(): cookie-aware · respeita JWT do user logado · usar
+ *   em RSC e Server Actions. RLS aplicada · clinic_id vem do JWT via
+ *   custom_access_token_hook.
  * - createServiceRoleClient(): bypassa RLS · USAR APENAS em rotas server-side
  *   que precisam admin total (webhook entry point, cron, migrations programaticas).
  *   NUNCA expor pro browser.
  *
- * Multi-tenant (ADR-028): este module NAO resolve clinic_id sozinho. Quem
- * resolve e tenant.ts ou Server Action via getClinicContext(req).
+ * Multi-tenant (ADR-028): clinic_id resolvido via tenant.ts ou custom_access_token_hook.
  */
 
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './types'
 
-type CookieOptions = Record<string, unknown>
+interface CookieToSet {
+  name: string
+  value: string
+  options?: Record<string, unknown>
+}
 
-interface CookieAdapter {
-  get(name: string): string | undefined
-  set?(name: string, value: string, options?: CookieOptions): void
-  remove?(name: string, options?: CookieOptions): void
+interface CookieMethodsAdapter {
+  getAll(): Array<{ name: string; value: string }>
+  setAll?(cookiesToSet: CookieToSet[]): void
 }
 
 /**
- * Cliente server-side autenticado · usar em RSC, Route Handlers, Server Actions.
- * Cookies passados pelo Next.js via `next/headers` cookies() (caller responsibility).
+ * Cliente server-side autenticado · usar em RSC, Server Actions e Route Handlers.
  *
- * Exemplo:
+ * Caller injeta cookies adapter:
  *   import { cookies } from 'next/headers'
- *   const supabase = createServerClient(await cookies())
+ *   const cookieStore = await cookies()
+ *   const supabase = createServerClient({
+ *     getAll: () => cookieStore.getAll(),
+ *     setAll: (cookies) => cookies.forEach(c => cookieStore.set(c.name, c.value, c.options)),
+ *   })
  */
-export function createServerClient(cookieStore: CookieAdapter): SupabaseClient<Database> {
+export function createServerClient(
+  cookies: CookieMethodsAdapter,
+): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {
@@ -40,25 +48,46 @@ export function createServerClient(cookieStore: CookieAdapter): SupabaseClient<D
   }
   return createSSRServerClient<Database>(url, key, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)
+      getAll() {
+        return cookies.getAll()
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet: CookieToSet[]) {
         try {
-          cookieStore.set?.(name, value, options)
+          // Adiciona domain compartilhado em prod pra SSO entre subdominios
+          // miriandpaula.com.br (painel + lara + mira). Em dev fica default.
+          const sharedDomain = getSharedCookieDomain()
+          const enriched: CookieToSet[] = sharedDomain
+            ? cookiesToSet.map((c: CookieToSet) => ({
+                ...c,
+                options: { ...(c.options || {}), domain: sharedDomain },
+              }))
+            : cookiesToSet
+          cookies.setAll?.(enriched)
         } catch {
-          // Ignored · alguns contextos (RSC) nao permitem set
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookieStore.remove?.(name, options)
-        } catch {
-          // Ignored
+          // Ignored · Server Components não permitem set; só Server Actions
         }
       },
     },
   })
+}
+
+/**
+ * Retorna domain compartilhado pra cookies cross-subdomain.
+ * Prod: '.miriandpaula.com.br' · cookie vale em painel.* / lara.* / mira.* / app.*
+ * Dev/staging: null (cookie default · mesmo origin)
+ */
+export function getSharedCookieDomain(): string | null {
+  // Override explicito via env (util pra staging custom)
+  const override = process.env.AUTH_COOKIE_DOMAIN
+  if (override) return override
+
+  // Auto-detect baseado em NEXT_PUBLIC_APP_URL
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (appUrl?.includes('miriandpaula.com.br')) {
+    return '.miriandpaula.com.br'
+  }
+
+  return null
 }
 
 /**
