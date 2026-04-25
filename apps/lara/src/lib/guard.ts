@@ -63,12 +63,40 @@ export async function checkGuard(conversationId: string): Promise<GuardResult> {
     .eq('sender', 'lara')
     .gte('sent_at', yesterday);
 
-  if (dailySent && dailySent > 45) { 
+  if (dailySent && dailySent > 45) {
     // Em caso de abuso (spam/looping longo), cessa o bot.
-    await supabase.from('wa_conversations').update({ 
-      ai_enabled: false, 
-      paused_by: 'auto_limit' 
+    await supabase.from('wa_conversations').update({
+      ai_enabled: false,
+      paused_by: 'auto_limit'
     }).eq('id', conversationId);
+
+    // Notifica dashboard antigo · sino com reason 'rate_limit'
+    // Pega clinic_id da conversation pra escopar notif corretamente
+    try {
+      const { data: convRow } = await supabase
+        .from('wa_conversations')
+        .select('clinic_id, phone')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (convRow?.clinic_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc('inbox_notification_create', {
+          p_clinic_id:       convRow.clinic_id,
+          p_conversation_id: conversationId,
+          p_source:          'lara',
+          p_reason:          'rate_limit',
+          p_payload: {
+            phone:        convRow.phone,
+            daily_count:  dailySent,
+            limit:        45,
+            triggered_at: new Date().toISOString(),
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn(`[Notif] Falha ao gravar rate_limit notif: ${(notifErr as Error)?.message}`);
+    }
+
     return { allowed: false, reason: 'daily_limit_reached' };
   }
 

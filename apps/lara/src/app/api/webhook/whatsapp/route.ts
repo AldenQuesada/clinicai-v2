@@ -464,16 +464,37 @@ async function processInboundMessage(
   // 10.5 Human HandOff (Pausa Automática)
   if (aiResponse.includes('[ACIONAR_HUMANO]')) {
     aiResponse = aiResponse.replace(/\[ACIONAR_HUMANO\]/g, '').trim();
-    
+
     // Pausa a IA para este lead por 24 horas
     const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from('wa_conversations').update({ 
-      ai_paused_until: pauseUntil, 
-      ai_enabled: false, 
-      paused_by: 'human_handoff' 
+    await supabase.from('wa_conversations').update({
+      ai_paused_until: pauseUntil,
+      ai_enabled: false,
+      paused_by: 'human_handoff'
     }).eq('id', conv.id);
-    
-    console.log(`⚠️ [HandOff] AI pausada por 24h via intenção de transbordo para ${phone}`);
+
+    // Notifica dashboard antigo via inbox_notifications · sino com badge
+    // (RPC criada na migration 847 · clinic-dashboard polling pra exibir)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc('inbox_notification_create', {
+        p_clinic_id:       clinic_id,
+        p_conversation_id: conv.id,
+        p_source:          'lara',
+        p_reason:          'transbordo_humano',
+        p_payload: {
+          phone,
+          lead_name: lead.name,
+          lead_id:   lead.id,
+          funnel:    lead.funnel,
+          message_preview: textContent?.slice(0, 120) || '',
+        },
+      });
+    } catch (notifErr) {
+      console.warn(`[Notif] Falha ao gravar inbox_notifications: ${(notifErr as Error)?.message}`);
+    }
+
+    console.log(`⚠️ [HandOff] AI pausada 24h + notificacao gravada · ${phone}`);
   }
 
   // 10.5.5 Score and Tagging (Gatilhos de Qualificação)
