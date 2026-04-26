@@ -568,6 +568,114 @@ body.b2bm2-page {
   .b2bm2-funnel-cur { display: none; }
 }
 
+/* ─── /b2b/analytics/crescimento · 2 linhas slim ───────────────────────
+   Pedido Alden 2026-04-26: tudo em 2 linhas · cards compactos.
+   L1 · Cockpit + Forecast    L2 · Pipeline + Velocity + Payback
+   Overrides escopados a `.b2bm-cresc-slim` pra nao afetar outras telas. */
+.b2bm-cresc-slim .b2bm-widget,
+.b2bm-cresc-slim .b2bm2-card {
+  padding: 14px 16px;
+}
+.b2bm-cresc-slim .b2bm-widget-title {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+.b2bm-cresc-slim .b2bm-widget-sub,
+.b2bm-cresc-slim .b2bm2-card-sub {
+  font-size: 9px;
+  margin-bottom: 10px;
+}
+.b2bm-cresc-slim .b2bm-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+.b2bm-cresc-slim .b2bm-kpi-val {
+  font-size: 22px;
+}
+.b2bm-cresc-slim .b2bm-kpi-lbl {
+  font-size: 9px;
+}
+.b2bm-cresc-slim .b2bm-kpi-sub {
+  font-size: 10px;
+}
+
+/* Cockpit slim · big-n compactado, grid de semanas mais baixa */
+.b2bm-cresc-slim .b2bm2-cockpit-hdr {
+  margin-bottom: 8px;
+  gap: 10px;
+}
+.b2bm-cresc-slim .b2bm2-cockpit-main {
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.b2bm-cresc-slim .b2bm2-cockpit-big {
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.b2bm-cresc-slim .b2bm2-big-n {
+  font-size: 24px;
+}
+.b2bm-cresc-slim .b2bm2-big-lbl {
+  font-size: 9px;
+  margin-top: 2px;
+}
+.b2bm-cresc-slim .b2bm2-streak-num {
+  font-size: 18px;
+}
+.b2bm-cresc-slim .b2bm2-cockpit-streak {
+  padding: 6px 10px;
+}
+.b2bm-cresc-slim .b2bm2-cockpit-sub {
+  font-size: 9px;
+  margin-bottom: 6px;
+}
+.b2bm-cresc-slim .b2bm2-status-bar {
+  height: 8px;
+}
+
+/* Forecast slim · blocks side-by-side menos altos */
+.b2bm-cresc-slim .b2bm-forecast-dual {
+  gap: 10px;
+}
+.b2bm-cresc-slim .b2bm-forecast-block {
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.b2bm-cresc-slim .b2bm-forecast-block-title {
+  font-size: 9.5px;
+  margin-bottom: 4px;
+}
+.b2bm-cresc-slim .b2bm-forecast-meta {
+  margin-top: 6px;
+  font-size: 10px;
+}
+.b2bm-cresc-slim .b2bm-forecast-bar {
+  height: 4px;
+  margin-top: 5px;
+}
+.b2bm-cresc-slim .b2bm-forecast-overall {
+  margin-top: 8px;
+  font-size: 10px;
+}
+
+/* Pipeline funnel slim · cabe em 1/3 da largura */
+.b2bm-cresc-slim .b2bm2-funnel { gap: 6px; }
+.b2bm-cresc-slim .b2bm2-funnel-row {
+  grid-template-columns: 90px 1fr 38px 56px;
+  gap: 8px;
+  font-size: 11px;
+}
+.b2bm-cresc-slim .b2bm2-funnel-lbl { font-size: 11px; }
+.b2bm-cresc-slim .b2bm2-funnel-cum { font-size: 12px; }
+.b2bm-cresc-slim .b2bm2-funnel-cur { font-size: 9.5px; }
+@media (max-width: 1100px) {
+  .b2bm-cresc-slim .b2bm2-funnel-row {
+    grid-template-columns: 80px 1fr 34px;
+  }
+  .b2bm-cresc-slim .b2bm2-funnel-cur { display: none; }
+}
+
 /* ─── /b2b/analytics/parceiros · 2-col layout ─────────────────────────
    Pedido Alden 2026-04-26: tabela esquerda (~60%), Scatter+Heatmap
    empilhados na direita (~40%). Tudo numa vista so.

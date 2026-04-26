@@ -65,13 +65,15 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        {/* Linha 1 · curto prazo (semana) | medio prazo (projecao mes) */}
+        {/* Linha 1 · curto prazo (semana) | medio prazo (projecao mes) ·
+            altura reduzida via classe slim (pedido Alden 2026-04-26). */}
         <div
+          className="b2bm-cresc-slim"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
-            gap: 16,
-            marginBottom: 16,
+            gap: 12,
+            marginBottom: 12,
           }}
         >
           <Cockpit data={growth} />
@@ -80,19 +82,17 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {/* Linha 2 · pipeline state (full-width pra dar destaque ao fluxo) */}
-        <div style={{ marginBottom: 16 }}>
-          <Funnel data={funnel} />
-        </div>
-
-        {/* Linha 3 · eficiencia · velocity (tempo) | payback (dinheiro) */}
+        {/* Linha 2 · 3-col compacto · Pipeline + Velocity + Payback ·
+            tudo em 2 linhas no total (pedido Alden 2026-04-26). */}
         <div
+          className="b2bm-cresc-slim"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: 16,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 12,
           }}
         >
+          <Funnel data={funnel} />
           <div className="b2bm-widget">
             <Velocity data={velocity} />
           </div>
