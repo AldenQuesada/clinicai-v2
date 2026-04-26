@@ -171,7 +171,42 @@ export type AppNavUser = {
   panelUrl: string
 }
 
-export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: Insight[] }) {
+/**
+ * Counts injetados nos sub-tabs · "Ativas · 10". Mapeia chave logica pra
+ * count. AppHeader (server) calcula in-memory das parcerias ja fetched.
+ */
+export type SubtabCounts = {
+  insights?: number
+  active?: number
+  prospects?: number
+  inactive?: number
+  candidatos?: number
+  candidaturas?: number
+}
+
+/**
+ * Resolve count pra um sub-tab pelo seu href. Match defensivo · undefined
+ * se nao tem count pra esse href.
+ */
+function countForHref(href: string, counts: SubtabCounts): number | undefined {
+  if (href === '/insights') return counts.insights
+  if (href === '/partnerships?filter=active') return counts.active
+  if (href === '/partnerships?filter=prospects') return counts.prospects
+  if (href === '/partnerships?filter=inactive') return counts.inactive
+  if (href === '/b2b/candidatos') return counts.candidatos
+  if (href === '/b2b/candidaturas') return counts.candidaturas
+  return undefined
+}
+
+export function AppNav({
+  user,
+  insights = [],
+  counts = {},
+}: {
+  user: AppNavUser
+  insights?: Insight[]
+  counts?: SubtabCounts
+}) {
   const pathname = usePathname() || '/dashboard'
   const searchParams = useSearchParams()
   const searchString = searchParams ? searchParams.toString() : ''
@@ -285,7 +320,7 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
 
       {/* ──────────────────────────────────────────────────────────────
          ROW 3 · SUB-TABS · contextual da section ativa
-         Mirror legacy: gold underline ativo, sem prefix label.
+         Mirror legacy: gold underline ativo, sem prefix label, count "· N".
          ────────────────────────────────────────────────────────────── */}
       <div className="h-9 flex items-center px-5 overflow-x-auto custom-scrollbar">
         <nav className="flex items-center gap-1">
@@ -294,6 +329,7 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
               key={t.href}
               tab={t}
               active={activeSubtab?.href === t.href}
+              count={countForHref(t.href, counts)}
             />
           ))}
         </nav>
@@ -327,7 +363,15 @@ function FatherLink({
   )
 }
 
-function SubLink({ tab, active }: { tab: SubTab; active: boolean }) {
+function SubLink({
+  tab,
+  active,
+  count,
+}: {
+  tab: SubTab
+  active: boolean
+  count?: number
+}) {
   if (!tab.available) {
     return (
       <span
@@ -351,6 +395,9 @@ function SubLink({ tab, active }: { tab: SubTab; active: boolean }) {
       }`}
     >
       {tab.label}
+      {typeof count === 'number' && count > 0 ? (
+        <span className="ml-1 text-[#C9A96E] opacity-80">· {count}</span>
+      ) : null}
     </Link>
   )
 }

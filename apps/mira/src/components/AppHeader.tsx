@@ -17,10 +17,11 @@ import {
   ProfileRepository,
   B2BPartnershipRepository,
   B2BInsightsRepository,
+  B2BApplicationRepository,
   type Insight,
 } from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
-import { AppNav } from './AppNav'
+import { AppNav, type SubtabCounts } from './AppNav'
 
 const PAINEL_URL =
   process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -52,18 +53,21 @@ export async function AppHeader() {
     // ignore
   }
 
-  // Pre-fetch parcerias compactas pra Quick Search · zero N+1, 1 query
-  // + insights pra NotificationsBell · ambos defensivos.
+  // Pre-fetch parcerias compactas pra Quick Search + insights pra
+  // NotificationsBell + applications pending pra contagem · todos defensivos.
   let quickPartners: QuickPartner[] = []
   let insights: Insight[] = []
+  let counts: SubtabCounts = {}
   try {
     const ctx = await resolveClinicContext(supabase)
     if (ctx) {
       const partnerRepo = new B2BPartnershipRepository(supabase)
       const insightsRepo = new B2BInsightsRepository(supabase)
-      const [partners, insightsRes] = await Promise.all([
+      const applicationsRepo = new B2BApplicationRepository(supabase)
+      const [partners, insightsRes, pendingApplications] = await Promise.all([
         partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
         insightsRepo.global().catch(() => null),
+        applicationsRepo.countPending().catch(() => 0),
       ])
       quickPartners = partners.map((p) => ({
         id: p.id,
@@ -73,6 +77,18 @@ export async function AppHeader() {
         pillar: p.pillar ?? null,
       }))
       insights = insightsRes?.insights ?? []
+
+      // Counts in-memory · zero query extra (partners ja fetched)
+      const byStatus = (s: string) =>
+        partners.filter((p) => p.status === s).length
+      counts = {
+        insights: insights.length,
+        active: byStatus('active'),
+        prospects: byStatus('prospect') + byStatus('dna_check'),
+        inactive: byStatus('paused') + byStatus('closed'),
+        candidaturas: pendingApplications,
+        // candidatos · scout repo nao tem count direto, deixar undefined
+      }
     }
   } catch {
     // Header degradado · ok, render mesmo assim
@@ -94,6 +110,7 @@ export async function AppHeader() {
             panelUrl: PAINEL_URL,
           }}
           insights={insights}
+          counts={counts}
         />
       </Suspense>
     </>

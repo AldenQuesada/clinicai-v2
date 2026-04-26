@@ -35,6 +35,7 @@ import {
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
 import { PartnershipsTabsBar, type TabId } from './PartnershipsTabsBar'
 import { PartnershipsFiltersBar } from './PartnershipsFiltersBar'
+import { PartnershipsScoutBudget } from './PartnershipsScoutBudget'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,6 +113,8 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
       <div className="b2b-page-container">
+        <PartnershipsScoutBudget />
+
         <PartnershipsTabsBar active={tab} />
 
         <PartnershipsFiltersBar initialQuery={q} initialPillar={pillar} />
