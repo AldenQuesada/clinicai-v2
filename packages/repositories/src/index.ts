@@ -145,6 +145,13 @@ export {
   type GrowthPitchStats,
 } from './b2b-growth.repository'
 export {
+  B2BInsightsRepository,
+  type Insight,
+  type InsightKind,
+  type InsightSeverity,
+  type InsightsGlobal,
+} from './b2b-insights.repository'
+export {
   MiraCronRegistryRepository,
   type CronJobCategory,
   type CronRunStatus,

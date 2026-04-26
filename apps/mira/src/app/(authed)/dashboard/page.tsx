@@ -13,8 +13,11 @@
  * Sem cursive italic, sem shadow-luxury, sem rounded-card 20px.
  */
 
+import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { createLogger } from '@clinicai/logger'
+import type { Insight } from '@clinicai/repositories'
+import { InsightsBanner } from './InsightsBanner'
 
 const log = createLogger({ app: 'mira' })
 
@@ -41,11 +44,11 @@ interface DashboardStats {
   conversions30d: number
   vouchers30d: number
   topPerformers: Array<{ name: string; pillar: string; count: number }>
-  criticalAlerts: Array<{ kind: string; severity: string; message: string }>
+  insights: Insight[]
 }
 
 async function loadStats(): Promise<DashboardStats> {
-  const { ctx, repos, supabase } = await loadMiraServerContext()
+  const { ctx, repos } = await loadMiraServerContext()
   const todayIso = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z').toISOString()
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -75,24 +78,9 @@ async function loadStats(): Promise<DashboardStats> {
     safe('topPerformers',     () => repos.b2bPartnerships.topPerformers30d(ctx.clinic_id, 5), [] as Awaited<ReturnType<typeof repos.b2bPartnerships.topPerformers30d>>),
   ])
 
-  // Critical alerts · best-effort RPC
-  let criticalAlerts: DashboardStats['criticalAlerts'] = []
-  try {
-    const { data } = await supabase.rpc('b2b_critical_alerts', { p_clinic_id: ctx.clinic_id })
-    if (Array.isArray(data)) {
-      criticalAlerts = (data as Array<{
-        alert_kind?: string
-        severity?: string
-        message?: string
-      }>).slice(0, 5).map((a) => ({
-        kind: String(a.alert_kind ?? 'unknown'),
-        severity: String(a.severity ?? 'info'),
-        message: String(a.message ?? ''),
-      }))
-    }
-  } catch {
-    // RPC pode nao existir em prod · ignore
-  }
+  // Insights cross-partnership · b2b_insights_global (mig 800-19)
+  const insightsRes = await safe('insights', () => repos.b2bInsights.global(), null)
+  const insights: Insight[] = insightsRes?.insights ?? []
 
   return {
     costTodayUsd: costToday,
@@ -109,7 +97,7 @@ async function loadStats(): Promise<DashboardStats> {
       pillar: tp.partnership.pillar,
       count: tp.count,
     })),
-    criticalAlerts,
+    insights,
   }
 }
 
@@ -136,6 +124,9 @@ export default async function DashboardPage() {
             Evolution API · WhatsApp B2B
           </div>
         </div>
+
+        {/* Banner topo · insight critico/warning prioritario */}
+        <InsightsBanner insights={stats.insights} />
 
         {/* KPI cards densos · 4 colunas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -208,48 +199,69 @@ export default async function DashboardPage() {
             )}
           </Section>
 
-          <Section title="Alertas críticos">
-            {stats.criticalAlerts.length === 0 ? (
+          <Section
+            title="Insights cross-parcerias"
+            extra={
+              <Link
+                href="/insights"
+                className="text-[10px] uppercase tracking-[1.2px] text-[#9CA3AF] hover:text-[#C9A96E] transition-colors"
+              >
+                Ver todos →
+              </Link>
+            }
+          >
+            {stats.insights.length === 0 ? (
               <EmptyBlock
-                message="Tudo verde · nenhum alerta crítico."
-                hint="Mira monitora 0 conversões em 90d, vouchers expirando, cap mensal."
+                message="Tudo verde · nenhum insight ativo."
+                hint="Mira monitora cap, saúde, conversão, NPS e atividade cross-parcerias."
                 tone="ok"
               />
             ) : (
               <div className="flex flex-col gap-1.5">
-                {stats.criticalAlerts.map((a, i) => {
+                {stats.insights.slice(0, 5).map((a, i) => {
                   const isCritical = a.severity === 'critical'
+                  const isWarning = a.severity === 'warning'
+                  const isSuccess = a.severity === 'success'
+                  const styleBorder = isCritical
+                    ? 'border-[#EF4444]/30 bg-[#EF4444]/8'
+                    : isWarning
+                      ? 'border-[#F59E0B]/30 bg-[#F59E0B]/8'
+                      : isSuccess
+                        ? 'border-[#10B981]/30 bg-[#10B981]/8'
+                        : 'border-[#C9A96E]/30 bg-[#C9A96E]/8'
+                  const labelColor = isCritical
+                    ? 'text-[#FCA5A5]'
+                    : isWarning
+                      ? 'text-[#F59E0B]'
+                      : isSuccess
+                        ? 'text-[#10B981]'
+                        : 'text-[#C9A96E]'
                   return (
-                    <div
-                      key={i}
-                      className={`px-3 py-2 rounded-lg border text-xs ${
-                        isCritical
-                          ? 'border-[#EF4444]/30 bg-[#EF4444]/8'
-                          : 'border-[#F59E0B]/30 bg-[#F59E0B]/8'
-                      }`}
+                    <Link
+                      key={`${a.kind}-${a.partnership_id}-${i}`}
+                      href={a.action_url}
+                      className={`block px-3 py-2 rounded-lg border text-xs hover:bg-white/[0.03] transition-colors ${styleBorder}`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-[1.2px] ${
-                            isCritical ? 'text-[#FCA5A5]' : 'text-[#F59E0B]'
-                          }`}
-                        >
-                          {a.kind}
+                        <span className={`text-[10px] font-bold uppercase tracking-[1.2px] ${labelColor}`}>
+                          {a.title}
                         </span>
-                        <span
-                          className={`text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded ${
-                            isCritical
-                              ? 'bg-[#EF4444]/18 text-[#FCA5A5]'
-                              : 'bg-[#F59E0B]/18 text-[#F59E0B]'
-                          }`}
-                        >
+                        <span className={`text-[9px] font-bold uppercase tracking-[1.2px] px-1.5 py-0.5 rounded bg-white/5 ${labelColor}`}>
                           {a.severity}
                         </span>
                       </div>
                       <div className="text-[#F5F0E8] text-[12px]">{a.message}</div>
-                    </div>
+                    </Link>
                   )
                 })}
+                {stats.insights.length > 5 && (
+                  <Link
+                    href="/insights"
+                    className="text-[11px] text-[#9CA3AF] hover:text-[#C9A96E] transition-colors text-center pt-1.5 border-t border-dashed border-white/5"
+                  >
+                    + {stats.insights.length - 5} insights · ver lista completa
+                  </Link>
+                )}
               </div>
             )}
           </Section>
@@ -299,15 +311,20 @@ function KpiCard({
 function Section({
   title,
   children,
+  extra,
 }: {
   title: string
   children: React.ReactNode
+  extra?: React.ReactNode
 }) {
   return (
     <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4">
-      <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E] mb-3">
-        {title}
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
+          {title}
+        </h3>
+        {extra}
+      </div>
       {children}
     </div>
   )
