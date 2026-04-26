@@ -319,20 +319,51 @@ export function ContratoClient({
             )}
           </header>
 
+          {/* ActivityForm em modal overlay · b2b-overlay fixed inset-0
+              (pedido Alden 2026-04-26 · padrao consistente com Profissionais/
+              Channels/Admins · todos abrem fora da pagina). */}
           {(showActivityForm || editActivity) && (
-            <ActivityForm
-              partnershipId={partnershipId}
-              initial={editActivity}
-              onCancel={() => {
-                setShowActivityForm(false)
-                setEditActivity(null)
+            <div
+              className="b2b-overlay"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowActivityForm(false)
+                  setEditActivity(null)
+                }
               }}
-              onSaved={() => {
-                setShowActivityForm(false)
-                setEditActivity(null)
-                router.refresh()
-              }}
-            />
+            >
+              <div className="b2b-modal" style={{ maxWidth: 560 }}>
+                <header className="b2b-modal-hdr">
+                  <h2>{editActivity ? 'Editar atividade' : 'Nova atividade'}</h2>
+                  <button
+                    type="button"
+                    className="b2b-close"
+                    aria-label="Fechar"
+                    onClick={() => {
+                      setShowActivityForm(false)
+                      setEditActivity(null)
+                    }}
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="b2b-modal-body">
+                  <ActivityForm
+                    partnershipId={partnershipId}
+                    initial={editActivity}
+                    onCancel={() => {
+                      setShowActivityForm(false)
+                      setEditActivity(null)
+                    }}
+                    onSaved={() => {
+                      setShowActivityForm(false)
+                      setEditActivity(null)
+                      router.refresh()
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           {initialActivities.length === 0 && !showActivityForm ? (
@@ -521,17 +552,10 @@ function ActivityForm({
     })
   }
 
+  // Eyebrow + box gold removidos · agora vivem no header do Modal pai
+  // (b2b-modal-hdr h2 + b2b-modal-body wrapper). Pedido Alden 2026-04-26.
   return (
-    <div
-      className="rounded-lg p-3 flex flex-col gap-2.5"
-      style={{
-        background: 'rgba(201, 169, 110, 0.04)',
-        border: '1px solid rgba(201, 169, 110, 0.22)',
-      }}
-    >
-      <div className="text-[11px] uppercase tracking-[1.4px] font-bold text-[var(--b2b-champagne)]">
-        {initial ? 'Editar atividade' : 'Nova atividade'}
-      </div>
+    <div className="flex flex-col gap-2.5">
       <Field
         label="Tipo"
         value={

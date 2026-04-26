@@ -182,82 +182,111 @@ export function VouchersClient({
         </div>
       ) : null}
 
-      {/* Header com toggle do form */}
+      {/* Botao "+ Emitir voucher" · form abre como modal overlay
+          (padrao b2b-overlay igual ProfessionalsClient · pedido Alden 2026-04-26). */}
       {canManage ? (
-        showForm ? (
-          <form onSubmit={onIssue} className="b2b-card b2b-card-gold">
-            <div className="b2b-grid-2">
-              <Field
-                label="Nome do destinatário *"
-                value={recipientName}
-                onChange={setRecipientName}
-                placeholder="Mariana"
-              />
-              <Field
-                label={
-                  partnershipPhone
-                    ? 'WhatsApp (preenchido do cadastro)'
-                    : 'WhatsApp da parceira'
-                }
-                value={recipientPhone}
-                onChange={setRecipientPhone}
-                placeholder="55 44 9..."
-                mono
-              />
-              <Field
-                label="CPF (opcional)"
-                value={recipientCpf}
-                onChange={setRecipientCpf}
-              />
-              <Field
-                label="Combo (padrão se vazio)"
-                value={combo}
-                onChange={setCombo}
-                placeholder="veu_noiva+anovator"
-              />
-            </div>
+        <button
+          type="button"
+          className="b2b-btn b2b-btn-primary self-start"
+          onClick={() => setShowForm(true)}
+        >
+          + Emitir voucher
+        </button>
+      ) : null}
 
-            <div className="b2b-field" style={{ marginBottom: 0 }}>
-              <label className="b2b-field-lbl">Observações</label>
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="b2b-input"
-                style={{ resize: 'vertical', minHeight: 56 }}
-              />
-            </div>
-
-            <div className="b2b-form-actions">
+      {showForm && canManage ? (
+        <div
+          className="b2b-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowForm(false)
+              resetForm()
+            }
+          }}
+        >
+          <div className="b2b-modal" style={{ maxWidth: 720 }}>
+            <header className="b2b-modal-hdr">
+              <h2>Emitir voucher</h2>
               <button
                 type="button"
-                className="b2b-btn"
+                className="b2b-close"
+                aria-label="Fechar"
                 onClick={() => {
                   setShowForm(false)
                   resetForm()
                 }}
-                disabled={pending}
               >
-                Cancelar
+                ×
               </button>
-              <button
-                type="submit"
-                className="b2b-btn b2b-btn-primary"
-                disabled={pending}
-              >
-                {pending ? 'Emitindo…' : 'Emitir voucher'}
-              </button>
+            </header>
+            <div className="b2b-modal-body">
+              <form onSubmit={onIssue}>
+                <div className="b2b-grid-2">
+                  <Field
+                    label="Nome do destinatário *"
+                    value={recipientName}
+                    onChange={setRecipientName}
+                    placeholder="Mariana"
+                  />
+                  <Field
+                    label={
+                      partnershipPhone
+                        ? 'WhatsApp (preenchido do cadastro)'
+                        : 'WhatsApp da parceira'
+                    }
+                    value={recipientPhone}
+                    onChange={setRecipientPhone}
+                    placeholder="55 44 9..."
+                    mono
+                  />
+                  <Field
+                    label="CPF (opcional)"
+                    value={recipientCpf}
+                    onChange={setRecipientCpf}
+                  />
+                  <Field
+                    label="Combo (padrão se vazio)"
+                    value={combo}
+                    onChange={setCombo}
+                    placeholder="veu_noiva+anovator"
+                  />
+                </div>
+
+                <div className="b2b-field" style={{ marginBottom: 0 }}>
+                  <label className="b2b-field-lbl">Observações</label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="b2b-input"
+                    style={{ resize: 'vertical', minHeight: 56 }}
+                  />
+                </div>
+
+                <div className="b2b-form-actions">
+                  <button
+                    type="button"
+                    className="b2b-btn"
+                    onClick={() => {
+                      setShowForm(false)
+                      resetForm()
+                    }}
+                    disabled={pending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="b2b-btn b2b-btn-primary"
+                    disabled={pending}
+                  >
+                    {pending ? 'Emitindo…' : 'Emitir voucher'}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
-        ) : (
-          <button
-            type="button"
-            className="b2b-btn b2b-btn-primary self-start"
-            onClick={() => setShowForm(true)}
-          >
-            + Emitir voucher
-          </button>
-        )
+          </div>
+        </div>
       ) : null}
 
       {feedback ? <div className="b2b-feedback">{feedback}</div> : null}

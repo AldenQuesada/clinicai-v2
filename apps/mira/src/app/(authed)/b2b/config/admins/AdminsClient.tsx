@@ -158,21 +158,6 @@ export function AdminsClient({ initial }: { initial: B2BAdminPhoneRaw[] }) {
     })
   }
 
-  if (editing) {
-    return (
-      <div className="bcfg-body">
-        <AdminForm
-          draft={editing}
-          errors={errors}
-          saving={pending}
-          onChange={patch}
-          onSave={onSave}
-          onCancel={cancel}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="bcfg-body">
       <div className="bcfg-admin-list">
@@ -199,6 +184,28 @@ export function AdminsClient({ initial }: { initial: B2BAdminPhoneRaw[] }) {
       >
         + Novo admin
       </button>
+
+      {/* Modal overlay · padronizado com ProfessionalsClient (b2b-overlay
+          fixed inset-0 z-1000 · clique fora fecha · sem replace de tela). */}
+      {editing ? (
+        <div
+          className="b2b-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) cancel()
+          }}
+        >
+          <div className="b2b-modal" style={{ maxWidth: 640 }}>
+            <AdminForm
+              draft={editing}
+              errors={errors}
+              saving={pending}
+              onChange={patch}
+              onSave={onSave}
+              onCancel={cancel}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
