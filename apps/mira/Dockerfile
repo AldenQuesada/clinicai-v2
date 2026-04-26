@@ -18,6 +18,10 @@ COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 ENV NEXT_TELEMETRY_DISABLED=1
+# 18 commits sessao 2026-04-26 cresceu base ~8700 linhas · build Next.js
+# precisa heap 3GB pra nao OOM em container Easypanel default. Sem isso
+# o build trava silenciosamente.
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 RUN pnpm turbo run build --filter=@clinicai/mira
 
 # ─── Stage 3: runner (standalone Next.js) ─────────────────────────
