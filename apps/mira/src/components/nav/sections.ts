@@ -189,6 +189,7 @@ export const SECTIONS: Section[] = [
         subtabs: [
           { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
           { href: '/configuracoes?tab=pessoas', label: 'Pessoas', available: true },
+          { href: '/configuracoes?tab=docs-legais', label: 'Documentos legais', available: true },
         ],
       },
       {

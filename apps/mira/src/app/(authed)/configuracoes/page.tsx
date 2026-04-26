@@ -16,10 +16,18 @@ import { PessoasTab } from './PessoasTab'
 import { ChannelsTab } from './ChannelsTab'
 import { LogsTab } from './LogsTab'
 import { AutomacaoTab } from './AutomacaoTab'
+import { DocsLegaisTab } from './DocsLegaisTab'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_TABS = ['overview', 'pessoas', 'channels', 'logs', 'automacao'] as const
+const VALID_TABS = [
+  'overview',
+  'pessoas',
+  'channels',
+  'logs',
+  'automacao',
+  'docs-legais',
+] as const
 type Tab = (typeof VALID_TABS)[number]
 
 interface PageProps {
@@ -52,13 +60,16 @@ export default async function ConfigPage({ searchParams }: PageProps) {
   const activeTab: Tab =
     sp.tab && (VALID_TABS as readonly string[]).includes(sp.tab) ? (sp.tab as Tab) : 'overview'
 
-  // Tabs com 2 blocos lado a lado (overview/pessoas/logs/channels/automacao) usam wrap maior.
+  // Tabs com 2 blocos lado a lado (overview/pessoas/logs/channels/automacao/
+  // docs-legais) usam wrap maior · docs-legais precisa de espaco pro preview
+  // lado-a-lado dentro do modal.
   const wrapMax =
     activeTab === 'overview' ||
     activeTab === 'pessoas' ||
     activeTab === 'logs' ||
     activeTab === 'channels' ||
-    activeTab === 'automacao'
+    activeTab === 'automacao' ||
+    activeTab === 'docs-legais'
       ? 'max-w-[1200px]'
       : 'max-w-[960px]'
 
@@ -80,6 +91,7 @@ export default async function ConfigPage({ searchParams }: PageProps) {
           />
         )}
         {activeTab === 'automacao' && <AutomacaoTab />}
+        {activeTab === 'docs-legais' && <DocsLegaisTab />}
       </div>
     </main>
   )
