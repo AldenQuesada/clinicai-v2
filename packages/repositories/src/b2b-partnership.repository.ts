@@ -33,6 +33,10 @@ export interface B2BPartnershipDTO {
   /** Score DNA · 0-10 · null se nao avaliado */
   dnaScore: number | null
   healthColor: 'unknown' | 'green' | 'yellow' | 'red'
+  /** Account manager atribuido (label) · usado em handoff (mig 0xx). */
+  accountManager: string | null
+  /** Quando o accountManager atual foi atribuido. */
+  assignedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -60,6 +64,8 @@ function mapPartnershipRow(row: any): B2BPartnershipDTO {
       row.contract_duration_months != null ? Number(row.contract_duration_months) : null,
     dnaScore: row.dna_score != null ? Number(row.dna_score) : null,
     healthColor: (row.health_color ?? 'unknown') as B2BPartnershipDTO['healthColor'],
+    accountManager: row.account_manager ?? null,
+    assignedAt: row.assigned_at ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
   }

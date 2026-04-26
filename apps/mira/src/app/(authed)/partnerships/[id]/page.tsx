@@ -1,21 +1,20 @@
 /**
- * Partnership detail · 4 abas (Detalhe / Vouchers / Performance / Health).
+ * Partnership detail · 5 abas (Detalhe / Vouchers / Performance / Comentarios / Health).
  *
- * Tabs renderizadas como sections empilhadas (server-side rendered, sem JS).
+ * Espelho do `b2b-detail.ui.js` overlay legacy adaptado pra rota dedicada.
+ * Detalhe traz status switcher + AccountManager + ficha completa (KV blocks).
  * Tab "ativa" highlightada via search param `?tab=`.
- *
- * Visual mirror mira-config antigo · tabs com border-b 2px gold no active,
- * max-w-[960px] estreito, header denso sem icon-box luxury.
  */
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Info, Ticket, BarChart3, Activity } from 'lucide-react'
+import { ArrowLeft, Info, Ticket, BarChart3, Activity, MessageSquare } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { DetailTab } from './DetailTab'
 import { VouchersTab } from './VouchersTab'
 import { PerformanceTab } from './PerformanceTab'
 import { HealthTab } from './HealthTab'
+import { CommentsTab } from './CommentsTab'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,8 +27,11 @@ const TABS = [
   { key: 'detail', label: 'Detalhe', icon: Info },
   { key: 'vouchers', label: 'Vouchers', icon: Ticket },
   { key: 'performance', label: 'Performance', icon: BarChart3 },
+  { key: 'comments', label: 'Comentários', icon: MessageSquare },
   { key: 'health', label: 'Health', icon: Activity },
 ] as const
+
+type TabKey = (typeof TABS)[number]['key']
 
 export default async function PartnershipDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params
@@ -41,10 +43,16 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
     notFound()
   }
 
-  const activeTab = (sp.tab && TABS.some((t) => t.key === sp.tab) ? sp.tab : 'detail') as
-    | 'detail' | 'vouchers' | 'performance' | 'health'
+  const activeTab: TabKey =
+    sp.tab && TABS.some((t) => t.key === sp.tab) ? (sp.tab as TabKey) : 'detail'
 
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+
+  // Carrega managers em paralelo se a tab Detalhe esta ativa (passa pra AccountManager)
+  const managers =
+    activeTab === 'detail'
+      ? await repos.b2bCollab.teamManagers().catch(() => [])
+      : []
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
@@ -68,7 +76,7 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
           </p>
         </div>
 
-        {/* Tabs · border-b 2px gold mirror b2b-config */}
+        {/* Tabs */}
         <div className="flex gap-1 border-b border-white/10 -mt-1">
           {TABS.map((t) => {
             const Icon = t.icon
@@ -92,13 +100,25 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
 
         {/* Tab content */}
         {activeTab === 'detail' && (
-          <DetailTab partnership={partnership} canManage={canManage} />
+          <DetailTab
+            partnership={partnership}
+            canManage={canManage}
+            managers={managers.map((m) => m.name || m.email || 'sem-nome').filter(Boolean)}
+          />
         )}
         {activeTab === 'vouchers' && (
-          <VouchersTab partnershipId={partnership.id} />
+          <VouchersTab
+            partnershipId={partnership.id}
+            partnershipName={partnership.name}
+            partnershipPhone={partnership.contactPhone || ''}
+            canManage={canManage}
+          />
         )}
         {activeTab === 'performance' && (
           <PerformanceTab partnership={partnership} />
+        )}
+        {activeTab === 'comments' && (
+          <CommentsTab partnershipId={partnership.id} canManage={canManage} />
         )}
         {activeTab === 'health' && (
           <HealthTab partnershipId={partnership.id} />

@@ -12,16 +12,30 @@ import {
   setPartnershipStatusAction,
 } from '../actions'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
+import { ManagementWidget } from './ManagementWidget'
 
 export function DetailTab({
   partnership,
   canManage,
+  managers,
 }: {
   partnership: B2BPartnershipDTO
   canManage: boolean
+  managers: string[]
 }) {
   return (
     <div className="flex flex-col gap-3">
+      {/* Status switcher + Account manager · sempre no topo */}
+      <Section title="Gestão">
+        <ManagementWidget
+          partnershipId={partnership.id}
+          currentStatus={partnership.status}
+          currentManager={partnership.accountManager}
+          managers={managers}
+          canManage={canManage}
+        />
+      </Section>
+
       {/* Dados gerais · gold tinted form */}
       <Section title="Dados gerais">
         <form

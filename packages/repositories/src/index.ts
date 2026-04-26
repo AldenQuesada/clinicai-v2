@@ -113,6 +113,21 @@ export {
   type NpsSummary,
 } from './b2b-nps.repository'
 export {
+  B2BPerformanceRepository,
+  type PerformanceROI,
+  type PerformanceVouchers,
+  type PerformanceNPS,
+  type PerformanceHealth,
+  type PerformanceHealthHistory,
+  type PerformanceVelocity,
+  type PerformanceChurnRisk,
+  type PerformanceFull,
+} from './b2b-performance.repository'
+export {
+  B2BCommentsRepository,
+  type PartnershipComment,
+} from './b2b-comments.repository'
+export {
   B2BMetricsV2Repository,
   type GrowthWeek,
   type GrowthWeekly,

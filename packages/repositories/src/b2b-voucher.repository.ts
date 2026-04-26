@@ -317,6 +317,63 @@ export class B2BVoucherRepository {
   }
 
   /**
+   * Marca voucher como entregue (delivered) · usado quando admin confirma
+   * que enviou link/audio pra parceira manualmente. RPC b2b_voucher_mark_delivered.
+   */
+  async markDelivered(id: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_voucher_mark_delivered', {
+      p_voucher_id: id,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
+  /**
+   * Cancela voucher · marca status='cancelled' + razao opcional.
+   * RPC b2b_voucher_cancel(p_voucher_id, p_reason).
+   */
+  async cancel(id: string, reason: string | null): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_voucher_cancel', {
+      p_voucher_id: id,
+      p_reason: reason ?? null,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: (data as { ok?: boolean })?.ok === true }
+  }
+
+  /**
+   * Funnel de vouchers de uma parceria · contagens por status + redemption rate.
+   * RPC b2b_voucher_funnel(p_partnership_id) retorna jsonb.
+   */
+  async funnel(partnershipId: string): Promise<{
+    issued: number
+    delivered: number
+    opened: number
+    redeemed: number
+    expired: number
+    cancelled: number
+    total: number
+    redemption_rate_pct: number
+    last_issued_at: string | null
+  } | null> {
+    const { data, error } = await this.supabase.rpc('b2b_voucher_funnel', {
+      p_partnership_id: partnershipId,
+    })
+    if (error || !data) return null
+    return data as {
+      issued: number
+      delivered: number
+      opened: number
+      redeemed: number
+      expired: number
+      cancelled: number
+      total: number
+      redemption_rate_pct: number
+      last_issued_at: string | null
+    }
+  }
+
+  /**
    * Conta vouchers no periodo · usado em dashboard pra "vouchers emitidos hoje/7d".
    */
   async countByPeriod(
