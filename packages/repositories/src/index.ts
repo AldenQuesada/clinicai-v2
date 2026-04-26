@@ -21,6 +21,17 @@ export { ProfileRepository, type ProfileDTO } from './profile.repository'
 export { MiraStateRepository, type MiraStateRow } from './mira-state.repository'
 export { B2BPartnershipRepository, type B2BPartnershipDTO } from './b2b-partnership.repository'
 export {
+  B2BPartnershipContractRepository,
+  type PartnershipContractDTO,
+  type PartnershipActivityDTO,
+  type ContractStatus,
+  type ContractUpsertInput,
+  type ActivityKind,
+  type ActivityStatus,
+  type ActivityResponsible,
+  type ActivityUpsertInput,
+} from './b2b-partnership-contract.repository'
+export {
   B2BVoucherRepository,
   type B2BVoucherDTO,
   type IssueVoucherInput,

@@ -11,7 +11,7 @@
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Info, Ticket, BarChart3, TrendingUp, Activity, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Info, Ticket, BarChart3, TrendingUp, Activity, MessageSquare, FileSignature } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { DetailTab } from './DetailTab'
 import { VouchersTab } from './VouchersTab'
@@ -19,6 +19,7 @@ import { PerformanceTab } from './PerformanceTab'
 import { HealthTab } from './HealthTab'
 import { CommentsTab } from './CommentsTab'
 import { GrowthTab } from './GrowthTab'
+import { ContratoTab } from './ContratoTab'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,7 @@ const TABS = [
   { key: 'detail', label: 'Detalhe', icon: Info },
   { key: 'vouchers', label: 'Vouchers', icon: Ticket },
   { key: 'performance', label: 'Performance', icon: BarChart3 },
+  { key: 'contrato', label: 'Contrato', icon: FileSignature },
   { key: 'crescer', label: 'Crescer', icon: TrendingUp },
   { key: 'comments', label: 'Comentários', icon: MessageSquare },
   { key: 'health', label: 'Health', icon: Activity },
@@ -192,6 +194,9 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
         )}
         {activeTab === 'performance' && (
           <PerformanceTab partnership={partnership} />
+        )}
+        {activeTab === 'contrato' && (
+          <ContratoTab partnershipId={partnership.id} canManage={canManage} />
         )}
         {activeTab === 'crescer' && (
           <GrowthTab partnership={partnership} />

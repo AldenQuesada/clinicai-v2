@@ -25,6 +25,7 @@ import {
   // Mira-specific
   MiraStateRepository,
   B2BPartnershipRepository,
+  B2BPartnershipContractRepository,
   B2BVoucherRepository,
   B2BVoucherDispatchQueueRepository,
   B2BAttributionRepository,
@@ -75,6 +76,7 @@ export interface MiraRepos {
   // Mira-specific
   miraState: MiraStateRepository
   b2bPartnerships: B2BPartnershipRepository
+  b2bPartnershipContracts: B2BPartnershipContractRepository
   b2bVouchers: B2BVoucherRepository
   voucherQueue: B2BVoucherDispatchQueueRepository
   b2bAttributions: B2BAttributionRepository
@@ -125,6 +127,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
 
     miraState: new MiraStateRepository(supabase),
     b2bPartnerships: new B2BPartnershipRepository(supabase),
+    b2bPartnershipContracts: new B2BPartnershipContractRepository(supabase),
     b2bVouchers: new B2BVoucherRepository(supabase),
     voucherQueue: new B2BVoucherDispatchQueueRepository(supabase),
     b2bAttributions: new B2BAttributionRepository(supabase),
