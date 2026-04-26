@@ -14,9 +14,16 @@
  * (digest 941761223).
  */
 
+import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { TimeRangePicker } from './_shared/TimeRangePicker'
 import { parseTimeRange } from './_shared/timeRangeUtils'
+import {
+  analyzeOverview,
+  type OverviewDiagnostic,
+  type OverviewSignal,
+  type SignalStatus,
+} from './_shared/overviewAnalyzer'
 import type { AnalyticsBlob } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -96,14 +103,14 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
             )}
           </div>
         ) : (
-          <ObjectivesView data={data} />
+          <ObjectivesView data={data} days={days} />
         )}
       </div>
     </main>
   )
 }
 
-function ObjectivesView({ data }: { data: AnalyticsBlob }) {
+function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
   // Defensive defaults · RPC pode retornar shape parcial.
   const a = data.applications ?? ({} as AnalyticsBlob['applications'])
   const v = data.vouchers ?? ({} as AnalyticsBlob['vouchers'])
@@ -111,6 +118,11 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
   const h = data.health ?? ({} as AnalyticsBlob['health'])
   const m = data.mira ?? ({} as AnalyticsBlob['mira'])
   const nps = m.nps_summary ?? { responses: 0, nps_score: null }
+
+  // Diagnostico interpretativo · transforma estatistica bruta em insights
+  const diag = analyzeOverview(data, days)
+  const sig = (key: OverviewSignal['section']) =>
+    diag.signals.find((s) => s.section === key)
 
   // Snapshot · 6 KPIs micro do programa em 1 linha
   const totalActive = Number(h.total ?? 0)
@@ -128,6 +140,9 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
 
   return (
     <>
+      {/* ═══ CAMADA 0 · DIAGNÓSTICO INTERPRETATIVO ═══ */}
+      <DiagnosticBanner diag={diag} />
+
       {/* ═══ CAMADA 1 · SNAPSHOT (geral) ═══ */}
       <SnapshotRow
         kpis={[
@@ -166,6 +181,7 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
         sub="Voucher enviado → agendou → compareceu → virou paciente pagante"
       >
         <JourneyBar v={v} />
+        <SectionInterpretation signal={sig('conversion')} />
       </CompactSection>
 
       {/* ═══ CAMADA 3 · ESPECÍFICAS · 2 colunas ═══ */}
@@ -179,10 +195,12 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
       >
         <CompactSection emoji="🌟" title="Origem dos vouchers" sub="Mira / Manual / Backfill">
           <VoucherSplit v={v} />
+          <SectionInterpretation signal={sig('origin')} />
         </CompactSection>
 
         <CompactSection emoji="🩺" title="Saúde do programa" sub="Distribuição das ativas">
           <HealthBar h={h} />
+          <SectionInterpretation signal={sig('health')} />
         </CompactSection>
 
         <CompactSection
@@ -205,6 +223,7 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
               },
             ]}
           />
+          <SectionInterpretation signal={sig('growth')} />
         </CompactSection>
 
         <CompactSection
@@ -222,6 +241,7 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
               { lbl: 'Maior', val: `${t.max_approval_hours ?? 0}h` },
             ]}
           />
+          <SectionInterpretation signal={sig('velocity')} />
         </CompactSection>
       </div>
 
@@ -254,7 +274,11 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
             },
           ]}
         />
+        <SectionInterpretation signal={sig('mira')} />
       </CompactSection>
+
+      {/* ═══ CAMADA 5 · PRÓXIMOS PASSOS ═══ */}
+      <NextActions actions={diag.actions} />
 
       {/* Footer */}
       <div
@@ -271,6 +295,238 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
           : '—'}
       </div>
     </>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Interpretive layer · diagnostic + signals + actions (2026-04-26)
+// ═══════════════════════════════════════════════════════════════════════
+
+const STATUS_COLORS: Record<SignalStatus, { bg: string; border: string; text: string; emoji: string }> = {
+  green: {
+    bg: 'rgba(16, 185, 129, 0.06)',
+    border: 'rgba(16, 185, 129, 0.3)',
+    text: '#6EE7B7',
+    emoji: '✓',
+  },
+  amber: {
+    bg: 'rgba(245, 158, 11, 0.06)',
+    border: 'rgba(245, 158, 11, 0.3)',
+    text: '#FCD34D',
+    emoji: '⚠',
+  },
+  red: {
+    bg: 'rgba(239, 68, 68, 0.06)',
+    border: 'rgba(239, 68, 68, 0.3)',
+    text: '#FCA5A5',
+    emoji: '🔴',
+  },
+  neutral: {
+    bg: 'rgba(201, 169, 110, 0.04)',
+    border: 'rgba(201, 169, 110, 0.2)',
+    text: '#D4B785',
+    emoji: '·',
+  },
+}
+
+function DiagnosticBanner({ diag }: { diag: OverviewDiagnostic }) {
+  const c = STATUS_COLORS[diag.status]
+  return (
+    <div
+      style={{
+        padding: '14px 18px',
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        borderRadius: 10,
+        marginBottom: 12,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 14,
+      }}
+    >
+      <div style={{ fontSize: 22, lineHeight: 1, marginTop: 2 }}>{c.emoji}</div>
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            color: c.text,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            marginBottom: 4,
+          }}
+        >
+          Diagnóstico do programa
+        </div>
+        <div
+          style={{
+            fontFamily: '"Cormorant Garamond", Georgia, serif',
+            fontSize: 22,
+            fontWeight: 500,
+            color: '#F5F0E8',
+            lineHeight: 1.15,
+            marginBottom: 4,
+          }}
+        >
+          {diag.headline}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: '#9CA3AF',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            lineHeight: 1.4,
+          }}
+        >
+          {diag.subtitle}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SectionInterpretation({
+  signal,
+}: {
+  signal: OverviewSignal | undefined
+}) {
+  if (!signal) return null
+  const c = STATUS_COLORS[signal.status]
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        paddingTop: 8,
+        borderTop: '1px dashed rgba(255,255,255,0.07)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 6,
+      }}
+    >
+      <span style={{ color: c.text, fontSize: 11, marginTop: 1 }}>{c.emoji}</span>
+      <span
+        style={{
+          fontSize: 11,
+          color: '#B5A894',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          lineHeight: 1.45,
+        }}
+      >
+        {signal.message}
+      </span>
+    </div>
+  )
+}
+
+function NextActions({
+  actions,
+}: {
+  actions: OverviewDiagnostic['actions']
+}) {
+  if (!actions || actions.length === 0) return null
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '14px 16px',
+        background: 'rgba(201, 169, 110, 0.05)',
+        border: '1px solid rgba(201, 169, 110, 0.25)',
+        borderRadius: 10,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '2.5px',
+          textTransform: 'uppercase',
+          color: '#C9A96E',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          marginBottom: 10,
+        }}
+      >
+        🎯 Próximos passos sugeridos
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {actions.map((act, i) => {
+          const num = i + 1
+          const inner = (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 6,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                cursor: act.href ? 'pointer' : 'default',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: '"Cormorant Garamond", Georgia, serif',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  color: '#C9A96E',
+                  lineHeight: 1,
+                  minWidth: 16,
+                }}
+              >
+                {num}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#F5F0E8',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    marginBottom: 2,
+                  }}
+                >
+                  {act.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    color: '#9CA3AF',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {act.rationale}
+                </div>
+              </div>
+              {act.href ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: '#C9A96E',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    marginTop: 2,
+                  }}
+                >
+                  →
+                </span>
+              ) : null}
+            </div>
+          )
+          return act.href ? (
+            <Link
+              key={`${act.priority}-${act.title}`}
+              href={act.href}
+              style={{ textDecoration: 'none' }}
+            >
+              {inner}
+            </Link>
+          ) : (
+            <div key={`${act.priority}-${act.title}`}>{inner}</div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
