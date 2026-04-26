@@ -293,7 +293,8 @@ export function CommClient({
   const [activeTab, setActiveTab] = useState<TabId>('events')
   const [filterEventKey, setFilterEventKey] = useState<string | null>(null)
   // Mig 800-41 · bucket filter ('all' = sem filtro)
-  const [bucketFilter, setBucketFilter] = useState<string>('all')
+  // Default 'parceiros' · bucket mais usado · evita estado vazio inicial
+  const [bucketFilter, setBucketFilter] = useState<string>('parceiros')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState<EditorDraft | null>(null)
   const [previewHistory, setPreviewHistory] = useState<B2BCommHistoryEntry | null>(null)
@@ -313,7 +314,6 @@ export function CommClient({
 
   // Catalog filtrado por bucket · alimenta tabs Events/Templates
   const filteredCatalog = useMemo(() => {
-    if (bucketFilter === 'all') return catalog
     return catalog
       .map((g) => ({
         ...g,
@@ -324,10 +324,9 @@ export function CommClient({
 
   // Counts por bucket · alimenta os chips do rail
   const bucketCounts = useMemo(() => {
-    const counts = { all: 0, parceiros: 0, convidadas: 0, admin: 0 } as Record<string, number>
+    const counts: Record<string, number> = { parceiros: 0, convidadas: 0, admin: 0 }
     for (const t of templates) {
       const bucket = eventKeyToBucket.get(t.event_key) || 'parceiros'
-      counts.all += 1
       counts[bucket] = (counts[bucket] || 0) + 1
     }
     return counts
@@ -335,7 +334,6 @@ export function CommClient({
 
   // Templates filtrados por bucket · alimenta tab Templates
   const filteredTemplates = useMemo(() => {
-    if (bucketFilter === 'all') return templates
     return templates.filter(
       (t) => (eventKeyToBucket.get(t.event_key) || 'parceiros') === bucketFilter,
     )
@@ -2808,7 +2806,6 @@ function ConfirmModal({
 // Filtra todas as tabs simultaneamente. Counts vem dos templates ativos.
 // ═══════════════════════════════════════════════════════════════════════
 const BUCKETS: Array<{ id: string; label: string; icon: string }> = [
-  { id: 'all', label: 'Todos', icon: '🔍' },
   { id: 'parceiros', label: 'Parceiros', icon: '📦' },
   { id: 'convidadas', label: 'Convidadas', icon: '👥' },
   { id: 'admin', label: 'Admin', icon: '👨‍⚕️' },
