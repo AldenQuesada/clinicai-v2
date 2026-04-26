@@ -124,11 +124,22 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         status: p.status ?? null,
         pillar: p.pillar ?? null,
       }))
+      // Idade da parceria active mais antiga · alimenta grace periods em
+      // system-insights (no_senders 7d, nps_silent 60d).
+      const oldestActivePartnershipDays = (() => {
+        const actives = partners.filter((p) => p.status === 'active' && p.createdAt)
+        if (actives.length === 0) return 0
+        const oldestMs = Math.min(
+          ...actives.map((p) => new Date(p.createdAt).getTime()),
+        )
+        return Math.floor((Date.now() - oldestMs) / 86_400_000)
+      })()
       // Merge: insights por parceria (RPC) + system insights sinteticos +
       // critical_alerts (antes ficavam no banner sticky em /b2b/analytics).
       const sysInsights = buildSystemInsights({
         data: analyticsBlob,
         pendingApplications,
+        oldestActivePartnershipDays,
       })
       const alertInsights: Insight[] = criticalAlerts.map((a) => {
         const sev: InsightSeverity =

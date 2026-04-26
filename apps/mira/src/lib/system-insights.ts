@@ -16,6 +16,8 @@ import type { AnalyticsBlob, Insight } from '@clinicai/repositories'
 interface SystemInsightInput {
   data: AnalyticsBlob | null
   pendingApplications: number
+  /** Idade em dias da parceria active mais antiga · grace periods. */
+  oldestActivePartnershipDays?: number
 }
 
 /**
@@ -29,9 +31,21 @@ const SCORE = {
   system_pending_apps: 70, // candidaturas paradas
 } as const
 
+// Thresholds calibrados ONDA 1.5 (2026-04-26 · reset notificacoes falsas):
+// - 3 candidaturas era barulhento · 5 reflete real backlog luxury.
+// - 48h era SaaS · luxury permite 72h pra avaliacao com cuidado.
+// - no_senders 7d grace · evita alarme durante setup inicial.
+// - nps_silent 60d minimo · NPS prematuro era falso (parceria sem
+//   convidadas atendidas ainda).
+const PENDING_APPS_THRESHOLD = 5
+const VELOCITY_SLOW_HOURS = 72
+const NO_SENDERS_GRACE_DAYS = 7
+const NPS_SILENT_MIN_DAYS = 60
+
 export function buildSystemInsights({
   data,
   pendingApplications,
+  oldestActivePartnershipDays,
 }: SystemInsightInput): Insight[] {
   const out: Insight[] = []
   if (!data) return out
@@ -46,9 +60,10 @@ export function buildSystemInsights({
   const npsResponses = Number(nps.responses ?? 0)
   const avgHours = Number(t.avg_approval_hours ?? 0)
   const resolved = Number(t.resolved_count ?? 0)
+  const ageDays = Number(oldestActivePartnershipDays ?? 0)
 
   // ─── 1. Sem WhatsApp ativo · automacao Mira nao roda ────────────────
-  if (sendersActive === 0 && totalActive > 0) {
+  if (sendersActive === 0 && totalActive > 0 && ageDays >= NO_SENDERS_GRACE_DAYS) {
     out.push({
       kind: 'system_no_senders',
       severity: 'critical',
@@ -62,15 +77,15 @@ export function buildSystemInsights({
     })
   }
 
-  // ─── 2. Candidaturas paradas (alta velocity) ─────────────────────────
-  if (pendingApplications >= 3 || (pendingApplications > 0 && resolved > 0 && avgHours > 48)) {
-    const msg =
-      avgHours > 48
-        ? `${pendingApplications} candidatura${pendingApplications > 1 ? 's' : ''} aguardando · tempo medio ${avgHours}h. Convidadas estao esfriando.`
-        : `${pendingApplications} candidatura${pendingApplications > 1 ? 's' : ''} aguardando aprovacao.`
+  // ─── 2. Candidaturas paradas ─────────────────────────────────────────
+  const slowApproval = pendingApplications > 0 && resolved > 0 && avgHours > VELOCITY_SLOW_HOURS
+  if (pendingApplications >= PENDING_APPS_THRESHOLD || slowApproval) {
+    const msg = slowApproval
+      ? `${pendingApplications} candidatura${pendingApplications > 1 ? 's' : ''} aguardando · tempo medio ${avgHours}h. Convidadas estao esfriando.`
+      : `${pendingApplications} candidatura${pendingApplications > 1 ? 's' : ''} aguardando aprovacao.`
     out.push({
       kind: 'system_pending_apps',
-      severity: avgHours > 48 ? 'critical' : 'warning',
+      severity: slowApproval ? 'critical' : 'warning',
       title: 'Candidaturas pendentes',
       message: msg,
       partnership_id: '',
@@ -81,12 +96,12 @@ export function buildSystemInsights({
   }
 
   // ─── 3. Velocity alta sem ter candidaturas pendentes (resolvidas devagar) ──
-  if (pendingApplications === 0 && resolved > 0 && avgHours > 48) {
+  if (pendingApplications === 0 && resolved > 0 && avgHours > VELOCITY_SLOW_HOURS) {
     out.push({
       kind: 'system_velocity_slow',
       severity: 'warning',
       title: 'Aprovacao lenta',
-      message: `Tempo medio de aprovacao em ${avgHours}h (${resolved} resolvidas). Acima do recomendado de 24h.`,
+      message: `Tempo medio de aprovacao em ${avgHours}h (${resolved} resolvidas). Acima do recomendado.`,
       partnership_id: '',
       partnership_name: 'Sistema',
       action_url: '/b2b/candidaturas',
@@ -95,7 +110,12 @@ export function buildSystemInsights({
   }
 
   // ─── 4. NPS silente · senders ok mas zero respostas ──────────────────
-  if (sendersActive > 0 && npsResponses === 0 && totalActive >= 3) {
+  if (
+    sendersActive > 0 &&
+    npsResponses === 0 &&
+    totalActive >= 3 &&
+    ageDays >= NPS_SILENT_MIN_DAYS
+  ) {
     out.push({
       kind: 'system_nps_silent',
       severity: 'warning',
