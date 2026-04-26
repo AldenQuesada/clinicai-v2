@@ -47,7 +47,7 @@ export default async function ImagemPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        <ImageFocus rows={performance} />
+        <ImageFocus rows={performance} days={days} />
       </div>
     </main>
   )
