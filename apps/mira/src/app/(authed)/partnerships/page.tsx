@@ -152,35 +152,89 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
   )
 }
 
+/**
+ * Labels ricos por tier · so usado quando tab='active' (groupByTier).
+ * Inline aqui pra evitar poluir b2b-ui-helpers com strings exclusivas
+ * desta page.
+ */
+const TIER_META: Record<string, { title: string; subtitle: string; desc: string; cls: string }> = {
+  '1': {
+    title: 'Tier 1',
+    subtitle: 'Premium',
+    desc: 'Parcerias estratégicas, mais investimento.',
+    cls: 'b2b-group-tier-1',
+  },
+  '2': {
+    title: 'Tier 2',
+    subtitle: 'Padrão',
+    desc: 'Operação recorrente, equilíbrio.',
+    cls: 'b2b-group-tier-2',
+  },
+  '3': {
+    title: 'Tier 3',
+    subtitle: 'Apoio',
+    desc: 'Boca-a-boca, baixo custo.',
+    cls: 'b2b-group-tier-3',
+  },
+  untiered: {
+    title: 'Sem tier',
+    subtitle: '',
+    desc: 'Ainda não classificadas.',
+    cls: 'b2b-group-untiered',
+  },
+}
+
+interface GroupMeta {
+  title: string
+  subtitle?: string
+  desc?: string
+  cls?: string
+}
+
 function ListBody({ items, tab }: { items: B2BPartnershipDTO[]; tab: TabId }) {
   let groups: Record<string, B2BPartnershipDTO[]>
-  let getHeader: (k: string) => string
+  let getMeta: (k: string) => GroupMeta
 
   if (tab === 'active') {
     groups = groupByTier(items)
-    getHeader = (k) => (k === 'untiered' ? 'Sem tier' : `Tier ${k}`)
+    getMeta = (k) => {
+      const m = TIER_META[k]
+      return m
+        ? { title: m.title, subtitle: m.subtitle, desc: m.desc, cls: m.cls }
+        : { title: k }
+    }
   } else if (tab === 'inactive') {
     groups = groupByStatus(items)
-    getHeader = (k) => statusLabel(k)
+    getMeta = (k) => ({ title: statusLabel(k) })
   } else {
     groups = groupByPillar(items)
-    getHeader = (k) => k.charAt(0).toUpperCase() + k.slice(1)
+    getMeta = (k) => ({ title: k.charAt(0).toUpperCase() + k.slice(1) })
   }
 
   const keys = Object.keys(groups).filter((k) => groups[k].length > 0)
 
   return (
     <>
-      {keys.map((k) => (
-        <div key={k} className="b2b-group">
-          <div className="b2b-group-hdr">
-            {getHeader(k)} · {groups[k].length}
+      {keys.map((k) => {
+        const meta = getMeta(k)
+        const groupCls = meta.cls ? `b2b-group ${meta.cls}` : 'b2b-group'
+        const titleText = meta.subtitle ? `${meta.title} · ${meta.subtitle}` : meta.title
+        return (
+          <div key={k} className={groupCls}>
+            <div className="b2b-group-hdr">
+              <span className="b2b-group-hdr-title">{titleText}</span>
+              <span className="b2b-group-hdr-count">
+                {groups[k].length}{' '}
+                {groups[k].length === 1 ? 'parceria' : 'parcerias'}
+              </span>
+              {meta.desc && <span className="b2b-group-hdr-desc">{meta.desc}</span>}
+            </div>
+            {groups[k].map((p) => (
+              <Row key={p.id} p={p} />
+            ))}
           </div>
-          {groups[k].map((p) => (
-            <Row key={p.id} p={p} />
-          ))}
-        </div>
-      ))}
+        )
+      })}
     </>
   )
 }

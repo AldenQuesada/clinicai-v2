@@ -17,7 +17,7 @@
 import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { TimeRangePicker } from './_shared/TimeRangePicker'
-import { parseTimeRange } from './_shared/timeRangeUtils'
+import { parseTimeRange, timeRangeLabel } from './_shared/timeRangeUtils'
 import {
   analyzeOverview,
   type OverviewDiagnostic,
@@ -103,14 +103,22 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
             )}
           </div>
         ) : (
-          <ObjectivesView data={data} days={days} />
+          <ObjectivesView data={data} days={days} rangeLabel={timeRangeLabel(tr)} />
         )}
       </div>
     </main>
   )
 }
 
-function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
+function ObjectivesView({
+  data,
+  days,
+  rangeLabel,
+}: {
+  data: AnalyticsBlob
+  days: number
+  rangeLabel: string
+}) {
   // Defensive defaults · RPC pode retornar shape parcial.
   const a = data.applications ?? ({} as AnalyticsBlob['applications'])
   const v = data.vouchers ?? ({} as AnalyticsBlob['vouchers'])
@@ -120,7 +128,7 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
   const nps = m.nps_summary ?? { responses: 0, nps_score: null }
 
   // Diagnostico interpretativo · transforma estatistica bruta em insights
-  const diag = analyzeOverview(data, days)
+  const diag = analyzeOverview(data, days, rangeLabel)
   const sig = (key: OverviewSignal['section']) =>
     diag.signals.find((s) => s.section === key)
 
@@ -143,38 +151,45 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
       {/* ═══ CAMADA 0 · DIAGNÓSTICO INTERPRETATIVO ═══ */}
       <DiagnosticBanner diag={diag} />
 
-      {/* ═══ CAMADA 1 · SNAPSHOT (geral) ═══ */}
+      {/* ═══ CAMADA 1 · SNAPSHOT (geral) · labels diferenciam estado vs periodo ═══ */}
       <SnapshotRow
         kpis={[
-          { lbl: 'Ativas', val: String(totalActive), sub: 'parcerias' },
+          { lbl: 'Ativas', val: String(totalActive), sub: 'parcerias · agora' },
           {
             lbl: 'Candidaturas',
             val: String(a.pending ?? 0),
-            sub: 'pendentes',
+            sub: 'pendentes · agora',
             tone: (a.pending ?? 0) > 0 ? 'amber' : null,
           },
-          { lbl: 'Vouchers', val: String(vouchersTotal), sub: 'no período' },
+          { lbl: 'Vouchers', val: String(vouchersTotal), sub: rangeLabel },
           {
             lbl: 'Conversão',
             val: `${convPct}%`,
-            sub: `${vouchersPaid}/${vouchersTotal} pagaram`,
-            tone: Number(convPct) >= 30 ? 'green' : null,
+            sub: `${vouchersPaid}/${vouchersTotal} · ${rangeLabel}`,
+            tone:
+              vouchersTotal < 20
+                ? null
+                : Number(convPct) >= 25
+                  ? 'green'
+                  : Number(convPct) < 12
+                    ? 'red'
+                    : 'amber',
           },
           {
             lbl: 'NPS',
             val: npsLabel,
-            sub: `${nps.responses ?? 0} respostas`,
+            sub: `${nps.responses ?? 0} respostas · lifetime`,
           },
           {
             lbl: 'Saúde',
             val: `${totalGreen}/${totalActive}`,
-            sub: `${totalYellow}A · ${totalRed}V`,
+            sub: `${totalYellow}A · ${totalRed}V · agora`,
             tone: totalRed > 0 ? 'red' : totalYellow > 0 ? 'amber' : 'green',
           },
         ]}
       />
 
-      {/* ═══ CAMADA 2 · CONVERSÃO (foco principal) ═══ */}
+      {/* ═══ CAMADA 2 · CONVERSÃO (foco principal · SO WHAT) ═══ */}
       <CompactSection
         emoji="💰"
         title="Conversão da convidada"
@@ -184,8 +199,12 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
         <SectionInterpretation signal={sig('conversion')} />
       </CompactSection>
 
+      {/* ═══ CAMADA 3 · NEXT ACTIONS (NOW WHAT · subiu antes do deep-dive) ═══ */}
+      <NextActions actions={diag.actions} />
+
       {/* ═══ CAMADA 3 · ESPECÍFICAS · 2 colunas ═══ */}
       <div
+        className="b2bm-cards-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
@@ -198,7 +217,12 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
           <SectionInterpretation signal={sig('origin')} />
         </CompactSection>
 
-        <CompactSection emoji="🩺" title="Saúde do programa" sub="Distribuição das ativas">
+        <CompactSection
+          emoji="🩺"
+          title="Saúde do programa"
+          sub="Distribuição das parcerias ativas"
+          snapshot
+        >
           <HealthBar h={h} />
           <SectionInterpretation signal={sig('health')} />
         </CompactSection>
@@ -245,12 +269,13 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
         </CompactSection>
       </div>
 
-      {/* ═══ CAMADA 4 · ATIVIDADE MIRA (slim) ═══ */}
+      {/* ═══ CAMADA 4 · ATIVIDADE MIRA (slim, snapshot atual) ═══ */}
       <CompactSection
         emoji="🤖"
         title="Atividade Mira"
         sub="Sistemas em background"
         slim
+        snapshot
       >
         <CompactKpiGrid
           kpis={[
@@ -276,9 +301,6 @@ function ObjectivesView({ data, days }: { data: AnalyticsBlob; days: number }) {
         />
         <SectionInterpretation signal={sig('mira')} />
       </CompactSection>
-
-      {/* ═══ CAMADA 5 · PRÓXIMOS PASSOS ═══ */}
-      <NextActions actions={diag.actions} />
 
       {/* Footer */}
       <div
@@ -329,10 +351,68 @@ const STATUS_COLORS: Record<SignalStatus, { bg: string; border: string; text: st
   },
 }
 
+/**
+ * Icone SVG redundante (forma distinta de cor) · BI win #6 acessibilidade.
+ * Color-blind users diferenciam por shape · cor sozinha falha em deuteranopia.
+ *   green   = circulo com check
+ *   amber   = triangulo com !
+ *   red     = octogono (parar)
+ *   neutral = circulo neutro com info
+ */
+function StatusIcon({
+  status,
+  size = 22,
+}: {
+  status: SignalStatus
+  size?: number
+}) {
+  const c = STATUS_COLORS[status]
+  if (status === 'green') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill={c.bg} stroke={c.text} strokeWidth="2" />
+        <path d="M7 12l3 3 7-7" stroke={c.text} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (status === 'amber') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3 L22 21 L2 21 Z" fill={c.bg} stroke={c.text} strokeWidth="2" strokeLinejoin="round" />
+        <line x1="12" y1="10" x2="12" y2="15" stroke={c.text} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="12" cy="18" r="1.2" fill={c.text} />
+      </svg>
+    )
+  }
+  if (status === 'red') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <polygon
+          points="8,3 16,3 21,8 21,16 16,21 8,21 3,16 3,8"
+          fill={c.bg}
+          stroke={c.text}
+          strokeWidth="2"
+        />
+        <line x1="8" y1="8" x2="16" y2="16" stroke={c.text} strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="16" y1="8" x2="8" y2="16" stroke={c.text} strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill={c.bg} stroke={c.text} strokeWidth="2" />
+      <line x1="12" y1="8" x2="12" y2="13" stroke={c.text} strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="16" r="1.2" fill={c.text} />
+    </svg>
+  )
+}
+
 function DiagnosticBanner({ diag }: { diag: OverviewDiagnostic }) {
   const c = STATUS_COLORS[diag.status]
   return (
     <div
+      role="region"
+      aria-label={`Diagnóstico do programa: ${diag.headline} ${diag.subtitle}`}
       style={{
         padding: '14px 18px',
         background: c.bg,
@@ -344,7 +424,9 @@ function DiagnosticBanner({ diag }: { diag: OverviewDiagnostic }) {
         gap: 14,
       }}
     >
-      <div style={{ fontSize: 22, lineHeight: 1, marginTop: 2 }}>{c.emoji}</div>
+      <div style={{ flexShrink: 0, marginTop: 2 }}>
+        <StatusIcon status={diag.status} size={28} />
+      </div>
       <div style={{ flex: 1 }}>
         <div
           style={{
@@ -537,9 +619,12 @@ function NextActions({
 function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
   return (
     <div
+      className="b2bm-snapshot-grid"
+      role="region"
+      aria-label="Snapshot dos KPIs principais do programa"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
         gap: 8,
         padding: '12px 14px',
         background: 'rgba(201, 169, 110, 0.04)',
@@ -596,6 +681,12 @@ function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
           </div>
         )
       })}
+      <style>{`
+        @media (max-width: 640px) {
+          .b2bm-snapshot-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .b2bm-cards-grid    { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -605,12 +696,15 @@ function CompactSection({
   title,
   sub,
   slim,
+  snapshot,
   children,
 }: {
   emoji: string
   title: string
   sub?: string
   slim?: boolean
+  /** True quando a section mostra estado-agora (ignora filtro de periodo). */
+  snapshot?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -631,16 +725,40 @@ function CompactSection({
             color: '#F5F0E8',
             letterSpacing: '0.3px',
             fontFamily: 'Inter, system-ui, sans-serif',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
           }}
         >
-          <span style={{ marginRight: 6 }}>{emoji}</span>
-          {title}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>{emoji}</span>
+            {title}
+          </span>
+          {snapshot ? (
+            <span
+              style={{
+                fontSize: 8.5,
+                fontWeight: 600,
+                letterSpacing: '1.4px',
+                textTransform: 'uppercase',
+                padding: '2px 6px',
+                borderRadius: 999,
+                background: 'rgba(201, 169, 110, 0.12)',
+                color: '#C9A96E',
+                border: '1px solid rgba(201, 169, 110, 0.3)',
+              }}
+              title="Estado atual · não depende do filtro de período"
+            >
+              snapshot atual
+            </span>
+          ) : null}
         </h3>
         {sub ? (
           <div
             style={{
               fontSize: 10.5,
-              color: '#9CA3AF',
+              color: '#B5A894', // BI #5 · contrast bumped
               marginTop: 2,
               fontFamily: 'Inter, system-ui, sans-serif',
             }}
@@ -739,10 +857,15 @@ function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {
   const r = Number(h.red || 0)
   const u = Number(h.unknown || 0)
   const pct = (n: number) => ((n / total) * 100).toFixed(1)
+  const ariaLabel = `Distribuição de saúde: ${g} verdes, ${y} amarelas, ${r} vermelhas, ${u} sem dado · total ${total}`
 
   return (
     <>
-      <div className="b2b-health-bar">
+      <div
+        className="b2b-health-bar"
+        role="img"
+        aria-label={ariaLabel}
+      >
         {g > 0 ? (
           <div
             style={{ width: `${pct(g)}%`, background: '#10B981' }}
@@ -803,10 +926,15 @@ function VoucherSplit({ v }: { v: AnalyticsBlob['vouchers'] }) {
   const admin = Number(v.via_admin || 0)
   const bf = Number(v.via_backfill || 0)
   const pct = (n: number) => ((n / total) * 100).toFixed(0)
+  const ariaLabel = `Origem dos vouchers: ${mira} via Mira, ${admin} manual, ${bf} backfill · total ${total}`
 
   return (
     <>
-      <div className="b2b-split-bar">
+      <div
+        className="b2b-split-bar"
+        role="img"
+        aria-label={ariaLabel}
+      >
         {mira > 0 ? (
           <div
             style={{
@@ -879,8 +1007,14 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
     },
   ]
 
+  const ariaLabel = `Funil de conversão: ${steps.map((s) => `${s.lbl} ${s.n}`).join(', ')}`
+
   return (
-    <div className="b2b-journey">
+    <div
+      className="b2b-journey"
+      role="img"
+      aria-label={ariaLabel}
+    >
       {steps.map((s) => (
         <div key={s.lbl} className="b2b-journey-step">
           <div className="b2b-journey-lbl">{s.lbl}</div>

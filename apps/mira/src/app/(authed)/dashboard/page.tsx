@@ -17,7 +17,9 @@ import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { createLogger } from '@clinicai/logger'
 import type { Insight } from '@clinicai/repositories'
-import { InsightsBanner } from './InsightsBanner'
+// InsightsBanner agora vive em (authed)/layout.tsx · render global em
+// toda page authed (item #5 · 2026-04-26). Mantemos o card "Insights
+// cross-parcerias" abaixo · ele lista TODOS, nao so o critico.
 
 const log = createLogger({ app: 'mira' })
 
@@ -125,8 +127,8 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Banner topo · insight critico/warning prioritario */}
-        <InsightsBanner insights={stats.insights} />
+        {/* Banner topo movido pra (authed)/layout.tsx · agora aparece em
+            toda page authed, nao so /dashboard (item #5 · 2026-04-26) */}
 
         {/* KPI cards densos · 4 colunas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">

@@ -162,13 +162,62 @@
 .b2b-btn-primary:hover { background: var(--b2b-champagne-light); }
 
 /* ── Group / rows (lista de parcerias) ── */
-.b2b-group { margin-bottom: 28px; }
-.b2b-group-hdr {
-  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-  color: var(--b2b-champagne); font-weight: 600;
-  padding-bottom: 8px; border-bottom: 1px solid var(--b2b-border);
-  margin-bottom: 10px;
+.b2b-group {
+  margin-bottom: 32px;
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
 }
+.b2b-group + .b2b-group { margin-top: 4px; }
+.b2b-group-hdr {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-group-hdr-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 500;
+  color: var(--b2b-champagne);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.b2b-group-hdr-count {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-text-muted); font-weight: 600;
+}
+.b2b-group-hdr-desc {
+  flex-basis: 100%;
+  font-size: 12px; color: var(--b2b-text-dim);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Tier 1 · Premium · accent dourada forte + tint dourado */
+.b2b-group-tier-1 {
+  background: linear-gradient(135deg, rgba(201, 169, 110, 0.07) 0%, rgba(201, 169, 110, 0.02) 100%);
+  border-color: var(--b2b-border-strong);
+  border-left: 3px solid var(--b2b-champagne);
+}
+.b2b-group-tier-1 .b2b-group-hdr-title { color: var(--b2b-champagne-light); }
+
+/* Tier 2 · Padrão · tint prata sutil */
+.b2b-group-tier-2 {
+  background: linear-gradient(135deg, rgba(181, 168, 148, 0.05) 0%, rgba(181, 168, 148, 0.01) 100%);
+}
+
+/* Tier 3 · Apoio · neutro */
+.b2b-group-tier-3 {
+  background: var(--b2b-bg-1);
+}
+.b2b-group-tier-3 .b2b-group-hdr-title { color: var(--b2b-text-dim); }
+
+/* Sem tier · neutro mais apagado */
+.b2b-group-untiered {
+  background: var(--b2b-bg-1);
+  border-style: dashed;
+}
+.b2b-group-untiered .b2b-group-hdr-title { color: var(--b2b-text-muted); }
 .b2b-row {
   display: flex; align-items: center; gap: 14px; width: 100%;
   padding: 14px 16px; background: var(--b2b-bg-1);

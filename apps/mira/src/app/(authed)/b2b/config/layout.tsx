@@ -13,6 +13,8 @@ const TAB_DESCS: Record<string, string> = {
     'Phones autorizados a agir como admin no WhatsApp da Mira',
   '/b2b/config/padroes':
     'Valores default aplicados a cada nova parceria',
+  '/b2b/config/tiers':
+    'Labels, cores e defaults configuraveis dos 3 tiers (1/2/3) — herdados ao cadastrar parceria',
   '/b2b/config/saude':
     'Snapshot de dispatch, insights, vouchers, contagens',
   '/b2b/config/auditoria':

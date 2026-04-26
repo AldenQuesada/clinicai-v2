@@ -47,9 +47,19 @@ export interface OverviewDiagnostic {
   actions: OverviewAction[]
 }
 
+/**
+ * Helper · escala thresholds absolutos ao periodo escolhido.
+ * Ex: "5 vouchers minimo" funciona pra 7d mas e errado pra 90d.
+ * Usa taxa semanal como referencia justa cross-period.
+ */
+function weeksInPeriod(days: number): number {
+  return Math.max(1, days / 7)
+}
+
 export function analyzeOverview(
   data: AnalyticsBlob,
   days: number,
+  rangeLabel?: string,
 ): OverviewDiagnostic {
   const a = data.applications ?? ({} as AnalyticsBlob['applications'])
   const v = data.vouchers ?? ({} as AnalyticsBlob['vouchers'])
@@ -76,6 +86,13 @@ export function analyzeOverview(
   const npsResponses = Number(nps.responses ?? 0)
   const miraVouchers = Number(v.via_mira ?? 0)
   const miraSendersActive = Number(m.wa_senders_active ?? 0)
+
+  // Taxas escaladas por semana · justas cross-period
+  const weeks = weeksInPeriod(days)
+  const vouchersPerWeek = vouchersTotal / weeks
+
+  // String do periodo (ex: "ultimos 30 dias" ou "01/04 -> 26/04")
+  const periodStr = rangeLabel ?? `últimos ${days} dias`
 
   const signals: OverviewSignal[] = []
   const actions: OverviewAction[] = []
@@ -107,12 +124,16 @@ export function analyzeOverview(
     })
   }
 
-  // ─── Conversao ──────────────────────────────────────────────────────
+  // ─── Conversao (thresholds escalados por taxa semanal · 2026-04-26) ─
+  // Antes era "vouchersTotal < 5" absoluto · agora usamos vouchers/sem
+  // pra ser justo cross-period (5 em 7d eh OK; 5 em 90d eh ruim).
+  const RATE_DEAD = 0.3 // <0.3/sem · programa parado
+  const RATE_LOW = 1.0 // <1/sem · volume baixo pra avaliar conv
   if (vouchersTotal === 0) {
     signals.push({
       section: 'conversion',
       status: 'amber',
-      message: `Nenhum voucher emitido nos últimos ${days}d · programa parado nesse período.`,
+      message: `Nenhum voucher em ${periodStr} · programa parado.`,
     })
     actions.push({
       priority: 1,
@@ -120,23 +141,37 @@ export function analyzeOverview(
       rationale: 'Sem vouchers, não há pipeline. Use a tela de cadastrar.',
       href: '/vouchers/novo',
     })
-  } else if (vouchersTotal < 5) {
+  } else if (vouchersPerWeek < RATE_DEAD) {
+    signals.push({
+      section: 'conversion',
+      status: 'red',
+      message: `Pace baixíssimo · ${vouchersPerWeek.toFixed(1)} voucher/sem em ${periodStr}.`,
+    })
+  } else if (vouchersPerWeek < RATE_LOW) {
     signals.push({
       section: 'conversion',
       status: 'amber',
-      message: `Apenas ${vouchersTotal} vouchers no período · volume baixo pra avaliar conversão.`,
+      message: `Volume baixo · ${vouchersPerWeek.toFixed(1)} voucher/sem · pouca amostra pra conversão.`,
     })
-  } else if (convPct >= 30) {
+  } else if (vouchersTotal < 20) {
+    // BI quick win #1 · N minimo · amostra pequena nao aciona semaforo
+    signals.push({
+      section: 'conversion',
+      status: 'neutral',
+      message: `Amostra pequena (${vouchersTotal} vouchers) · ${convPct}% conversão sem significância. Espera ≥20 pra avaliar.`,
+    })
+  } else if (convPct >= 25) {
+    // Benchmarks ajustados pelo BI specialist · estética B2B premium 18-25% típico
     signals.push({
       section: 'conversion',
       status: 'green',
-      message: `Conversão de ${convPct}% acima do benchmark (30%) · funil saudável.`,
+      message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · acima do benchmark de 25%.`,
     })
-  } else if (convPct >= 15) {
+  } else if (convPct >= 12) {
     signals.push({
       section: 'conversion',
       status: 'amber',
-      message: `Conversão de ${convPct}% dentro do esperado (15-30%) · pode otimizar.`,
+      message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · esperado 12-25% · espaço pra otimizar.`,
     })
   } else {
     // Detecta onde o drop principal acontece
@@ -147,7 +182,7 @@ export function analyzeOverview(
     signals.push({
       section: 'conversion',
       status: 'red',
-      message: `Conversão de ${convPct}% abaixo do mínimo (15%) · drop em ${dropStage}.`,
+      message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · abaixo do mínimo de 12% · drop em ${dropStage}.`,
     })
     actions.push({
       priority: 1,
@@ -310,7 +345,7 @@ export function analyzeOverview(
   // ─── Headline · síntese ─────────────────────────────────────────────
   let status: SignalStatus = 'green'
   let headline = 'Programa em ritmo saudável.'
-  let subtitle = `${totalActive} parcerias ativas · ${vouchersTotal} vouchers no período · ${convPct}% conversão.`
+  let subtitle = `${totalActive} ativas (agora) · ${vouchersTotal} vouchers em ${periodStr} · ${convPct}% conv.`
 
   if (totalActive === 0) {
     status = 'red'
@@ -319,19 +354,27 @@ export function analyzeOverview(
   } else if (red > 0) {
     status = 'red'
     headline = 'Atenção crítica.'
-    subtitle = `${red} parceria${red > 1 ? 's' : ''} em risco · ${candidPending} candidatura${candidPending > 1 ? 's' : ''} pendente${candidPending > 1 ? 's' : ''}.`
+    subtitle = `${red} parceria${red > 1 ? 's' : ''} em risco (agora) · ${candidPending} candidatura${candidPending !== 1 ? 's' : ''} pendente${candidPending !== 1 ? 's' : ''}.`
   } else if (vouchersTotal === 0) {
     status = 'amber'
     headline = 'Programa parado no período.'
-    subtitle = `${totalActive} parcerias ativas mas zero vouchers em ${days}d.`
-  } else if (convPct < 15 && vouchersTotal >= 5) {
+    subtitle = `${totalActive} parcerias ativas mas zero vouchers em ${periodStr}.`
+  } else if (vouchersTotal < 20) {
     status = 'amber'
-    headline = 'Conversão abaixo do esperado.'
-    subtitle = `${convPct}% (${vouchersPaid}/${vouchersTotal}) · benchmark mínimo é 15%.`
+    headline = 'Volume baixo · amostra pequena.'
+    subtitle = `${vouchersTotal} vouchers em ${periodStr} (${vouchersPerWeek.toFixed(1)}/sem) · esperado ≥20 pra avaliar conversão.`
+  } else if (convPct < 12) {
+    status = 'red'
+    headline = 'Conversão abaixo do mínimo.'
+    subtitle = `${convPct}% (${vouchersPaid}/${vouchersTotal}) em ${periodStr} · benchmark mínimo 12%.`
+  } else if (convPct < 25) {
+    status = 'amber'
+    headline = 'Conversão dentro da banda · pode otimizar.'
+    subtitle = `${convPct}% (${vouchersPaid}/${vouchersTotal}) em ${periodStr} · meta 25%.`
   } else if (yellow > 0 || candidPending > 0) {
     status = 'amber'
     headline = 'Programa estável com pendências.'
-    subtitle = `${yellow} amarelas · ${candidPending} candidatura${candidPending > 1 ? 's' : ''} aguardando.`
+    subtitle = `${yellow} amarela${yellow !== 1 ? 's' : ''} (agora) · ${candidPending} candidatura${candidPending !== 1 ? 's' : ''} aguardando.`
   }
 
   // Limita actions a 3 priorizadas

@@ -116,15 +116,33 @@ const SECTIONS: Section[] = [
     label: 'Analytics',
     defaultHref: '/b2b/analytics',
     match: ['/b2b/analytics', '/analytics', '/semana/relatorios', '/b2b/nps'],
-    // Esq→dir: zoom-out (resumo) → zoom-in (deep operacional) → feedback
-    subtabs: [
-      { href: '/b2b/analytics', label: 'Visão geral', available: true },
-      { href: '/b2b/analytics/crescimento', label: 'Crescimento', available: true },
-      { href: '/b2b/analytics/parceiros', label: 'Parceiros', available: true },
-      { href: '/b2b/analytics/conversao', label: 'Conversão', available: true },
-      { href: '/b2b/analytics/retorno', label: 'Retorno', available: true },
-      { href: '/b2b/analytics/imagem', label: 'Imagem', available: true },
-      { href: '/b2b/nps', label: 'NPS', available: true },
+    // Sub-tabs agrupados por estrategia (decidido com Alden 2026-04-26):
+    //   VISÃO  · zoom-out (resumo executivo)
+    //   FUNIL  · pipeline operacional (crescimento → retorno)
+    //   IMAGEM · feedback qualitativo (percepção da marca + NPS)
+    subtabGroups: [
+      {
+        groupLabel: 'Visão',
+        subtabs: [
+          { href: '/b2b/analytics', label: 'Visão geral', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Funil',
+        subtabs: [
+          { href: '/b2b/analytics/crescimento', label: 'Crescimento', available: true },
+          { href: '/b2b/analytics/parceiros', label: 'Parceiros', available: true },
+          { href: '/b2b/analytics/conversao', label: 'Conversão', available: true },
+          { href: '/b2b/analytics/retorno', label: 'Retorno', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Imagem',
+        subtabs: [
+          { href: '/b2b/analytics/imagem', label: 'Imagem', available: true },
+          { href: '/b2b/nps', label: 'NPS', available: true },
+        ],
+      },
     ],
   },
   {
@@ -132,25 +150,45 @@ const SECTIONS: Section[] = [
     label: 'Configurações',
     defaultHref: '/configuracoes?tab=overview',
     match: ['/b2b/config', '/configuracoes', '/estudio'],
-    // Ordem ESQ→DIR · uso diario → setup raro
-    // (1) day-1 / operacional · (2) recorrente · (3) configura-uma-vez · (4) meta
-    subtabs: [
-      // (1) day-1 · entra todo dia
-      { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
-      { href: '/b2b/config/saude', label: 'Saúde', available: true },
-      { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
-      { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
-      // (2) recorrente · vai usar de vez em quando
-      // Cadastrar parceria (acao) vive no Quick Action "+ Parceria" no topo
-      { href: '/b2b/config/padroes', label: 'Padrões', available: true },
-      // (3) configura-uma-vez · setup inicial
-      { href: '/b2b/config/admins', label: 'Admins', available: true },
-      { href: '/b2b/config/rotinas', label: 'Rotinas', available: true },
-      { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
-      { href: '/configuracoes?tab=professionals', label: 'Profissionais', available: true },
-      { href: '/estudio/lgpd', label: 'LGPD', available: true },
-      // (4) meta
-      { href: '/b2b/config/sobre', label: 'Sobre', available: true },
+    // Sub-tabs agrupados por frequencia de uso (decidido com Alden 2026-04-26):
+    //   DIA-A-DIA · uso diario (overview, saude, auditoria, logs)
+    //   OPERAR    · ajustes recorrentes (padroes, rotinas, admins)
+    //   SETUP     · configurado uma vez (canais, profissionais)
+    //   META      · governanca + about (LGPD, sobre)
+    // Cadastrar parceria (acao) vive no Quick Action "+ Parceria" no topo
+    subtabGroups: [
+      {
+        groupLabel: 'Dia-a-dia',
+        subtabs: [
+          { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
+          { href: '/b2b/config/saude', label: 'Saúde', available: true },
+          { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
+          { href: '/b2b/config/tiers', label: 'Tiers', available: true },
+          { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Operar',
+        subtabs: [
+          { href: '/b2b/config/padroes', label: 'Padrões', available: true },
+          { href: '/b2b/config/rotinas', label: 'Rotinas', available: true },
+          { href: '/b2b/config/admins', label: 'Admins', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Setup',
+        subtabs: [
+          { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
+          { href: '/configuracoes?tab=professionals', label: 'Profissionais', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Meta',
+        subtabs: [
+          { href: '/estudio/lgpd', label: 'LGPD', available: true },
+          { href: '/b2b/config/sobre', label: 'Sobre', available: true },
+        ],
+      },
     ],
   },
 ]

@@ -34,10 +34,21 @@ import {
 
 type Mode = 'new' | 'edit'
 type ComboLite = { label: string; isActive: boolean; isDefault: boolean }
+export type TierConfigLite = {
+  tier: 1 | 2 | 3
+  label: string
+  description: string | null
+  colorHex: string
+  defaultMonthlyCapBrl: number | null
+  defaultVoucherCombo: string | null
+  defaultVoucherValidityDays: number
+  defaultVoucherMonthlyCap: number | null
+}
 
 interface WizardClientProps {
   mode: Mode
   combos: ComboLite[]
+  tierConfigs?: TierConfigLite[]
   partnership?: Record<string, unknown> | null
 }
 
@@ -57,7 +68,7 @@ function asArr(v: unknown): string[] {
   return asString(v).split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
+export function WizardClient({ mode, combos, tierConfigs = [], partnership }: WizardClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [pending, startTransition] = useTransition()
@@ -74,6 +85,7 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
   const [pillarTouched, setPillarTouched] = useState(mode === 'edit')
   const [category, setCategory] = useState(asString(p.category))
   const [tier, setTier] = useState<number | ''>(p.tier == null ? '' : Number(p.tier))
+  const [tierInheritedFlash, setTierInheritedFlash] = useState<{ tier: number; label: string; fields: string[] } | null>(null)
   const [type, setType] = useState(asString(p.type) || 'institutional')
   const [typeTouched, setTypeTouched] = useState(mode === 'edit')
   const [status, setStatus] = useState(asString(p.status) || 'prospect')
@@ -93,8 +105,10 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
   const [voucherCombo, setVoucherCombo] = useState(asString(p.voucher_combo))
   const [voucherComboTouched, setVoucherComboTouched] = useState(mode === 'edit')
   const [voucherValidityDays, setVoucherValidityDays] = useState(asNum(p.voucher_validity_days, 30))
+  const [voucherValidityTouched, setVoucherValidityTouched] = useState(mode === 'edit')
   const [voucherMinNoticeDays, setVoucherMinNoticeDays] = useState(asNum(p.voucher_min_notice_days, 15))
   const [voucherMonthlyCap, setVoucherMonthlyCap] = useState(asNum(p.voucher_monthly_cap, 5))
+  const [voucherMonthlyCapTouched, setVoucherMonthlyCapTouched] = useState(mode === 'edit')
   const [voucherUnitCostBrl, setVoucherUnitCostBrl] = useState(asNum(p.voucher_unit_cost_brl, 0))
   const [voucherDelivery, setVoucherDelivery] = useState<string[]>(
     asArr(p.voucher_delivery).length ? asArr(p.voucher_delivery) : ['digital'],
@@ -110,6 +124,7 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
   const [contractExpiryDate, setContractExpiryDate] = useState(asString(p.contract_expiry_date).slice(0, 10))
   const [renewalNoticeDays, setRenewalNoticeDays] = useState(asNum(p.renewal_notice_days, 60))
   const [monthlyValueCapBrl, setMonthlyValueCapBrl] = useState<string>(asString(p.monthly_value_cap_brl))
+  const [monthlyValueCapTouched, setMonthlyValueCapTouched] = useState(mode === 'edit')
   const [contractDurationMonths, setContractDurationMonths] = useState<string>(asString(p.contract_duration_months))
   const [reviewCadenceMonths, setReviewCadenceMonths] = useState(asNum(p.review_cadence_months, 3))
   const [sazonais, setSazonais] = useState<string[]>(asArr(p.sazonais))
@@ -206,6 +221,49 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
     if (!voucherComboTouched) {
       const c = pickComboForPillar(p2, combos)
       if (c) setVoucherCombo(c)
+    }
+  }
+
+  /**
+   * onTierChange · pre-fill voucher defaults a partir de b2b_tier_configs
+   * (mig 800-25). Aplica somente nos campos que o usuario AINDA NAO TOCOU
+   * pra nao sobrescrever digitacao em andamento. Mostra flash com lista de
+   * campos herdados.
+   */
+  function onTierChange(v: number | '') {
+    setTier(v)
+    if (v === '' || mode !== 'new') {
+      setTierInheritedFlash(null)
+      return
+    }
+    const cfg = tierConfigs.find((c) => c.tier === v)
+    if (!cfg) {
+      setTierInheritedFlash(null)
+      return
+    }
+    const inheritedFields: string[] = []
+
+    if (cfg.defaultVoucherCombo && !voucherComboTouched) {
+      setVoucherCombo(cfg.defaultVoucherCombo)
+      inheritedFields.push('combo do voucher')
+    }
+    if (cfg.defaultVoucherValidityDays && !voucherValidityTouched) {
+      setVoucherValidityDays(cfg.defaultVoucherValidityDays)
+      inheritedFields.push('validade')
+    }
+    if (cfg.defaultVoucherMonthlyCap != null && !voucherMonthlyCapTouched) {
+      setVoucherMonthlyCap(cfg.defaultVoucherMonthlyCap)
+      inheritedFields.push('cap mensal de vouchers')
+    }
+    if (cfg.defaultMonthlyCapBrl != null && !monthlyValueCapTouched) {
+      setMonthlyValueCapBrl(String(cfg.defaultMonthlyCapBrl))
+      inheritedFields.push('teto mensal R$')
+    }
+
+    if (inheritedFields.length > 0) {
+      setTierInheritedFlash({ tier: Number(v), label: cfg.label, fields: inheritedFields })
+    } else {
+      setTierInheritedFlash(null)
     }
   }
 
@@ -336,7 +394,8 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
           slugPreview={slugPreview} slugConflict={slugConflict} onApplySuggestedSlug={applySuggestedSlug}
           pillar={pillar} onPillarChange={onPillarChange} pillarHint={pillarHint} onApplyPillarHint={applyPillarHint}
           category={category} setCategory={setCategory} categoriesList={allCategories}
-          tier={tier} setTier={setTier}
+          tier={tier} setTier={onTierChange}
+          tierConfigs={tierConfigs} tierInheritedFlash={tierInheritedFlash}
           type={type} setType={(v) => { setType(v); setTypeTouched(true) }}
           status={status} setStatus={setStatus}
           contactNames={contactNames} setContactNames={setContactNames}
@@ -355,9 +414,9 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
           dnaPro={dnaPro} setDnaPro={setDnaPro}
           voucherCombo={voucherCombo} setVoucherCombo={(v) => { setVoucherCombo(v); setVoucherComboTouched(true) }}
           combos={combos}
-          voucherValidityDays={voucherValidityDays} setVoucherValidityDays={setVoucherValidityDays}
+          voucherValidityDays={voucherValidityDays} setVoucherValidityDays={(v) => { setVoucherValidityDays(v); setVoucherValidityTouched(true) }}
           voucherMinNoticeDays={voucherMinNoticeDays} setVoucherMinNoticeDays={setVoucherMinNoticeDays}
-          voucherMonthlyCap={voucherMonthlyCap} setVoucherMonthlyCap={setVoucherMonthlyCap}
+          voucherMonthlyCap={voucherMonthlyCap} setVoucherMonthlyCap={(v) => { setVoucherMonthlyCap(v); setVoucherMonthlyCapTouched(true) }}
           voucherUnitCostBrl={voucherUnitCostBrl} setVoucherUnitCostBrl={setVoucherUnitCostBrl}
           voucherDelivery={voucherDelivery} setVoucherDelivery={setVoucherDelivery}
         />
@@ -371,7 +430,7 @@ export function WizardClient({ mode, combos, partnership }: WizardClientProps) {
           contractSignedDate={contractSignedDate} setContractSignedDate={setContractSignedDate}
           contractExpiryDate={contractExpiryDate} setContractExpiryDate={setContractExpiryDate}
           renewalNoticeDays={renewalNoticeDays} setRenewalNoticeDays={setRenewalNoticeDays}
-          monthlyValueCapBrl={monthlyValueCapBrl} setMonthlyValueCapBrl={setMonthlyValueCapBrl}
+          monthlyValueCapBrl={monthlyValueCapBrl} setMonthlyValueCapBrl={(v) => { setMonthlyValueCapBrl(v); setMonthlyValueCapTouched(true) }}
           contractDurationMonths={contractDurationMonths} setContractDurationMonths={setContractDurationMonths}
           reviewCadenceMonths={reviewCadenceMonths} setReviewCadenceMonths={setReviewCadenceMonths}
           sazonais={sazonais} setSazonais={setSazonais}
@@ -444,6 +503,8 @@ interface Step1Props {
   category: string; setCategory: (v: string) => void
   categoriesList: string[]
   tier: number | ''; setTier: (v: number | '') => void
+  tierConfigs: TierConfigLite[]
+  tierInheritedFlash: { tier: number; label: string; fields: string[] } | null
   type: string; setType: (v: string) => void
   status: string; setStatus: (v: string) => void
   contactNames: string[]; setContactNames: (v: string[]) => void
@@ -513,10 +574,29 @@ function Step1(props: Step1Props) {
           <select value={props.tier} onChange={(e) => props.setTier(e.target.value === '' ? '' : Number(e.target.value))}
             className="b2b-input">
             <option value="">—</option>
-            <option value="1">1 · Premium</option>
-            <option value="2">2 · Padrão</option>
-            <option value="3">3 · Apoio</option>
+            {[1, 2, 3].map((n) => {
+              const cfg = props.tierConfigs.find((c) => c.tier === n)
+              const fallback = n === 1 ? 'Premium' : n === 2 ? 'Padrão' : 'Apoio'
+              const label = cfg?.label || fallback
+              return (
+                <option key={n} value={n}>
+                  {n} · {label}
+                </option>
+              )
+            })}
           </select>
+          {props.tierInheritedFlash && props.tierInheritedFlash.tier === Number(props.tier) && (
+            <div className="mt-1 inline-flex items-start gap-1 text-[10.5px] text-[#C9A96E]/85 bg-[#C9A96E]/8 border border-dashed border-[#C9A96E]/35 rounded px-2 py-1 leading-relaxed">
+              <Sparkles className="w-3 h-3 mt-px shrink-0" />
+              <span>
+                valores herdados de Tier {props.tierInheritedFlash.tier} · {props.tierInheritedFlash.label}
+                {props.tierInheritedFlash.fields.length > 0 && (
+                  <span className="text-[#9CA3AF]"> ({props.tierInheritedFlash.fields.join(', ')})</span>
+                )}
+                <span className="text-[#9CA3AF]"> · pode editar</span>
+              </span>
+            </div>
+          )}
         </Field>
       </div>
 

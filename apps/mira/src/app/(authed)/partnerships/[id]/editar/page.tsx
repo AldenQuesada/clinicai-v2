@@ -21,9 +21,10 @@ export default async function EditarPartnershipPage({ params }: PageProps) {
   const { id } = await params
   const { repos } = await loadMiraServerContext()
 
-  const [partnership, combosRaw] = await Promise.all([
+  const [partnership, combosRaw, tierConfigsRaw] = await Promise.all([
     repos.b2bPartnerships.getRawById(id),
     repos.b2bVoucherCombos.list().catch(() => []),
+    repos.b2bTierConfigs.list().catch(() => []),
   ])
 
   if (!partnership) notFound()
@@ -32,6 +33,16 @@ export default async function EditarPartnershipPage({ params }: PageProps) {
     label: c.label,
     isActive: c.isActive,
     isDefault: c.isDefault,
+  }))
+  const tierConfigs = tierConfigsRaw.map((t) => ({
+    tier: t.tier,
+    label: t.label,
+    description: t.description,
+    colorHex: t.colorHex,
+    defaultMonthlyCapBrl: t.defaultMonthlyCapBrl,
+    defaultVoucherCombo: t.defaultVoucherCombo,
+    defaultVoucherValidityDays: t.defaultVoucherValidityDays,
+    defaultVoucherMonthlyCap: t.defaultVoucherMonthlyCap,
   }))
 
   const name = String(partnership.name ?? '—')
@@ -59,7 +70,7 @@ export default async function EditarPartnershipPage({ params }: PageProps) {
           </div>
         </div>
 
-        <WizardClient mode="edit" combos={combos} partnership={partnership} />
+        <WizardClient mode="edit" combos={combos} tierConfigs={tierConfigs} partnership={partnership} />
       </div>
     </main>
   )

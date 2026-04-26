@@ -202,6 +202,11 @@ export {
   type ClinicDefaultsRaw,
   type ClinicDefaultsResponse,
 } from './b2b-clinic-defaults.repository'
+export {
+  B2BTierConfigRepository,
+  type B2BTierConfigDTO,
+  type B2BTierConfigUpsertInput,
+} from './b2b-tier-config.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,

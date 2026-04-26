@@ -14,11 +14,24 @@ export const dynamic = 'force-dynamic'
 
 export default async function CadastrarPartnershipPage() {
   const { repos } = await loadMiraServerContext()
-  const combosRaw = await repos.b2bVoucherCombos.list().catch(() => [])
+  const [combosRaw, tierConfigsRaw] = await Promise.all([
+    repos.b2bVoucherCombos.list().catch(() => []),
+    repos.b2bTierConfigs.list().catch(() => []),
+  ])
   const combos = combosRaw.map((c) => ({
     label: c.label,
     isActive: c.isActive,
     isDefault: c.isDefault,
+  }))
+  const tierConfigs = tierConfigsRaw.map((t) => ({
+    tier: t.tier,
+    label: t.label,
+    description: t.description,
+    colorHex: t.colorHex,
+    defaultMonthlyCapBrl: t.defaultMonthlyCapBrl,
+    defaultVoucherCombo: t.defaultVoucherCombo,
+    defaultVoucherValidityDays: t.defaultVoucherValidityDays,
+    defaultVoucherMonthlyCap: t.defaultVoucherMonthlyCap,
   }))
 
   return (
@@ -44,7 +57,7 @@ export default async function CadastrarPartnershipPage() {
           </div>
         </div>
 
-        <WizardClient mode="new" combos={combos} />
+        <WizardClient mode="new" combos={combos} tierConfigs={tierConfigs} />
       </div>
     </main>
   )
