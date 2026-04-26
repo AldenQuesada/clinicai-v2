@@ -82,10 +82,15 @@ type EditDraft = {
 export function ProfessionalsClient({
   initialNumbers,
   professionals,
+  quotasToday,
 }: {
   initialNumbers: WaNumberFullDTO[]
   professionals: ProfessionalProfileDTO[]
+  /** Mapa professional_id → queries WhatsApp hoje (mig wa_pro_rate_limit). */
+  quotasToday: Record<string, number>
 }) {
+  // Index professionals por id pra lookup rapido na row (specialty, etc.)
+  const profById = new Map(professionals.map((p) => [p.id, p]))
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [editing, setEditing] = useState<EditDraft | null>(null)
@@ -256,6 +261,8 @@ export function ProfessionalsClient({
             <ProfessionalRow
               key={n.id}
               n={n}
+              specialty={profById.get(n.professionalId || '')?.specialty || null}
+              queriesToday={quotasToday[n.professionalId || ''] || 0}
               busy={pending}
               onEdit={() => startEdit(n)}
               onRemove={() => setConfirmRemove({ id: n.id, name: n.professionalName || n.label || '—' })}
@@ -339,17 +346,33 @@ export function ProfessionalsClient({
 
 function ProfessionalRow({
   n,
+  specialty,
+  queriesToday,
   busy,
   onEdit,
   onRemove,
   onResetQuota,
 }: {
   n: WaNumberFullDTO
+  specialty: string | null
+  queriesToday: number
   busy: boolean
   onEdit: () => void
   onRemove: () => void
   onResetQuota: () => void
 }) {
+  // Tone do uso · cap padrao 200 queries/dia (decisao Alden 2026-04-26)
+  const QUOTA_CAP = 200
+  const usagePct = Math.min(100, Math.round((queriesToday / QUOTA_CAP) * 100))
+  const usageTone =
+    queriesToday === 0
+      ? 'text-[#6B7280]'
+      : usagePct >= 90
+        ? 'text-[#EF4444]'
+        : usagePct >= 60
+          ? 'text-[#F59E0B]'
+          : 'text-[#10B981]'
+
   return (
     <div
       className={`grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors ${
@@ -357,10 +380,15 @@ function ProfessionalRow({
       }`}
     >
       <div className="min-w-0 flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-[#F5F0E8] truncate">
+        <span className="text-sm font-semibold text-[#F5F0E8] truncate flex items-center gap-2 flex-wrap">
           {n.professionalName || n.label || '—'}
+          {specialty ? (
+            <span className="text-[10px] font-normal text-[#9CA3AF] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+              {specialty}
+            </span>
+          ) : null}
           {!n.isActive ? (
-            <span className="ml-2 text-[9px] uppercase tracking-[1.2px] text-[#9CA3AF] bg-white/5 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] uppercase tracking-[1.2px] text-[#9CA3AF] bg-white/5 px-1.5 py-0.5 rounded">
               inativo
             </span>
           ) : null}
@@ -370,6 +398,12 @@ function ProfessionalRow({
           {n.label && n.label !== n.professionalName ? (
             <span className="text-[10.5px] text-[#6B7280]">{n.label}</span>
           ) : null}
+          <span
+            className={`text-[10.5px] ${usageTone}`}
+            title={`${queriesToday} consulta(s) · cap diario ${QUOTA_CAP} (${usagePct}%)`}
+          >
+            · {queriesToday}/{QUOTA_CAP} hoje
+          </span>
         </div>
       </div>
 

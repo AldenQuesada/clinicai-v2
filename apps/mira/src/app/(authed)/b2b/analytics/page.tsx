@@ -463,12 +463,12 @@ function ObjectivesView({
           <SectionInterpretation signal={sig('velocity')} />
         </CompactSection>
 
-        {/* Atividade Mira · agora vive lado-a-lado no grid (era full-width).
-            Alertas (NPS silente / sem sender) saem pro sino via system-insights. */}
+        {/* Atividade Mira · snapshot puro · zero alertas/CTA. Tudo que precisa
+            atencao vai pro sino (lib/system-insights.ts). Aqui so estado. */}
         <CompactSection
           emoji="🤖"
           title="Atividade Mira"
-          sub="Snapshot atual · alertas no sino"
+          sub="Snapshot atual"
           snapshot
         >
           <CompactKpiGrid
@@ -476,38 +476,20 @@ function ObjectivesView({
               {
                 lbl: 'Telefones',
                 val: m.wa_senders_active ?? 0,
-                sub:
-                  Number(m.wa_senders_active ?? 0) === 0
-                    ? 'configure 1+ no sino'
-                    : `${m.wa_senders_total ?? 0} cadastrados`,
-                tone:
-                  Number(m.wa_senders_active ?? 0) === 0
-                    ? 'red'
-                    : Number(m.wa_senders_active ?? 0) <
-                        Number(m.wa_senders_total ?? 0)
-                      ? 'amber'
-                      : 'green',
+                sub: `${m.wa_senders_total ?? 0} cadastrados`,
               },
               {
                 lbl: 'NPS respostas',
                 val: m.nps_responses ?? 0,
                 sub:
-                  (nps.responses ?? 0) > 0
-                    ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
-                    : 'disparar campanha',
-                tone:
-                  (nps.responses ?? 0) === 0
-                    ? 'amber'
-                    : nps.nps_score != null && nps.nps_score >= 8
-                      ? 'green'
-                      : null,
+                  (nps.responses ?? 0) > 0 && nps.nps_score != null
+                    ? `NPS ${nps.nps_score}`
+                    : '—',
               },
               {
                 lbl: 'Insights',
                 val: m.insights_active ?? 0,
-                sub:
-                  (m.insights_active ?? 0) > 0 ? 'ver no sino' : 'tudo em ordem',
-                tone: (m.insights_active ?? 0) > 0 ? 'amber' : 'green',
+                sub: '—',
               },
             ]}
           />

@@ -574,16 +574,59 @@ body.b2bm2-page {
    Mobile (<1100px): colapsa em single column. */
 .b2bm2-parceiros-2col {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 16px;
   align-items: start;
 }
 .b2bm2-parceiros-main { min-width: 0; }
 .b2bm2-parceiros-side {
   display: flex; flex-direction: column; gap: 12px;
+  min-width: 0; /* impede overflow horizontal de filhos */
 }
+
+/* Cards na lateral · padding reduzido + overflow controlado */
+.b2bm2-parceiros-side .b2bm2-card {
+  padding: 14px 16px;
+  overflow: hidden; /* impede heatmap de escapar */
+}
+
+/* Heatmap compacto na lateral · nome 80px, fonte menor, cells menores.
+   FIX 2026-04-26: heatmap fugia do card (220px nome + 12 cells em 380px). */
+.b2bm2-parceiros-side .b2bm2-hm-row,
+.b2bm2-parceiros-side .b2bm2-hm-weekhead {
+  grid-template-columns: 80px 1fr;
+  gap: 6px;
+}
+.b2bm2-parceiros-side .b2bm2-hm-name {
+  font-size: 10.5px;
+}
+.b2bm2-parceiros-side .b2bm2-hm-cells {
+  gap: 2px;
+}
+.b2bm2-parceiros-side .b2bm2-hm-wlbl {
+  font-size: 7.5px;
+}
+.b2bm2-parceiros-side .b2bm2-hm-cell {
+  font-size: 8.5px;
+  border-radius: 2px;
+}
+
+/* Scatter compacto · legenda quebra em 2 linhas no mobile da side */
+.b2bm2-parceiros-side .b2bm2-scatter-legend {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.b2bm2-parceiros-side .b2bm2-scatter-legend .b2bm2-chip {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
 @media (max-width: 1100px) {
   .b2bm2-parceiros-2col { grid-template-columns: 1fr; }
+  .b2bm2-parceiros-side .b2bm2-hm-row,
+  .b2bm2-parceiros-side .b2bm2-hm-weekhead {
+    grid-template-columns: 140px 1fr;
+  }
 }
 
 /* ═════════════════════════════════════════════════════════════════════════

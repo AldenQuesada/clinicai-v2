@@ -11,10 +11,17 @@ import { ProfessionalsClient } from './ProfessionalsClient'
 
 export async function ProfessionalsTab() {
   const { ctx, repos } = await loadMiraServerContext()
-  const [numbers, professionals] = await Promise.all([
+  const [numbers, professionals, quotasToday] = await Promise.all([
     repos.waNumbers.listProfessionalPrivate(ctx.clinic_id).catch(() => []),
     repos.professionalProfiles.listActiveWithPhone().catch(() => []),
+    repos.waNumbers.queriesByProfessionalToday().catch(() => ({})),
   ])
 
-  return <ProfessionalsClient initialNumbers={numbers} professionals={professionals} />
+  return (
+    <ProfessionalsClient
+      initialNumbers={numbers}
+      professionals={professionals}
+      quotasToday={quotasToday}
+    />
+  )
 }

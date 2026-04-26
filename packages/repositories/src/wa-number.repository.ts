@@ -92,11 +92,18 @@ export class WaNumberRepository {
    *
    * Espelha `wa_pro_list_numbers()` RPC do clinic-dashboard que ja inclui
    * professional_name + access_scope + permissions.
+   *
+   * BUG FIX 2026-04-26: por default agora oculta inativos · soft-deleted ainda
+   * aparecia na UI com opacity (parecia "duplicar registro"). Pra incluir
+   * inativos passe `{includeInactive:true}`.
    */
-  async listProfessionalPrivate(clinicId: string): Promise<WaNumberFullDTO[]> {
+  async listProfessionalPrivate(
+    clinicId: string,
+    options: { includeInactive?: boolean } = {},
+  ): Promise<WaNumberFullDTO[]> {
     const { data, error } = await this.supabase.rpc('wa_pro_list_numbers')
     if (error || !Array.isArray(data)) return []
-    return (data as Array<Record<string, unknown>>)
+    const all = (data as Array<Record<string, unknown>>)
       .filter((r) => String(r.clinic_id ?? '') === clinicId || !r.clinic_id)
       .map((r) => ({
         id: String(r.id),
@@ -119,11 +126,18 @@ export class WaNumberRepository {
           }) ?? {},
       }))
       .filter((n) => n.numberType === 'professional_private')
+    if (options.includeInactive) return all
+    return all.filter((n) => n.isActive)
   }
 
   /**
    * Cadastra/atualiza phone via RPC `wa_pro_register_number` (SECURITY DEFINER).
    * Faz upsert por phone+professional_id · usado tanto pra criar como editar.
+   *
+   * BUG FIX 2026-04-26: o RPC retorna jsonb com shape `{ok: bool, id?, error?}`.
+   * Antes, o repo so verificava o erro de transporte do PostgREST e devolvia
+   * ok=true mesmo quando o RPC tinha retornado `{ok:false, error:'phone_invalid'}`.
+   * Resultado: UI fechava modal sem ter salvado nada · agora propaga o erro.
    */
   async register(payload: WaNumberRegisterInput): Promise<{ ok: boolean; data?: unknown; error?: string }> {
     const { data, error } = await this.supabase.rpc('wa_pro_register_number', {
@@ -136,7 +150,11 @@ export class WaNumberRepository {
         { agenda: true, pacientes: true, financeiro: true, b2b: true },
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true, data }
+    const obj = (data ?? {}) as { ok?: boolean; error?: string; id?: string }
+    if (obj && obj.ok === false) {
+      return { ok: false, error: obj.error || 'rpc_failed' }
+    }
+    return { ok: true, data: obj }
   }
 
   /**
@@ -166,6 +184,27 @@ export class WaNumberRepository {
       .eq('date', today)
     if (error) return { ok: false, error: error.message }
     return { ok: true }
+  }
+
+  /**
+   * Mapa professional_id → queries hoje · usado pela tela Profissionais
+   * pra mostrar uso na row (alem do botao reset). Single query, agrupada
+   * client-side pra evitar GROUP BY direto (RLS-safe).
+   */
+  async queriesByProfessionalToday(): Promise<Record<string, number>> {
+    const today = new Date().toISOString().slice(0, 10)
+    const { data } = await this.supabase
+      .from('wa_pro_rate_limit')
+      .select('professional_id, query_count')
+      .eq('date', today)
+    if (!Array.isArray(data)) return {}
+    const out: Record<string, number> = {}
+    for (const r of data as Array<{ professional_id?: string; query_count?: number }>) {
+      const id = String(r.professional_id ?? '')
+      if (!id) continue
+      out[id] = (out[id] || 0) + (Number(r.query_count) || 0)
+    }
+    return out
   }
 
   /**
