@@ -18,6 +18,7 @@ import { runCron } from '@/lib/cron'
 import { getEvolutionService } from '@/services/evolution.service'
 import { filterSubscribers } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { renderTemplate } from '@clinicai/utils'
 import { createLogger } from '@clinicai/logger'
 import type { Insight, InsightSeverity } from '@clinicai/repositories'
 
@@ -51,15 +52,18 @@ function buildActionUrl(actionPath: string): string {
   return `${base}${path}`
 }
 
-function renderInsightText(insight: Insight, totalAlerts: number): string {
+/**
+ * Constroi o conteudo dinamico ({alerta_msg}) que sera injetado no template
+ * DB admin_daily_top_insight. Mantem formato legivel mesmo se template
+ * estiver minimo ou apagado.
+ */
+function buildAlertaMsg(insight: Insight, totalAlerts: number): string {
   const emoji = SEVERITY_EMOJI[insight.severity] ?? 'ℹ️'
   const label = SEVERITY_LABEL[insight.severity] ?? 'Alerta'
   const url = buildActionUrl(insight.action_url)
 
   const lines: string[] = []
-  lines.push(`${emoji} *Mira · alerta do dia* (${label})`)
-  lines.push('')
-  lines.push(`*${insight.title}*`)
+  lines.push(`${emoji} *${label}* · *${insight.title}*`)
   lines.push(insight.message)
   lines.push('')
   lines.push(`Parceria: ${insight.partnership_name}`)
@@ -128,8 +132,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Monta texto e despacha pra cada profissional inscrito em B2B
-    const text = renderInsightText(top, alerts.length)
+    // 4. Monta texto via template DB (mig 800-42 · admin_daily_top_insight)
+    // {alerta_msg} = corpo dinamico computado da Insight. Fallback se
+    // template apagado por engano.
+    const tpl = await repos.b2bTemplates.getByEventKey(clinicId, 'admin_daily_top_insight')
+    const alertaMsg = buildAlertaMsg(top, alerts.length)
+    const text = tpl?.textTemplate
+      ? renderTemplate(tpl.textTemplate, { alerta_msg: alertaMsg })
+      : `☀️ *Mira · alerta do dia*\n\n${alertaMsg}`
     const wa = getEvolutionService('mira')
     // Source-of-truth: mira_channels (UI editavel) com fallback env (mig 800-?? helper)
     const senderInstance = await resolveMiraInstance(clinicId, 'mira_admin_outbound')

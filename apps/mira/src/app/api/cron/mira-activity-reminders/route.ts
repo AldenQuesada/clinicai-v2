@@ -16,6 +16,7 @@
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { dispatchAdminText } from '@/lib/admin-dispatch'
+import { renderTemplate } from '@clinicai/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,22 +97,25 @@ export async function GET(req: NextRequest) {
         byPartner.set(key, arr)
       }
 
-      const lines: string[] = []
-      lines.push(`📋 *Atividades de parcerias* · proximas 48h`)
-      lines.push('')
+      // Constroi {alerta_msg} · partes dinamicas que vao no template DB
+      const alertaLines: string[] = []
       for (const [partnerName, activities] of byPartner) {
-        lines.push(`*${partnerName}*`)
+        alertaLines.push(`*${partnerName}*`)
         for (const a of activities) {
           const dueLabel = fmtDueLabel(a.due_date, todayIso)
           const kindLabel = KIND_LABELS[a.kind] ?? KIND_LABELS.custom
           const respMark = a.responsible === 'partner' ? ' (parceira)' : ''
-          lines.push(`  • ${kindLabel}${respMark}: ${a.title} · *${dueLabel}*`)
+          alertaLines.push(`  • ${kindLabel}${respMark}: ${a.title} · *${dueLabel}*`)
         }
-        lines.push('')
+        alertaLines.push('')
       }
-      lines.push(`Total: ${rows.length} atividade${rows.length > 1 ? 's' : ''}`)
+      alertaLines.push(`Total: ${rows.length} atividade${rows.length > 1 ? 's' : ''}`)
 
-      const text = lines.join('\n')
+      // Template DB (mig 800-42) · admin_activity_reminders. Fallback se apagado.
+      const tpl = await repos.b2bTemplates.getByEventKey(clinicId, 'admin_activity_reminders')
+      const text = tpl?.textTemplate
+        ? renderTemplate(tpl.textTemplate, { alerta_msg: alertaLines.join('\n') })
+        : `📋 *Atividades de parcerias · próximas 48h*\n\n${alertaLines.join('\n')}`
 
       const dispatch = await dispatchAdminText({
         supabase,
