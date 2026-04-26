@@ -152,6 +152,47 @@ export class WaProAuditRepository {
   }
 
   /**
+   * Conta queries por dia nos ultimos N dias (sparkline da Visao Geral).
+   * Retorna array ordenado cronologicamente · zero-fill nao incluido (UI
+   * pode preencher gaps se quiser).
+   */
+  async dailyCounts(
+    clinicId: string,
+    days: number = 14,
+  ): Promise<Array<{ day: string; total: number }>> {
+    const since = new Date(Date.now() - days * 86400000).toISOString()
+    const { data } = await this.supabase
+      .from('wa_pro_audit_log')
+      .select('created_at')
+      .eq('clinic_id', clinicId)
+      .gte('created_at', since)
+      .limit(5000)
+
+    const map = new Map<string, number>()
+    for (const r of (data ?? []) as Array<{ created_at: string }>) {
+      const day = (r.created_at || '').slice(0, 10)
+      if (!day) continue
+      map.set(day, (map.get(day) ?? 0) + 1)
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([day, total]) => ({ day, total }))
+  }
+
+  /**
+   * Conta transcricoes de audio no periodo (Visao Geral).
+   * Tabela `wa_pro_transcripts` cresce a cada audio que a Mira processa.
+   */
+  async voiceCount(clinicId: string, sinceIso: string): Promise<number> {
+    const { count } = await this.supabase
+      .from('wa_pro_transcripts')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .gte('created_at', sinceIso)
+    return count ?? 0
+  }
+
+  /**
    * Lista paginada de audit log (UI /configuracoes/logs).
    */
   async list(

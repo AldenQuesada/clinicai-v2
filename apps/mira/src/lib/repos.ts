@@ -45,6 +45,7 @@ import {
   B2BCommTemplateRepository,
   WaProAuditRepository,
   WaNumberRepository,
+  ProfessionalProfilesRepository,
   MiraChannelRepository,
   AppointmentRepository,
   WebhookProcessingQueueRepository,
@@ -84,6 +85,7 @@ export interface MiraRepos {
   b2bTemplates: B2BCommTemplateRepository
   waProAudit: WaProAuditRepository
   waNumbers: WaNumberRepository
+  professionalProfiles: ProfessionalProfilesRepository
   miraChannels: MiraChannelRepository
   appointments: AppointmentRepository
   webhookQueue: WebhookProcessingQueueRepository
@@ -123,6 +125,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bTemplates: new B2BCommTemplateRepository(supabase),
     waProAudit: new WaProAuditRepository(supabase),
     waNumbers: new WaNumberRepository(supabase),
+    professionalProfiles: new ProfessionalProfilesRepository(supabase),
     miraChannels: new MiraChannelRepository(supabase),
     appointments: new AppointmentRepository(supabase),
     webhookQueue: new WebhookProcessingQueueRepository(supabase),

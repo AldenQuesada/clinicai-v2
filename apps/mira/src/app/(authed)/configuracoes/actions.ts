@@ -30,3 +30,69 @@ export async function updateChannelAction(formData: FormData) {
 
   revalidatePath('/configuracoes')
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Profissionais (Tab Profissionais · CRUD)
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function registerProfessionalAction(payload: {
+  phone: string
+  professional_id: string
+  label?: string | null
+  access_scope?: 'own' | 'full'
+  permissions?: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean }
+}): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+
+  const digits = payload.phone.replace(/\D/g, '')
+  if (digits.length < 10 || digits.length > 13) {
+    return { ok: false, error: 'Telefone invalido (10-13 digitos)' }
+  }
+  if (!payload.professional_id) {
+    return { ok: false, error: 'Profissional obrigatorio' }
+  }
+
+  const r = await repos.waNumbers.register({
+    phone: digits,
+    professional_id: payload.professional_id,
+    label: payload.label ?? null,
+    access_scope: payload.access_scope ?? 'own',
+    permissions: payload.permissions ?? { agenda: true, pacientes: true, financeiro: true },
+  })
+  revalidatePath('/configuracoes')
+  return { ok: r.ok, error: r.error }
+}
+
+export async function updateProfessionalAction(payload: {
+  phone: string
+  professional_id: string
+  label?: string | null
+  access_scope?: 'own' | 'full'
+  permissions?: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean }
+}): Promise<{ ok: boolean; error?: string }> {
+  // wa_pro_register_number e upsert · reusa o mesmo path
+  return registerProfessionalAction(payload)
+}
+
+export async function removeProfessionalAction(
+  waNumberId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  if (!waNumberId) return { ok: false, error: 'id obrigatorio' }
+  const r = await repos.waNumbers.deactivate(waNumberId)
+  revalidatePath('/configuracoes')
+  return r
+}
+
+export async function resetProfessionalQuotaAction(
+  professionalId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  if (!professionalId) return { ok: false, error: 'professional_id obrigatorio' }
+  const r = await repos.waNumbers.resetQuota(professionalId)
+  revalidatePath('/configuracoes')
+  return r
+}

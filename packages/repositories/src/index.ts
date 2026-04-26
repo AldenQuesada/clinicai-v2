@@ -145,7 +145,16 @@ export {
   type WaProMessageInput,
   type WaProAuditInput,
 } from './wa-pro-audit.repository'
-export { WaNumberRepository, type WaNumberDTO } from './wa-number.repository'
+export {
+  WaNumberRepository,
+  type WaNumberDTO,
+  type WaNumberFullDTO,
+  type WaNumberRegisterInput,
+} from './wa-number.repository'
+export {
+  ProfessionalProfilesRepository,
+  type ProfessionalProfileDTO,
+} from './professional-profiles.repository'
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
 
