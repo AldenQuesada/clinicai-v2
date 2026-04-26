@@ -896,23 +896,10 @@ function EventsTab({
   return (
     <>
       {/* Chips agrupados por categoria do catalogo · 1 row por grupo.
-          "Todos" foi removido (Alden 2026-04-26 · redundante com bucket
-          rail acima · gerava confusao). Pra limpar filtro de event_key,
-          basta clicar no chip ativo de novo. */}
+          "Todos" e "Limpar filtro" removidos (Alden 2026-04-26 · 2 niveis
+          de tags era confuso). Pra limpar filtro de event_key, basta
+          clicar no chip ativo de novo (toggle). */}
       <div className="bcomm-chips-grouped">
-        {filterEventKey ? (
-          <div className="bcomm-chips-row">
-            <button
-              type="button"
-              className="bcomm-chip"
-              onClick={() => onChipClick(null)}
-              title="Limpar filtro de evento"
-              style={{ opacity: 0.7 }}
-            >
-              ✕ Limpar filtro
-            </button>
-          </div>
-        ) : null}
 
         {catalog.map((g) => (
           <div key={g.group} className="bcomm-chips-group">
