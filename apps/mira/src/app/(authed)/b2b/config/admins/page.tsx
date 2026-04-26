@@ -1,10 +1,15 @@
-import { loadMiraServerContext } from '@/lib/server-context'
-import { AdminsClient } from './AdminsClient'
+/**
+ * /b2b/config/admins · DEPRECATED 2026-04-26.
+ * Fundido com Profissionais em /configuracoes?tab=pessoas (2 blocos).
+ *
+ * AdminsClient + actions.ts mantidos · PessoasTab importa o client component
+ * direto (zero duplicacao de codigo).
+ */
+
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ConfigAdminsPage() {
-  const { repos } = await loadMiraServerContext()
-  const rows = await repos.b2bAdminPhones.list().catch(() => [])
-  return <AdminsClient initial={rows} />
+export default function ConfigAdminsPage() {
+  redirect('/configuracoes?tab=pessoas')
 }

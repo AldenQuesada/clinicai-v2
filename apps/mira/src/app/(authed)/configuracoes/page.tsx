@@ -1,25 +1,23 @@
 /**
- * /configuracoes · 4 abas (Overview / Professionals / Channels / Logs).
+ * /configuracoes · 5 abas: overview | pessoas | channels | logs | (legacy: professionals).
+ *
+ * 2026-04-26: tab "pessoas" novo · 2 blocos lado a lado (Admins + Profissionais).
+ * Antigos /b2b/config/admins e ?tab=professionals redirecionam pra ca.
  *
  * Restrito a owner/admin. Cada tab e Server Component dedicado.
  * Tabs via search param ?tab= (sem JS client).
- *
- * Visual MIRROR mira-config antigo · header denso, tabs com border-b 2px gold
- * no active, max-w-[960px], sem icon-box luxury, Inter only.
  */
 
 import { redirect } from 'next/navigation'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { OverviewTab } from './OverviewTab'
-import { ProfessionalsTab } from './ProfessionalsTab'
+import { PessoasTab } from './PessoasTab'
 import { ChannelsTab } from './ChannelsTab'
 import { LogsTab } from './LogsTab'
 
 export const dynamic = 'force-dynamic'
 
-// Whitelist de tabs validos · controle vem do sub-menu Configuracoes na
-// AppNav (sem tabs duplicados na pagina · zero header repetido).
-const VALID_TABS = ['overview', 'professionals', 'channels', 'logs'] as const
+const VALID_TABS = ['overview', 'pessoas', 'channels', 'logs'] as const
 type Tab = (typeof VALID_TABS)[number]
 
 interface PageProps {
@@ -32,6 +30,7 @@ interface PageProps {
     days?: string
     from?: string
     to?: string
+    audit_action?: string
   }>
 }
 
@@ -43,12 +42,19 @@ export default async function ConfigPage({ searchParams }: PageProps) {
     redirect('/dashboard')
   }
 
+  // Legacy alias: ?tab=professionals -> tab=pessoas (mantém URLs antigas)
+  if (sp.tab === 'professionals') {
+    redirect('/configuracoes?tab=pessoas')
+  }
+
   const activeTab: Tab =
     sp.tab && (VALID_TABS as readonly string[]).includes(sp.tab) ? (sp.tab as Tab) : 'overview'
 
-  // Overview ganhou aside Saude · usa max-w maior (1200) pra caber 2-col.
-  // Outros tabs mantem 960 (mais legivel pra forms/tabelas verticais).
-  const wrapMax = activeTab === 'overview' ? 'max-w-[1200px]' : 'max-w-[960px]'
+  // Tabs com 2 blocos lado a lado (overview/pessoas/logs) usam wrap maior.
+  const wrapMax =
+    activeTab === 'overview' || activeTab === 'pessoas' || activeTab === 'logs'
+      ? 'max-w-[1200px]'
+      : 'max-w-[960px]'
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
@@ -56,7 +62,7 @@ export default async function ConfigPage({ searchParams }: PageProps) {
         {activeTab === 'overview' && (
           <OverviewTab days={sp.days} from={sp.from} to={sp.to} />
         )}
-        {activeTab === 'professionals' && <ProfessionalsTab />}
+        {activeTab === 'pessoas' && <PessoasTab />}
         {activeTab === 'channels' && <ChannelsTab />}
         {activeTab === 'logs' && (
           <LogsTab
@@ -64,6 +70,7 @@ export default async function ConfigPage({ searchParams }: PageProps) {
             intent={sp.intent || ''}
             successFilter={sp.success || ''}
             page={Math.max(1, parseInt(sp.page || '1', 10))}
+            auditAction={sp.audit_action || ''}
           />
         )}
       </div>

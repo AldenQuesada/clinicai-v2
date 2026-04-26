@@ -171,10 +171,8 @@ const SECTIONS: Section[] = [
       {
         groupLabel: 'Dia-a-dia',
         subtabs: [
-          // Saude absorvida na Visao geral em 2026-04-26 (aside direita,
-          // reage ao TimeRangePicker no que cabe) · sub-tab removida.
+          // 2026-04-26 · Saude absorvida na Visao geral · Auditoria fundida em Logs
           { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
-          { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
           { href: '/b2b/config/tiers', label: 'Tiers', available: true },
           { href: '/b2b/config/funnel', label: 'Funnel', available: true },
           { href: '/b2b/config/playbooks', label: 'Playbooks', available: true },
@@ -184,16 +182,17 @@ const SECTIONS: Section[] = [
       {
         groupLabel: 'Operar',
         subtabs: [
+          // 2026-04-26 · Admins fundido em "Pessoas" do grupo Setup
           { href: '/b2b/config/padroes', label: 'Padrões', available: true },
           { href: '/b2b/config/rotinas', label: 'Rotinas', available: true },
-          { href: '/b2b/config/admins', label: 'Admins', available: true },
         ],
       },
       {
         groupLabel: 'Setup',
         subtabs: [
           { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
-          { href: '/configuracoes?tab=professionals', label: 'Profissionais', available: true },
+          // 2026-04-26 · Pessoas = Admins (esq) + Profissionais (dir) lado a lado
+          { href: '/configuracoes?tab=pessoas', label: 'Pessoas', available: true },
         ],
       },
       {
