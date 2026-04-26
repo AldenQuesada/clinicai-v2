@@ -43,11 +43,13 @@ import type {
   B2BCommHistoryEntry,
 } from '@clinicai/repositories'
 
-type TabId = 'events' | 'templates' | 'sequences' | 'history' | 'config'
+// Mig cleanup 2026-04-26: Eventos + Templates mergeados em "Catálogo".
+// Eram a mesma coisa renderizada de 2 jeitos (chips agrupados vs lista flat).
+// Bucket rail acima filtra · Catálogo mostra hierarquia plana 1 nivel.
+type TabId = 'catalog' | 'sequences' | 'history' | 'config'
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'events', label: 'Eventos' },
-  { id: 'templates', label: 'Templates' },
+  { id: 'catalog', label: 'Catálogo' },
   { id: 'sequences', label: 'Sequências' },
   { id: 'history', label: 'Histórico' },
   { id: 'config', label: 'Config' },
@@ -292,7 +294,7 @@ export function CommClient({
   const [sequences, setSequences] = useState<B2BCommTemplateSequenceGroup[]>(initialSequences)
   const [sequencesLoaded, setSequencesLoaded] = useState<boolean>(initialSequences.length > 0)
 
-  const [activeTab, setActiveTab] = useState<TabId>('events')
+  const [activeTab, setActiveTab] = useState<TabId>('catalog')
   const [filterEventKey, setFilterEventKey] = useState<string | null>(null)
   // Mig 800-41 · bucket filter ('all' = sem filtro)
   // Default 'parceiros' · bucket mais usado · evita estado vazio inicial
@@ -593,25 +595,16 @@ export function CommClient({
               onSaved={handleSaved}
               onDeleted={handleDeleted}
             />
-          ) : activeTab === 'events' ? (
-            <EventsTab
+          ) : activeTab === 'catalog' ? (
+            <CatalogTab
               catalog={filteredCatalog}
               templates={filteredTemplates}
               filterEventKey={filterEventKey}
               selectedId={selectedId}
-              onChipClick={setFilterEventKey}
+              onSelectEvent={setFilterEventKey}
               onSelect={handleSelect}
               onEdit={handleEdit}
               onNew={handleNew}
-            />
-          ) : activeTab === 'templates' ? (
-            <TemplatesTab
-              templates={filteredTemplates}
-              catalog={filteredCatalog}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onEdit={handleEdit}
-              onNew={() => handleNew()}
             />
           ) : activeTab === 'sequences' ? (
             <SequencesTab
@@ -620,9 +613,14 @@ export function CommClient({
               templates={templates}
               catalog={catalog}
               selectedId={selectedId}
+              bucketFilter={bucketFilter}
               onSelect={handleSelect}
               onEdit={handleEdit}
               onReload={reloadSequences}
+              onCreateNamed={(name) => {
+                // Pre-cria sequencia com nome sugerido · usuario adiciona templates depois
+                handleNew(name === 'voucher_followup' ? 'voucher_validity_reminder' : undefined)
+              }}
             />
           ) : activeTab === 'history' ? (
             <HistoryTab
@@ -868,12 +866,25 @@ function PreviewPane({
 // ═══════════════════════════════════════════════════════════════════════
 // Aba Eventos · chips + lista agrupada / filtrada
 // ═══════════════════════════════════════════════════════════════════════
-function EventsTab({
+/**
+ * CatalogTab · merge de Eventos + Templates (Alden 2026-04-26 · cleanup).
+ * Lista hierarquica plana · 1 nivel de tag (bucket rail) · zero chips
+ * de event_key (eram o 2o nivel confuso).
+ *
+ * Estrutura:
+ *   ▾ Group label · N eventos · M templates ativos
+ *      ┃ Evento label                         · 1 template / sem template
+ *      ┃   └ template row inline (quando event expandido)
+ *
+ * Click no evento expande inline mostrando os templates daquele event.
+ * Click no template seleciona pra preview/edit.
+ */
+function CatalogTab({
   catalog,
   templates,
   filterEventKey,
   selectedId,
-  onChipClick,
+  onSelectEvent,
   onSelect,
   onEdit,
   onNew,
@@ -882,74 +893,241 @@ function EventsTab({
   templates: B2BCommTemplateRaw[]
   filterEventKey: string | null
   selectedId: string | null
-  onChipClick: (key: string | null) => void
+  onSelectEvent: (key: string | null) => void
   onSelect: (id: string) => void
   onEdit: (id: string) => void
   onNew: (eventKey?: string) => void
 }) {
-  // Counts por event_key (templates globais · sem partnership_id)
+  // Counts por event_key (globais sem partnership_id)
   const counts: Record<string, number> = {}
   templates.forEach((t) => {
     if (!t.partnership_id) counts[t.event_key] = (counts[t.event_key] || 0) + 1
   })
 
+  // Templates indexados por event_key pra render inline
+  const tplByEvent: Record<string, B2BCommTemplateRaw[]> = {}
+  templates.forEach((t) => {
+    if (!t.partnership_id) {
+      tplByEvent[t.event_key] = tplByEvent[t.event_key] || []
+      tplByEvent[t.event_key].push(t)
+    }
+  })
+
+  if (catalog.length === 0) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center', color: 'var(--b2b-fg-2)' }}>
+        Nenhum evento neste bucket.
+      </div>
+    )
+  }
+
   return (
-    <>
-      {/* Chips agrupados por categoria do catalogo · 1 row por grupo.
-          "Todos" e "Limpar filtro" removidos (Alden 2026-04-26 · 2 niveis
-          de tags era confuso). Pra limpar filtro de event_key, basta
-          clicar no chip ativo de novo (toggle). */}
-      <div className="bcomm-chips-grouped">
+    <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {catalog.map((g) => {
+        const groupTplCount = g.events.reduce((acc, ev) => acc + (counts[ev.key] || 0), 0)
+        const groupGapCount = g.events.filter((ev) => !counts[ev.key]).length
+        return (
+          <CatalogSection
+            key={g.group}
+            groupLabel={g.group}
+            eventCount={g.events.length}
+            tplCount={groupTplCount}
+            gapCount={groupGapCount}
+          >
+            {g.events.map((ev) => {
+              const evTpls = tplByEvent[ev.key] || []
+              const expanded = filterEventKey === ev.key
+              return (
+                <CatalogEventRow
+                  key={ev.key}
+                  ev={ev}
+                  templates={evTpls}
+                  expanded={expanded}
+                  selectedId={selectedId}
+                  onToggle={() => onSelectEvent(expanded ? null : ev.key)}
+                  onTemplateClick={onSelect}
+                  onTemplateEdit={onEdit}
+                  onCreateTemplate={() => onNew(ev.key)}
+                />
+              )
+            })}
+          </CatalogSection>
+        )
+      })}
+    </div>
+  )
+}
 
-        {catalog.map((g) => (
-          <div key={g.group} className="bcomm-chips-group">
-            <div className="bcomm-chips-group-lbl">{g.group}</div>
-            <div className="bcomm-chips-row">
-              {g.events.map((ev) => {
-                const m = metaFor(ev.key)
-                const on = filterEventKey === ev.key
-                return (
-                  <button
-                    key={ev.key}
-                    type="button"
-                    className={'bcomm-chip' + (on ? ' bcomm-chip-active' : '')}
-                    style={{ ['--chip-color' as never]: m.color } as React.CSSProperties}
-                    onClick={() => onChipClick(ev.key)}
-                  >
-                    <span className="bcomm-chip-icon">{m.icon}</span>
-                    <span>{ev.label || m.short}</span>
-                    <span className="bcomm-chip-count">{counts[ev.key] || 0}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+/** Section header colapsavel · 1 por group_label do catalog. */
+function CatalogSection({
+  groupLabel,
+  eventCount,
+  tplCount,
+  gapCount,
+  children,
+}: {
+  groupLabel: string
+  eventCount: number
+  tplCount: number
+  gapCount: number
+  children: React.ReactNode
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  return (
+    <div style={{ borderTop: '1px solid var(--b2b-border)' }}>
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--b2b-fg-1)',
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 600,
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, opacity: 0.6 }}>{collapsed ? '▸' : '▾'}</span>
+          <span style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>{groupLabel}</span>
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--b2b-fg-2)', fontWeight: 400 }}>
+          {eventCount} eventos · {tplCount} templates
+          {gapCount > 0 ? ` · ⚠️ ${gapCount} sem template` : ''}
+        </span>
+      </button>
+      {!collapsed ? (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>
+      ) : null}
+    </div>
+  )
+}
 
-      <div className="bcomm-list">
-        {filterEventKey ? (
-          <FilteredList
-            evKey={filterEventKey}
-            events={flatEvents(catalog)}
-            templates={templates}
-            selectedId={selectedId}
-            onSelect={onSelect}
-            onEdit={onEdit}
-            onNew={onNew}
-          />
-        ) : (
-          <CatalogGroupedList
-            catalog={catalog}
-            templates={templates}
-            selectedId={selectedId}
-            onSelect={onSelect}
-            onEdit={onEdit}
-            onNew={onNew}
-          />
-        )}
-      </div>
-    </>
+/** Linha de 1 evento · expande mostrando templates inline. */
+function CatalogEventRow({
+  ev,
+  templates,
+  expanded,
+  selectedId,
+  onToggle,
+  onTemplateClick,
+  onTemplateEdit,
+  onCreateTemplate,
+}: {
+  ev: { key: string; label: string; recipient?: string }
+  templates: B2BCommTemplateRaw[]
+  expanded: boolean
+  selectedId: string | null
+  onToggle: () => void
+  onTemplateClick: (id: string) => void
+  onTemplateEdit: (id: string) => void
+  onCreateTemplate: () => void
+}) {
+  const m = metaFor(ev.key)
+  const tplCount = templates.length
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          padding: '8px 14px 8px 30px',
+          background: expanded ? 'rgba(201, 169, 110, 0.08)' : 'transparent',
+          border: 'none',
+          borderLeft: expanded ? '2px solid var(--b2b-gold)' : '2px solid transparent',
+          color: 'var(--b2b-fg-0)',
+          cursor: 'pointer',
+          fontSize: 13,
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: m.color, fontSize: 14 }} aria-hidden>
+            {m.icon}
+          </span>
+          <span>{ev.label || m.short}</span>
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            color: tplCount > 0 ? 'var(--b2b-fg-2)' : '#dc2626',
+            fontWeight: tplCount > 0 ? 400 : 500,
+          }}
+        >
+          {tplCount > 0 ? `${tplCount} template${tplCount > 1 ? 's' : ''}` : 'sem template'}
+        </span>
+      </button>
+      {expanded ? (
+        <div
+          style={{
+            padding: '4px 14px 10px 50px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          {templates.length > 0 ? (
+            templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onTemplateClick(t.id)}
+                onDoubleClick={() => onTemplateEdit(t.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  background: selectedId === t.id ? 'rgba(201, 169, 110, 0.15)' : 'transparent',
+                  border: '1px solid ' + (selectedId === t.id ? 'var(--b2b-gold)' : 'var(--b2b-border)'),
+                  borderRadius: 4,
+                  color: 'var(--b2b-fg-1)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span aria-hidden>{channelIcon(t.channel)}</span>
+                  <span>{t.partnership_id ? 'override' : 'global'}</span>
+                  {t.is_active ? null : (
+                    <span style={{ color: '#dc2626', fontSize: 10 }}>· inativo</span>
+                  )}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--b2b-fg-2)' }}>editar →</span>
+              </button>
+            ))
+          ) : null}
+          <button
+            type="button"
+            onClick={onCreateTemplate}
+            style={{
+              padding: '6px 10px',
+              background: 'transparent',
+              border: '1px dashed var(--b2b-gold)',
+              borderRadius: 4,
+              color: 'var(--b2b-gold)',
+              fontSize: 11,
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+          >
+            + Criar template para este evento
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -2076,18 +2254,22 @@ function SequencesTab({
   templates,
   catalog,
   selectedId,
+  bucketFilter,
   onSelect,
   onEdit,
   onReload,
+  onCreateNamed,
 }: {
   sequences: B2BCommTemplateSequenceGroup[]
   loaded: boolean
   templates: B2BCommTemplateRaw[]
   catalog: B2BCommEventCatalog
   selectedId: string | null
+  bucketFilter: string
   onSelect: (id: string) => void
   onEdit: (id: string) => void
   onReload: () => Promise<void>
+  onCreateNamed: (name: string) => void
 }) {
   const [busyMsg, setBusyMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -2189,8 +2371,57 @@ function SequencesTab({
     .map((n) => ({ name: n, templates: [] }))
   const allNamed = namedGroups.concat(draftGroups)
 
+  // Funil pos-voucher (convidadas) · banner destaque (Alden 2026-04-26)
+  const showVoucherFunnelBanner =
+    bucketFilter === 'convidadas' &&
+    !allNamed.some((g) => g.name === 'voucher_followup')
+
   return (
     <>
+      {showVoucherFunnelBanner ? (
+        <div
+          style={{
+            margin: '8px 0 12px',
+            padding: '14px 16px',
+            background: 'linear-gradient(180deg, rgba(201,169,110,0.08), rgba(201,169,110,0.02))',
+            border: '1px solid var(--b2b-gold)',
+            borderRadius: 6,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-gold)',
+              fontWeight: 600,
+              marginBottom: 6,
+            }}
+          >
+            Sugestão · funil pós-voucher
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--b2b-fg-1)',
+              margin: '0 0 10px',
+              lineHeight: 1.5,
+            }}
+          >
+            Convidada recebeu voucher mas <em>ainda não agendou</em>? A Mira pode reaquecer
+            com lembretes (D+1 carinho · D+3 prova social · D+7 urgência · D-3 validade).
+            Quando ela agenda, a Lara assume o atendimento.
+          </p>
+          <button
+            type="button"
+            className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
+            onClick={() => onCreateNamed('voucher_followup')}
+          >
+            + Criar funil pós-voucher
+          </button>
+        </div>
+      ) : null}
+
       <div className="bcomm-toolbar">
         <button
           type="button"
