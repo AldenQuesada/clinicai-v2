@@ -120,7 +120,7 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
         <PartnershipsFiltersBar initialQuery={q} initialPillar={pillar} />
 
         {/* === Head: count + actions (espelha b2b-list.ui.js _renderShell) === */}
-        <div className="b2b-list-head b2b-list-head-page">
+        <div className="b2b-list-head">
           <div className="b2b-list-count">
             {items.length} {countNoun(items.length, tab)}
           </div>
@@ -128,14 +128,14 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
             {tab === 'active' && (
               <button
                 type="button"
-                className="b2b-btn b2b-btn-page"
+                className="b2b-btn"
                 title="Baixar planilha CSV com todas as parcerias"
                 disabled
               >
                 Exportar CSV
               </button>
             )}
-            <Link href="/estudio/cadastrar" className="b2b-btn b2b-btn-primary b2b-btn-page">
+            <Link href="/estudio/cadastrar" className="b2b-btn b2b-btn-primary">
               + Nova parceria
             </Link>
           </div>
@@ -148,20 +148,6 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
           <ListBody items={items} tab={tab} />
         )}
       </div>
-
-      {/* Tweaks pixel-perfect onde Mira globals.css divergiu do b2b.css legado */}
-      <style>{`
-        .b2b-list-head-page {
-          align-items: center;
-          margin-bottom: 20px;
-          gap: 12px;
-        }
-        .b2b-btn-page {
-          padding: 9px 18px;
-          font-size: 12px;
-          letter-spacing: 0.3px;
-        }
-      `}</style>
     </main>
   )
 }
@@ -213,7 +199,7 @@ function Row({ p }: { p: B2BPartnershipDTO }) {
       <div className="b2b-row-body">
         <div className="b2b-row-top">
           <span className="b2b-row-name">{p.name}</span>
-          {p.tier != null && <span className="b2b-pill b2b-pill-tier">T{p.tier}</span>}
+          {!!p.tier && <span className="b2b-pill b2b-pill-tier">T{p.tier}</span>}
           <span className={`b2b-pill b2b-pill-${p.pillar || 'outros'}`}>
             {p.pillar || 'outros'}
           </span>

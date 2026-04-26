@@ -137,29 +137,29 @@
 .b2b-page-container { max-width: 1640px; margin: 0 auto; padding: 40px 40px 80px; }
 
 .b2b-list-head {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
 }
 .b2b-list-count {
-  font-size: 11px; color: var(--b2b-text-muted); letter-spacing: 0.5px;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--b2b-text-muted); font-weight: 600;
 }
 .b2b-list-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* ── Buttons ── */
+/* ── Buttons (espelha b2b.css legado linhas 231-242) ── */
 .b2b-btn {
-  font-size: 11px; padding: 8px 14px; border-radius: 6px;
-  background: var(--b2b-bg-2); color: var(--b2b-text);
-  border: 1px solid var(--b2b-border); cursor: pointer;
-  font-family: 'Montserrat', sans-serif; font-weight: 500;
-  transition: background 0.15s, border-color 0.15s;
+  padding: 9px 18px; background: var(--b2b-bg-2); color: var(--b2b-text);
+  border: 1px solid var(--b2b-border-strong); border-radius: 6px;
+  font-size: 12px; font-weight: 500; letter-spacing: 0.3px; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
 }
-.b2b-btn:hover { background: var(--b2b-bg-3); border-color: var(--b2b-border-strong); }
+.b2b-btn:hover { background: var(--b2b-bg-3); border-color: var(--b2b-champagne); }
 .b2b-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .b2b-btn-primary {
   background: var(--b2b-champagne); color: var(--b2b-bg-0);
   border-color: var(--b2b-champagne); font-weight: 600;
 }
-.b2b-btn-primary:hover { background: var(--b2b-champagne-light); border-color: var(--b2b-champagne-light); }
+.b2b-btn-primary:hover { background: var(--b2b-champagne-light); }
 
 /* ── Group / rows (lista de parcerias) ── */
 .b2b-group { margin-bottom: 28px; }
@@ -199,11 +199,10 @@
 .b2b-pill-tier { background: rgba(201, 169, 110, 0.2); color: var(--b2b-champagne); font-weight: 600; }
 .b2b-pill-type { background: rgba(138, 158, 136, 0.15); color: var(--b2b-sage); }
 
-/* ── Empty state ── */
+/* ── Empty state (espelha b2b.css legado linhas 297-301) ── */
 .b2b-empty {
-  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
-  border-radius: 8px; padding: 32px 20px; text-align: center;
-  color: var(--b2b-text-muted); font-size: 13px;
+  padding: 40px; text-align: center; color: var(--b2b-text-muted); font-size: 13px;
+  background: var(--b2b-bg-1); border: 1px dashed var(--b2b-border); border-radius: 6px;
 }
 .b2b-empty-err { color: var(--b2b-red); border-color: rgba(217, 122, 122, 0.3); }
 
