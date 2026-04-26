@@ -113,6 +113,20 @@ export {
   type NpsSummary,
 } from './b2b-nps.repository'
 export {
+  B2BMetricsV2Repository,
+  type GrowthWeek,
+  type GrowthWeekly,
+  type PipelineFunnel,
+  type PartnerClassification,
+  type PartnerPerformanceRow,
+  type AlertSeverity,
+  type CriticalAlert,
+  type PaybackData,
+  type VelocityData,
+  type ForecastStatus,
+  type ForecastData,
+} from './b2b-metrics-v2.repository'
+export {
   B2BAdminPhonesRepository,
   type B2BAdminPhoneRaw,
   type B2BAdminPhoneInput,

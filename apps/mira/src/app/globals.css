@@ -20,6 +20,7 @@
 @import "@clinicai/ui/styles/globals.css";
 @import "./b2b-comm.css";
 @import "./b2b-config.css";
+@import "./b2b-metrics-v2.css";
 
 @layer base {
   :root {

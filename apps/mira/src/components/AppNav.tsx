@@ -72,8 +72,13 @@ const SECTIONS: Section[] = [
     label: 'Analytics',
     defaultHref: '/b2b/analytics',
     match: ['/b2b/analytics', '/analytics', '/semana/relatorios', '/b2b/nps'],
+    // Esq→dir: zoom-out (resumo) → zoom-in (deep operacional) → feedback
     subtabs: [
-      { href: '/b2b/analytics', label: 'Overview', available: true },
+      { href: '/b2b/analytics', label: 'Visão geral', available: true },
+      { href: '/b2b/analytics/crescimento', label: 'Crescimento', available: true },
+      { href: '/b2b/analytics/parceiros', label: 'Parceiros', available: true },
+      { href: '/b2b/analytics/retorno', label: 'Retorno', available: true },
+      { href: '/b2b/analytics/imagem', label: 'Imagem', available: true },
       { href: '/b2b/nps', label: 'NPS', available: true },
     ],
   },
