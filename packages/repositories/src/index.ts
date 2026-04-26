@@ -112,6 +112,24 @@ export {
   type NpsListResult,
   type NpsSummary,
 } from './b2b-nps.repository'
+export {
+  B2BAdminPhonesRepository,
+  type B2BAdminPhoneRaw,
+  type B2BAdminPhoneInput,
+} from './b2b-admin-phones.repository'
+export {
+  B2BSystemHealthRepository,
+  type SystemHealthSection,
+  type SystemHealthCounts,
+  type SystemHealthSnapshot,
+  type AuditEntry,
+} from './b2b-system-health.repository'
+export {
+  B2BClinicDefaultsRepository,
+  type VoucherCTA,
+  type ClinicDefaultsRaw,
+  type ClinicDefaultsResponse,
+} from './b2b-clinic-defaults.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,

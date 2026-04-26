@@ -90,14 +90,14 @@ const SECTIONS: Section[] = [
   {
     key: 'config',
     label: 'Configurações',
-    defaultHref: '/configuracoes?tab=professionals',
-    match: ['/configuracoes', '/estudio'],
+    defaultHref: '/b2b/config/admins',
+    match: ['/b2b/config', '/configuracoes', '/estudio'],
     subtabs: [
-      { href: '/configuracoes?tab=professionals', label: 'Admins', available: true },
-      { href: '/estudio/padroes', label: 'Padrões', available: true },
-      { href: '/configuracoes?tab=overview', label: 'Saúde', available: true },
-      { href: '/configuracoes?tab=logs', label: 'Auditoria', available: true },
-      { href: '/estudio/sobre', label: 'Sobre', available: true },
+      { href: '/b2b/config/admins', label: 'Admins', available: true },
+      { href: '/b2b/config/padroes', label: 'Padrões', available: true },
+      { href: '/b2b/config/saude', label: 'Saúde', available: true },
+      { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
+      { href: '/b2b/config/sobre', label: 'Sobre', available: true },
     ],
   },
 ]
