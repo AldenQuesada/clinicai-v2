@@ -29,6 +29,9 @@ interface PageProps {
     intent?: string
     success?: string
     page?: string
+    days?: string
+    from?: string
+    to?: string
   }>
 }
 
@@ -46,7 +49,9 @@ export default async function ConfigPage({ searchParams }: PageProps) {
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[960px] mx-auto px-6 py-6">
-        {activeTab === 'overview' && <OverviewTab />}
+        {activeTab === 'overview' && (
+          <OverviewTab days={sp.days} from={sp.from} to={sp.to} />
+        )}
         {activeTab === 'professionals' && <ProfessionalsTab />}
         {activeTab === 'channels' && <ChannelsTab />}
         {activeTab === 'logs' && (

@@ -1,65 +1,115 @@
 /**
  * Tab Visão geral · KPIs internos da Mira (mirror b2b-config Overview).
  *
- * - wa_numbers ativos
- * - Queries today/week/month (count wa_pro_audit_log)
- * - Avg response_ms
- * - Error rate
- * - Top 5 intents
+ * - wa_numbers ativos (estado · sem periodo)
+ * - Queries hoje (fixo · snapshot do dia)
+ * - Queries no periodo selecionado (TimeRangePicker · 30/60/90d)
+ * - Error rate no periodo
+ * - Top intents no periodo
+ * - Latencia hoje + periodo
+ * - Sparkline diario (cap 30 dias visualmente · evita 90 colunas apertadas)
+ * - Audios mes corrente (fixo)
  *
- * Visual: KPI cards 8px com gold accent, top intents bar com mini-bar gold
- * tinted, latency stack mirror .bcfg-about-row pattern.
+ * 2026-04-26: ganhou TimeRangePicker (pedido Alden) substituindo janelas
+ * fixas 7d/30d. Fixos: admins ativos (state), hoje (snapshot), audios (mes).
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { TimeRangePicker } from '../b2b/analytics/_shared/TimeRangePicker'
+import {
+  parseTimeRange,
+  timeRangeLabel,
+} from '../b2b/analytics/_shared/timeRangeUtils'
 
-export async function OverviewTab() {
+interface OverviewTabProps {
+  days?: string
+  from?: string
+  to?: string
+}
+
+export async function OverviewTab({ days, from, to }: OverviewTabProps) {
   const { ctx, repos } = await loadMiraServerContext()
+  const tr = parseTimeRange({ days, from, to })
+  const periodDays =
+    tr.days ??
+    Math.max(
+      1,
+      Math.ceil(
+        (new Date((tr.toIso ?? '') + 'T23:59:59Z').getTime() -
+          new Date((tr.fromIso ?? '') + 'T00:00:00Z').getTime()) /
+          86400000,
+      ),
+    )
 
-  const todayIso = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z').toISOString()
-  const sevenIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const thirtyIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const todayIso = new Date(
+    new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z',
+  ).toISOString()
+  const periodSinceIso = tr.fromIso
+    ? new Date(tr.fromIso + 'T00:00:00.000Z').toISOString()
+    : new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
   const monthStart =
     new Date().toISOString().slice(0, 8) + '01T00:00:00.000Z'
 
-  const [activeAdmins, today, week, month, daily, voiceCount] = await Promise.all([
+  // Sparkline: cap 30 dias na visualizacao (evita 90 colunas espremidas).
+  // Periodo > 30d agrega visualmente em 30 buckets via daily aggregation.
+  const sparkDays = Math.min(30, Math.max(7, periodDays))
+
+  const [activeAdmins, today, period, daily, voiceCount] = await Promise.all([
     repos.waNumbers.countActive(ctx.clinic_id),
     repos.waProAudit.aggregate(ctx.clinic_id, todayIso),
-    repos.waProAudit.aggregate(ctx.clinic_id, sevenIso),
-    repos.waProAudit.aggregate(ctx.clinic_id, thirtyIso),
-    repos.waProAudit.dailyCounts(ctx.clinic_id, 14),
+    repos.waProAudit.aggregate(ctx.clinic_id, periodSinceIso),
+    repos.waProAudit.dailyCounts(ctx.clinic_id, sparkDays),
     repos.waProAudit.voiceCount(ctx.clinic_id, monthStart).catch(() => 0),
   ])
 
-  const errorRate = month.total > 0 ? Math.round((month.failure / month.total) * 100) : 0
+  const errorRate =
+    period.total > 0 ? Math.round((period.failure / period.total) * 100) : 0
   const maxDay = daily.reduce((m, d) => (d.total > m ? d.total : m), 1)
+  const rangeLbl = timeRangeLabel(tr)
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Header com TimeRangePicker · pedido Alden 2026-04-26 */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[1.4px] text-[#9CA3AF]">
+            Visão geral · Mira interna
+          </div>
+          <div className="text-[12px] text-[#6B7280] mt-0.5">
+            Janela: {rangeLbl} · alguns KPIs sao snapshot fixo (hoje, mes, estado)
+          </div>
+        </div>
+        <TimeRangePicker />
+      </div>
+
       {/* KPI cards · 4 colunas densos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <Stat label="Admins ativos" value={String(activeAdmins)} tone="ok" />
+        <Stat label="Admins ativos" value={String(activeAdmins)} subtitle="estado atual" tone="ok" />
         <Stat label="Queries hoje" value={String(today.total)} subtitle={`${today.failure} falhas`} />
-        <Stat label="Queries 7 dias" value={String(week.total)} subtitle={`avg ${week.avgResponseMs}ms`} />
         <Stat
-          label="Error rate 30d"
+          label={`Queries ${rangeLbl}`}
+          value={String(period.total)}
+          subtitle={`avg ${period.avgResponseMs}ms`}
+        />
+        <Stat
+          label={`Error rate ${rangeLbl}`}
           value={`${errorRate}%`}
-          subtitle={`${month.failure}/${month.total}`}
+          subtitle={`${period.failure}/${period.total}`}
           tone={errorRate >= 10 ? 'warn' : errorRate <= 2 ? 'ok' : 'default'}
         />
       </div>
 
       {/* Top intents + latencia */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Section title="Top intents · 30 dias">
-          {month.topIntents.length === 0 ? (
+        <Section title={`Top intents · ${rangeLbl}`}>
+          {period.topIntents.length === 0 ? (
             <p className="text-xs text-[#9CA3AF] py-2">
-              Sem dados nos últimos 30 dias.
+              Sem dados no período selecionado.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
-              {month.topIntents.map((it) => {
-                const max = month.topIntents[0]?.count ?? 1
+              {period.topIntents.map((it) => {
+                const max = period.topIntents[0]?.count ?? 1
                 const pct = Math.round((it.count / max) * 100)
                 return (
                   <div key={it.intent}>
@@ -83,15 +133,14 @@ export async function OverviewTab() {
         <Section title="Latência média">
           <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2 flex flex-col">
             <Row label="Hoje" value={`${today.avgResponseMs} ms`} />
-            <Row label="7 dias" value={`${week.avgResponseMs} ms`} />
-            <Row label="30 dias" value={`${month.avgResponseMs} ms`} last />
+            <Row label={rangeLbl} value={`${period.avgResponseMs} ms`} last />
           </div>
         </Section>
       </div>
 
-      {/* Sparkline 14 dias + Voice transcripts mês */}
+      {/* Sparkline · Voice transcripts mes */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-3">
-        <Section title="Queries por dia · 14 dias">
+        <Section title={`Queries por dia · ${sparkDays}d`}>
           {daily.length === 0 ? (
             <p className="text-xs text-[#9CA3AF] py-2">Sem dados.</p>
           ) : (
@@ -145,7 +194,7 @@ export async function OverviewTab() {
                 {voiceCount}
               </div>
               <div className="text-[11px] text-[#9CA3AF] mt-1">
-                transcrições de áudio
+                transcrições de áudio · mês corrente
               </div>
             </div>
           </div>
