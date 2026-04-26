@@ -16,6 +16,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -1512,6 +1513,8 @@ function Editor({
   const [lastFocused, setLastFocused] = useState<'text_template' | 'audio_script'>(
     'text_template',
   )
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const textRef = useRef<HTMLTextAreaElement | null>(null)
   const audioRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -1578,13 +1581,19 @@ function Editor({
 
   function onDelete() {
     if (!draft.id) return
-    if (!confirm('Excluir esse disparo?')) return
+    setConfirmDeleteOpen(true)
+  }
+
+  function onDeleteConfirmed() {
+    if (!draft.id) return
     startSaving(async () => {
       const r = await deleteCommTemplateAction(draft.id!)
       if (!r.ok) {
         setErrors({ _global: r.error || 'Falha ao excluir' })
+        setConfirmDeleteOpen(false)
         return
       }
+      setConfirmDeleteOpen(false)
       onDeleted(draft.id!)
     })
   }
@@ -1646,8 +1655,7 @@ function Editor({
         wrap('```')
         break
       case 'link': {
-        const url = prompt('URL:', 'https://')
-        if (url) insertAtCaret(url)
+        setLinkOpen(true)
         break
       }
       case 'newline':
@@ -1922,6 +1930,39 @@ function Editor({
           {saving ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
+
+      {linkOpen ? (
+        <PromptModal
+          eyebrow="Editor · inserir link"
+          titleStart="Inserir"
+          titleEm="link"
+          subtitle="A URL será inserida na posição do cursor (texto/áudio · qual estiver focado)"
+          fieldLabel="URL *"
+          placeholder="https://"
+          initialValue="https://"
+          submitLabel="Inserir"
+          onCancel={() => setLinkOpen(false)}
+          onSubmit={(url) => {
+            const trimmed = url.trim()
+            if (trimmed && trimmed !== 'https://') insertAtCaret(trimmed)
+            setLinkOpen(false)
+          }}
+        />
+      ) : null}
+
+      {confirmDeleteOpen ? (
+        <ConfirmModal
+          eyebrow="Editor · excluir"
+          titleStart="Excluir"
+          titleEm="disparo"
+          subtitle="Essa ação não pode ser desfeita. Templates removidos param de ser disparados imediatamente."
+          confirmLabel={saving ? 'Excluindo…' : 'Excluir definitivamente'}
+          danger
+          disabled={saving}
+          onCancel={() => setConfirmDeleteOpen(false)}
+          onConfirm={onDeleteConfirmed}
+        />
+      ) : null}
     </form>
   )
 }
@@ -1976,6 +2017,8 @@ function SequencesTab({
   const [busyMsg, setBusyMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [localDrafts, setLocalDrafts] = useState<string[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<string | null>(null)
 
   // Templates "soltos" no estado local (templates sem sequence_name no
   // listAll · podem nao estar em `sequences` se page.tsx nao re-fetched).
@@ -2006,10 +2049,9 @@ function SequencesTab({
     return out
   }, [loaded, sequences, templates])
 
-  async function handleCreateSequence() {
-    const name = prompt('Nome da nova sequência (ex.: "Onboarding · 5 mensagens"):')
-    if (!name || !name.trim()) return
+  function handleCreateSequenceConfirm(name: string) {
     const trimmed = name.trim()
+    if (!trimmed) return
     if (groups.some((g) => g.name === trimmed)) {
       setErrorMsg('Já existe uma sequência com esse nome.')
       return
@@ -2020,7 +2062,8 @@ function SequencesTab({
     setBusyMsg(`Sequência "${trimmed}" criada · arraste templates pra cá pra ativá-la.`)
     setTimeout(() => setBusyMsg(null), 4000)
     // Adiciona placeholder visual local
-    setLocalDrafts((prev) => prev.includes(trimmed) ? prev : prev.concat([trimmed]))
+    setLocalDrafts((prev) => (prev.includes(trimmed) ? prev : prev.concat([trimmed])))
+    setCreateOpen(false)
   }
 
   async function handleAssign(templateId: string, target: string | null) {
@@ -2046,17 +2089,19 @@ function SequencesTab({
     await onReload()
   }
 
-  async function handleRename(oldName: string) {
-    const newName = prompt(`Renomear sequência "${oldName}" para:`, oldName)
-    if (!newName || !newName.trim()) return
+  async function handleRenameConfirm(oldName: string, newName: string) {
+    if (!newName.trim()) return
     setErrorMsg(null)
     const r = await renameSequenceAction(oldName, newName)
     if (!r.ok) {
-      setErrorMsg(r.error === 'name_already_exists'
-        ? 'Já existe uma sequência com esse nome.'
-        : r.error || 'Falha ao renomear')
+      setErrorMsg(
+        r.error === 'name_already_exists'
+          ? 'Já existe uma sequência com esse nome.'
+          : r.error || 'Falha ao renomear',
+      )
       return
     }
+    setRenameTarget(null)
     await onReload()
   }
 
@@ -2075,7 +2120,7 @@ function SequencesTab({
         <button
           type="button"
           className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
-          onClick={handleCreateSequence}
+          onClick={() => setCreateOpen(true)}
         >
           + Nova sequência
         </button>
@@ -2115,7 +2160,7 @@ function SequencesTab({
                 onEdit={onEdit}
                 onAssign={handleAssign}
                 onReorder={handleReorder}
-                onRename={() => g.name && handleRename(g.name)}
+                onRename={() => g.name && setRenameTarget(g.name)}
               />
             ))}
 
@@ -2138,6 +2183,34 @@ function SequencesTab({
           </>
         )}
       </div>
+
+      {createOpen ? (
+        <PromptModal
+          eyebrow="Sequência · nova"
+          titleStart="Criar nova"
+          titleEm="sequência"
+          subtitle='Ex.: "Onboarding · 5 mensagens" · agrupa templates pra Mira disparar em ordem'
+          fieldLabel="Nome da sequência *"
+          placeholder="Onboarding · 5 mensagens"
+          submitLabel="Criar sequência"
+          onCancel={() => setCreateOpen(false)}
+          onSubmit={handleCreateSequenceConfirm}
+        />
+      ) : null}
+
+      {renameTarget ? (
+        <PromptModal
+          eyebrow="Sequência · renomear"
+          titleStart="Renomear"
+          titleEm={`"${renameTarget}"`}
+          subtitle="Templates atribuídos a essa sequência migram automaticamente pro novo nome"
+          fieldLabel="Novo nome *"
+          initialValue={renameTarget}
+          submitLabel="Renomear"
+          onCancel={() => setRenameTarget(null)}
+          onSubmit={(v) => handleRenameConfirm(renameTarget, v)}
+        />
+      ) : null}
     </>
   )
 }
@@ -2398,5 +2471,280 @@ function SequenceItemRow({
         ✎
       </span>
     </button>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Modais luxury · padrao b2b-overlay/b2b-modal (Onda 3 UI polish · 2026-04-26).
+// Substituem prompt()/confirm() nativos no fluxo de Sequencias e Editor.
+// Usam classes ja existentes em globals.css (sec b2b-modal · linhas 261-).
+// ═══════════════════════════════════════════════════════════════════════
+
+function PromptModal({
+  eyebrow,
+  titleStart,
+  titleEm,
+  subtitle,
+  fieldLabel,
+  placeholder,
+  initialValue,
+  submitLabel,
+  onCancel,
+  onSubmit,
+}: {
+  eyebrow: string
+  titleStart: string
+  titleEm: string
+  subtitle?: string
+  fieldLabel: string
+  placeholder?: string
+  initialValue?: string
+  submitLabel: string
+  onCancel: () => void
+  onSubmit: (value: string) => void
+}) {
+  const [value, setValue] = useState(initialValue ?? '')
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!value.trim()) return
+    onSubmit(value)
+  }
+
+  return (
+    <div
+      className="b2b-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
+      <form
+        className="b2b-modal"
+        style={{ maxWidth: 540 }}
+        onSubmit={handleSubmit}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header
+          className="b2b-modal-hdr"
+          style={{ paddingBottom: 16, borderBottom: '1px solid var(--b2b-border)' }}
+        >
+          <div style={{ flex: 1 }}>
+            <div className="b2b-eyebrow" style={{ fontSize: 10, marginBottom: 4 }}>
+              {eyebrow}
+            </div>
+            <h2
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 28,
+                fontWeight: 300,
+                margin: 0,
+                color: 'var(--b2b-ivory)',
+                lineHeight: 1.1,
+              }}
+            >
+              {titleStart}{' '}
+              <em style={{ color: 'var(--b2b-champagne)', fontWeight: 400 }}>
+                {titleEm}
+              </em>
+            </h2>
+            {subtitle ? (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--b2b-text-muted)',
+                  marginTop: 4,
+                }}
+              >
+                {subtitle}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="b2b-close"
+            aria-label="Fechar"
+            onClick={onCancel}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="b2b-modal-body" style={{ paddingTop: 20 }}>
+          <div className="b2b-field" style={{ marginBottom: 0 }}>
+            <label className="b2b-field-lbl">{fieldLabel}</label>
+            <input
+              ref={inputRef}
+              type="text"
+              className="b2b-input"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder}
+            />
+          </div>
+
+          <div
+            className="b2b-form-actions"
+            style={{
+              marginTop: 28,
+              paddingTop: 16,
+              borderTop: '1px solid var(--b2b-border)',
+            }}
+          >
+            <button type="button" className="b2b-btn" onClick={onCancel}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="b2b-btn b2b-btn-primary"
+              disabled={!value.trim()}
+            >
+              {submitLabel}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function ConfirmModal({
+  eyebrow,
+  titleStart,
+  titleEm,
+  subtitle,
+  confirmLabel,
+  danger,
+  disabled,
+  onCancel,
+  onConfirm,
+}: {
+  eyebrow: string
+  titleStart: string
+  titleEm: string
+  subtitle?: string
+  confirmLabel: string
+  danger?: boolean
+  disabled?: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !disabled) onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel, disabled])
+
+  return (
+    <div
+      className="b2b-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !disabled) onCancel()
+      }}
+    >
+      <div
+        className="b2b-modal"
+        style={{ maxWidth: 480 }}
+        role="alertdialog"
+        aria-modal="true"
+      >
+        <header
+          className="b2b-modal-hdr"
+          style={{ paddingBottom: 16, borderBottom: '1px solid var(--b2b-border)' }}
+        >
+          <div style={{ flex: 1 }}>
+            <div className="b2b-eyebrow" style={{ fontSize: 10, marginBottom: 4 }}>
+              {eyebrow}
+            </div>
+            <h2
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 28,
+                fontWeight: 300,
+                margin: 0,
+                color: 'var(--b2b-ivory)',
+                lineHeight: 1.1,
+              }}
+            >
+              {titleStart}{' '}
+              <em
+                style={{
+                  color: danger ? '#EF4444' : 'var(--b2b-champagne)',
+                  fontWeight: 400,
+                }}
+              >
+                {titleEm}
+              </em>
+            </h2>
+            {subtitle ? (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--b2b-text-muted)',
+                  marginTop: 4,
+                  lineHeight: 1.5,
+                }}
+              >
+                {subtitle}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="b2b-close"
+            aria-label="Fechar"
+            onClick={onCancel}
+            disabled={disabled}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="b2b-modal-body" style={{ paddingTop: 20 }}>
+          <div
+            className="b2b-form-actions"
+            style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}
+          >
+            <button
+              type="button"
+              className="b2b-btn"
+              onClick={onCancel}
+              disabled={disabled}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="b2b-btn b2b-btn-primary"
+              style={
+                danger
+                  ? { borderColor: 'rgba(239,68,68,0.4)', color: '#EF4444' }
+                  : undefined
+              }
+              onClick={onConfirm}
+              disabled={disabled}
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
