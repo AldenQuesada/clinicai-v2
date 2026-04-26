@@ -49,3 +49,7 @@ yarn-error.log*
 *.pem
 .history/
 tmp/
+
+# supabase CLI local cache (do not commit)
+supabase/.temp/
+supabase/.branches/
