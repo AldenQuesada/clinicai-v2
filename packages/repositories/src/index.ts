@@ -293,6 +293,26 @@ export {
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
 
+// ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────
+export {
+  LegalDocTemplateRepository,
+  type LegalDocTemplateDTO,
+  type LegalDocTemplateUpsertInput,
+  type LegalDocType,
+} from './legal-doc-template.repository'
+export {
+  LegalDocRequestRepository,
+  type LegalDocRequestDTO,
+  type LegalDocStatus,
+  type ValidatedRequestDTO,
+  type CreateLegalDocRequestInput,
+} from './legal-doc-request.repository'
+export {
+  LegalDocSignatureRepository,
+  type LegalDocSignatureDTO,
+  type SubmitSignatureInput,
+} from './legal-doc-signature.repository'
+
 export type {
   Funnel,
   ConversationStatus,

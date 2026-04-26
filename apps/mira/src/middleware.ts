@@ -24,6 +24,8 @@ const PUBLIC_PATHS = [
   '/api/auth',
   '/api/webhook',
   '/api/cron',
+  '/parceiro', // /parceiro/[token] · painel publico do parceiro (RPC valida token)
+  '/assinatura', // /assinatura/[token] · pagina publica de assinatura digital de docs legais
 ]
 
 function isPublicPath(pathname: string): boolean {

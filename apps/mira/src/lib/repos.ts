@@ -67,6 +67,10 @@ import {
   B2BPartnershipHealthSnapshotRepository,
   B2BLgpdRepository,
   B2BAuditRepository,
+  // Legal Docs (Onda 4)
+  LegalDocTemplateRepository,
+  LegalDocRequestRepository,
+  LegalDocSignatureRepository,
 } from '@clinicai/repositories'
 
 export interface MiraRepos {
@@ -126,6 +130,11 @@ export interface MiraRepos {
   b2bHealthSnapshot: B2BPartnershipHealthSnapshotRepository
   b2bLgpd: B2BLgpdRepository
   b2bAudit: B2BAuditRepository
+
+  // Legal Docs (Onda 4 Mira)
+  legalDocTemplates: LegalDocTemplateRepository
+  legalDocRequests: LegalDocRequestRepository
+  legalDocSignatures: LegalDocSignatureRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -185,5 +194,10 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bHealthSnapshot: new B2BPartnershipHealthSnapshotRepository(supabase),
     b2bLgpd: new B2BLgpdRepository(supabase),
     b2bAudit: new B2BAuditRepository(supabase),
+
+    // Legal Docs (Onda 4)
+    legalDocTemplates: new LegalDocTemplateRepository(supabase),
+    legalDocRequests: new LegalDocRequestRepository(supabase),
+    legalDocSignatures: new LegalDocSignatureRepository(supabase),
   }
 }
