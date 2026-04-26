@@ -170,6 +170,17 @@ body.b2bm2-page {
   gap: 12px;
 }
 
+/* Tab Conversao · grid 2-col · esquerda 40% (lista) | direita 60% (detail) */
+.b2bm2-conversao-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 2fr) 3fr;
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .b2bm2-conversao-grid { grid-template-columns: 1fr; }
+}
+
 /* ─── Alertas (topo) ──────────────────────────────────────────────────────── */
 
 .b2bm2-alerts { display: flex; flex-direction: column; gap: 6px; }
