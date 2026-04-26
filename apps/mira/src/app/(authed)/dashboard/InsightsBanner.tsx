@@ -3,15 +3,18 @@
 /**
  * InsightsBanner · top sticky banner pro insight mais critico do dia.
  *
- * Aparece se ha pelo menos 1 insight severity=critical ou warning. Dismissivel
- * via localStorage (chave por insight kind+partnership_id+date) — volta no dia
- * seguinte. Click leva pra action_url.
+ * Aparece se ha pelo menos 1 insight severity=critical ou warning. Dismiss
+ * agora persiste server-side via dismissInsightAction (mig 800-21 · TTL 7d).
+ * Optimistic UI: some imediatamente no client; se a action falhar restaura.
+ * Fallback localStorage mantido pra suavizar o gap antes da revalidate chegar.
+ * Click no CTA leva pra action_url.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, AlertOctagon, ArrowRight, X, Sparkles } from 'lucide-react'
 import type { Insight } from '@clinicai/repositories'
+import { dismissInsightAction } from './actions'
 
 const SEVERITY_STYLES: Record<string, { border: string; bg: string; text: string; icon: typeof AlertTriangle }> = {
   critical: {
@@ -40,8 +43,12 @@ const SEVERITY_STYLES: Record<string, { border: string; bg: string; text: string
   },
 }
 
-function dayKey(): string {
-  return new Date().toISOString().slice(0, 10)
+/**
+ * Cache otimista local · evita banner reaparecer entre o click e a
+ * revalidatePath chegando. Chave NAO inclui dia, so kind+partnership_id.
+ */
+function localKey(kind: string, partnershipId: string): string {
+  return `mira:insight-dismissed:${kind}:${partnershipId}`
 }
 
 export function InsightsBanner({ insights }: { insights: Insight[] }) {
@@ -54,29 +61,47 @@ export function InsightsBanner({ insights }: { insights: Insight[] }) {
     return sorted[0] ?? null
   }, [insights])
 
-  const dismissKey = useMemo(() => {
-    if (!top) return ''
-    return `mira:insight:${dayKey()}:${top.kind}:${top.partnership_id}`
-  }, [top])
-
   const [dismissed, setDismissed] = useState(false)
+  const [pending, startTransition] = useTransition()
 
+  // Reset state quando o insight mudar (ex: revalidate trouxe outro)
   useEffect(() => {
-    if (!dismissKey) return
+    if (!top) return
+    setDismissed(false)
     try {
-      if (localStorage.getItem(dismissKey) === '1') setDismissed(true)
+      if (localStorage.getItem(localKey(top.kind, top.partnership_id)) === '1') {
+        setDismissed(true)
+      }
     } catch {
       // localStorage indisponivel · ignore
     }
-  }, [dismissKey])
+  }, [top])
 
   function dismiss() {
+    if (!top || pending) return
+    // Optimistic: some imediatamente
     setDismissed(true)
     try {
-      if (dismissKey) localStorage.setItem(dismissKey, '1')
+      localStorage.setItem(localKey(top.kind, top.partnership_id), '1')
     } catch {
       // ignore
     }
+    startTransition(async () => {
+      const r = await dismissInsightAction({
+        kind: top.kind,
+        partnership_id: top.partnership_id,
+        ttl_days: 7,
+      })
+      if (!r.ok) {
+        // Rollback se action falhar
+        setDismissed(false)
+        try {
+          localStorage.removeItem(localKey(top.kind, top.partnership_id))
+        } catch {
+          // ignore
+        }
+      }
+    })
   }
 
   if (!top || dismissed) return null
@@ -114,8 +139,10 @@ export function InsightsBanner({ insights }: { insights: Insight[] }) {
       <button
         type="button"
         onClick={dismiss}
-        aria-label="Dispensar até amanhã"
-        className="text-[#6B7280] hover:text-[#F5F0E8] transition-colors"
+        disabled={pending}
+        aria-label="Silenciar 7 dias"
+        title="Silenciar por 7 dias (sincroniza entre dispositivos)"
+        className="text-[#6B7280] hover:text-[#F5F0E8] transition-colors disabled:opacity-50"
       >
         <X className="w-3.5 h-3.5" />
       </button>

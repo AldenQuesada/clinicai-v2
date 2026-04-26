@@ -150,6 +150,8 @@ export {
   type InsightKind,
   type InsightSeverity,
   type InsightsGlobal,
+  type DismissResult,
+  type UndoDismissResult,
 } from './b2b-insights.repository'
 export {
   MiraCronRegistryRepository,

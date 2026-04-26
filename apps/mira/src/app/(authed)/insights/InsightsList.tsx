@@ -5,14 +5,17 @@
  *
  * Filtros pillows · multi-select com toggle. Lista ordenada por score DESC
  * ja vinda do server. Cards clicaveis -> action_url.
+ * Botao "Silenciar 7d" em cada card chama dismissInsightAction (mig 800-21).
+ * Optimistic UI: card some imediatamente; se action falhar restaura.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  AlertOctagon, AlertTriangle, Sparkles, Info, ArrowRight,
+  AlertOctagon, AlertTriangle, Sparkles, Info, ArrowRight, BellOff,
 } from 'lucide-react'
 import type { Insight, InsightSeverity, InsightKind } from '@clinicai/repositories'
+import { dismissInsightAction } from '../dashboard/actions'
 
 const SEVERITY_LABELS: Record<InsightSeverity, string> = {
   critical: 'Crítico',
@@ -40,9 +43,15 @@ const KIND_LABELS: Record<InsightKind, string> = {
 
 const SEVERITY_ORDER: InsightSeverity[] = ['critical', 'warning', 'success', 'info']
 
+function dismissedKey(kind: string, partnershipId: string): string {
+  return `${kind}:${partnershipId}`
+}
+
 export function InsightsList({ insights }: { insights: Insight[] }) {
   const [severities, setSeverities] = useState<Set<InsightSeverity>>(new Set(SEVERITY_ORDER))
   const [kinds, setKinds] = useState<Set<InsightKind>>(new Set())
+  const [dismissedSet, setDismissedSet] = useState<Set<string>>(new Set())
+  const [pending, startTransition] = useTransition()
 
   const allKinds = useMemo(() => {
     const s = new Set<InsightKind>()
@@ -62,13 +71,40 @@ export function InsightsList({ insights }: { insights: Insight[] }) {
     setKinds(next)
   }
 
+  function handleDismiss(ins: Insight) {
+    const key = dismissedKey(ins.kind, ins.partnership_id)
+    // Optimistic: marca como dismissed local imediatamente
+    setDismissedSet((prev) => {
+      const next = new Set(prev)
+      next.add(key)
+      return next
+    })
+    startTransition(async () => {
+      const r = await dismissInsightAction({
+        kind: ins.kind,
+        partnership_id: ins.partnership_id,
+        ttl_days: 7,
+      })
+      if (!r.ok) {
+        // Rollback
+        setDismissedSet((prev) => {
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
+      }
+      // Server revalidatePath cuida de reload subsequente · lista chega sem este insight
+    })
+  }
+
   const filtered = useMemo(() => {
     return insights.filter((i) => {
+      if (dismissedSet.has(dismissedKey(i.kind, i.partnership_id))) return false
       if (!severities.has(i.severity)) return false
       if (kinds.size > 0 && !kinds.has(i.kind)) return false
       return true
     })
-  }, [insights, severities, kinds])
+  }, [insights, severities, kinds, dismissedSet])
 
   if (insights.length === 0) {
     return (
@@ -144,10 +180,9 @@ export function InsightsList({ insights }: { insights: Insight[] }) {
             const sty = SEVERITY_COLORS[ins.severity]
             const Icon = sty.icon
             return (
-              <Link
+              <div
                 key={`${ins.kind}-${ins.partnership_id}-${i}`}
-                href={ins.action_url}
-                className={`group rounded-lg border ${sty.border} ${sty.bg} px-3.5 py-3 hover:bg-white/[0.04] transition-colors flex flex-col gap-1.5`}
+                className={`group rounded-lg border ${sty.border} ${sty.bg} px-3.5 py-3 hover:bg-white/[0.04] transition-colors flex flex-col gap-1.5 relative`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
@@ -156,20 +191,41 @@ export function InsightsList({ insights }: { insights: Insight[] }) {
                       {ins.title}
                     </span>
                   </div>
-                  <span className="text-[9px] font-mono text-[#6B7280] shrink-0">
-                    score {ins.score}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[9px] font-mono text-[#6B7280]">
+                      score {ins.score}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDismiss(ins)
+                      }}
+                      disabled={pending}
+                      aria-label="Silenciar por 7 dias"
+                      title="Silenciar 7 dias (sincroniza entre dispositivos)"
+                      className="text-[#6B7280] hover:text-[#F5F0E8] transition-colors disabled:opacity-50 inline-flex items-center"
+                    >
+                      <BellOff className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-                <div className="text-[12.5px] text-[#F5F0E8] leading-snug">{ins.message}</div>
-                <div className="flex items-center justify-between pt-1.5 border-t border-white/5">
-                  <span className="text-[10.5px] text-[#9CA3AF] truncate">
-                    {ins.partnership_name}
-                  </span>
-                  <span className="text-[10px] text-[#C9A96E] inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    abrir <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </Link>
+                <Link
+                  href={ins.action_url}
+                  className="contents"
+                >
+                  <div className="text-[12.5px] text-[#F5F0E8] leading-snug">{ins.message}</div>
+                  <div className="flex items-center justify-between pt-1.5 border-t border-white/5">
+                    <span className="text-[10.5px] text-[#9CA3AF] truncate">
+                      {ins.partnership_name}
+                    </span>
+                    <span className="text-[10px] text-[#C9A96E] inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      abrir <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </Link>
+              </div>
             )
           })}
         </div>

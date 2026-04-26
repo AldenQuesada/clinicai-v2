@@ -36,7 +36,24 @@ export interface InsightsGlobal {
   generated_at: string
   partnerships_scanned: number
   count: number
+  /** Quantos insights estao ativos mas silenciados (mig 800-21 · TTL nao expirado). */
+  dismissed_count?: number
   insights: Insight[]
+}
+
+export interface DismissResult {
+  ok: boolean
+  kind?: InsightKind
+  partnership_id?: string
+  expires_at?: string
+  ttl_days?: number
+  error?: string
+}
+
+export interface UndoDismissResult {
+  ok: boolean
+  deleted?: number
+  error?: string
 }
 
 export class B2BInsightsRepository {
@@ -53,5 +70,38 @@ export class B2BInsightsRepository {
       r.insights = r.insights.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     }
     return r
+  }
+
+  /**
+   * Silencia 1 insight server-side por N dias (default 7).
+   * Mig 800-21 · upsert b2b_insight_dismissals + refresh TTL se ja existir.
+   */
+  async dismiss(
+    kind: InsightKind,
+    partnershipId: string,
+    ttlDays: number = 7,
+  ): Promise<DismissResult> {
+    const { data, error } = await this.supabase.rpc('b2b_insight_dismiss', {
+      p_kind: kind,
+      p_partnership_id: partnershipId,
+      p_ttl_days: ttlDays,
+    })
+    if (error) return { ok: false, error: error.message }
+    return (data as DismissResult) ?? { ok: false, error: 'no_data' }
+  }
+
+  /**
+   * Reverte dismissal · insight reaparece no proximo fetch.
+   */
+  async undoDismiss(
+    kind: InsightKind,
+    partnershipId: string,
+  ): Promise<UndoDismissResult> {
+    const { data, error } = await this.supabase.rpc('b2b_insight_undo_dismiss', {
+      p_kind: kind,
+      p_partnership_id: partnershipId,
+    })
+    if (error) return { ok: false, error: error.message }
+    return (data as UndoDismissResult) ?? { ok: false, error: 'no_data' }
   }
 }
