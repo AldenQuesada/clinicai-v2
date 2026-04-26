@@ -1,0 +1,86 @@
+# .dockerignore · root do monorepo clinicai-v2
+# Reduz drasticamente o contexto enviado ao Docker daemon · acelera build
+# Easypanel/Vercel/etc. Sem isso, COPY . . copia TUDO inclusive node_modules
+# de cada workspace (centenas de MB → GB).
+
+# ── Dependencies (re-instaladas pelo pnpm install no Dockerfile)
+**/node_modules
+**/.pnpm-store
+
+# ── Build artifacts (re-gerados)
+**/.next
+**/out
+**/dist
+**/build
+**/.turbo
+**/coverage
+**/.tsbuildinfo
+**/next-env.d.ts
+
+# ── Cache
+**/.cache
+**/.eslintcache
+.parcel-cache
+.npm
+.pnpm-debug.log
+
+# ── VCS
+.git
+.gitignore
+.gitattributes
+
+# ── IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── Env / secrets (nao deve vazar pro container)
+.env
+.env.local
+.env.*.local
+**/.env.local
+**/.env.*.local
+.env.development
+.env.production
+
+# ── Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Docs / repo housekeeping (nao precisa pro build)
+README.md
+CHANGELOG.md
+LICENSE
+docs/**
+adrs/**
+*.md
+**/*.md
+
+# ── Tests / fixtures (build de prod nao roda testes)
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/test-*.ts
+**/fixtures
+
+# ── Screenshots / imagens de debug deixados na raiz
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+screenshots/**
+
+# ── Misc
+tmp
+temp
+.vercel
