@@ -16,6 +16,13 @@ const COLORS = {
   unknown: { hex: '#9CA3AF', label: 'Sem dado' },
 } as const
 
+const COLOR_TOOLTIPS: Record<string, string> = {
+  green: 'Verde · score >= 70 · sem alertas. Cadencia de vouchers e NPS dentro do esperado.',
+  yellow: 'Amarelo · score 40-69 ou alerta leve (cap proximo, conv. abaixo da media). Vale checar.',
+  red: 'Vermelho · score < 40 ou alerta critico (over_cap, sem voucher 30d+, NPS < 6). Acao imediata.',
+  unknown: 'Sem dado · parceria nova ou sem vouchers/NPS suficientes pra calcular.',
+}
+
 export async function HealthSnapshotSection({
   partnershipId,
 }: {
@@ -46,8 +53,11 @@ export async function HealthSnapshotSection({
       </div>
       <div className="flex items-center gap-4 flex-wrap">
         {/* Ring SVG */}
-        <div style={{ position: 'relative', width: 80, height: 80, flexShrink: 0 }}>
-          <svg viewBox="0 0 80 80" width="80" height="80">
+        <div
+          style={{ position: 'relative', width: 80, height: 80, flexShrink: 0 }}
+          title={`Score de saúde 0-100 · combina cadência de vouchers, taxa de conversão 90d, NPS médio e uso do cap mensal. Faixa atual: ${c.label}.`}
+        >
+          <svg viewBox="0 0 80 80" width="80" height="80" aria-label={`Score de saude: ${score} de 100 · ${c.label}`}>
             <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
             <circle
               cx="40"
@@ -84,6 +94,7 @@ export async function HealthSnapshotSection({
           <div
             className="text-[11px] font-bold uppercase tracking-[1.4px] inline-flex items-center gap-1.5 px-2 py-1 rounded self-start"
             style={{ color: c.hex, border: `1px solid ${c.hex}40` }}
+            title={COLOR_TOOLTIPS[data.color] || 'Faixa de saude da parceria'}
           >
             {c.label}
           </div>
@@ -109,18 +120,22 @@ export async function HealthSnapshotSection({
                   : `${data.metrics.days_since_last_voucher}d`
               }
               lbl="desde voucher"
+              tip="Dias decorridos desde o ultimo voucher emitido. Inatividade > 30d aciona alerta."
             />
             <Metric
               val={`${data.metrics.cap_used}/${data.metrics.cap_total}`}
               lbl="cap mensal"
+              tip="Vouchers emitidos / cap mensal configurado. Acima do cap aciona alerta vermelho."
             />
             <Metric
               val={data.metrics.conv_pct != null ? `${data.metrics.conv_pct.toFixed(0)}%` : '—'}
               lbl={`conv. 90d (${data.metrics.conv_90d}/${data.metrics.vouchers_90d})`}
+              tip={`Conversao rolling 90d: ${data.metrics.conv_90d} converteram de ${data.metrics.vouchers_90d} vouchers emitidos no periodo.`}
             />
             <Metric
               val={data.metrics.nps_avg != null ? data.metrics.nps_avg.toFixed(1) : '—'}
               lbl="NPS medio"
+              tip="Media dos NPS coletados (1-10) das beneficiarias dessa parceria. Score < 6 aciona alerta."
             />
           </div>
         </div>
@@ -129,7 +144,7 @@ export async function HealthSnapshotSection({
   )
 }
 
-function Metric({ val, lbl }: { val: string; lbl: string }) {
+function Metric({ val, lbl, tip }: { val: string; lbl: string; tip?: string }) {
   return (
     <div
       className="flex flex-col gap-0.5"
@@ -139,6 +154,7 @@ function Metric({ val, lbl }: { val: string; lbl: string }) {
         border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 4,
       }}
+      title={tip}
     >
       <span className="text-[15px] font-semibold" style={{ color: 'var(--b2b-ivory)' }}>
         {val}

@@ -40,10 +40,19 @@ export function DnaBar({ partnership }: { partnership: B2BPartnershipDTO }) {
 
   if (!filled) {
     return (
-      <div className="b2b-dna-bar">
+      <div
+        className="b2b-dna-bar"
+        title="DNA = scoring 0-10 em 3 dimensões (Excelência, Estética, Propósito). Score >= 7 libera ativação. Não avaliado ainda."
+      >
         <div className="b2b-dna-hdr">
           <span className="b2b-sec-title" style={{ marginTop: 0 }}>DNA</span>
-          <span className="b2b-dna-compact" data-health="unknown">— · nao avaliado</span>
+          <span
+            className="b2b-dna-compact"
+            data-health="unknown"
+            title="Sem dado · DNA não foi avaliado ainda."
+          >
+            — · nao avaliado
+          </span>
         </div>
         <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
           DNA ainda nao avaliado. Edite a parceria pra preencher as 3 dimensoes (0-10).
@@ -56,7 +65,11 @@ export function DnaBar({ partnership }: { partnership: B2BPartnershipDTO }) {
     <div className="b2b-dna-bar">
       <div className="b2b-dna-hdr">
         <span className="b2b-sec-title" style={{ marginTop: 0 }}>DNA</span>
-        <span className="b2b-dna-score" data-health={overall}>
+        <span
+          className="b2b-dna-score"
+          data-health={overall}
+          title={`Score DNA = média das 3 dimensões. Bandas: >=8 ressonância alta · >=6 em construção · <6 revisar fit. Mínimo 7 pra ativar.`}
+        >
           <strong>{score != null ? score.toFixed(1) : '—'}</strong>
           <span style={{ opacity: 0.6, fontSize: 12 }}> / 10</span>
         </span>
@@ -90,6 +103,15 @@ export function DnaBar({ partnership }: { partnership: B2BPartnershipDTO }) {
                         ? '#EF4444'
                         : '#9CA3AF',
                   }}
+                  title={`${d.label}: ${v != null ? v.toFixed(1) : '—'}/10. ${
+                    band === 'green'
+                      ? 'Verde · ressonância alta (>=8).'
+                      : band === 'yellow'
+                      ? 'Amarelo · em construção (6-7.9).'
+                      : band === 'red'
+                      ? 'Vermelho · revisar fit (<6).'
+                      : 'Sem nota.'
+                  }`}
                 >
                   {v != null ? v.toFixed(1) : '—'}/10
                 </span>

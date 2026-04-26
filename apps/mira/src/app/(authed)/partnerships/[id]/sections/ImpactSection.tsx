@@ -59,6 +59,7 @@ export async function ImpactSection({ partnershipId }: { partnershipId: string }
             fontFamily: "'Cormorant Garamond', serif",
             color: band.color,
           }}
+          title="Score de impacto 0-100, normalizado pelo topo da rede. Composto: vouchers resgatados + NPS médio + alcance de eventos − custo total."
         >
           <strong style={{ fontSize: 56, fontWeight: 500, lineHeight: 1 }}>{score}</strong>
           <span style={{ fontSize: 18, opacity: 0.6 }}>/100</span>
@@ -67,6 +68,7 @@ export async function ImpactSection({ partnershipId }: { partnershipId: string }
           <div
             className="text-[11px] font-bold uppercase tracking-[1.4px] inline-flex px-2 py-1 rounded self-start"
             style={{ background: band.color, color: '#0a0a0a' }}
+            title={`Faixa "${band.label}" · ${band.verdict}. Bandas: >=75 Estrela · 50-74 Solida · 25-49 Morna · 1-24 Fria.`}
           >
             {band.label}
           </div>
@@ -80,12 +82,21 @@ export async function ImpactSection({ partnershipId }: { partnershipId: string }
         className="grid gap-2 mt-3"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}
       >
-        <Cell label="Vouchers resgatados" value={String(data.vouchers_redeemed ?? 0)} />
+        <Cell
+          label="Vouchers resgatados"
+          value={String(data.vouchers_redeemed ?? 0)}
+          tip="Total acumulado lifetime de vouchers que viraram presença na clínica (status redeemed)."
+        />
         <Cell
           label="NPS medio"
           value={data.avg_nps ? Number(data.avg_nps).toFixed(1) : '—'}
+          tip="Média lifetime das respostas NPS (1-10) das beneficiárias dessa parceria."
         />
-        <Cell label="Alcance (eventos)" value={String(data.total_reach ?? 0)} />
+        <Cell
+          label="Alcance (eventos)"
+          value={String(data.total_reach ?? 0)}
+          tip="Soma do alcance estimado de todos os eventos/exposições registrados (palestras, posts, newsletters)."
+        />
         <Cell
           label="Custo total"
           value={
@@ -93,13 +104,14 @@ export async function ImpactSection({ partnershipId }: { partnershipId: string }
               ? `R$ ${Math.round(Number(data.total_cost)).toLocaleString('pt-BR')}`
               : '—'
           }
+          tip="Custo lifetime: vouchers resgatados × custo unitário + custo dos eventos registrados."
         />
       </div>
     </section>
   )
 }
 
-function Cell({ label, value }: { label: string; value: string }) {
+function Cell({ label, value, tip }: { label: string; value: string; tip?: string }) {
   return (
     <div
       className="flex flex-col gap-0.5"
@@ -109,6 +121,7 @@ function Cell({ label, value }: { label: string; value: string }) {
         border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 4,
       }}
+      title={tip}
     >
       <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {label}

@@ -70,29 +70,46 @@ export async function TrendSection({ partnershipId }: { partnershipId: string })
         className="grid gap-2"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}
       >
-        <Cell label="Atual">
-          <Chip color={COLORS[data.current] || COLORS.unknown}>
+        <Cell label="Atual" tip="Cor de saúde de hoje (verde/amarelo/vermelho).">
+          <Chip
+            color={COLORS[data.current] || COLORS.unknown}
+            tip={`Status atual: ${LABELS[data.current] || '—'}.`}
+          >
             {LABELS[data.current] || '—'}
           </Chip>
         </Cell>
-        <Cell label="Inicio janela">
-          <Chip color={COLORS[data.first_in_window || data.current] || COLORS.unknown}>
+        <Cell label="Inicio janela" tip="Cor de saúde 90 dias atrás (ponto de partida da janela).">
+          <Chip
+            color={COLORS[data.first_in_window || data.current] || COLORS.unknown}
+            tip={`Cor no início da janela 90d: ${LABELS[data.first_in_window || data.current] || '—'}.`}
+          >
             {LABELS[data.first_in_window || data.current] || '—'}
           </Chip>
         </Cell>
-        <Cell label="Tendencia">
+        <Cell
+          label="Tendencia"
+          tip="Direção comparando saúde atual vs. início da janela 90d. Improving = melhorou, Stable = igual, Worsening = piorou."
+        >
           <span
             className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-bold uppercase tracking-[1px]"
             style={{ background: tm.bg, color: '#0a0a0a' }}
+            title={`Tendência: ${tm.lbl} (${data.trend}).`}
           >
-            <span>{tm.glyph}</span> {tm.lbl}
+            <span aria-hidden>{tm.glyph}</span> {tm.lbl}
           </span>
         </Cell>
-        <Cell label="Mudancas">
-          <strong className="text-[18px] font-semibold" style={{ color: 'var(--b2b-ivory)' }}>
+        <Cell label="Mudancas" tip="Quantas vezes a cor de saúde mudou na janela 90d.">
+          <strong
+            className="text-[18px] font-semibold"
+            style={{ color: 'var(--b2b-ivory)' }}
+            title={`${data.changes || 0} transições de cor de saúde na janela 90d.`}
+          >
             {data.changes || 0}
           </strong>
-          <span className="text-[11px] text-[var(--b2b-text-muted)] ml-2">
+          <span
+            className="text-[11px] text-[var(--b2b-text-muted)] ml-2"
+            title="Verdes: transições para melhor (recuperações). Vermelhas: pioras (alertas)."
+          >
             {data.green_changes || 0} verdes · {data.red_changes || 0} vermelhas
           </span>
         </Cell>
@@ -123,9 +140,11 @@ export async function TrendSection({ partnershipId }: { partnershipId: string })
 function Cell({
   label,
   children,
+  tip,
 }: {
   label: string
   children: React.ReactNode
+  tip?: string
 }) {
   return (
     <div
@@ -136,6 +155,7 @@ function Cell({
         border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 4,
       }}
+      title={tip}
     >
       <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {label}
@@ -145,11 +165,20 @@ function Cell({
   )
 }
 
-function Chip({ children, color }: { children: React.ReactNode; color: string }) {
+function Chip({
+  children,
+  color,
+  tip,
+}: {
+  children: React.ReactNode
+  color: string
+  tip?: string
+}) {
   return (
     <span
       className="inline-flex px-2 py-1 rounded text-[11px] font-bold uppercase tracking-[1px]"
       style={{ background: color, color: '#0a0a0a' }}
+      title={tip}
     >
       {children}
     </span>

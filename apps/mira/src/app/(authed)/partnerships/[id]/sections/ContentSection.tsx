@@ -85,6 +85,13 @@ export async function ContentSection({ partnershipId }: { partnershipId: string 
                         ? '#9CA3AF'
                         : 'var(--b2b-champagne)',
                   }}
+                  title={
+                    c.status === 'published'
+                      ? 'Publicado · conteúdo já foi ao ar.'
+                      : c.status === 'skipped'
+                      ? 'Pulado · decidiu não publicar.'
+                      : 'Planejado · ainda não publicou.'
+                  }
                 >
                   {STATUS_LABELS[c.status] || c.status}
                 </span>

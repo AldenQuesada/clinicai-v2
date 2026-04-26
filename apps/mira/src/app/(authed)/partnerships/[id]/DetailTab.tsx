@@ -80,8 +80,9 @@ export function DetailTab({
           <Link
             href={`/partnerships/${partnership.id}/editar`}
             className="b2b-btn b2b-btn-primary inline-flex items-center gap-1.5"
+            title="Wizard 3-step: DNA + voucher + contrato + profissionais + narrativa."
           >
-            <Pencil className="w-3 h-3" /> Abrir editor
+            <Pencil className="w-3 h-3" aria-label="Editar" /> Abrir editor
           </Link>
         </div>
       )}

@@ -155,19 +155,37 @@ export function WowActionsSection({
           target="_blank"
           rel="noopener"
           className="b2b-action-card"
+          title="Abre dossiê em PDF luxury com 6 slides (DNA, métricas, timeline) pra apresentar em reunião."
         >
-          <FileText className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <FileText
+            className="w-5 h-5"
+            style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+            aria-label="Documento PDF"
+          />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">Dossie PDF</div>
             <div className="b2b-action-card-sub">Luxo · pra reuniao</div>
           </div>
         </Link>
 
-        <button type="button" className="b2b-action-card text-left" onClick={copyPanel}>
+        <button
+          type="button"
+          className="b2b-action-card text-left"
+          onClick={copyPanel}
+          title="Copia URL público read-only do painel da parceira (vouchers, indicações, NPS) pra colar no WhatsApp dela."
+        >
           {copied ? (
-            <Check className="w-5 h-5" style={{ color: '#10B981', flexShrink: 0 }} />
+            <Check
+              className="w-5 h-5"
+              style={{ color: '#10B981', flexShrink: 0 }}
+              aria-label="Copiado"
+            />
           ) : (
-            <Link2 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+            <Link2
+              className="w-5 h-5"
+              style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+              aria-label="Link"
+            />
           )}
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">
@@ -182,8 +200,13 @@ export function WowActionsSection({
         <Link
           href="/configuracoes?tab=channels"
           className="b2b-action-card"
+          title="Configura quais números WhatsApp Mira pode usar pra enviar vouchers/NPS dessa parceria."
         >
-          <Phone className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <Phone
+            className="w-5 h-5"
+            style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+            aria-label="Telefone"
+          />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">WhatsApp autorizados</div>
             <div className="b2b-action-card-sub">Configurar canais Mira</div>
@@ -196,12 +219,20 @@ export function WowActionsSection({
             className="b2b-action-card text-left"
             onClick={issueNps}
             disabled={pending}
-            title="Gera token NPS publico e copia URL"
+            title="Gera token NPS publico (válido 30d) e copia URL pra parceira responder pesquisa de satisfação 1-10."
           >
             {npsCopied ? (
-              <Check className="w-5 h-5" style={{ color: '#10B981', flexShrink: 0 }} />
+              <Check
+                className="w-5 h-5"
+                style={{ color: '#10B981', flexShrink: 0 }}
+                aria-label="Copiado"
+              />
             ) : (
-              <BarChart3 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+              <BarChart3
+                className="w-5 h-5"
+                style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+                aria-label="Pesquisa NPS"
+              />
             )}
             <div className="flex flex-col gap-0.5 min-w-0">
               <div className="b2b-action-card-title">
@@ -220,8 +251,13 @@ export function WowActionsSection({
             target="_blank"
             rel="noopener"
             className="b2b-action-card"
+            title="Certificado de parceria (versão imprimível do dossiê) pra registrar histórico após encerramento ou pausa."
           >
-            <Award className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+            <Award
+              className="w-5 h-5"
+              style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+              aria-label="Certificado"
+            />
             <div className="flex flex-col gap-0.5 min-w-0">
               <div className="b2b-action-card-title">Certificado</div>
               <div className="b2b-action-card-sub">Dossiê PDF · imprime</div>
@@ -235,9 +271,13 @@ export function WowActionsSection({
           type="button"
           className="b2b-action-card text-left"
           onClick={openAi}
-          title="Gera post/story/reels/email com Claude Haiku"
+          title="Gera post/story/reels/email com Claude Haiku usando pillar, slogan e métricas recentes da parceria. Custo controlado por edge function."
         >
-          <Zap className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <Zap
+            className="w-5 h-5"
+            style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+            aria-label="IA conteudo"
+          />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">IA conteudo</div>
             <div className="b2b-action-card-sub">Post · Story · Reels · Email</div>

@@ -100,12 +100,26 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
             borderRadius: 4,
           }}
         >
-          <Kpi lbl="Indicados" val={String(roi.referred || 0)} />
-          <Kpi lbl="Foram a clinica" val={String(roi.matched || 0)} />
-          <Kpi lbl="Converteram" val={String(roi.converted || 0)} color="#10B981" />
+          <Kpi
+            lbl="Indicados"
+            val={String(roi.referred || 0)}
+            tip="Total de leads indicados pela parceira (atribuição via voucher emitido ou indicação manual)."
+          />
+          <Kpi
+            lbl="Foram a clinica"
+            val={String(roi.matched || 0)}
+            tip="Indicados que cruzaram com agendamento confirmado na clínica (matched no funil)."
+          />
+          <Kpi
+            lbl="Converteram"
+            val={String(roi.converted || 0)}
+            color="#10B981"
+            tip="Indicados que viraram pacientes pagantes (status converted · gerou faturamento)."
+          />
           <Kpi
             lbl="Taxa conversao"
             val={roi.conversion_rate != null ? `${roi.conversion_rate}%` : '—'}
+            tip="Conversão = Converteram / Indicados (lifetime)."
           />
         </div>
         <div
@@ -116,11 +130,20 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
             borderRadius: 4,
           }}
         >
-          <MoneyLine label="Faturamento" value={fmtBRL(roi.revenue_brl)} />
-          <MoneyLine label="Custo" value={fmtBRL(roi.cost_brl)} />
+          <MoneyLine
+            label="Faturamento"
+            value={fmtBRL(roi.revenue_brl)}
+            tip="Soma do faturamento dos leads convertidos atribuídos a essa parceria (lifetime)."
+          />
+          <MoneyLine
+            label="Custo"
+            value={fmtBRL(roi.cost_brl)}
+            tip="Custo total acumulado: vouchers resgatados × custo unitário + custo dos eventos."
+          />
           <div
             className="flex items-baseline justify-between gap-2 pt-2"
             style={{ borderTop: `1px solid ${roiBand.color}` }}
+            title="Líquido = Faturamento − Custo. Se positivo, parceria pagou-se sozinha."
           >
             <span className="text-[11px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
               Liquido
@@ -135,6 +158,7 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
           <div
             className="text-[11px] font-bold uppercase tracking-[1.2px] inline-flex px-2 py-1 rounded self-start"
             style={{ background: roiBand.color, color: '#0a0a0a' }}
+            title="ROI% = (Líquido / Custo) × 100. Bandas: >=100% positivo · 0-99% empate · <0% prejuízo."
           >
             {roiBand.lbl}
           </div>
@@ -182,8 +206,12 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
                       </td>
                       <td>{fmtDate(l.created_at)}</td>
                       <td>
-                        <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className="inline-flex items-center gap-1.5"
+                          title={`Status: ${m.label} · referred=indicado, matched=foi à clínica, converted=virou paciente, lost=perdido.`}
+                        >
                           <i
+                            aria-label={`status ${m.label}`}
                             style={{
                               display: 'inline-block',
                               width: 7,
@@ -210,9 +238,9 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
   )
 }
 
-function Kpi({ lbl, val, color }: { lbl: string; val: string; color?: string }) {
+function Kpi({ lbl, val, color, tip }: { lbl: string; val: string; color?: string; tip?: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5" title={tip}>
       <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {lbl}
       </span>
@@ -229,9 +257,9 @@ function Kpi({ lbl, val, color }: { lbl: string; val: string; color?: string }) 
   )
 }
 
-function MoneyLine({ label, value }: { label: string; value: string }) {
+function MoneyLine({ label, value, tip }: { label: string; value: string; tip?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-2">
+    <div className="flex items-baseline justify-between gap-2" title={tip}>
       <span className="text-[11px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {label}
       </span>

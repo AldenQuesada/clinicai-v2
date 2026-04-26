@@ -109,8 +109,13 @@ export function ActionSection({
         <Link
           href={`/partnerships/${partnership.id}?tab=vouchers`}
           className="b2b-action-card b2b-action-card-primary"
+          title="Atalho pra tab Vouchers · abre form de emissão direto."
         >
-          <Ticket className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <Ticket
+            className="w-5 h-5"
+            style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+            aria-label="Voucher"
+          />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">Emitir voucher novo</div>
             <div className="b2b-action-card-sub">
@@ -119,11 +124,24 @@ export function ActionSection({
           </div>
         </Link>
 
-        <button type="button" onClick={copyPainelUrl} className="b2b-action-card">
+        <button
+          type="button"
+          onClick={copyPainelUrl}
+          className="b2b-action-card"
+          title="Copia URL público read-only do painel da parceira (vouchers, indicações, NPS) pra colar no WhatsApp dela."
+        >
           {copied ? (
-            <Check className="w-5 h-5" style={{ color: '#10B981', flexShrink: 0 }} />
+            <Check
+              className="w-5 h-5"
+              style={{ color: '#10B981', flexShrink: 0 }}
+              aria-label="Copiado"
+            />
           ) : (
-            <Link2 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+            <Link2
+              className="w-5 h-5"
+              style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+              aria-label="Link"
+            />
           )}
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">
@@ -140,8 +158,13 @@ export function ActionSection({
           target="_blank"
           rel="noopener"
           className="b2b-action-card"
+          title="Abre dossiê em PDF luxury com 6 slides (DNA, métricas, timeline) · dispara diálogo de impressão automaticamente."
         >
-          <FileText className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <FileText
+            className="w-5 h-5"
+            style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }}
+            aria-label="Documento PDF"
+          />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">Dossiê PDF</div>
             <div className="b2b-action-card-sub">

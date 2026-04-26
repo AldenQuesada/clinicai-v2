@@ -128,6 +128,8 @@ export async function TimelineSection({ partnershipId }: { partnershipId: string
                 <div
                   className="text-[14px] flex-shrink-0 leading-none w-6 text-center"
                   style={{ color: meta.color }}
+                  aria-label={`Tipo de evento: ${meta.label}`}
+                  title={meta.label}
                 >
                   {meta.glyph}
                 </div>

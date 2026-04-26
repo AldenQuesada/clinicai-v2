@@ -56,14 +56,28 @@ export async function CostSection({ partnershipId }: { partnershipId: string }) 
         className="grid gap-2"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
       >
-        <Cell label="Vouchers resgatados" value={String(data.voucher_redeemed)} sub={unitLabel} />
-        <Cell label="Custo vouchers" value={fmtBRL(data.voucher_total_cost)} />
+        <Cell
+          label="Vouchers resgatados"
+          value={String(data.voucher_redeemed)}
+          sub={unitLabel}
+          tip="Vouchers que viraram presença na clínica · base do cálculo de custo."
+        />
+        <Cell
+          label="Custo vouchers"
+          value={fmtBRL(data.voucher_total_cost)}
+          tip="Vouchers resgatados × custo unitário cadastrado na parceria."
+        />
         <Cell
           label="Exposicoes grupo"
           value={String(data.group_exposures)}
           sub={`${data.group_reach || 0} alcancadas`}
+          tip="Eventos/exposições registrados (palestras, posts, newsletters) · alcance somado."
         />
-        <Cell label="Custo eventos" value={fmtBRL(data.group_total_cost)} />
+        <Cell
+          label="Custo eventos"
+          value={fmtBRL(data.group_total_cost)}
+          tip="Soma do cost_estimate_brl de todos os eventos registrados."
+        />
         <div
           className="flex flex-col gap-0.5 col-span-2"
           style={{
@@ -74,6 +88,11 @@ export async function CostSection({ partnershipId }: { partnershipId: string }) 
             border: `1px solid ${totalColor}`,
             borderRadius: 4,
           }}
+          title={
+            data.over_cap
+              ? 'Total = Custo vouchers + Custo eventos. ATENÇÃO: passou do teto mensal.'
+              : 'Total = Custo vouchers + Custo eventos. Dentro do teto.'
+          }
         >
           <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
             Total
@@ -118,10 +137,12 @@ function Cell({
   label,
   value,
   sub,
+  tip,
 }: {
   label: string
   value: string
   sub?: string
+  tip?: string
 }) {
   return (
     <div
@@ -132,6 +153,7 @@ function Cell({
         border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 4,
       }}
+      title={tip}
     >
       <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {label}
