@@ -22,6 +22,7 @@ import {
   filterSubscribers,
   type PermissionCategory,
 } from '@/lib/msg-subscriptions'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 
 const log = createLogger({ app: 'mira' }).child({ helper: 'admin-dispatch' })
 
@@ -82,7 +83,12 @@ export async function dispatchAdminText(opts: {
       return { recipients: 0, sent: 0, failed: 0, mutedBySubscription: muted }
     }
     const wa = getEvolutionService('mira')
-    const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
+    // Resolve antes do loop · evita N awaits + cache amortiza igual.
+    const senderInstance = await resolveMiraInstance(
+      opts.clinicId,
+      'mira_admin_outbound',
+      opts.supabase,
+    )
     let sent = 0
     let failed = 0
     for (const r of recipients) {
@@ -119,7 +125,12 @@ export async function dispatchAdminText(opts: {
   if (phones.length === 0) return { recipients: 0, sent: 0, failed: 0 }
 
   const wa = getEvolutionService('mira')
-  const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
+  // Resolve antes do loop · UI source-of-truth via mira_channels.
+  const senderInstance = await resolveMiraInstance(
+    opts.clinicId,
+    'mira_admin_outbound',
+    opts.supabase,
+  )
   let sent = 0
   let failed = 0
 

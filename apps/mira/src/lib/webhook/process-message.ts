@@ -35,6 +35,7 @@ import {
 } from './handlers'
 import { getEvolutionService } from '@/services/evolution.service'
 import { transcribeAudio } from '@/services/transcription.service'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 import { createLogger, hashPhone } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
@@ -214,6 +215,16 @@ export async function processWebhookMessage(
   }
 
   // 4. Reply (sendText pra origem)
+  // Resolve antes pra usar tanto na reply quanto nas actions mira-via.
+  // Admin → mira_admin_outbound · partner → partner_response (UI source-of-truth).
+  const replyFunctionKey = role === 'admin' ? 'mira_admin_outbound' : 'partner_response'
+  const replySenderInstance = await resolveMiraInstance(clinicId, replyFunctionKey)
+  // Pra actions mira-via, sempre admin outbound (handlers dispatch admin notifications).
+  const miraActionSenderInstance =
+    replyFunctionKey === 'mira_admin_outbound'
+      ? replySenderInstance
+      : await resolveMiraInstance(clinicId, 'mira_admin_outbound')
+
   const wa = getEvolutionService('mira')
   let replyMessageId: string | null = null
   if (result.replyText) {
@@ -225,7 +236,7 @@ export async function processWebhookMessage(
       channel: 'text',
       recipientRole: role === 'admin' ? 'admin' : 'partner',
       recipientPhone: msg.phone,
-      senderInstance: process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian',
+      senderInstance: replySenderInstance,
       textContent: result.replyText,
       waMessageId: replyMessageId,
       status: sent.ok ? 'sent' : 'failed',
@@ -248,7 +259,7 @@ export async function processWebhookMessage(
           senderInstance:
             action.via === 'mih'
               ? process.env.EVOLUTION_INSTANCE_MIH ?? 'Mih'
-              : process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian',
+              : miraActionSenderInstance,
           textContent: action.content,
           waMessageId: sent.messageId ?? null,
           status: sent.ok ? 'sent' : 'failed',
