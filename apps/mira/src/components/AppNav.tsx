@@ -91,7 +91,7 @@ const SECTIONS: Section[] = [
       { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
       { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
       // (2) recorrente · vai usar de vez em quando
-      { href: '/estudio/cadastrar', label: 'Cadastrar', available: true },
+      // Cadastrar parceria (acao) vive no Quick Action "+ Parceria" no topo
       { href: '/b2b/config/padroes', label: 'Padrões', available: true },
       // (3) configura-uma-vez · setup inicial
       { href: '/b2b/config/admins', label: 'Admins', available: true },
