@@ -64,7 +64,36 @@ body.b2bm2-page {
   max-width: 640px;
   line-height: 1.5;
 }
-.b2bm2-header-ctrl { display: flex; gap: 8px; flex-shrink: 0; }
+.b2bm2-header-ctrl { display: flex; gap: 8px; flex-shrink: 0; align-items: flex-start; }
+
+/* TimeRangePicker · seletor de janela temporal compartilhado entre as 6 tabs */
+.b2bm2-trange {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.b2bm2-trange-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.b2bm2-trange-presets .b2b-tab.open {
+  border-color: var(--m2-gold, #C9A96E);
+  color: var(--m2-gold, #C9A96E);
+}
+.b2bm2-trange-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--m2-bg-card, var(--b2b-bg-1));
+  border: 1px solid var(--m2-border-str, var(--b2b-border));
+  border-radius: 6px;
+  font-size: 12px;
+}
+.b2bm2-trange-custom .b2b-input { padding: 4px 8px; font-size: 12px; }
+.b2bm2-trange-custom .b2b-btn { padding: 4px 10px; font-size: 11px; }
 
 .b2bm2-btn {
   display: inline-flex; align-items: center; gap: 6px;

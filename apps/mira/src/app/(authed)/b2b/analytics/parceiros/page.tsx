@@ -1,20 +1,42 @@
 /**
- * /b2b/analytics/parceiros · subtab "Parceiros" do b2bm2.shell.js.
- * Scatter (volume × conversao) + Heatmap (12 sem) + Ranking 90d.
+ * /b2b/analytics/parceiros · Scatter (volume × conv) + Heatmap + Ranking.
+ *
+ * Janela temporal aplicada em b2b_partner_performance(days) e
+ * recentVoucherIssuances(weeks) · default 30d.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import { Scatter } from './Scatter'
 import { Heatmap } from './Heatmap'
 import { Ranking } from './Ranking'
+import {
+  TimeRangePicker,
+  parseTimeRange,
+} from '../_shared/TimeRangePicker'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ParceirosPage() {
+interface PageProps {
+  searchParams: Promise<{ days?: string; from?: string; to?: string }>
+}
+
+export default async function ParceirosPage({ searchParams }: PageProps) {
+  const sp = await searchParams
+  const tr = parseTimeRange(sp)
+  const days = tr.days ?? Math.max(
+    1,
+    Math.ceil(
+      (new Date(tr.toIso! + 'T23:59:59Z').getTime() -
+        new Date(tr.fromIso! + 'T00:00:00Z').getTime()) /
+        86400000,
+    ),
+  )
+  const heatmapWeeks = Math.min(24, Math.max(4, Math.ceil(days / 7)))
+
   const { repos } = await loadMiraServerContext()
   const [performance, vouchers] = await Promise.all([
-    repos.b2bMetricsV2.partnerPerformance(90),
-    repos.b2bMetricsV2.recentVoucherIssuances(12).catch(() => []),
+    repos.b2bMetricsV2.partnerPerformance(days),
+    repos.b2bMetricsV2.recentVoucherIssuances(heatmapWeeks).catch(() => []),
   ])
 
   return (
@@ -26,8 +48,11 @@ export default async function ParceirosPage() {
             <h1 className="b2bm2-title">Parceiros</h1>
             <p className="b2bm2-sub">
               Performance das parcerias · scatter por volume × conversão,
-              heatmap de atividade 12 semanas, ranking detalhado rolling 90d.
+              heatmap de atividade ({heatmapWeeks} sem) e ranking detalhado.
             </p>
+          </div>
+          <div className="b2bm2-header-ctrl">
+            <TimeRangePicker />
           </div>
         </header>
 

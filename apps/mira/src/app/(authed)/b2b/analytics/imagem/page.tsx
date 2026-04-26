@@ -1,16 +1,36 @@
 /**
- * /b2b/analytics/imagem · subtab "Imagem" do b2bm2.shell.js.
- * Foco nas parcerias de imagem (is_image_partner=true) com cards detalhados.
+ * /b2b/analytics/imagem · ImageFocus dos parceiros pillar=imagem.
+ *
+ * Janela aplicada em b2b_partner_performance(days) · default 30d.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import { ImageFocus } from './ImageFocus'
+import {
+  TimeRangePicker,
+  parseTimeRange,
+} from '../_shared/TimeRangePicker'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ImagemPage() {
+interface PageProps {
+  searchParams: Promise<{ days?: string; from?: string; to?: string }>
+}
+
+export default async function ImagemPage({ searchParams }: PageProps) {
+  const sp = await searchParams
+  const tr = parseTimeRange(sp)
+  const days = tr.days ?? Math.max(
+    1,
+    Math.ceil(
+      (new Date(tr.toIso! + 'T23:59:59Z').getTime() -
+        new Date(tr.fromIso! + 'T00:00:00Z').getTime()) /
+        86400000,
+    ),
+  )
+
   const { repos } = await loadMiraServerContext()
-  const performance = await repos.b2bMetricsV2.partnerPerformance(90).catch(() => [])
+  const performance = await repos.b2bMetricsV2.partnerPerformance(days).catch(() => [])
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
@@ -23,6 +43,9 @@ export default async function ImagemPage() {
               Parcerias que carregam a percepção pública da Dra. Mirian. Qualquer
               queda de performance aqui merece atenção imediata.
             </p>
+          </div>
+          <div className="b2bm2-header-ctrl">
+            <TimeRangePicker />
           </div>
         </header>
 
