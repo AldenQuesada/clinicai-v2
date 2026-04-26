@@ -11,7 +11,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LogOut, ExternalLink, Plus } from 'lucide-react'
+import { LogOut, ExternalLink } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { SearchHint } from './SearchHint'
 import { NotificationsBell } from './NotificationsBell'
@@ -181,40 +181,30 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
 
   return (
     <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
-      {/* Father row · busca larga + sections centradas + sino + + Novo dropdown + user
-         (Brand foi pra LuxuryHeader acima · esta row foca em navegacao) */}
+      {/* ──────────────────────────────────────────────────────────────
+         ROW 1 · APP CHROME · logo M + busca (esq) · sino + Novo + user (dir)
+         Mirror clinic-dashboard universal header (sem section/sub-tabs).
+         ────────────────────────────────────────────────────────────── */}
       <div className="h-13 flex items-center gap-4 px-5 border-b border-white/5">
-        {/* Busca · LARGA, ocupa espaco visual confortavel a esquerda */}
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 shrink-0"
+          title="Mira"
+        >
+          <div className="w-8 h-8 rounded-md bg-[#C9A96E]/15 border border-[#C9A96E]/35 flex items-center justify-center">
+            <span className="font-display text-[#C9A96E] text-base leading-none">M</span>
+          </div>
+        </Link>
+
+        {/* Busca larga · esquerda · ocupa espaco confortavel */}
         <SearchHint />
 
-        {/* Sections · centradas no espaco disponivel */}
-        <nav className="flex items-center gap-1 flex-1 justify-center">
-          {SECTIONS.map((s) => (
-            <FatherLink
-              key={s.key}
-              href={s.defaultHref}
-              active={s.key === activeSection.key}
-            >
-              {s.label}
-            </FatherLink>
-          ))}
-        </nav>
+        {/* Spacer flex empurra dir pra direita */}
+        <div className="flex-1" />
 
         <div className="flex items-center gap-2 shrink-0">
           <NotificationsBell insights={insights} />
-
-          {/* + Novo dropdown · mirror pattern do dashboard #newDropdown */}
           <NewMenu />
-
-          <Link
-            href={user.panelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-white/10 text-[10px] uppercase tracking-[1px] text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors"
-          >
-            Painel CRM
-            <ExternalLink className="w-3 h-3" />
-          </Link>
 
           <div className="flex items-center gap-2 pl-3 border-l border-white/10">
             <div className="w-7 h-7 rounded-md bg-white/5 border border-white/10 text-[#F5F0E8] flex items-center justify-center text-[11px] font-semibold">
@@ -225,7 +215,12 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
                 {user.displayName}
               </span>
               {user.role && (
-                <span className="eyebrow text-[#6B7280]">{user.role}</span>
+                <span
+                  className="text-[9px] uppercase text-[#6B7280]"
+                  style={{ letterSpacing: '1.5px' }}
+                >
+                  {user.role}
+                </span>
               )}
             </div>
             <form action={logoutAction}>
@@ -241,9 +236,47 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
         </div>
       </div>
 
-      {/* Sub-tabs row · pertencem ao Father ativo */}
+      {/* ──────────────────────────────────────────────────────────────
+         ROW 2 · SECTIONS · 4 tags principais (Geral/Disparos/Analytics/Config)
+         ────────────────────────────────────────────────────────────── */}
+      <div className="h-11 flex items-center px-5 border-b border-white/5">
+        <nav className="flex items-center gap-1">
+          {SECTIONS.map((s) => (
+            <FatherLink
+              key={s.key}
+              href={s.defaultHref}
+              active={s.key === activeSection.key}
+            >
+              {s.label}
+            </FatherLink>
+          ))}
+        </nav>
+
+        {/* Painel CRM externa · escondida em telas pequenas */}
+        <div className="ml-auto">
+          <Link
+            href={user.panelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-white/10 text-[10px] uppercase font-semibold text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors"
+            style={{ letterSpacing: '1.5px' }}
+          >
+            Painel CRM
+            <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
+      </div>
+
+      {/* ──────────────────────────────────────────────────────────────
+         ROW 3 · SUB-TABS · contextual da section ativa
+         ────────────────────────────────────────────────────────────── */}
       <div className="h-9 flex items-center px-5 overflow-x-auto custom-scrollbar">
-        <span className="eyebrow mr-4 shrink-0">{activeSection.label}</span>
+        <span
+          className="text-[10px] uppercase font-semibold text-[#C9A96E] mr-4 shrink-0"
+          style={{ letterSpacing: '2px' }}
+        >
+          {activeSection.label}
+        </span>
         <nav className="flex items-center gap-1">
           {activeSection.subtabs.map((t) => (
             <SubLink
@@ -309,14 +342,3 @@ function SubLink({ tab, active }: { tab: SubTab; active: boolean }) {
   )
 }
 
-function QuickAction({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-semibold uppercase tracking-[1px] bg-[#C9A96E]/12 border border-[#C9A96E]/30 text-[#C9A96E] hover:bg-[#C9A96E]/20 transition-colors"
-    >
-      <Plus className="w-3 h-3" />
-      {label}
-    </Link>
-  )
-}

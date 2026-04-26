@@ -21,7 +21,6 @@ import {
 } from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppNav } from './AppNav'
-import { ProgramHeader } from './ProgramHeader'
 
 const PAINEL_URL =
   process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -85,7 +84,6 @@ export async function AppHeader() {
   return (
     <>
       <QuickSearch partners={quickPartners} />
-      <ProgramHeader />
       {/* Suspense necessario · AppNav usa useSearchParams() */}
       <Suspense fallback={<div className="h-22 border-b border-[#C9A96E]/15 bg-[#0F0D0A]" />}>
         <AppNav

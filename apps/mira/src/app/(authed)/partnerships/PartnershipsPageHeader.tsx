@@ -1,5 +1,7 @@
 /**
- * ProgramHeader · row 0 do AppHeader · MIRROR 1:1 do legacy b2b-shell.ui.js
+ * PartnershipsPageHeader · header da PAGINA /partnerships (NAO chrome).
+ *
+ * MIRROR 1:1 do legacy b2b-shell.ui.js _renderHeader.
  *
  * Estrutura legacy (cravada em b2b-shell.ui.js _renderHeader):
  *   <header class="b2b-header">
@@ -21,7 +23,7 @@
 import { loadMiraServerContext } from '@/lib/server-context'
 import type { ConsumptionDTO } from '@clinicai/repositories'
 
-export async function ProgramHeader() {
+export async function PartnershipsPageHeader() {
   let consumption: ConsumptionDTO | null = null
   try {
     const { repos } = await loadMiraServerContext()
