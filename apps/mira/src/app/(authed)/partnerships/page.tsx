@@ -1,15 +1,26 @@
 /**
- * /partnerships · REPLICA 1:1 do `js/b2b/ui/b2b-list.ui.js`.
+ * /partnerships · REPLICA visual do `js/b2b/ui/b2b-list.ui.js` legado
+ * (https://painel.miriandpaula.com.br/b2b-partners.html?tab=active).
  *
- * Strings, classes CSS, agrupamento e behavior identicos ao original.
- * Filtro via URL: ?filter=active|inactive|prospects (mapeado pra
- * status[] como o _state.filter do antigo).
+ * Estrutura espelha 1:1 o `_renderShell()` + `_renderBody()` do legado:
+ *   - Tabs (Ativas / Prospects / Inativas) — reflete ?tab=
+ *   - Filtros bar (search + pillar) — ?q=, ?pillar=
+ *   - Head: count + acoes (Exportar CSV · placeholder, + Nova parceria)
+ *   - Body: grouped rows (por tier/status/pillar conforme tab)
  *
- * Eventos do original mapeados pra navegacao Next (provisorio · serao
- * substituidos por overlay quando b2b-detail.ui.js + b2b-form.ui.js
- * forem migrados):
- *   b2b:open-detail {id}        → /partnerships/[id]
- *   b2b:open-form {mode:'new'}  → /estudio/cadastrar
+ * Strings PT-BR identicas ao b2b-list.ui.js:
+ *   - "X parcerias ativas" / "X parcerias pausadas ou encerradas" / "X prospects"
+ *   - 'Nenhuma parceria ativa ainda. Clique em "Nova parceria" pra começar.'
+ *   - 'Nenhuma parceria pausada ou encerrada.'
+ *   - 'Sem prospects na fila.'
+ *
+ * Compat backward de URL:
+ *   ?tab=active           (preferido · espelha legado)
+ *   ?filter=active        (compat · AppNav usa esse)
+ *   ?status=active        (compat antigo)
+ *
+ * ADR-028 · clinic_id explicito via loadMiraServerContext().
+ * ADR-012 · UI nunca toca supabase.from direto · usa repos.b2bPartnerships.list.
  */
 
 import Link from 'next/link'
@@ -22,61 +33,106 @@ import {
   groupByStatus,
 } from '@/lib/b2b-ui-helpers'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
+import { PartnershipsTabsBar, type TabId } from './PartnershipsTabsBar'
+import { PartnershipsFiltersBar } from './PartnershipsFiltersBar'
 
 export const dynamic = 'force-dynamic'
 
-type FilterKind = 'active' | 'inactive' | 'prospects'
-
 interface PageProps {
-  searchParams: Promise<{ filter?: string; status?: string }>
+  searchParams: Promise<{
+    tab?: string
+    filter?: string
+    status?: string
+    pillar?: string
+    q?: string
+  }>
 }
 
-function resolveFilter(raw: string | undefined): FilterKind {
+function resolveTab(raw: string | undefined): TabId {
   if (raw === 'inactive') return 'inactive'
   if (raw === 'prospects' || raw === 'prospect') return 'prospects'
   return 'active'
 }
 
-function applyFilter(items: B2BPartnershipDTO[], filter: FilterKind): B2BPartnershipDTO[] {
-  if (filter === 'active') {
+function applyTabFilter(items: B2BPartnershipDTO[], tab: TabId): B2BPartnershipDTO[] {
+  if (tab === 'active') {
     return items.filter((p) => ['contract', 'active', 'review'].includes(p.status))
   }
-  if (filter === 'inactive') {
+  if (tab === 'inactive') {
     return items.filter((p) => ['paused', 'closed'].includes(p.status))
   }
   return items.filter((p) => ['prospect', 'dna_check'].includes(p.status))
 }
 
+function applyPillar(items: B2BPartnershipDTO[], pillar: string): B2BPartnershipDTO[] {
+  if (!pillar) return items
+  return items.filter((p) => (p.pillar || 'outros') === pillar)
+}
+
+function applyQuery(items: B2BPartnershipDTO[], q: string): B2BPartnershipDTO[] {
+  if (!q) return items
+  const needle = q.trim().toLowerCase()
+  if (!needle) return items
+  return items.filter((p) => {
+    const name = (p.name || '').toLowerCase()
+    const contact = (p.contactName || '').toLowerCase()
+    return name.includes(needle) || contact.includes(needle)
+  })
+}
+
+function countNoun(n: number, tab: TabId): string {
+  if (tab === 'active') return n === 1 ? 'parceria ativa' : 'parcerias ativas'
+  if (tab === 'inactive')
+    return n === 1 ? 'parceria pausada ou encerrada' : 'parcerias pausadas ou encerradas'
+  return n === 1 ? 'prospect' : 'prospects'
+}
+
+function emptyMessage(tab: TabId, hasFilters: boolean): string {
+  if (hasFilters) return 'Nenhuma parceria bate com os filtros aplicados.'
+  if (tab === 'active') return 'Nenhuma parceria ativa ainda. Clique em "Nova parceria" pra começar.'
+  if (tab === 'inactive') return 'Nenhuma parceria pausada ou encerrada.'
+  return 'Sem prospects na fila.'
+}
+
 export default async function PartnershipsPage({ searchParams }: PageProps) {
   const params = await searchParams
-  // Compat backward · ?status=active vira ?filter=active
-  const rawFilter = params.filter || params.status
-  const filter = resolveFilter(rawFilter)
+  // tab > filter > status (precedence ordering)
+  const rawTab = params.tab || params.filter || params.status
+  const tab = resolveTab(rawTab)
+  const pillar = (params.pillar || '').trim()
+  const q = (params.q || '').trim()
+  const hasFilters = pillar.length > 0 || q.length > 0
 
   const { ctx, repos } = await loadMiraServerContext()
   const all = await repos.b2bPartnerships.list(ctx.clinic_id, {})
-  const items = applyFilter(all, filter)
+  const afterTab = applyTabFilter(all, tab)
+  const afterPillar = applyPillar(afterTab, pillar)
+  const items = applyQuery(afterPillar, q)
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
       <div className="b2b-page-container">
-        {/* === Head: count + actions === */}
-        <div className="b2b-list-head">
+        <PartnershipsTabsBar active={tab} />
+
+        <PartnershipsFiltersBar initialQuery={q} initialPillar={pillar} />
+
+        {/* === Head: count + actions (espelha b2b-list.ui.js _renderShell) === */}
+        <div className="b2b-list-head b2b-list-head-page">
           <div className="b2b-list-count">
-            {items.length} {countNoun(items.length, filter)}
+            {items.length} {countNoun(items.length, tab)}
           </div>
           <div className="b2b-list-head-acts">
-            {filter === 'active' && (
+            {tab === 'active' && (
               <button
                 type="button"
-                className="b2b-btn"
+                className="b2b-btn b2b-btn-page"
                 title="Baixar planilha CSV com todas as parcerias"
                 disabled
               >
                 Exportar CSV
               </button>
             )}
-            <Link href="/estudio/cadastrar" className="b2b-btn b2b-btn-primary">
+            <Link href="/estudio/cadastrar" className="b2b-btn b2b-btn-primary b2b-btn-page">
               + Nova parceria
             </Link>
           </div>
@@ -84,36 +140,37 @@ export default async function PartnershipsPage({ searchParams }: PageProps) {
 
         {/* === Body: empty state OR grouped rows === */}
         {items.length === 0 ? (
-          <div className="b2b-empty">{emptyMessage(filter)}</div>
+          <div className="b2b-empty">{emptyMessage(tab, hasFilters)}</div>
         ) : (
-          <ListBody items={items} filter={filter} />
+          <ListBody items={items} tab={tab} />
         )}
       </div>
+
+      {/* Tweaks pixel-perfect onde Mira globals.css divergiu do b2b.css legado */}
+      <style>{`
+        .b2b-list-head-page {
+          align-items: center;
+          margin-bottom: 20px;
+          gap: 12px;
+        }
+        .b2b-btn-page {
+          padding: 9px 18px;
+          font-size: 12px;
+          letter-spacing: 0.3px;
+        }
+      `}</style>
     </main>
   )
 }
 
-function countNoun(n: number, filter: FilterKind): string {
-  if (filter === 'active') return n === 1 ? 'parceria ativa' : 'parcerias ativas'
-  if (filter === 'inactive')
-    return n === 1 ? 'parceria pausada ou encerrada' : 'parcerias pausadas ou encerradas'
-  return n === 1 ? 'prospect' : 'prospects'
-}
-
-function emptyMessage(filter: FilterKind): string {
-  if (filter === 'active') return 'Nenhuma parceria ativa ainda. Clique em "Nova parceria" pra começar.'
-  if (filter === 'inactive') return 'Nenhuma parceria pausada ou encerrada.'
-  return 'Sem prospects na fila.'
-}
-
-function ListBody({ items, filter }: { items: B2BPartnershipDTO[]; filter: FilterKind }) {
+function ListBody({ items, tab }: { items: B2BPartnershipDTO[]; tab: TabId }) {
   let groups: Record<string, B2BPartnershipDTO[]>
   let getHeader: (k: string) => string
 
-  if (filter === 'active') {
+  if (tab === 'active') {
     groups = groupByTier(items)
     getHeader = (k) => (k === 'untiered' ? 'Sem tier' : `Tier ${k}`)
-  } else if (filter === 'inactive') {
+  } else if (tab === 'inactive') {
     groups = groupByStatus(items)
     getHeader = (k) => statusLabel(k)
   } else {
