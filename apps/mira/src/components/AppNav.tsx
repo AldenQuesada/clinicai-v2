@@ -182,26 +182,54 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
   return (
     <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
       {/* ──────────────────────────────────────────────────────────────
-         ROW 1 · APP CHROME · logo M + busca (esq) · sino + Novo + user (dir)
-         Mirror clinic-dashboard universal header (sem section/sub-tabs).
+         ROW 1 · APP CHROME · brand legacy (eyebrow + title Cormorant)
+         + search + sino + Novo + user. Mirror legacy b2b-shell.ui.js
+         _renderHeader · texto 1:1.
          ────────────────────────────────────────────────────────────── */}
-      <div className="h-13 flex items-center gap-4 px-5 border-b border-white/5">
+      <div
+        className="flex items-center gap-5 px-5 py-3 border-b border-white/5"
+        style={{ minHeight: 76 }}
+      >
+        {/* Brand · 2 linhas (eyebrow + Cormorant title) */}
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 shrink-0"
-          title="Mira"
+          className="flex flex-col leading-tight shrink-0 group"
+          title="Mira · Programa de parcerias B2B"
         >
-          <div className="w-8 h-8 rounded-md bg-[#C9A96E]/15 border border-[#C9A96E]/35 flex items-center justify-center">
-            <span className="font-display text-[#C9A96E] text-base leading-none">M</span>
-          </div>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '3px',
+              color: '#C9A96E',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            Círculo Mirian de Paula
+          </span>
+          <span
+            style={{
+              fontFamily: '"Cormorant Garamond", Georgia, serif',
+              fontWeight: 300,
+              fontSize: 22,
+              lineHeight: 1.05,
+              color: '#F5F0E8',
+              marginTop: 2,
+            }}
+            className="group-hover:text-[#DFC5A0] transition-colors"
+          >
+            Programa de{' '}
+            <em style={{ fontStyle: 'italic', color: '#C9A96E' }}>parcerias B2B</em>
+          </span>
         </Link>
 
-        {/* Busca larga · esquerda · ocupa espaco confortavel */}
-        <SearchHint />
+        {/* Busca · centro */}
+        <div className="flex-1 flex justify-center">
+          <SearchHint />
+        </div>
 
-        {/* Spacer flex empurra dir pra direita */}
-        <div className="flex-1" />
-
+        {/* Direita · sino + Novo + user */}
         <div className="flex items-center gap-2 shrink-0">
           <NotificationsBell insights={insights} />
           <NewMenu />
