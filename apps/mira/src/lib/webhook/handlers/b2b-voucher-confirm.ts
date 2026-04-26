@@ -8,6 +8,7 @@
 
 import { STATE_KEY } from '../state-machine'
 import { formatDedupReply } from './b2b-dedup-reply'
+import { renderTemplate } from '@clinicai/utils'
 import type { Handler, HandlerResult } from './types'
 import type { VoucherConfirmState } from '../state-machine'
 
@@ -143,46 +144,43 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
   const partnership = await repos.b2bPartnerships.getById(stateRow.value.partnership_id)
   const partnerName = partnership?.contactName ?? 'sua parceira'
   const voucherUrl = `https://painel.miriandpaula.com.br/voucher/${result.token}`
-  // Painel da parceira · /parceiro/[token] (Onda 2). Backfill mig 800-38
-  // garante public_token != null. Tom formal alinhado com onboarding
-  // da Mira · "momento-chave da parceria · merece presenca" (Alden 2026-04-24
-  // · port 1:1 do legacy b2b-mira-router/index.ts linhas 508-516).
   const partnerPanelUrl = partnership?.publicToken
     ? `https://mira.miriandpaula.com.br/parceiro/${partnership.publicToken}`
-    : null
+    : ''
   const partnerFirst = firstName(partnership?.contactName ?? null)
-  const partnerGreeting = partnerFirst && partnerFirst !== 'parceira' ? `${partnerFirst}, ` : ''
 
-  // Action: dispara voucher pra recipient via Mih (Lara/recipient_voucher channel)
-  const recipientGreeting =
-    `Oi ${stateRow.value.recipient_first_name}! Aqui é da Clínica Mirian de Paula 💛\n\n` +
-    `${partnerName} acabou de te presentear com um *voucher cortesia* — ${stateRow.value.combo}.\n\n` +
-    `Dá uma olhada: ${voucherUrl}\n\n` +
-    `Quando quiser marcar é só me chamar por aqui!`
+  // Templates DB-driven (mig 800-42) · zero hardcode.
+  // Beneficiary template: voucher_issued_beneficiary (text · canonical)
+  // Partner reply template: voucher_issued_partner (port literal legacy)
+  const [beneficiaryTpl, partnerTpl] = await Promise.all([
+    repos.b2bTemplates.getByEventKey(clinicId, 'voucher_issued_beneficiary', stateRow.value.partnership_id),
+    repos.b2bTemplates.getByEventKey(clinicId, 'voucher_issued_partner', stateRow.value.partnership_id),
+  ])
 
-  // Mensagem OFICIAL pra parceira (port literal do legacy b2b-mira-router).
-  // Alden 2026-04-26: nao improvisar · este texto e a fonte canonica.
-  const replyLines = [
-    `✨ *Voucher enviado para ${stateRow.value.recipient_name}*`,
-    ``,
-    `Acabei de entregar o presente direto no WhatsApp dela, com o link, as orientações e o prazo de validade. Já pode descansar — o fio agora corre com a gente.`,
-    ``,
-    `Assim que ela abrir ou agendar, te aviso por aqui.`,
-  ]
-  if (partnerPanelUrl) {
-    replyLines.push(
-      ``,
-      `📊 *Acompanhe em tempo real no seu painel:*`,
-      partnerPanelUrl,
-    )
+  const sharedVars = {
+    parceira: partnerName,
+    parceira_first: partnerFirst,
+    convidada: stateRow.value.recipient_name,
+    convidada_first: stateRow.value.recipient_first_name,
+    combo: stateRow.value.combo,
+    link: voucherUrl,
+    token: result.token ?? '',
+    expira_em: String(partnership?.voucherValidityDays ?? 30),
+    painel_parceira: partnerPanelUrl,
   }
-  replyLines.push(
-    ``,
-    `${partnerGreeting}obrigada pela confiança de sempre 💜`,
-    `— *Mira*, da Clínica Mirian de Paula`,
-  )
+
+  const recipientGreeting = beneficiaryTpl?.textTemplate
+    ? renderTemplate(beneficiaryTpl.textTemplate, sharedVars)
+    : // Fallback defensivo · template apagado por engano
+      `Oi ${stateRow.value.recipient_first_name}! Voucher da ${partnerName} aqui: ${voucherUrl}`
+
+  const replyText = partnerTpl?.textTemplate
+    ? renderTemplate(partnerTpl.textTemplate, sharedVars)
+    : // Fallback defensivo
+      `Voucher emitido para ${stateRow.value.recipient_name}.\nPainel: ${partnerPanelUrl}`
+
   return {
-    replyText: replyLines.join('\n'),
+    replyText,
     actions: [
       {
         kind: 'send_wa',
