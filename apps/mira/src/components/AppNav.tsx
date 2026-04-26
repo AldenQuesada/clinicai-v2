@@ -106,6 +106,17 @@ const SECTIONS: Section[] = [
     label: 'Disparos',
     defaultHref: '/b2b/disparos',
     match: ['/b2b/disparos', '/templates', '/b2b/segmento'],
+    // Decisao 2026-04-26 · manter FLAT (2 sub-tabs · sem grupos):
+    //   - "Sequencias" ja existe como tab INTERNA dentro de /b2b/disparos
+    //     (CommClient · Eventos/Templates/Sequencias/Historico/Config), logo
+    //     adicionar "Sequencias" no AppNav-level criaria double-nav e
+    //     conflito de URL (CommClient nao deep-linka pra tab interna).
+    //   - 2 itens nao precisam de grupo — sub-tabs flat ficam visualmente
+    //     limpos (mirror /b2b/saude e /b2b/mapa em Geral · operar/atrair).
+    //   - "Templates" aqui na verdade e o portal Disparos (renderiza todos
+    //     os 5 internal tabs do CommClient) · label mantido por nao quebrar
+    //     muscle-memory; pode ser renomeado pra "Comunicação" no futuro
+    //     se Alden pedir, mas e mudanca isolada.
     subtabs: [
       { href: '/b2b/disparos', label: 'Templates', available: true },
       { href: '/b2b/segmento', label: 'Segmento', available: true },
@@ -165,6 +176,7 @@ const SECTIONS: Section[] = [
           { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
           { href: '/b2b/config/tiers', label: 'Tiers', available: true },
           { href: '/b2b/config/funnel', label: 'Funnel', available: true },
+          { href: '/b2b/config/playbooks', label: 'Playbooks', available: true },
           { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
         ],
       },

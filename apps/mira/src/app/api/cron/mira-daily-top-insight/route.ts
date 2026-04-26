@@ -93,21 +93,27 @@ export async function GET(req: NextRequest) {
     // RPC ja sort por score DESC · defesa em profundidade
     const top = alerts.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
 
-    // 3. Lista admins (b2b_admin_phones · filtra is_active local)
-    const admins = (await repos.b2bAdminPhones.list().catch(() => []))
-      .filter((a) => a.is_active && (a.phone_full ?? '').replace(/\D/g, '').length >= 10)
+    // 3. Lista profissionais com permissions.b2b=true (wa_numbers professional_private)
+    //    Mig 800-27 · cada permission liga acesso UI + recebimento de mensagens
+    const professionals = (await repos.waNumbers.listProfessionalPrivate(clinicId).catch(() => []))
+      .filter(
+        (p) =>
+          p.isActive &&
+          p.permissions?.b2b !== false &&
+          (p.phone ?? '').replace(/\D/g, '').length >= 10,
+      )
 
-    if (admins.length === 0) {
+    if (professionals.length === 0) {
       return {
         itemsProcessed: 0,
         skipped: true,
-        reason: 'no_active_admins',
+        reason: 'no_b2b_recipients',
         insight_kind: top.kind,
         partnership_id: top.partnership_id,
       }
     }
 
-    // 4. Monta texto e despacha pra cada admin
+    // 4. Monta texto e despacha pra cada profissional inscrito em B2B
     const text = renderInsightText(top, alerts.length)
     const wa = getEvolutionService('mira')
     const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
@@ -115,8 +121,8 @@ export async function GET(req: NextRequest) {
     let sent = 0
     let failed = 0
 
-    for (const admin of admins) {
-      const phone = admin.phone_full
+    for (const pro of professionals) {
+      const phone = pro.phone
       try {
         const r = await wa.sendText(phone, text)
         await repos.waProAudit
@@ -146,7 +152,7 @@ export async function GET(req: NextRequest) {
     return {
       itemsProcessed: sent,
       eligible_alerts: alerts.length,
-      admins: admins.length,
+      recipients: professionals.length,
       sent,
       failed,
       insight_kind: top.kind,

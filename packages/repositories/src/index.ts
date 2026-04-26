@@ -162,6 +162,7 @@ export {
   type PlaybookMetaTemplate,
   type PlaybookApplication,
   type ApplyPlaybookResult,
+  type PlaybookTemplateUpsertInput,
 } from './b2b-playbook.repository'
 export {
   MiraCronRegistryRepository,

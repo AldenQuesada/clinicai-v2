@@ -17,6 +17,8 @@ const TAB_DESCS: Record<string, string> = {
     'Labels, cores e defaults configuraveis dos 3 tiers (1/2/3) — herdados ao cadastrar parceria',
   '/b2b/config/funnel':
     'Benchmarks de step-rate do funil (delivered → opened → scheduled → redeemed → purchased) usados em /b2b/analytics',
+  '/b2b/config/playbooks':
+    'Templates aplicados pelo botão "+ Aplicar Playbook" em cada parceria · 3 kinds (onboarding, retenção, renovação)',
   '/b2b/config/saude':
     'Snapshot de dispatch, insights, vouchers, contagens',
   '/b2b/config/auditoria':

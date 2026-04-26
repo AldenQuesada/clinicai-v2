@@ -7,6 +7,10 @@
  *   - tabela b2b_playbook_applications (audit)
  *   - RPC b2b_apply_playbook(p_partnership_id uuid, p_kind text)
  *
+ * Mig 800-27 adicionou RPCs CRUD pra UI /b2b/config/playbooks:
+ *   - b2b_playbook_template_upsert(p_payload jsonb)
+ *   - b2b_playbook_template_delete(p_kind text, p_name text)
+ *
  * Padrao ADR-012 · UI/Service nao chama supabase.from() direto.
  * Boundary ADR-005 · DTO camelCase. Multi-tenant ADR-028 · clinic_id resolvido
  * pelas RLS policies via app_clinic_id() — nao precisa passar explicito aqui.
@@ -69,6 +73,20 @@ export interface ApplyPlaybookResult {
   applied_contents?: number
   applied_metas?: number
   error?: string
+}
+
+/**
+ * Payload pra upsert de template · enviado pela UI /b2b/config/playbooks.
+ * RPC b2b_playbook_template_upsert valida tipos e arrays jsonb.
+ */
+export interface PlaybookTemplateUpsertInput {
+  kind: PlaybookKind
+  name: string
+  description?: string | null
+  tasks: PlaybookTaskTemplate[]
+  contents: PlaybookContentTemplate[]
+  metas: PlaybookMetaTemplate[]
+  isDefault?: boolean
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,5 +168,62 @@ export class B2BPlaybookRepository {
 
     if (error || !data) return []
     return (data as unknown[]).map((r) => mapApplication(r))
+  }
+
+  /**
+   * Upsert template de playbook · UI /b2b/config/playbooks.
+   * Chama RPC b2b_playbook_template_upsert (mig 800-27) · UPSERT por
+   * (clinic_id, kind, name). Valida arrays jsonb · garante 1 default
+   * por kind (se isDefault=true, zera demais defaults).
+   */
+  async upsertTemplate(
+    payload: PlaybookTemplateUpsertInput,
+  ): Promise<{ ok: boolean; kind?: PlaybookKind; name?: string; error?: string }> {
+    const body: Record<string, unknown> = {
+      kind: payload.kind,
+      name: payload.name,
+      description: payload.description ?? null,
+      tasks: payload.tasks ?? [],
+      contents: payload.contents ?? [],
+      metas: payload.metas ?? [],
+      is_default: payload.isDefault === true,
+    }
+    const { data, error } = await this.supabase.rpc(
+      'b2b_playbook_template_upsert',
+      { p_payload: body },
+    )
+    if (error) return { ok: false, error: error.message }
+    const r = (data ?? null) as
+      | { ok?: boolean; kind?: PlaybookKind; name?: string; error?: string }
+      | null
+    return {
+      ok: r?.ok === true,
+      kind: r?.kind,
+      name: r?.name,
+      error: r?.error,
+    }
+  }
+
+  /**
+   * Deleta template de playbook por (kind, name) · idempotente.
+   * Chama RPC b2b_playbook_template_delete (mig 800-27).
+   */
+  async deleteTemplate(
+    kind: PlaybookKind,
+    name: string,
+  ): Promise<{ ok: boolean; deleted?: number; error?: string }> {
+    const { data, error } = await this.supabase.rpc(
+      'b2b_playbook_template_delete',
+      { p_kind: kind, p_name: name },
+    )
+    if (error) return { ok: false, error: error.message }
+    const r = (data ?? null) as
+      | { ok?: boolean; deleted?: number; error?: string }
+      | null
+    return {
+      ok: r?.ok === true,
+      deleted: r?.deleted,
+      error: r?.error,
+    }
   }
 }

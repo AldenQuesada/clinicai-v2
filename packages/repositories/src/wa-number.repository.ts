@@ -25,7 +25,7 @@ export interface WaNumberFullDTO extends WaNumberDTO {
   professionalId: string | null
   professionalName: string | null
   accessScope: 'own' | 'full' | null
-  permissions: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean }
+  permissions: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean; b2b?: boolean }
 }
 
 export interface WaNumberRegisterInput {
@@ -111,7 +111,12 @@ export class WaNumberRepository {
         professionalName: (r.professional_name as string) ?? null,
         accessScope: (r.access_scope as 'own' | 'full') ?? null,
         permissions:
-          (r.permissions as { agenda?: boolean; pacientes?: boolean; financeiro?: boolean }) ?? {},
+          (r.permissions as {
+            agenda?: boolean
+            pacientes?: boolean
+            financeiro?: boolean
+            b2b?: boolean
+          }) ?? {},
       }))
       .filter((n) => n.numberType === 'professional_private')
   }
@@ -126,7 +131,9 @@ export class WaNumberRepository {
       p_professional_id: payload.professional_id,
       p_label: payload.label ?? null,
       p_access_scope: payload.access_scope ?? 'own',
-      p_permissions: payload.permissions ?? { agenda: true, pacientes: true, financeiro: true },
+      p_permissions:
+        payload.permissions ??
+        { agenda: true, pacientes: true, financeiro: true, b2b: true },
     })
     if (error) return { ok: false, error: error.message }
     return { ok: true, data }

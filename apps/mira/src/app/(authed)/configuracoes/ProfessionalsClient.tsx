@@ -26,7 +26,47 @@ import type {
   ProfessionalProfileDTO,
 } from '@clinicai/repositories'
 
-type Permissions = { agenda: boolean; pacientes: boolean; financeiro: boolean }
+type Permissions = {
+  agenda: boolean
+  pacientes: boolean
+  financeiro: boolean
+  /** NOVA · controle de acesso B2B + mensagens automaticas de parceria/voucher */
+  b2b: boolean
+}
+
+/**
+ * Mapping categoria → mensagens automaticas que o profissional recebe via WhatsApp.
+ * Cada check no UI ativa AMBOS · acesso ao modulo + recebe essas msg.
+ * Crons que enviam essas msg filtram recipients por permissions.<categoria>=true.
+ */
+const PERMISSION_MESSAGES: Record<keyof Permissions, string[]> = {
+  agenda: [
+    'Lembretes de consulta · 24h antes',
+    'Avisos de no-show no dia',
+    'Gaps de agenda da semana',
+    'Resumo do dia (consultas + livres)',
+  ],
+  pacientes: [
+    'NPS recebido (cada nova resposta)',
+    'Follow-up devido (após X dias sem contato)',
+    'Lead novo no Lara',
+    'Paciente parou de responder',
+  ],
+  financeiro: [
+    'Revenue diário (8h SP)',
+    'Meta mensal · atingida ou em risco',
+    'Alerta de churn financeiro',
+    'Custo IA acima do cap',
+  ],
+  b2b: [
+    'Top insight diário · 8h SP (cron mira-daily-top-insight)',
+    'Alertas críticos parceria · over_cap, health_red',
+    'Voucher resgatado / convertido em paciente',
+    'Candidatura nova ou pendente',
+    'Parceria a renovar (60d antes)',
+    'Feedback mensal por parceira',
+  ],
+}
 
 type EditDraft = {
   mode: 'register' | 'edit'
@@ -61,7 +101,7 @@ export function ProfessionalsClient({
       professional_name: '',
       label: null,
       access_scope: 'own',
-      permissions: { agenda: true, pacientes: true, financeiro: true },
+      permissions: { agenda: true, pacientes: true, financeiro: true, b2b: true },
     })
   }
 
@@ -79,6 +119,7 @@ export function ProfessionalsClient({
         agenda: n.permissions.agenda !== false,
         pacientes: n.permissions.pacientes !== false,
         financeiro: n.permissions.financeiro !== false,
+        b2b: n.permissions.b2b !== false,
       },
     })
   }
@@ -123,7 +164,12 @@ export function ProfessionalsClient({
       setFeedback('Telefone invalido')
       return
     }
-    if (!editing.permissions.agenda && !editing.permissions.pacientes && !editing.permissions.financeiro) {
+    if (
+      !editing.permissions.agenda &&
+      !editing.permissions.pacientes &&
+      !editing.permissions.financeiro &&
+      !editing.permissions.b2b
+    ) {
       setFeedback('Marque ao menos uma permissao')
       return
     }
@@ -353,6 +399,11 @@ function ProfessionalRow({
             Financeiro
           </span>
         ) : null}
+        {n.permissions.b2b !== false ? (
+          <span className="bg-[#C9A96E]/15 text-[#C9A96E] px-1.5 py-0.5 rounded uppercase tracking-[0.5px]">
+            B2B
+          </span>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
@@ -475,12 +526,25 @@ function ProfessionalForm({
         </label>
 
         <div className="b2b-field">
-          <span className="b2b-field-lbl">Permissões</span>
+          <span className="b2b-field-lbl">
+            Permissões + Mensagens automáticas
+          </span>
+          <p
+            style={{
+              fontSize: 11,
+              color: 'var(--b2b-text-muted)',
+              margin: '0 0 8px',
+              lineHeight: 1.4,
+            }}
+          >
+            Cada categoria controla ACESSO ao módulo + MENSAGENS automáticas que o
+            profissional recebe via WhatsApp. Expanda pra ver as mensagens de cada.
+          </p>
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
+              gap: 6,
               padding: '12px 14px',
               background: 'rgba(255,255,255,0.02)',
               border: '1px solid var(--b2b-border)',
@@ -489,21 +553,35 @@ function ProfessionalForm({
           >
             <PermCheckbox
               label="Agenda"
-              hint="Agenda, horários livres"
+              hint="Agenda, horários livres, lembretes de consulta"
+              messages={PERMISSION_MESSAGES.agenda}
+              accentColor="#10B981"
               checked={draft.permissions.agenda}
               onChange={(v) => onChangePerm('agenda', v)}
             />
             <PermCheckbox
               label="Pacientes"
-              hint="Busca, saldo, histórico"
+              hint="Busca, saldo, histórico, NPS, follow-ups"
+              messages={PERMISSION_MESSAGES.pacientes}
+              accentColor="#3B82F6"
               checked={draft.permissions.pacientes}
               onChange={(v) => onChangePerm('pacientes', v)}
             />
             <PermCheckbox
               label="Financeiro"
-              hint="Receita, comissão, meta"
+              hint="Receita, comissão, meta, custo IA"
+              messages={PERMISSION_MESSAGES.financeiro}
+              accentColor="#8B5CF6"
               checked={draft.permissions.financeiro}
               onChange={(v) => onChangePerm('financeiro', v)}
+            />
+            <PermCheckbox
+              label="B2B"
+              hint="Parcerias, vouchers, candidaturas, NPS de parceiras"
+              messages={PERMISSION_MESSAGES.b2b}
+              accentColor="#C9A96E"
+              checked={draft.permissions.b2b}
+              onChange={(v) => onChangePerm('b2b', v)}
             />
           </div>
         </div>
@@ -534,38 +612,115 @@ function ProfessionalForm({
 function PermCheckbox({
   label,
   hint,
+  messages,
+  accentColor,
   checked,
   onChange,
 }: {
   label: string
   hint: string
+  messages?: string[]
+  accentColor?: string
   checked: boolean
   onChange: (v: boolean) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const accent = accentColor || 'var(--b2b-champagne)'
   return (
-    <label
+    <div
       style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        cursor: 'pointer',
+        padding: '10px 12px',
+        borderRadius: 6,
+        background: checked ? `${accent}10` : 'rgba(255,255,255,0.02)',
+        border: `1px solid ${checked ? `${accent}55` : 'rgba(255,255,255,0.05)'}`,
+        transition: 'all 200ms',
       }}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 16, height: 16, accentColor: 'var(--b2b-champagne)', flexShrink: 0 }}
-      />
-      <div>
-        <div
-          style={{ fontSize: 13, fontWeight: 600, color: 'var(--b2b-ivory)' }}
-        >
-          {label}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{
+            width: 16,
+            height: 16,
+            accentColor: accent,
+            flexShrink: 0,
+            marginTop: 2,
+            cursor: 'pointer',
+          }}
+          aria-label={label}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: checked ? accent : 'var(--b2b-ivory)',
+                cursor: 'pointer',
+              }}
+              onClick={() => onChange(!checked)}
+            >
+              {label}
+            </span>
+            {messages && messages.length > 0 ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setExpanded((p) => !p)
+                }}
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '1.2px',
+                  textTransform: 'uppercase',
+                  color: '#9CA3AF',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                  cursor: 'pointer',
+                }}
+                title={`${messages.length} mensagens automáticas`}
+              >
+                {expanded ? '▾ msg' : `▸ ${messages.length} msg`}
+              </button>
+            ) : null}
+          </div>
+          <div
+            style={{ fontSize: 11, color: 'var(--b2b-text-muted)', marginTop: 1 }}
+          >
+            {hint}
+          </div>
+          {expanded && messages && (
+            <ul
+              style={{
+                margin: '8px 0 0',
+                paddingLeft: 18,
+                fontSize: 10.5,
+                color: 'var(--b2b-text-dim, #B5A894)',
+                lineHeight: 1.55,
+              }}
+            >
+              {messages.map((m, i) => (
+                <li key={i} style={{ marginTop: 2 }}>
+                  {m}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)' }}>{hint}</div>
       </div>
-    </label>
+    </div>
   )
 }
 
