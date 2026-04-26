@@ -1,13 +1,27 @@
 /**
- * Mira · AppHeader · 2 niveis sticky no topo (SECTION + sub-tabs).
+ * AppShell · orquestrador server do (authed) layout.
  *
- * Server Component que faz auth + carrega profile + parcerias compactas
- * pra Quick Search. Toda a UI do nav (SECTIONS · sub-tabs · active state)
- * vive em AppNav (Client Component) que usa usePathname() — antes a
- * deteccao tentava ler `headers().get('x-pathname')` mas o middleware
- * Next.js 16 nao injeta esses headers, deixando "Geral" sempre marcado.
+ * Substitui o antigo AppHeader (que era 3 linhas sticky empilhadas) por
+ * um shell de 2 colunas:
  *
- * Quick actions sempre visiveis: + Voucher, + Parceria, busca CTRL+K.
+ *   ┌──────┬─────────────────────────────────────────────────────────┐
+ *   │ side │ AppHeaderThin (search + bell + novo · 60px)             │
+ *   │ bar  ├─────────────────────────────────────────────────────────┤
+ *   │ 56px │ AppSubtabs (eyebrow + chips · 36px)                     │
+ *   │      ├─────────────────────────────────────────────────────────┤
+ *   │      │ children (page content · scroll proprio)                 │
+ *   └──────┴─────────────────────────────────────────────────────────┘
+ *
+ * Faz auth + carrega profile + parcerias compactas pra Quick Search +
+ * insights pra NotificationsBell + counts pra sub-tabs/sidebar badges.
+ * Todos os fetches sao defensivos · qualquer erro vira fallback vazio
+ * sem quebrar a render.
+ *
+ * Mobile (<md): sidebar oculta · drawer hamburger no AppHeaderThin.
+ *
+ * Insights bell + counts continuam fluindo via props · server → client.
+ * QuickSearch (modal CTRL+K) renderiza fora do grid · fixed inset-0
+ * quando aberto.
  */
 
 import { Suspense } from 'react'
@@ -26,13 +40,24 @@ import {
   type InsightSeverity,
 } from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
-import { AppNav, type SubtabCounts } from './AppNav'
+import { AppSidebar } from './AppSidebar'
+import { AppSubtabs } from './AppSubtabs'
+import { AppHeaderThin } from './AppHeaderThin'
+import { MobileNavDrawer } from './MobileNavDrawer'
+import type { SubtabCounts } from './nav/sections'
 import { buildSystemInsights } from '@/lib/system-insights'
 
-const PAINEL_URL =
-  process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
+/**
+ * Skeleton minimalista pro Suspense fallback dos componentes que usam
+ * useSearchParams (AppSubtabs · obrigatorio Suspense em Next.js 16).
+ */
+function SubtabsSkeleton() {
+  return (
+    <div className="shrink-0 h-9 border-b border-[#C9A96E]/15 bg-[#0F0D0A]" />
+  )
+}
 
-export async function AppHeader() {
+export async function AppShell({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
   const supabase = createServerClient({
     getAll: () => cookieStore.getAll(),
@@ -46,7 +71,10 @@ export async function AppHeader() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) {
+    // Sem auth · render so children (login redirect lida em outro lugar).
+    return <>{children}</>
+  }
 
   let firstName = ''
   let role = ''
@@ -94,7 +122,6 @@ export async function AppHeader() {
       }))
       // Merge: insights por parceria (RPC) + system insights sinteticos +
       // critical_alerts (antes ficavam no banner sticky em /b2b/analytics).
-      // Pedido Alden 2026-04-26: tudo no sino, nada no corpo da pagina.
       const sysInsights = buildSystemInsights({
         data: analyticsBlob,
         pendingApplications,
@@ -117,7 +144,9 @@ export async function AppHeader() {
             : a.message,
           partnership_id: a.partnership_id || '',
           partnership_name: a.partnership_name || 'Sistema',
-          action_url: a.partnership_id ? `/partnerships/${a.partnership_id}` : '/b2b/analytics',
+          action_url: a.partnership_id
+            ? `/partnerships/${a.partnership_id}`
+            : '/b2b/analytics',
           score: sev === 'critical' ? 88 : sev === 'warning' ? 55 : 30,
         }
       })
@@ -132,7 +161,6 @@ export async function AppHeader() {
         prospects: byStatus('prospect') + byStatus('dna_check'),
         inactive: byStatus('paused') + byStatus('closed'),
         candidaturas: pendingApplications,
-        // candidatos · scout repo nao tem count direto, deixar undefined
       }
     }
   } catch {
@@ -141,23 +169,42 @@ export async function AppHeader() {
 
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
+  const sidebarUser = { displayName, initials, role }
+
+  // Urgentes (critical+warning) · usado pelo badge da sidebar/drawer
+  const urgentInsights = insights.filter(
+    (i) => i.severity === 'critical' || i.severity === 'warning',
+  ).length
 
   return (
     <>
+      {/* QuickSearch modal · fora do grid (fixed inset-0 quando aberto) */}
       <QuickSearch partners={quickPartners} />
-      {/* Suspense necessario · AppNav usa useSearchParams() */}
-      <Suspense fallback={<div className="h-22 border-b border-[#C9A96E]/15 bg-[#0F0D0A]" />}>
-        <AppNav
-          user={{
-            displayName,
-            initials,
-            role,
-            panelUrl: PAINEL_URL,
-          }}
-          insights={insights}
+
+      {/* Mobile drawer · fora do grid · controlado por custom event */}
+      <MobileNavDrawer
+        user={sidebarUser}
+        counts={counts}
+        urgentInsights={urgentInsights}
+      />
+
+      <div className="flex flex-1 min-h-0 w-full">
+        {/* Sidebar · md+ · 56px sticky esquerda */}
+        <AppSidebar
+          user={sidebarUser}
           counts={counts}
+          urgentInsights={urgentInsights}
         />
-      </Suspense>
+
+        {/* Coluna direita · header thin + subtabs + content */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <AppHeaderThin insights={insights} />
+          <Suspense fallback={<SubtabsSkeleton />}>
+            <AppSubtabs counts={counts} />
+          </Suspense>
+          {children}
+        </div>
+      </div>
     </>
   )
 }
