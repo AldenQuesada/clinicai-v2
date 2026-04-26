@@ -46,9 +46,13 @@ export default async function ConfigPage({ searchParams }: PageProps) {
   const activeTab: Tab =
     sp.tab && (VALID_TABS as readonly string[]).includes(sp.tab) ? (sp.tab as Tab) : 'overview'
 
+  // Overview ganhou aside Saude · usa max-w maior (1200) pra caber 2-col.
+  // Outros tabs mantem 960 (mais legivel pra forms/tabelas verticais).
+  const wrapMax = activeTab === 'overview' ? 'max-w-[1200px]' : 'max-w-[960px]'
+
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-[960px] mx-auto px-6 py-6">
+      <div className={`${wrapMax} mx-auto px-6 py-6`}>
         {activeTab === 'overview' && (
           <OverviewTab days={sp.days} from={sp.from} to={sp.to} />
         )}

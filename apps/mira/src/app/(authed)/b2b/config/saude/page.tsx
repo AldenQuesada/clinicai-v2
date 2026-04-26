@@ -1,10 +1,17 @@
-import { loadMiraServerContext } from '@/lib/server-context'
-import { ConfigSaudeClient } from './ConfigSaudeClient'
+/**
+ * /b2b/config/saude · DEPRECATED 2026-04-26.
+ *
+ * Saude do sistema foi absorvida na Visao geral (/configuracoes?tab=overview)
+ * como aside direita. Pedido Alden: unificar saude operacional + KPIs internos
+ * num lugar so com TimeRangePicker.
+ *
+ * Redirect permanente · mantem URLs antigas funcionando sem 404.
+ */
+
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ConfigSaudePage() {
-  const { repos } = await loadMiraServerContext()
-  const snapshot = await repos.b2bSystemHealth.snapshot().catch(() => null)
-  return <ConfigSaudeClient initial={snapshot} />
+export default function ConfigSaudePage() {
+  redirect('/configuracoes?tab=overview')
 }

@@ -171,8 +171,9 @@ const SECTIONS: Section[] = [
       {
         groupLabel: 'Dia-a-dia',
         subtabs: [
+          // Saude absorvida na Visao geral em 2026-04-26 (aside direita,
+          // reage ao TimeRangePicker no que cabe) · sub-tab removida.
           { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
-          { href: '/b2b/config/saude', label: 'Saúde', available: true },
           { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
           { href: '/b2b/config/tiers', label: 'Tiers', available: true },
           { href: '/b2b/config/funnel', label: 'Funnel', available: true },
