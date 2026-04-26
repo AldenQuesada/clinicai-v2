@@ -1,14 +1,23 @@
 /**
- * /b2b/analytics/crescimento · Cockpit semanal + Funil pipeline.
+ * /b2b/analytics/crescimento · pagina unica de crescimento + retorno.
  *
- * Cockpit usa janela fixa de 12 SEMANAS (granularidade semanal independe
- * do filtro porque a UI mostra grid das ultimas 12 semanas literais).
- * Funil pipeline aceita o time range (default 30d).
+ * 2026-04-26: absorveu /b2b/analytics/retorno (Forecast/Payback/Velocity).
+ * Razao: usuario reclamou de /retorno com cards enormes em fluxo separado ·
+ * todos os widgets de "evolucao da operacao" passam a viver aqui pra dar
+ * visao unificada (curto prazo · medio prazo · ROI · velocity).
+ *
+ * Layout:
+ *   Linha 1 · Cockpit semanal | Forecast mensal           (curto vs proj.)
+ *   Linha 2 · Pipeline funnel (full-width)                (estado pipeline)
+ *   Linha 3 · Velocity | Payback / ROI                    (eficiencia)
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import { Cockpit } from './Cockpit'
 import { Funnel } from './Funnel'
+import { Forecast } from './Forecast'
+import { Payback } from './Payback'
+import { Velocity } from './Velocity'
 import { TimeRangePicker } from '../_shared/TimeRangePicker'
 import { parseTimeRange } from '../_shared/timeRangeUtils'
 
@@ -21,7 +30,7 @@ interface PageProps {
 export default async function CrescimentoPage({ searchParams }: PageProps) {
   const sp = await searchParams
   const tr = parseTimeRange(sp)
-  const funnelDays = tr.days ?? Math.max(
+  const days = tr.days ?? Math.max(
     1,
     Math.ceil(
       (new Date(tr.toIso! + 'T23:59:59Z').getTime() -
@@ -31,9 +40,12 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
   )
 
   const { repos } = await loadMiraServerContext()
-  const [growth, funnel] = await Promise.all([
+  const [growth, funnel, forecast, payback, velocity] = await Promise.all([
     repos.b2bMetricsV2.growthWeekly(12).catch(() => null),
-    repos.b2bMetricsV2.pipelineFunnel(funnelDays).catch(() => null),
+    repos.b2bMetricsV2.pipelineFunnel(days).catch(() => null),
+    repos.b2bMetricsV2.forecast(3, 30).catch(() => null),
+    repos.b2bMetricsV2.payback(days, null).catch(() => null),
+    repos.b2bMetricsV2.velocity(days, null).catch(() => null),
   ])
 
   return (
@@ -44,8 +56,8 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
             <div className="b2bm2-eyebrow">Programa de parcerias B2B</div>
             <h1 className="b2bm2-title">Crescimento</h1>
             <p className="b2bm2-sub">
-              Seu trabalho · meta 1 parceria/semana (cockpit fixo) + funil de
-              conversão na janela selecionada.
+              Cockpit semanal + projeção mensal + ROI/velocity dos vouchers.
+              Tudo de evolução da operação numa vista só.
             </p>
           </div>
           <div className="b2bm2-header-ctrl">
@@ -53,18 +65,40 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        {/* 2-col side-by-side · Cockpit semanal + Funnel pipeline.
-            Pedido Alden 2026-04-26: estavam empilhados full-width (enormes).
-            Agora compactos em colunas; mobile colapsa via media query. */}
+        {/* Linha 1 · curto prazo (semana) | medio prazo (projecao mes) */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
             gap: 16,
+            marginBottom: 16,
           }}
         >
           <Cockpit data={growth} />
+          <div className="b2bm-widget">
+            <Forecast data={forecast} />
+          </div>
+        </div>
+
+        {/* Linha 2 · pipeline state (full-width pra dar destaque ao fluxo) */}
+        <div style={{ marginBottom: 16 }}>
           <Funnel data={funnel} />
+        </div>
+
+        {/* Linha 3 · eficiencia · velocity (tempo) | payback (dinheiro) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: 16,
+          }}
+        >
+          <div className="b2bm-widget">
+            <Velocity data={velocity} />
+          </div>
+          <div className="b2bm-widget">
+            <Payback days={days} data={payback} />
+          </div>
         </div>
       </div>
     </main>

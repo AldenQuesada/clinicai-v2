@@ -141,10 +141,10 @@ const SECTIONS: Section[] = [
       {
         groupLabel: 'Funil',
         subtabs: [
+          // Crescimento absorveu Retorno em 2026-04-26 (Forecast/Payback/Velocity)
           { href: '/b2b/analytics/crescimento', label: 'Crescimento', available: true },
           { href: '/b2b/analytics/parceiros', label: 'Parceiros', available: true },
           { href: '/b2b/analytics/conversao', label: 'Conversão', available: true },
-          { href: '/b2b/analytics/retorno', label: 'Retorno', available: true },
         ],
       },
       {
