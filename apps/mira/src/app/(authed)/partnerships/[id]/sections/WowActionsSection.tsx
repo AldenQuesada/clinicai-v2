@@ -3,22 +3,18 @@
 /**
  * WowActionsSection · sec 12 do modal admin legacy.
  *
- * Mirror de `b2b-wow-actions.ui.js`. Barra premium de acoes 1-clique:
- *   - Dossie PDF (link interno · /partnerships/[id]/dossie)
- *   - Painel do parceiro (copia URL publico)
- *   - IA conteudo (TODO · edge function nao portada · marca Em breve)
- *   - Senders WhatsApp (TODO · UI nao portada)
- *   - Link NPS / Certificado (TODO · servicos nao portados)
- *
- * Visual b2b-wow-bar / b2b-wow-btn (ja em b2b-detail.css legado).
+ * Acoes premium 1-clique. Pedido Alden 2026-04-26: tirar "Em breve" das
+ * funcoes que ja temos suporte (NPS · Senders · Certificado redirecionam
+ * pra fluxo existente). IA conteudo fica pra fase 2 (edge function).
  *
  * Aparece na tab Crescer acima das metas operacionais.
  */
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { FileText, Link2, Zap, Phone, BarChart3, Award, Check } from 'lucide-react'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
+import { issueNpsLinkAction } from '../wow-actions'
 
 const PAINEL_BASE =
   process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -29,7 +25,9 @@ export function WowActionsSection({
   partnership: B2BPartnershipDTO
 }) {
   const [copied, setCopied] = useState(false)
+  const [npsCopied, setNpsCopied] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
 
   const showCert =
     partnership.status === 'closed' ||
@@ -48,6 +46,24 @@ export function WowActionsSection({
         setTimeout(() => setCopied(false), 2500)
       })
       .catch(() => setFeedback(`Copie manualmente: ${painelUrl}`))
+  }
+
+  function issueNps() {
+    startTransition(async () => {
+      const r = await issueNpsLinkAction(partnership.id)
+      if (!r.ok || !r.url) {
+        setFeedback(`Erro: ${r.error || 'nao foi possivel gerar link NPS'}`)
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(r.url)
+        setNpsCopied(true)
+        setFeedback('Link NPS gerado e copiado · envie pra parceira responder')
+        setTimeout(() => setNpsCopied(false), 2500)
+      } catch {
+        setFeedback(`Link NPS: ${r.url}`)
+      }
+    })
   }
 
   return (
@@ -90,65 +106,73 @@ export function WowActionsSection({
           </div>
         </button>
 
-        <button
-          type="button"
-          className="b2b-action-card text-left"
-          disabled
-          title="Edge function de IA nao portada ainda"
-          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-        >
-          <Zap className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <div className="b2b-action-card-title">IA conteudo</div>
-            <div className="b2b-action-card-sub">Em breve</div>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          className="b2b-action-card text-left"
-          disabled
-          title="UI de senders nao portada ainda"
-          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+        {/* Senders WhatsApp · redireciona pra Channels (UI canonica de
+            quem-envia-o-que · funciona desde 2026-04-26). */}
+        <Link
+          href="/configuracoes?tab=channels"
+          className="b2b-action-card"
         >
           <Phone className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="b2b-action-card-title">WhatsApp autorizados</div>
-            <div className="b2b-action-card-sub">Em breve</div>
+            <div className="b2b-action-card-sub">Configurar canais Mira</div>
           </div>
-        </button>
+        </Link>
 
         {showNps ? (
           <button
             type="button"
             className="b2b-action-card text-left"
-            disabled
-            title="NPS service nao portado ainda"
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+            onClick={issueNps}
+            disabled={pending}
+            title="Gera token NPS publico e copia URL"
           >
-            <BarChart3 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+            {npsCopied ? (
+              <Check className="w-5 h-5" style={{ color: '#10B981', flexShrink: 0 }} />
+            ) : (
+              <BarChart3 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+            )}
             <div className="flex flex-col gap-0.5 min-w-0">
-              <div className="b2b-action-card-title">Link NPS</div>
-              <div className="b2b-action-card-sub">Em breve</div>
+              <div className="b2b-action-card-title">
+                {npsCopied ? 'Link NPS copiado!' : 'Link NPS'}
+              </div>
+              <div className="b2b-action-card-sub">
+                {pending ? 'Gerando...' : 'Pesquisa quarterly · copia URL'}
+              </div>
             </div>
           </button>
         ) : null}
 
         {showCert ? (
-          <button
-            type="button"
-            className="b2b-action-card text-left"
-            disabled
-            title="Certificate service nao portado ainda"
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+          <Link
+            href={`/partnerships/${partnership.id}/dossie`}
+            target="_blank"
+            rel="noopener"
+            className="b2b-action-card"
           >
             <Award className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
             <div className="flex flex-col gap-0.5 min-w-0">
               <div className="b2b-action-card-title">Certificado</div>
-              <div className="b2b-action-card-sub">Em breve</div>
+              <div className="b2b-action-card-sub">Dossiê PDF · imprime</div>
             </div>
-          </button>
+          </Link>
         ) : null}
+
+        {/* IA conteudo · unico que ainda eh "Em breve" · edge function
+            do clinic-dashboard nao foi portada · TODO fase 2. */}
+        <button
+          type="button"
+          className="b2b-action-card text-left"
+          disabled
+          title="Edge function Claude Haiku nao portada ainda · TODO fase 2"
+          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+        >
+          <Zap className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="b2b-action-card-title">IA conteúdo</div>
+            <div className="b2b-action-card-sub">Em breve · fase 2</div>
+          </div>
+        </button>
       </div>
 
       {feedback ? <div className="b2b-feedback">{feedback}</div> : null}

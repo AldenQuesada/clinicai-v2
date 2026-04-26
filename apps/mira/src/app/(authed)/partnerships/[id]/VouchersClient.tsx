@@ -205,8 +205,42 @@ export function VouchersClient({
           }}
         >
           <div className="b2b-modal" style={{ maxWidth: 720 }}>
-            <header className="b2b-modal-hdr">
-              <h2>Emitir voucher</h2>
+            <header
+              className="b2b-modal-hdr"
+              style={{
+                paddingBottom: 16,
+                borderBottom: '1px solid var(--b2b-border)',
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div
+                  className="b2b-eyebrow"
+                  style={{ fontSize: 10, marginBottom: 4 }}
+                >
+                  Voucher · novo
+                </div>
+                <h2
+                  style={{
+                    fontFamily: '"Cormorant Garamond", Georgia, serif',
+                    fontSize: 28,
+                    fontWeight: 300,
+                    margin: 0,
+                    color: 'var(--b2b-ivory)',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  Emitir <em style={{ color: 'var(--b2b-champagne)', fontWeight: 400 }}>voucher</em>
+                </h2>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--b2b-text-muted)',
+                    marginTop: 4,
+                  }}
+                >
+                  Convidada recebe link via WhatsApp · agenda direto pela Mira
+                </div>
+              </div>
               <button
                 type="button"
                 className="b2b-close"
@@ -219,9 +253,15 @@ export function VouchersClient({
                 ×
               </button>
             </header>
-            <div className="b2b-modal-body">
+            <div className="b2b-modal-body" style={{ paddingTop: 20 }}>
               <form onSubmit={onIssue}>
-                <div className="b2b-grid-2">
+                <div
+                  className="b2b-sec-title"
+                  style={{ marginTop: 0, marginBottom: 12 }}
+                >
+                  Identidade da convidada
+                </div>
+                <div className="b2b-grid-2" style={{ gap: 16 }}>
                   <Field
                     label="Nome do destinatário *"
                     value={recipientName}
@@ -252,18 +292,32 @@ export function VouchersClient({
                   />
                 </div>
 
+                <div
+                  className="b2b-sec-title"
+                  style={{ marginTop: 24, marginBottom: 12 }}
+                >
+                  Contexto adicional
+                </div>
                 <div className="b2b-field" style={{ marginBottom: 0 }}>
-                  <label className="b2b-field-lbl">Observações</label>
+                  <label className="b2b-field-lbl">Observações internas</label>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="b2b-input"
-                    style={{ resize: 'vertical', minHeight: 56 }}
+                    style={{ resize: 'vertical', minHeight: 64 }}
+                    placeholder="Ex: indicação direta da Bella's · prioridade alta"
                   />
                 </div>
 
-                <div className="b2b-form-actions">
+                <div
+                  className="b2b-form-actions"
+                  style={{
+                    marginTop: 28,
+                    paddingTop: 16,
+                    borderTop: '1px solid var(--b2b-border)',
+                  }}
+                >
                   <button
                     type="button"
                     className="b2b-btn"
