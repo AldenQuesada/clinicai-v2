@@ -274,10 +274,6 @@ export function ProfessionalsClient({
         </div>
       )}
 
-      <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280] mt-1 px-1">
-        wa_pro_register_number RPC · upsert por phone+professional_id
-      </div>
-
       {/* Modal cadastrar/editar */}
       {editing ? (
         <Modal onClose={cancel}>
