@@ -31,7 +31,9 @@ import {
   reorderTemplateAction,
   assignToSequenceAction,
   renameSequenceAction,
+  upsertEventKeyAction,
 } from './actions'
+import { useRouter } from 'next/navigation'
 import type {
   B2BCommTemplateRaw,
   B2BCommTemplateDTO,
@@ -295,6 +297,9 @@ export function CommClient({
   // Mig 800-41 · bucket filter ('all' = sem filtro)
   // Default 'parceiros' · bucket mais usado · evita estado vazio inicial
   const [bucketFilter, setBucketFilter] = useState<string>('parceiros')
+  // Mig 800-41 · modal de criar event_key custom
+  const [showNewEvent, setShowNewEvent] = useState<boolean>(false)
+  const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState<EditorDraft | null>(null)
   const [previewHistory, setPreviewHistory] = useState<B2BCommHistoryEntry | null>(null)
@@ -553,14 +558,24 @@ export function CommClient({
           {editing ? (
             <span className="bcomm-tabs-editing">Editando…</span>
           ) : (
-            <button
-              type="button"
-              className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
-              title="Criar novo template"
-              onClick={() => handleNew()}
-            >
-              + Novo
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                className="bcomm-btn bcomm-btn-xs"
+                title="Criar novo evento (event_key) custom"
+                onClick={() => setShowNewEvent(true)}
+              >
+                + Evento
+              </button>
+              <button
+                type="button"
+                className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
+                title="Criar novo template"
+                onClick={() => handleNew()}
+              >
+                + Template
+              </button>
+            </div>
           )}
         </div>
 
@@ -622,6 +637,17 @@ export function CommClient({
           )}
         </div>
       </aside>
+      {showNewEvent ? (
+        <NewEventModal
+          defaultBucket={bucketFilter}
+          onClose={() => setShowNewEvent(false)}
+          onSaved={async () => {
+            setShowNewEvent(false)
+            // Reload server props · catalog atualiza com event novo
+            router.refresh()
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -2870,6 +2896,233 @@ function BucketRail({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NewEventModal · Mig 800-41 · cria event_key custom on-the-fly
+// "Zero estrutura rigida" · usuario adiciona events sem mig.
+// ═══════════════════════════════════════════════════════════════════════
+function NewEventModal({
+  defaultBucket,
+  onClose,
+  onSaved,
+}: {
+  defaultBucket: string
+  onClose: () => void
+  onSaved: () => void | Promise<void>
+}) {
+  const [key, setKey] = useState('')
+  const [label, setLabel] = useState('')
+  const [bucket, setBucket] = useState<string>(defaultBucket || 'parceiros')
+  const [groupLabel, setGroupLabel] = useState<string>('Outros')
+  const [recipientRole, setRecipientRole] = useState<string>(
+    defaultBucket === 'convidadas' ? 'beneficiary' : defaultBucket === 'admin' ? 'admin' : 'partner',
+  )
+  const [triggerDesc, setTriggerDesc] = useState<string>('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const KEY_RX = /^[a-z][a-z0-9_]*$/
+  const keyValid = KEY_RX.test(key)
+  const canSubmit = keyValid && label.trim().length > 0 && !submitting
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const r = await upsertEventKeyAction({
+        key: key.trim(),
+        label: label.trim(),
+        bucket,
+        groupLabel: groupLabel.trim() || 'Outros',
+        recipientRole,
+        triggerDesc: triggerDesc.trim() || null,
+      })
+      if (!r.ok) {
+        setError(r.error || 'Falha ao criar evento')
+        setSubmitting(false)
+        return
+      }
+      await onSaved()
+    } catch (err) {
+      setError((err as Error).message)
+      setSubmitting(false)
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
+  const lblStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--b2b-fg-1)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  }
+  const hintStyle: React.CSSProperties = { fontSize: 10, color: 'var(--b2b-fg-2)' }
+
+  return (
+    <div
+      className="b2b-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      style={{ alignItems: 'center' }}
+    >
+      <div className="b2b-modal" style={{ maxWidth: 540, width: 'calc(100vw - 40px)' }}>
+        <div style={{ padding: '24px 28px 12px' }}>
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-gold)',
+              fontWeight: 600,
+              marginBottom: 6,
+            }}
+          >
+            Catálogo · novo evento
+          </div>
+          <h2
+            style={{
+              fontFamily: 'Cormorant Garamond, serif',
+              fontSize: 28,
+              fontWeight: 500,
+              color: 'var(--b2b-fg-0)',
+              margin: 0,
+              lineHeight: 1.2,
+            }}
+          >
+            Adicionar <em style={{ color: 'var(--b2b-gold)', fontStyle: 'italic' }}>event_key</em> custom
+          </h2>
+          <p style={{ fontSize: 12, color: 'var(--b2b-fg-2)', margin: '6px 0 0' }}>
+            Cria evento novo no catálogo · permite testes sem mig de DB.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ padding: '0 28px 24px' }}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={fieldStyle}>
+              <span style={lblStyle}>
+                Chave <span style={{ color: 'var(--b2b-gold)' }}>*</span>
+              </span>
+              <input
+                type="text"
+                className="b2b-input"
+                placeholder="ex: voucher_test_a"
+                value={key}
+                onChange={(e) => setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                style={key && !keyValid ? { borderColor: '#dc2626' } : undefined}
+                autoFocus
+              />
+              <span style={hintStyle}>snake_case · só [a-z0-9_] · começa com letra</span>
+            </label>
+
+            <label style={fieldStyle}>
+              <span style={lblStyle}>
+                Label <span style={{ color: 'var(--b2b-gold)' }}>*</span>
+              </span>
+              <input
+                type="text"
+                className="b2b-input"
+                placeholder="ex: Voucher · variante A/B"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label style={fieldStyle}>
+                <span style={lblStyle}>Bucket</span>
+                <select
+                  className="b2b-input"
+                  value={bucket}
+                  onChange={(e) => setBucket(e.target.value)}
+                >
+                  <option value="parceiros">Parceiros</option>
+                  <option value="convidadas">Convidadas</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <label style={fieldStyle}>
+                <span style={lblStyle}>Recipient role</span>
+                <select
+                  className="b2b-input"
+                  value={recipientRole}
+                  onChange={(e) => setRecipientRole(e.target.value)}
+                >
+                  <option value="partner">partner</option>
+                  <option value="beneficiary">beneficiary</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+            </div>
+
+            <label style={fieldStyle}>
+              <span style={lblStyle}>Group · subcategoria visual</span>
+              <input
+                type="text"
+                className="b2b-input"
+                placeholder="ex: Voucher · ciclo"
+                value={groupLabel}
+                onChange={(e) => setGroupLabel(e.target.value)}
+              />
+            </label>
+
+            <label style={fieldStyle}>
+              <span style={lblStyle}>Quando dispara (opcional)</span>
+              <textarea
+                className="b2b-input"
+                rows={2}
+                placeholder="ex: A/B test · 50% das parcerias ativas após D+30"
+                value={triggerDesc}
+                onChange={(e) => setTriggerDesc(e.target.value)}
+                style={{ resize: 'vertical' }}
+              />
+            </label>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              style={{
+                marginTop: 14,
+                padding: '8px 12px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#991b1b',
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+              marginTop: 20,
+              paddingTop: 16,
+              borderTop: '1px solid var(--b2b-border)',
+            }}
+          >
+            <button type="button" className="b2b-btn" onClick={onClose} disabled={submitting}>
+              Cancelar
+            </button>
+            <button type="submit" className="b2b-btn b2b-btn-primary" disabled={!canSubmit}>
+              {submitting ? 'Salvando…' : 'Criar evento'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
