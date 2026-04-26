@@ -17,13 +17,48 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/**
+ * Mig 800-41 · catalogo de event_keys vira tabela editavel.
+ * Bucket = string livre (UI sugere parceiros/convidadas/admin).
+ */
+export interface B2BCommEventKeyDTO {
+  id: string
+  clinicId: string
+  key: string
+  label: string
+  bucket: string
+  groupLabel: string
+  recipientRole: string
+  triggerDesc: string | null
+  isSystem: boolean
+  isActive: boolean
+  sortOrder: number
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEventKeyRow(row: any): B2BCommEventKeyDTO {
+  return {
+    id: String(row.id),
+    clinicId: String(row.clinic_id),
+    key: String(row.key),
+    label: String(row.label ?? row.key),
+    bucket: String(row.bucket ?? 'parceiros'),
+    groupLabel: String(row.group_label ?? 'Outros'),
+    recipientRole: String(row.recipient_role ?? 'partner'),
+    triggerDesc: row.trigger_desc ?? null,
+    isSystem: row.is_system === true,
+    isActive: row.is_active !== false,
+    sortOrder: Number(row.sort_order ?? 100),
+  }
+}
+
 export interface B2BCommTemplateDTO {
   id: string
   clinicId: string
   partnershipId: string | null
   eventKey: string
   channel: 'text' | 'audio' | 'both'
-  recipientRole: 'partner' | 'beneficiary' | 'admin'
+  recipientRole: string
   senderInstance: string
   delayMinutes: number
   cronExpr: string | null
@@ -50,7 +85,7 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
     partnershipId: row.partnership_id ?? null,
     eventKey: String(row.event_key ?? ''),
     channel: (row.channel ?? 'text') as B2BCommTemplateDTO['channel'],
-    recipientRole: (row.recipient_role ?? 'partner') as B2BCommTemplateDTO['recipientRole'],
+    recipientRole: String(row.recipient_role ?? 'partner'),
     senderInstance: String(row.sender_instance ?? 'mira-mirian'),
     delayMinutes: Number(row.delay_minutes ?? 0),
     cronExpr: row.cron_expr ?? null,
@@ -383,6 +418,70 @@ export class B2BCommTemplateRepository {
     })
     if (error || !Array.isArray(data)) return []
     return data as B2BCommHistoryEntry[]
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Mig 800-41 · catalogo editavel de event_keys (b2b_comm_event_keys)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Lista event_keys ativos · UI usa pra montar rail de buckets + dropdown.
+   */
+  async listEventKeys(clinicId: string): Promise<B2BCommEventKeyDTO[]> {
+    const { data, error } = await this.supabase
+      .from('b2b_comm_event_keys')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('is_active', true)
+      .order('bucket')
+      .order('sort_order')
+    if (error || !Array.isArray(data)) return []
+    return data.map(mapEventKeyRow)
+  }
+
+  /**
+   * Cria/edita event_key custom · permite "zero estrutura rigida" pra testes.
+   * RPC b2b_comm_event_key_upsert valida + insert/update.
+   */
+  async upsertEventKey(payload: {
+    key: string
+    label?: string
+    bucket?: string
+    groupLabel?: string
+    recipientRole?: string
+    triggerDesc?: string | null
+    isActive?: boolean
+    sortOrder?: number
+  }): Promise<{ ok: boolean; id?: string; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_event_key_upsert', {
+      p_payload: {
+        key: payload.key,
+        label: payload.label,
+        bucket: payload.bucket,
+        group_label: payload.groupLabel,
+        recipient_role: payload.recipientRole,
+        trigger_desc: payload.triggerDesc,
+        is_active: payload.isActive,
+        sort_order: payload.sortOrder,
+      },
+    })
+    if (error) return { ok: false, error: error.message }
+    const obj = (data ?? {}) as { ok?: boolean; id?: string; error?: string }
+    if (obj.ok === false) return { ok: false, error: obj.error || 'rpc_failed' }
+    return { ok: true, id: obj.id }
+  }
+
+  /**
+   * Remove event_key custom · system keys (is_system=true) protegidas.
+   */
+  async deleteEventKey(key: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_event_key_delete', {
+      p_key: key,
+    })
+    if (error) return { ok: false, error: error.message }
+    const obj = (data ?? {}) as { ok?: boolean; error?: string }
+    if (obj.ok === false) return { ok: false, error: obj.error || 'rpc_failed' }
+    return { ok: true }
   }
 }
 
