@@ -243,11 +243,30 @@ export const b2bBulkVoucherConfirmHandler: Handler = async (ctx): Promise<Handle
       ? 'agora · você recebe confirmação de cada um conforme rola'
       : `agendados pra *${scheduleHuman}*`
 
+  // Painel da parceira · /parceiro/[token] (Onda 2). Sem este link
+  // a parceira nao descobre que tem dashboard · bug Alden 2026-04-26.
+  // (partnership ja foi fetched no inicio do handler · linha ~113)
+  const panelUrl = partnership?.publicToken
+    ? `https://mira.miriandpaula.com.br/parceiro/${partnership.publicToken}`
+    : null
+
+  const replyLines = [
+    `Confirmado, *${partnerFirst}*! 🎁`,
+    ``,
+    `Vou disparar os *${enqueueResult.count} vouchers* ${scheduleMsg}.`,
+    ``,
+    `Obrigada pela confiança 💛`,
+  ]
+  if (panelUrl) {
+    replyLines.push(
+      ``,
+      `Acompanha tudo no seu painel:`,
+      panelUrl,
+    )
+  }
+
   return {
-    replyText:
-      `Confirmado, *${partnerFirst}*! 🎁\n\n` +
-      `Vou disparar os *${enqueueResult.count} vouchers* ${scheduleMsg}.\n\n` +
-      `Obrigada pela confiança 💛`,
+    replyText: replyLines.join('\n'),
     actions: [],
     stateTransitions: [{ op: 'clear', key: STATE_KEY.BULK_VOUCHER_REVIEW }],
     meta: {

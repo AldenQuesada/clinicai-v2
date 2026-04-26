@@ -142,7 +142,15 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
 
   const partnership = await repos.b2bPartnerships.getById(stateRow.value.partnership_id)
   const partnerName = partnership?.contactName ?? 'sua parceira'
+  // Voucher URL · pagina publica da beneficiaria (visualizar/agendar).
+  // Mantida no painel legacy por enquanto.
   const voucherUrl = `https://painel.miriandpaula.com.br/voucher/${result.token}`
+  // Painel da parceira · /parceiro/[token] (Onda 2). Backfill mig 800-38
+  // garante public_token != null. Sem este link, parceira nao descobre
+  // que tem dashboard · bug Alden 2026-04-26.
+  const partnerPanelUrl = partnership?.publicToken
+    ? `https://mira.miriandpaula.com.br/parceiro/${partnership.publicToken}`
+    : null
 
   // Action: dispara voucher pra recipient via Mih (Lara/recipient_voucher channel)
   const recipientGreeting =
@@ -151,12 +159,26 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
     `Dá uma olhada: ${voucherUrl}\n\n` +
     `Quando quiser marcar é só me chamar por aqui!`
 
+  const replyLines = [
+    `Voucher emitido! 🎁`,
+    `Token: \`${result.token}\``,
+    `Mandei pra *${stateRow.value.recipient_name}* agora mesmo 💛`,
+    ``,
+    `Combo: ${stateRow.value.combo}`,
+    ``,
+    `Acompanha o voucher dela em: ${voucherUrl}`,
+  ]
+  if (partnerPanelUrl) {
+    replyLines.push(
+      ``,
+      `Seu painel completo (vouchers + conversoes + agenda):`,
+      partnerPanelUrl,
+      ``,
+      `Pode salvar nos favoritos · valido por 90 dias 💎`,
+    )
+  }
   return {
-    replyText:
-      `Voucher emitido! 🎁\n` +
-      `Token: \`${result.token}\`\n` +
-      `Mandei pra ${stateRow.value.recipient_name} agora mesmo 💛\n` +
-      `Acompanha em: ${voucherUrl}`,
+    replyText: replyLines.join('\n'),
     actions: [
       {
         kind: 'send_wa',
