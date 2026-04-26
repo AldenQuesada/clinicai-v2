@@ -98,31 +98,38 @@ function Block({
   status,
 }: {
   label: string
-  meta: number
-  realized: number
-  projection: number
-  pct: number
+  meta: number | null | undefined
+  realized: number | null | undefined
+  projection: number | null | undefined
+  pct: number | null | undefined
   status: ForecastStatus
 }) {
-  const barW = Math.min(100, Math.max(0, pct))
+  // Defensive: RPC pode retornar shape parcial (ex.: partner sem vouchers
+  // ainda no mes · projection/pct undefined). .toFixed em undefined throw
+  // TypeError e crashava o segmento inteiro com digest opaco.
+  const safeMeta = Number(meta ?? 0)
+  const safeRealized = Number(realized ?? 0)
+  const safeProjection = Number(projection ?? 0)
+  const safePct = Number(pct ?? 0)
+  const barW = Math.min(100, Math.max(0, safePct))
   return (
     <div className="b2bm-forecast-block">
       <div className="b2bm-forecast-block-title">{label}</div>
       <div className="b2bm-kpi-grid">
         <div className="b2bm-kpi">
-          <div className="b2bm-kpi-val">{realized}</div>
+          <div className="b2bm-kpi-val">{safeRealized}</div>
           <div className="b2bm-kpi-lbl">Realizado</div>
         </div>
         <div className="b2bm-kpi">
           <div className="b2bm-kpi-val" style={{ fontSize: 22 }}>
-            {projection.toFixed(1)}
+            {safeProjection.toFixed(1)}
           </div>
           <div className="b2bm-kpi-lbl">Projeção fim do mês</div>
         </div>
       </div>
       <div className="b2bm-forecast-meta">
         <span>
-          {pct.toFixed(0)}% da meta ({meta})
+          {safePct.toFixed(0)}% da meta ({safeMeta})
         </span>
         <span
           className={`b2bm-forecast-status ${status}`}
