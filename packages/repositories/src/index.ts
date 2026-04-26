@@ -207,6 +207,13 @@ export {
   type B2BTierConfigDTO,
   type B2BTierConfigUpsertInput,
 } from './b2b-tier-config.repository'
+export {
+  B2BFunnelBenchmarkRepository,
+  B2B_FUNNEL_STAGES,
+  type B2BFunnelStage,
+  type B2BFunnelBenchmarkDTO,
+  type B2BFunnelBenchmarkUpsertInput,
+} from './b2b-funnel-benchmark.repository'
 export { B2BWASenderRepository, type B2BWASenderDTO } from './b2b-wa-sender.repository'
 export {
   B2BCommTemplateRepository,

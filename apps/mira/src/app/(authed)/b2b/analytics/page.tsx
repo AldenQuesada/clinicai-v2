@@ -24,7 +24,57 @@ import {
   type OverviewSignal,
   type SignalStatus,
 } from './_shared/overviewAnalyzer'
-import type { AnalyticsBlob } from '@clinicai/repositories'
+import type {
+  AnalyticsBlob,
+  B2BFunnelBenchmarkDTO,
+  B2BFunnelStage,
+} from '@clinicai/repositories'
+
+/**
+ * Benchmarks de step-rate do funil B2B · agora vem da DB
+ * (mig 800-26 · b2b_funnel_benchmarks · 1 row por stage por clinica).
+ *
+ * Mapa stage → { target, label } usado pelo JourneyBar e FunnelLegend.
+ * Server fetcha via repos.b2bFunnelBenchmarks.list() e passa via prop.
+ *
+ * Verde · acima do benchmark
+ * Amarelo · 50-100% do benchmark (zona de atenção)
+ * Vermelho · abaixo de 50% do benchmark (problema)
+ *
+ * Editar em /b2b/config/funnel.
+ */
+type FunnelBenchmarks = Record<B2BFunnelStage, { target: number; label: string }>
+
+const FUNNEL_BENCHMARKS_FALLBACK: FunnelBenchmarks = {
+  delivered: { target: 90, label: 'Taxa de entrega · WhatsApp aceito' },
+  opened: { target: 60, label: 'Taxa de abertura · convidada engajou' },
+  scheduled: {
+    target: 50,
+    label: 'Taxa de agendamento · CTA do voucher funcionou',
+  },
+  redeemed: {
+    target: 80,
+    label: 'Taxa de comparecimento · no-show < 20%',
+  },
+  purchased: {
+    target: 35,
+    label: 'Taxa de fechamento · combo case, scripts ok',
+  },
+}
+
+function buildBenchmarks(rows: B2BFunnelBenchmarkDTO[]): FunnelBenchmarks {
+  const out: FunnelBenchmarks = {
+    delivered: { ...FUNNEL_BENCHMARKS_FALLBACK.delivered },
+    opened: { ...FUNNEL_BENCHMARKS_FALLBACK.opened },
+    scheduled: { ...FUNNEL_BENCHMARKS_FALLBACK.scheduled },
+    redeemed: { ...FUNNEL_BENCHMARKS_FALLBACK.redeemed },
+    purchased: { ...FUNNEL_BENCHMARKS_FALLBACK.purchased },
+  }
+  for (const r of rows) {
+    out[r.stage] = { target: r.targetPct, label: r.label }
+  }
+  return out
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -48,12 +98,18 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
   // escapava do .catch da chamada b2bAnalytics e crashava o segmento.
   let data: AnalyticsBlob | null = null
   let fetchError: string | null = null
+  let benchmarks: FunnelBenchmarks = FUNNEL_BENCHMARKS_FALLBACK
   try {
     const { repos } = await loadMiraServerContext()
-    data = await repos.b2bAnalytics.get(days).catch((e) => {
-      fetchError = e instanceof Error ? e.message : String(e)
-      return null
-    })
+    const [analyticsRes, benchmarkRows] = await Promise.all([
+      repos.b2bAnalytics.get(days).catch((e) => {
+        fetchError = e instanceof Error ? e.message : String(e)
+        return null
+      }),
+      repos.b2bFunnelBenchmarks.list().catch(() => []),
+    ])
+    data = analyticsRes
+    benchmarks = buildBenchmarks(benchmarkRows)
   } catch (e) {
     fetchError = e instanceof Error ? e.message : String(e)
     data = null
@@ -103,7 +159,12 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
             )}
           </div>
         ) : (
-          <ObjectivesView data={data} days={days} rangeLabel={timeRangeLabel(tr)} />
+          <ObjectivesView
+            data={data}
+            days={days}
+            rangeLabel={timeRangeLabel(tr)}
+            benchmarks={benchmarks}
+          />
         )}
       </div>
     </main>
@@ -114,10 +175,12 @@ function ObjectivesView({
   data,
   days,
   rangeLabel,
+  benchmarks,
 }: {
   data: AnalyticsBlob
   days: number
   rangeLabel: string
+  benchmarks: FunnelBenchmarks
 }) {
   // Defensive defaults · RPC pode retornar shape parcial.
   const a = data.applications ?? ({} as AnalyticsBlob['applications'])
@@ -195,7 +258,7 @@ function ObjectivesView({
         title="Conversão da convidada"
         sub="Voucher enviado → agendou → compareceu → virou paciente pagante"
       >
-        <JourneyBar v={v} />
+        <JourneyBar v={v} benchmarks={benchmarks} />
         <SectionInterpretation signal={sig('conversion')} />
       </CompactSection>
 
@@ -982,22 +1045,10 @@ function VoucherSplit({ v }: { v: AnalyticsBlob['vouchers'] }) {
 }
 
 /**
- * Benchmarks de step-rate · % esperado de cada etapa em relacao a anterior
- * (decididos com BI specialist · 2026-04-26).
- *
- * Verde · acima do benchmark
- * Amarelo · 50-100% do benchmark (zona de atenção)
- * Vermelho · abaixo de 50% do benchmark (problema)
- *
- * TODO · tornar editavel em /b2b/config/funnel similar a tier configs.
+ * Benchmarks de step-rate vem como prop (server fetch via
+ * repos.b2bFunnelBenchmarks.list() · mig 800-26 · editavel em
+ * /b2b/config/funnel). Fallback acima trata clinicas sem rows.
  */
-const FUNNEL_BENCHMARKS = {
-  delivered: { target: 90, label: 'Taxa de entrega · WhatsApp aceito' },
-  opened: { target: 60, label: 'Taxa de abertura · convidada engajou' },
-  scheduled: { target: 50, label: 'Taxa de agendamento · CTA do voucher funcionou' },
-  redeemed: { target: 80, label: 'Taxa de comparecimento · no-show < 20%' },
-  purchased: { target: 35, label: 'Taxa de fechamento · combo case, scripts ok' },
-} as const
 
 function stepStatus(rate: number, target: number): SignalStatus {
   if (rate >= target) return 'green'
@@ -1012,7 +1063,13 @@ function STEP_COLOR(s: SignalStatus): string {
   return '#64748B'
 }
 
-function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
+function JourneyBar({
+  v,
+  benchmarks,
+}: {
+  v: AnalyticsBlob['vouchers']
+  benchmarks: FunnelBenchmarks
+}) {
   const total = Number(v.total || 0)
   if (!total) {
     return <div className="b2bm2-empty">Nenhum voucher no período.</div>
@@ -1043,8 +1100,8 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       n: delivered,
       stepRate: sr(delivered, total),
       totalPct: totalPct(delivered),
-      status: stepStatus(sr(delivered, total), FUNNEL_BENCHMARKS.delivered.target),
-      bench: FUNNEL_BENCHMARKS.delivered,
+      status: stepStatus(sr(delivered, total), benchmarks.delivered.target),
+      bench: benchmarks.delivered,
       prev: 'Enviados',
     },
     {
@@ -1052,8 +1109,8 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       n: opened,
       stepRate: sr(opened, delivered),
       totalPct: totalPct(opened),
-      status: stepStatus(sr(opened, delivered), FUNNEL_BENCHMARKS.opened.target),
-      bench: FUNNEL_BENCHMARKS.opened,
+      status: stepStatus(sr(opened, delivered), benchmarks.opened.target),
+      bench: benchmarks.opened,
       prev: 'Entregues',
     },
     {
@@ -1061,8 +1118,8 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       n: scheduled,
       stepRate: sr(scheduled, opened),
       totalPct: totalPct(scheduled),
-      status: stepStatus(sr(scheduled, opened), FUNNEL_BENCHMARKS.scheduled.target),
-      bench: FUNNEL_BENCHMARKS.scheduled,
+      status: stepStatus(sr(scheduled, opened), benchmarks.scheduled.target),
+      bench: benchmarks.scheduled,
       prev: 'Abertos',
     },
     {
@@ -1070,8 +1127,8 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       n: redeemed,
       stepRate: sr(redeemed, scheduled),
       totalPct: totalPct(redeemed),
-      status: stepStatus(sr(redeemed, scheduled), FUNNEL_BENCHMARKS.redeemed.target),
-      bench: FUNNEL_BENCHMARKS.redeemed,
+      status: stepStatus(sr(redeemed, scheduled), benchmarks.redeemed.target),
+      bench: benchmarks.redeemed,
       prev: 'Agendaram',
     },
     {
@@ -1079,8 +1136,8 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       n: purchased,
       stepRate: sr(purchased, redeemed),
       totalPct: totalPct(purchased),
-      status: stepStatus(sr(purchased, redeemed), FUNNEL_BENCHMARKS.purchased.target),
-      bench: FUNNEL_BENCHMARKS.purchased,
+      status: stepStatus(sr(purchased, redeemed), benchmarks.purchased.target),
+      bench: benchmarks.purchased,
       prev: 'Compareceram',
     },
   ]
@@ -1138,18 +1195,18 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
       </div>
 
       {/* Legenda · cores + benchmarks visíveis */}
-      <FunnelLegend />
+      <FunnelLegend benchmarks={benchmarks} />
     </div>
   )
 }
 
-function FunnelLegend() {
+function FunnelLegend({ benchmarks }: { benchmarks: FunnelBenchmarks }) {
   const benches = [
-    { lbl: 'Entrega', ...FUNNEL_BENCHMARKS.delivered },
-    { lbl: 'Abertura', ...FUNNEL_BENCHMARKS.opened },
-    { lbl: 'Agendamento', ...FUNNEL_BENCHMARKS.scheduled },
-    { lbl: 'Comparecimento', ...FUNNEL_BENCHMARKS.redeemed },
-    { lbl: 'Fechamento', ...FUNNEL_BENCHMARKS.purchased },
+    { lbl: 'Entrega', ...benchmarks.delivered },
+    { lbl: 'Abertura', ...benchmarks.opened },
+    { lbl: 'Agendamento', ...benchmarks.scheduled },
+    { lbl: 'Comparecimento', ...benchmarks.redeemed },
+    { lbl: 'Fechamento', ...benchmarks.purchased },
   ]
   return (
     <div

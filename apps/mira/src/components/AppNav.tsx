@@ -164,6 +164,7 @@ const SECTIONS: Section[] = [
           { href: '/b2b/config/saude', label: 'Saúde', available: true },
           { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
           { href: '/b2b/config/tiers', label: 'Tiers', available: true },
+          { href: '/b2b/config/funnel', label: 'Funnel', available: true },
           { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
         ],
       },

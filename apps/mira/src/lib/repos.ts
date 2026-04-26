@@ -49,6 +49,7 @@ import {
   B2BSystemHealthRepository,
   B2BClinicDefaultsRepository,
   B2BTierConfigRepository,
+  B2BFunnelBenchmarkRepository,
   B2BWASenderRepository,
   B2BCommTemplateRepository,
   WaProAuditRepository,
@@ -97,6 +98,7 @@ export interface MiraRepos {
   b2bSystemHealth: B2BSystemHealthRepository
   b2bClinicDefaults: B2BClinicDefaultsRepository
   b2bTierConfigs: B2BTierConfigRepository
+  b2bFunnelBenchmarks: B2BFunnelBenchmarkRepository
   b2bSenders: B2BWASenderRepository
   b2bTemplates: B2BCommTemplateRepository
   waProAudit: WaProAuditRepository
@@ -145,6 +147,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bSystemHealth: new B2BSystemHealthRepository(supabase),
     b2bClinicDefaults: new B2BClinicDefaultsRepository(supabase),
     b2bTierConfigs: new B2BTierConfigRepository(supabase),
+    b2bFunnelBenchmarks: new B2BFunnelBenchmarkRepository(supabase),
     b2bSenders: new B2BWASenderRepository(supabase),
     b2bTemplates: new B2BCommTemplateRepository(supabase),
     waProAudit: new WaProAuditRepository(supabase),
