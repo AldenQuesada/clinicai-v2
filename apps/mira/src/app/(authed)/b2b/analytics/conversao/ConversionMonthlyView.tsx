@@ -126,7 +126,41 @@ export function ConversionMonthlyView({
       {rows.length === 0 ? (
         <div className="b2bm2-card b2bm2-empty">
           <strong>Nenhuma parceria emitiu voucher em {fmtYearMonthPt(yearMonth)}.</strong>
-          <p>Tente outro mês ou verifique se há parcerias ativas.</p>
+          <p style={{ marginTop: 8, fontSize: 12, lineHeight: 1.5 }}>
+            Verifiquei os 3 meses mais recentes · todos vazios.
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              marginTop: 14,
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              className="b2b-tab"
+              onClick={() => shiftMonth(-3)}
+              disabled={pending}
+            >
+              ← 3 meses atrás
+            </button>
+            <button
+              type="button"
+              className="b2b-tab"
+              onClick={() => shiftMonth(-6)}
+              disabled={pending}
+            >
+              ← 6 meses atrás
+            </button>
+            <a className="b2b-tab" href="/b2b/analytics">
+              Ver Visão Geral
+            </a>
+            <a className="b2b-tab" href="/vouchers/novo">
+              + Emitir voucher
+            </a>
+          </div>
         </div>
       ) : (
         <div className="b2bm2-row b2bm2-conversao-grid">
