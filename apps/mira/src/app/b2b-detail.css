@@ -786,3 +786,80 @@
   text-decoration: none;
 }
 .b2b-back-link:hover { color: var(--b2b-champagne); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sec 4 · DNA bar (b2b-detail.ui.js _dnaBar)
+ * ═══════════════════════════════════════════════════════════════════════ */
+.b2b-dna-bar {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.b2b-dna-hdr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.b2b-dna-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.b2b-dna-bar__fill[data-health="green"]   { --dna-color: #10B981; }
+.b2b-dna-bar__fill[data-health="yellow"]  { --dna-color: #F59E0B; }
+.b2b-dna-bar__fill[data-health="red"]     { --dna-color: #EF4444; }
+.b2b-dna-bar__fill[data-health="unknown"] { --dna-color: #9CA3AF; }
+.b2b-dna-score[data-health="green"]   { color: #10B981; }
+.b2b-dna-score[data-health="yellow"]  { color: #F59E0B; }
+.b2b-dna-score[data-health="red"]     { color: #EF4444; }
+.b2b-dna-score[data-health="unknown"] { color: #9CA3AF; }
+.b2b-dna-score {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+.b2b-dna-compact {
+  font-size: 12px;
+  font-weight: 600;
+}
+.b2b-dna-compact[data-health="green"]   { color: #10B981; }
+.b2b-dna-compact[data-health="yellow"]  { color: #F59E0B; }
+.b2b-dna-compact[data-health="red"]     { color: #EF4444; }
+.b2b-dna-compact[data-health="unknown"] { color: #9CA3AF; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * b2b-table genérico (Targets/Events tables)
+ * ═══════════════════════════════════════════════════════════════════════ */
+.b2b-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.b2b-table th,
+.b2b-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.b2b-table th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--b2b-text-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+.b2b-table td {
+  color: var(--b2b-ivory);
+}
+.b2b-table tr:last-child td {
+  border-bottom: none;
+}
+.b2b-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}

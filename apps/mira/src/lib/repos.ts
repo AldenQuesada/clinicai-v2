@@ -60,6 +60,13 @@ import {
   MiraChannelRepository,
   AppointmentRepository,
   WebhookProcessingQueueRepository,
+  // Detail port (mig 800-35)
+  B2BImpactRepository,
+  B2BCostRepository,
+  B2BHealthTrendRepository,
+  B2BPartnershipHealthSnapshotRepository,
+  B2BLgpdRepository,
+  B2BAuditRepository,
 } from '@clinicai/repositories'
 
 export interface MiraRepos {
@@ -111,6 +118,14 @@ export interface MiraRepos {
   miraChannels: MiraChannelRepository
   appointments: AppointmentRepository
   webhookQueue: WebhookProcessingQueueRepository
+
+  // Detail port (mig 800-35)
+  b2bImpact: B2BImpactRepository
+  b2bCost: B2BCostRepository
+  b2bHealthTrend: B2BHealthTrendRepository
+  b2bHealthSnapshot: B2BPartnershipHealthSnapshotRepository
+  b2bLgpd: B2BLgpdRepository
+  b2bAudit: B2BAuditRepository
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,5 +177,13 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     miraChannels: new MiraChannelRepository(supabase),
     appointments: new AppointmentRepository(supabase),
     webhookQueue: new WebhookProcessingQueueRepository(supabase),
+
+    // Detail port (mig 800-35)
+    b2bImpact: new B2BImpactRepository(supabase),
+    b2bCost: new B2BCostRepository(supabase),
+    b2bHealthTrend: new B2BHealthTrendRepository(supabase),
+    b2bHealthSnapshot: new B2BPartnershipHealthSnapshotRepository(supabase),
+    b2bLgpd: new B2BLgpdRepository(supabase),
+    b2bAudit: new B2BAuditRepository(supabase),
   }
 }
