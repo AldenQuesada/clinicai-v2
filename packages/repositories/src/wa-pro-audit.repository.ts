@@ -152,6 +152,37 @@ export class WaProAuditRepository {
   }
 
   /**
+   * Latencia p50/p95 do periodo · mig #11 monitor consumo (2026-04-26).
+   * Usado pelo dashboard usage no /configuracoes overview.
+   * Calcula client-side · evita RPC nova.
+   */
+  async latencyPercentiles(
+    clinicId: string,
+    sinceIso: string,
+  ): Promise<{ p50: number; p95: number; samples: number }> {
+    const { data } = await this.supabase
+      .from('wa_pro_audit_log')
+      .select('response_ms')
+      .eq('clinic_id', clinicId)
+      .gte('created_at', sinceIso)
+      .not('response_ms', 'is', null)
+      .limit(10000)
+
+    const samples = (data ?? [])
+      .map((r: { response_ms: number | null }) => Number(r.response_ms ?? 0))
+      .filter((n: number) => n > 0)
+      .sort((a: number, b: number) => a - b)
+
+    if (samples.length === 0) return { p50: 0, p95: 0, samples: 0 }
+    const p = (q: number) => samples[Math.min(samples.length - 1, Math.floor(samples.length * q))]
+    return {
+      p50: Math.round(p(0.5)),
+      p95: Math.round(p(0.95)),
+      samples: samples.length,
+    }
+  }
+
+  /**
    * Conta queries por dia nos ultimos N dias (sparkline da Visao Geral).
    * Retorna array ordenado cronologicamente · zero-fill nao incluido (UI
    * pode preencher gaps se quiser).

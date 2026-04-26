@@ -25,7 +25,7 @@ import {
   parseTimeRange,
   timeRangeLabel,
 } from '../b2b/analytics/_shared/timeRangeUtils'
-import type { SystemHealthSnapshot } from '@clinicai/repositories'
+import type { SystemHealthSnapshot, MiraCronJob } from '@clinicai/repositories'
 
 interface OverviewTabProps {
   days?: string
@@ -79,7 +79,7 @@ export async function OverviewTab({ days, from, to }: OverviewTabProps) {
     new Date().toISOString().slice(0, 8) + '01T00:00:00.000Z'
   const sparkDays = Math.min(30, Math.max(7, periodDays))
 
-  const [activeAdmins, today, period, daily, voiceCount, sysHealth] =
+  const [activeAdmins, today, period, daily, voiceCount, sysHealth, latency, cronJobs] =
     await Promise.all([
       repos.waNumbers.countActive(ctx.clinic_id),
       repos.waProAudit.aggregate(ctx.clinic_id, todayIso),
@@ -87,6 +87,11 @@ export async function OverviewTab({ days, from, to }: OverviewTabProps) {
       repos.waProAudit.dailyCounts(ctx.clinic_id, sparkDays),
       repos.waProAudit.voiceCount(ctx.clinic_id, monthStart).catch(() => 0),
       repos.b2bSystemHealth.snapshot().catch(() => null),
+      // Mig #11 monitor consumo (2026-04-26)
+      repos.waProAudit
+        .latencyPercentiles(ctx.clinic_id, periodSinceIso)
+        .catch(() => ({ p50: 0, p95: 0, samples: 0 })),
+      repos.miraCronRegistry.list().catch(() => []),
     ])
 
   const errorRate =
@@ -239,7 +244,14 @@ export async function OverviewTab({ days, from, to }: OverviewTabProps) {
         </div>
 
         {/* ASIDE direita · Saude do sistema */}
-        <SystemHealthAside snap={sysHealth} rangeLbl={rangeLbl} />
+        <div className="flex flex-col gap-3" style={{ position: 'sticky', top: 12 }}>
+          <SystemHealthAside snap={sysHealth} rangeLbl={rangeLbl} />
+          <UsageMonitorAside
+            cronJobs={cronJobs}
+            latency={latency}
+            rangeLbl={rangeLbl}
+          />
+        </div>
       </div>
     </div>
   )
@@ -271,7 +283,6 @@ function SystemHealthAside({
   return (
     <aside
       className="bg-white/[0.02] border border-white/10 rounded-lg p-3.5 flex flex-col gap-2.5"
-      style={{ position: 'sticky', top: 12 }}
     >
       <div className="flex items-center justify-between">
         <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
@@ -319,6 +330,179 @@ function SystemHealthAside({
         Janela: {rangeLbl} · saúde é snapshot atual (não reage ao picker)
       </div>
     </aside>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Monitor consumo · #11 (cron health + webhook latency)
+// ═══════════════════════════════════════════════════════════════════════
+
+function UsageMonitorAside({
+  cronJobs,
+  latency,
+  rangeLbl,
+}: {
+  cronJobs: MiraCronJob[]
+  latency: { p50: number; p95: number; samples: number }
+  rangeLbl: string
+}) {
+  // Agrega cron health · sucessos / falhas / disabled nas ultimas 24h
+  let totalRuns24h = 0
+  let totalFailures24h = 0
+  let disabledCount = 0
+  let enabledCount = 0
+  for (const j of cronJobs) {
+    totalRuns24h += Number(j.runs_24h ?? 0)
+    totalFailures24h += Number(j.failures_24h ?? 0)
+    if (j.enabled) enabledCount++
+    else disabledCount++
+  }
+  const successRate24h =
+    totalRuns24h > 0
+      ? Math.round(((totalRuns24h - totalFailures24h) / totalRuns24h) * 100)
+      : 100
+  const cronTone =
+    successRate24h >= 95 ? 'green' : successRate24h >= 85 ? 'amber' : 'red'
+
+  // Crons com problema (failures > 0 nas ultimas 24h)
+  const failingCrons = cronJobs
+    .filter((j) => (j.failures_24h ?? 0) > 0)
+    .sort((a, b) => (b.failures_24h ?? 0) - (a.failures_24h ?? 0))
+    .slice(0, 3)
+
+  // Latencia tone · p95 critico se > 5s
+  const latencyTone =
+    latency.p95 === 0
+      ? 'neutral'
+      : latency.p95 <= 2000
+        ? 'green'
+        : latency.p95 <= 5000
+          ? 'amber'
+          : 'red'
+
+  return (
+    <aside className="bg-white/[0.02] border border-white/10 rounded-lg p-3.5 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
+          Monitor de consumo
+        </h3>
+        <span className="text-[9px] text-[#6B7280] font-mono">
+          {rangeLbl}
+        </span>
+      </div>
+
+      {/* Cron health · runs 24h + success rate + crons com falha */}
+      <div className="bg-black/15 border border-white/5 rounded-md p-2.5">
+        <div className="flex items-center justify-between mb-1.5">
+          <strong className="text-[11px] text-[#F5F0E8]">Crons · 24h</strong>
+          <ToneBadge tone={cronTone} text={`${successRate24h}%`} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <Row2 label="Runs 24h" value={String(totalRuns24h)} />
+          <Row2
+            label="Falhas 24h"
+            value={String(totalFailures24h)}
+            tone={totalFailures24h > 0 ? 'red' : 'muted'}
+          />
+          <Row2
+            label="Jobs"
+            value={`${enabledCount} on · ${disabledCount} off`}
+          />
+        </div>
+        {failingCrons.length > 0 ? (
+          <div className="mt-2 pt-2 border-t border-white/5">
+            <div className="text-[9px] uppercase tracking-[1px] text-[#F59E0B] mb-1">
+              Atenção
+            </div>
+            {failingCrons.map((j) => (
+              <div
+                key={j.job_name}
+                className="flex items-center justify-between text-[10px]"
+              >
+                <span className="text-[#F5F0E8] truncate" title={j.display_name}>
+                  {j.display_name || j.job_name}
+                </span>
+                <span className="text-[#FCA5A5] font-mono">
+                  {j.failures_24h}/{j.runs_24h}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Webhook latency · p50/p95 do periodo */}
+      <div className="bg-black/15 border border-white/5 rounded-md p-2.5">
+        <div className="flex items-center justify-between mb-1.5">
+          <strong className="text-[11px] text-[#F5F0E8]">Webhook · latência</strong>
+          <ToneBadge
+            tone={latencyTone}
+            text={latency.samples > 0 ? `p95 ${latency.p95}ms` : '—'}
+          />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <Row2
+            label="p50 (mediana)"
+            value={latency.samples > 0 ? `${latency.p50} ms` : '—'}
+          />
+          <Row2
+            label="p95"
+            value={latency.samples > 0 ? `${latency.p95} ms` : '—'}
+          />
+          <Row2 label="Amostras" value={String(latency.samples)} />
+        </div>
+      </div>
+
+      <div className="text-[9px] text-[#6B7280] mt-1 italic">
+        Crons via mira_cron_runs · latência via wa_pro_audit_log (cache 30s na
+        navegação · zero queries Supabase entre page loads no mesmo período)
+      </div>
+    </aside>
+  )
+}
+
+function ToneBadge({
+  tone,
+  text,
+}: {
+  tone: 'green' | 'amber' | 'red' | 'neutral'
+  text: string
+}) {
+  const styles: Record<typeof tone, string> = {
+    green: 'bg-[#10B981]/15 text-[#10B981]',
+    amber: 'bg-[#F59E0B]/15 text-[#F59E0B]',
+    red: 'bg-[#EF4444]/15 text-[#FCA5A5]',
+    neutral: 'bg-white/10 text-[#9CA3AF]',
+  }
+  return (
+    <span
+      className={`text-[9px] uppercase tracking-[1px] font-bold font-mono px-1.5 py-0.5 rounded ${styles[tone]}`}
+    >
+      {text}
+    </span>
+  )
+}
+
+function Row2({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  tone?: 'default' | 'red' | 'muted'
+}) {
+  const valColor =
+    tone === 'red'
+      ? 'text-[#FCA5A5]'
+      : tone === 'muted'
+        ? 'text-[#6B7280]'
+        : 'text-[#F5F0E8]'
+  return (
+    <div className="flex justify-between text-[10.5px]">
+      <span className="text-[#9CA3AF]">{label}</span>
+      <span className={`${valColor} font-mono`}>{value}</span>
+    </div>
   )
 }
 

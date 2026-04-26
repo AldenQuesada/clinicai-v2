@@ -30,15 +30,16 @@ import { createServerClient, resolveClinicContext } from '@clinicai/supabase'
 import {
   ProfileRepository,
   B2BPartnershipRepository,
-  B2BInsightsRepository,
   B2BApplicationRepository,
-  B2BAnalyticsRepository,
-  B2BMetricsV2Repository,
-  type CriticalAlert,
   type Insight,
   type InsightKind,
   type InsightSeverity,
 } from '@clinicai/repositories'
+import {
+  getCachedAnalytics,
+  getCachedCriticalAlerts,
+  getCachedInsightsGlobal,
+} from '@/lib/cached-queries'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppSidebar } from './AppSidebar'
 import { AppSubtabs } from './AppSubtabs'
@@ -99,10 +100,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     const ctx = await resolveClinicContext(supabase)
     if (ctx) {
       const partnerRepo = new B2BPartnershipRepository(supabase)
-      const insightsRepo = new B2BInsightsRepository(supabase)
       const applicationsRepo = new B2BApplicationRepository(supabase)
-      const analyticsRepo = new B2BAnalyticsRepository(supabase)
-      const metricsRepo = new B2BMetricsV2Repository(supabase)
+      // Mig #11 monitor consumo: 3 RPCs pesadas agora cacheadas 30s no Next.js
+      // (unstable_cache · TTL 30s + tags). Reduz pressao Supabase em ~90% nas
+      // navegacoes authed. Mutations precisam revalidateTag(...) (TODO).
       const [
         partners,
         insightsRes,
@@ -111,10 +112,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         criticalAlerts,
       ] = await Promise.all([
         partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
-        insightsRepo.global().catch(() => null),
+        getCachedInsightsGlobal(supabase, ctx.clinic_id),
         applicationsRepo.countPending().catch(() => 0),
-        analyticsRepo.get(30).catch(() => null),
-        metricsRepo.criticalAlerts().catch((): CriticalAlert[] => []),
+        getCachedAnalytics(supabase, ctx.clinic_id, 30),
+        getCachedCriticalAlerts(supabase, ctx.clinic_id),
       ])
       quickPartners = partners.map((p) => ({
         id: p.id,
