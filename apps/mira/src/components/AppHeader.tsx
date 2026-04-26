@@ -19,7 +19,11 @@ import {
   B2BInsightsRepository,
   B2BApplicationRepository,
   B2BAnalyticsRepository,
+  B2BMetricsV2Repository,
+  type CriticalAlert,
   type Insight,
+  type InsightKind,
+  type InsightSeverity,
 } from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppNav, type SubtabCounts } from './AppNav'
@@ -67,11 +71,19 @@ export async function AppHeader() {
       const insightsRepo = new B2BInsightsRepository(supabase)
       const applicationsRepo = new B2BApplicationRepository(supabase)
       const analyticsRepo = new B2BAnalyticsRepository(supabase)
-      const [partners, insightsRes, pendingApplications, analyticsBlob] = await Promise.all([
+      const metricsRepo = new B2BMetricsV2Repository(supabase)
+      const [
+        partners,
+        insightsRes,
+        pendingApplications,
+        analyticsBlob,
+        criticalAlerts,
+      ] = await Promise.all([
         partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
         insightsRepo.global().catch(() => null),
         applicationsRepo.countPending().catch(() => 0),
         analyticsRepo.get(30).catch(() => null),
+        metricsRepo.criticalAlerts().catch((): CriticalAlert[] => []),
       ])
       quickPartners = partners.map((p) => ({
         id: p.id,
@@ -80,14 +92,36 @@ export async function AppHeader() {
         status: p.status ?? null,
         pillar: p.pillar ?? null,
       }))
-      // Merge: insights por parceria (RPC) + system insights sinteticos.
-      // System insights vem antes na lista pra aparecer agrupado por severity
-      // no sino (ja que ordena por severity > score).
+      // Merge: insights por parceria (RPC) + system insights sinteticos +
+      // critical_alerts (antes ficavam no banner sticky em /b2b/analytics).
+      // Pedido Alden 2026-04-26: tudo no sino, nada no corpo da pagina.
       const sysInsights = buildSystemInsights({
         data: analyticsBlob,
         pendingApplications,
       })
-      insights = [...sysInsights, ...(insightsRes?.insights ?? [])]
+      const alertInsights: Insight[] = criticalAlerts.map((a) => {
+        const sev: InsightSeverity =
+          a.severity === 'critical'
+            ? 'critical'
+            : a.severity === 'warning'
+              ? 'warning'
+              : a.severity === 'celebrate'
+                ? 'success'
+                : 'info'
+        return {
+          kind: 'high_impact' as InsightKind,
+          severity: sev,
+          title: a.partnership_name || 'Alerta',
+          message: a.suggested_action
+            ? `${a.message} → ${a.suggested_action}`
+            : a.message,
+          partnership_id: a.partnership_id || '',
+          partnership_name: a.partnership_name || 'Sistema',
+          action_url: a.partnership_id ? `/partnerships/${a.partnership_id}` : '/b2b/analytics',
+          score: sev === 'critical' ? 88 : sev === 'warning' ? 55 : 30,
+        }
+      })
+      insights = [...sysInsights, ...alertInsights, ...(insightsRes?.insights ?? [])]
 
       // Counts in-memory · zero query extra (partners ja fetched)
       const byStatus = (s: string) =>

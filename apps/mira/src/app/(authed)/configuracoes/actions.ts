@@ -40,7 +40,14 @@ export async function registerProfessionalAction(payload: {
   professional_id: string
   label?: string | null
   access_scope?: 'own' | 'full'
-  permissions?: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean; b2b?: boolean }
+  permissions?: {
+    agenda?: boolean
+    pacientes?: boolean
+    financeiro?: boolean
+    b2b?: boolean
+    /** Per-message subscription overrides · undefined = subscribed */
+    msg?: { [key: string]: boolean }
+  }
 }): Promise<{ ok: boolean; error?: string }> {
   const { ctx, repos } = await loadMiraServerContext()
   assertCanManage(ctx.role)
@@ -70,7 +77,13 @@ export async function updateProfessionalAction(payload: {
   professional_id: string
   label?: string | null
   access_scope?: 'own' | 'full'
-  permissions?: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean; b2b?: boolean }
+  permissions?: {
+    agenda?: boolean
+    pacientes?: boolean
+    financeiro?: boolean
+    b2b?: boolean
+    msg?: { [key: string]: boolean }
+  }
 }): Promise<{ ok: boolean; error?: string }> {
   // wa_pro_register_number e upsert · reusa o mesmo path
   return registerProfessionalAction(payload)

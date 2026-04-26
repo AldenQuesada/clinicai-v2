@@ -25,7 +25,14 @@ export interface WaNumberFullDTO extends WaNumberDTO {
   professionalId: string | null
   professionalName: string | null
   accessScope: 'own' | 'full' | null
-  permissions: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean; b2b?: boolean }
+  permissions: {
+    agenda?: boolean
+    pacientes?: boolean
+    financeiro?: boolean
+    b2b?: boolean
+    /** Per-message subscription overrides (mig 800-30+) · undefined = subscribed */
+    msg?: { [key: string]: boolean }
+  }
 }
 
 export interface WaNumberRegisterInput {
@@ -33,7 +40,14 @@ export interface WaNumberRegisterInput {
   professional_id: string
   label?: string | null
   access_scope?: 'own' | 'full'
-  permissions?: { agenda?: boolean; pacientes?: boolean; financeiro?: boolean }
+  permissions?: {
+    agenda?: boolean
+    pacientes?: boolean
+    financeiro?: boolean
+    b2b?: boolean
+    /** Per-message subscription overrides (mig 800-30+) · undefined = subscribed */
+    msg?: { [key: string]: boolean }
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

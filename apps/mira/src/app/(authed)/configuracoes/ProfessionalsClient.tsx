@@ -26,46 +26,63 @@ import type {
   ProfessionalProfileDTO,
 } from '@clinicai/repositories'
 
+type Category = 'agenda' | 'pacientes' | 'financeiro' | 'b2b'
+
 type Permissions = {
   agenda: boolean
   pacientes: boolean
   financeiro: boolean
-  /** NOVA · controle de acesso B2B + mensagens automaticas de parceria/voucher */
+  /** Controle de acesso B2B + mensagens automaticas de parceria/voucher */
   b2b: boolean
+  /**
+   * Subscriptions individuais por mensagem (override por key).
+   * Default true (subscribed) se key ausente. Cron handlers checam:
+   *   permissions[categoria] === true
+   *   AND permissions.msg?.[messageKey] !== false
+   */
+  msg?: { [key: string]: boolean }
 }
 
 /**
- * Mapping categoria → mensagens automaticas que o profissional recebe via WhatsApp.
- * Cada check no UI ativa AMBOS · acesso ao modulo + recebe essas msg.
- * Crons que enviam essas msg filtram recipients por permissions.<categoria>=true.
+ * Mensagens automaticas por categoria · cada uma com key estavel pra
+ * subscription individual (mig 800-30+).
+ *
+ * Cada check no UI ativa o modulo + cada msg subscrita individualmente.
+ * Crons que enviam essas msg filtram recipients por permissions.<categoria>=true
+ * AND permissions.msg?.<key> !== false.
  */
-const PERMISSION_MESSAGES: Record<keyof Permissions, string[]> = {
+type MessageDef = { key: string; label: string }
+const PERMISSION_MESSAGES: Record<Category, MessageDef[]> = {
   agenda: [
-    'Lembretes de consulta · 24h antes',
-    'Avisos de no-show no dia',
-    'Gaps de agenda da semana',
-    'Resumo do dia (consultas + livres)',
+    { key: 'agenda.appointment_reminder', label: 'Lembretes de consulta · 24h antes' },
+    { key: 'agenda.no_show', label: 'Avisos de no-show no dia' },
+    { key: 'agenda.gaps_weekly', label: 'Gaps de agenda da semana' },
+    { key: 'agenda.daily_summary', label: 'Resumo do dia (consultas + livres)' },
   ],
   pacientes: [
-    'NPS recebido (cada nova resposta)',
-    'Follow-up devido (após X dias sem contato)',
-    'Lead novo no Lara',
-    'Paciente parou de responder',
+    { key: 'pacientes.nps_received', label: 'NPS recebido (cada nova resposta)' },
+    { key: 'pacientes.followup_due', label: 'Follow-up devido (apos X dias sem contato)' },
+    { key: 'pacientes.lead_new', label: 'Lead novo no Lara' },
+    { key: 'pacientes.silent', label: 'Paciente parou de responder' },
   ],
   financeiro: [
-    'Revenue diário (8h SP)',
-    'Meta mensal · atingida ou em risco',
-    'Alerta de churn financeiro',
-    'Custo IA acima do cap',
+    { key: 'financeiro.daily_revenue', label: 'Revenue diario (8h SP)' },
+    { key: 'financeiro.monthly_goal', label: 'Meta mensal · atingida ou em risco' },
+    { key: 'financeiro.churn_alert', label: 'Alerta de churn financeiro' },
+    { key: 'financeiro.ai_cost_cap', label: 'Custo IA acima do cap' },
   ],
   b2b: [
-    'Top insight diário · 8h SP (cron mira-daily-top-insight)',
-    'Alertas críticos parceria · over_cap, health_red',
-    'Voucher resgatado / convertido em paciente',
-    'Candidatura nova ou pendente',
-    'Parceria a renovar (60d antes)',
-    'Feedback mensal por parceira',
+    { key: 'b2b.daily_top_insight', label: 'Top insight diario · 8h SP' },
+    { key: 'b2b.critical_alerts', label: 'Alertas criticos parceria · over_cap, health_red' },
+    { key: 'b2b.voucher_redeemed', label: 'Voucher resgatado / convertido em paciente' },
+    { key: 'b2b.application_new', label: 'Candidatura nova ou pendente' },
+    { key: 'b2b.renewal_60d', label: 'Parceria a renovar (60d antes)' },
+    { key: 'b2b.partner_feedback', label: 'Feedback mensal por parceira' },
   ],
+}
+
+function isMsgSubscribed(perms: Permissions, key: string): boolean {
+  return perms.msg?.[key] !== false
 }
 
 type EditDraft = {
@@ -112,6 +129,7 @@ export function ProfessionalsClient({
 
   function startEdit(n: WaNumberFullDTO) {
     setFeedback(null)
+    const rawMsg = (n.permissions as { msg?: Record<string, boolean> }).msg
     setEditing({
       mode: 'edit',
       waNumberId: n.id,
@@ -125,6 +143,7 @@ export function ProfessionalsClient({
         pacientes: n.permissions.pacientes !== false,
         financeiro: n.permissions.financeiro !== false,
         b2b: n.permissions.b2b !== false,
+        msg: rawMsg && typeof rawMsg === 'object' ? { ...rawMsg } : undefined,
       },
     })
   }
@@ -137,10 +156,34 @@ export function ProfessionalsClient({
     setEditing((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
 
-  function patchPerm(key: keyof Permissions, value: boolean) {
+  function patchPerm(key: Category, value: boolean) {
     setEditing((prev) =>
       prev ? { ...prev, permissions: { ...prev.permissions, [key]: value } } : prev,
     )
+  }
+
+  /**
+   * Override individual de subscription por mensagem · escreve em
+   * permissions.msg[key]. Default ausente (true). Quando user desmarca,
+   * grava false explicito.
+   */
+  function patchMsg(key: string, subscribed: boolean) {
+    setEditing((prev) => {
+      if (!prev) return prev
+      const msg = { ...(prev.permissions.msg ?? {}) }
+      if (subscribed) {
+        delete msg[key]
+      } else {
+        msg[key] = false
+      }
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          msg: Object.keys(msg).length > 0 ? msg : undefined,
+        },
+      }
+    })
   }
 
   function onProfessionalSelect(profId: string) {
@@ -283,6 +326,7 @@ export function ProfessionalsClient({
             saving={pending}
             onChange={patch}
             onChangePerm={patchPerm}
+            onChangeMsg={patchMsg}
             onSelectProfessional={onProfessionalSelect}
             onSave={onSave}
             onCancel={cancel}
@@ -476,6 +520,7 @@ function ProfessionalForm({
   saving,
   onChange,
   onChangePerm,
+  onChangeMsg,
   onSelectProfessional,
   onSave,
   onCancel,
@@ -484,7 +529,8 @@ function ProfessionalForm({
   professionals: ProfessionalProfileDTO[]
   saving: boolean
   onChange: <K extends keyof EditDraft>(key: K, value: EditDraft[K]) => void
-  onChangePerm: (key: keyof Permissions, value: boolean) => void
+  onChangePerm: (key: Category, value: boolean) => void
+  onChangeMsg: (key: string, subscribed: boolean) => void
   onSelectProfessional: (profId: string) => void
   onSave: () => void
   onCancel: () => void
@@ -588,6 +634,8 @@ function ProfessionalForm({
               accentColor="#10B981"
               checked={draft.permissions.agenda}
               onChange={(v) => onChangePerm('agenda', v)}
+              isMsgSubscribed={(k) => isMsgSubscribed(draft.permissions, k)}
+              onMsgChange={onChangeMsg}
             />
             <PermCheckbox
               label="Pacientes"
@@ -596,6 +644,8 @@ function ProfessionalForm({
               accentColor="#3B82F6"
               checked={draft.permissions.pacientes}
               onChange={(v) => onChangePerm('pacientes', v)}
+              isMsgSubscribed={(k) => isMsgSubscribed(draft.permissions, k)}
+              onMsgChange={onChangeMsg}
             />
             <PermCheckbox
               label="Financeiro"
@@ -604,6 +654,8 @@ function ProfessionalForm({
               accentColor="#8B5CF6"
               checked={draft.permissions.financeiro}
               onChange={(v) => onChangePerm('financeiro', v)}
+              isMsgSubscribed={(k) => isMsgSubscribed(draft.permissions, k)}
+              onMsgChange={onChangeMsg}
             />
             <PermCheckbox
               label="B2B"
@@ -612,6 +664,8 @@ function ProfessionalForm({
               accentColor="#C9A96E"
               checked={draft.permissions.b2b}
               onChange={(v) => onChangePerm('b2b', v)}
+              isMsgSubscribed={(k) => isMsgSubscribed(draft.permissions, k)}
+              onMsgChange={onChangeMsg}
             />
           </div>
         </div>
@@ -646,16 +700,25 @@ function PermCheckbox({
   accentColor,
   checked,
   onChange,
+  isMsgSubscribed,
+  onMsgChange,
 }: {
   label: string
   hint: string
-  messages?: string[]
+  messages?: MessageDef[]
   accentColor?: string
   checked: boolean
   onChange: (v: boolean) => void
+  isMsgSubscribed: (key: string) => boolean
+  onMsgChange: (key: string, subscribed: boolean) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const accent = accentColor || 'var(--b2b-champagne)'
+  // Conta quantas msgs estao silenciadas pra mostrar no botao expand
+  const mutedCount = messages
+    ? messages.filter((m) => !isMsgSubscribed(m.key)).length
+    : 0
+  const totalMsgs = messages?.length ?? 0
   return (
     <div
       style={{
@@ -701,7 +764,7 @@ function PermCheckbox({
             >
               {label}
             </span>
-            {messages && messages.length > 0 ? (
+            {messages && totalMsgs > 0 ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -713,16 +776,24 @@ function PermCheckbox({
                   fontWeight: 600,
                   letterSpacing: '1.2px',
                   textTransform: 'uppercase',
-                  color: '#9CA3AF',
+                  color: mutedCount > 0 ? '#F59E0B' : '#9CA3AF',
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: `1px solid ${mutedCount > 0 ? '#F59E0B40' : 'rgba(255,255,255,0.1)'}`,
                   borderRadius: 4,
                   padding: '2px 6px',
                   cursor: 'pointer',
                 }}
-                title={`${messages.length} mensagens automáticas`}
+                title={
+                  mutedCount > 0
+                    ? `${totalMsgs - mutedCount}/${totalMsgs} mensagens ativas`
+                    : `${totalMsgs} mensagens automaticas`
+                }
               >
-                {expanded ? '▾ msg' : `▸ ${messages.length} msg`}
+                {expanded
+                  ? '▾ msg'
+                  : mutedCount > 0
+                    ? `▸ ${totalMsgs - mutedCount}/${totalMsgs} msg`
+                    : `▸ ${totalMsgs} msg`}
               </button>
             ) : null}
           </div>
@@ -732,21 +803,72 @@ function PermCheckbox({
             {hint}
           </div>
           {expanded && messages && (
-            <ul
+            <div
               style={{
-                margin: '8px 0 0',
-                paddingLeft: 18,
-                fontSize: 10.5,
-                color: 'var(--b2b-text-dim, #B5A894)',
-                lineHeight: 1.55,
+                margin: '10px 0 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
               }}
             >
-              {messages.map((m, i) => (
-                <li key={i} style={{ marginTop: 2 }}>
-                  {m}
-                </li>
-              ))}
-            </ul>
+              {messages.map((m) => {
+                const sub = isMsgSubscribed(m.key)
+                const disabled = !checked
+                return (
+                  <label
+                    key={m.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '4px 6px',
+                      borderRadius: 4,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      opacity: disabled ? 0.4 : 1,
+                      transition: 'background 120ms',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sub && !disabled}
+                      disabled={disabled}
+                      onChange={(e) => onMsgChange(m.key, e.target.checked)}
+                      style={{
+                        width: 13,
+                        height: 13,
+                        accentColor: accent,
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        flexShrink: 0,
+                      }}
+                      aria-label={m.label}
+                    />
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: sub && !disabled ? 'var(--b2b-ivory, #F5F0E8)' : '#7A7165',
+                        textDecoration: !sub && !disabled ? 'line-through' : 'none',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {m.label}
+                    </span>
+                  </label>
+                )
+              })}
+              {!checked ? (
+                <div
+                  style={{
+                    fontSize: 9.5,
+                    color: '#7A7165',
+                    marginTop: 4,
+                    fontStyle: 'italic',
+                    paddingLeft: 6,
+                  }}
+                >
+                  ative o módulo acima para liberar as mensagens
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
