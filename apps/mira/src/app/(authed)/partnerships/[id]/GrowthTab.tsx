@@ -13,6 +13,9 @@
 import { loadMiraServerContext } from '@/lib/server-context'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
 import { GrowthClient } from './GrowthClient'
+import { TargetsSection } from './sections/TargetsSection'
+import { EventsSection } from './sections/EventsSection'
+import { ContentSection } from './sections/ContentSection'
 
 export async function GrowthTab({ partnership }: { partnership: B2BPartnershipDTO }) {
   const { repos } = await loadMiraServerContext()
@@ -27,5 +30,15 @@ export async function GrowthTab({ partnership }: { partnership: B2BPartnershipDT
     )
   }
 
-  return <GrowthClient data={data} partnership={partnership} />
+  return (
+    <div className="flex flex-col gap-6">
+      <GrowthClient data={data} partnership={partnership} />
+      {/* Sec 7 · Metas operacionais */}
+      <TargetsSection partnershipId={partnership.id} />
+      {/* Sec 8 · Eventos / exposicoes */}
+      <EventsSection partnershipId={partnership.id} />
+      {/* Sec 9 · Playbook de conteudo */}
+      <ContentSection partnershipId={partnership.id} />
+    </div>
+  )
 }

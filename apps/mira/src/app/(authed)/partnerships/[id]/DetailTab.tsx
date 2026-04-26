@@ -2,14 +2,14 @@
  * Partnership detail · tab "Detalhe" · ficha completa em estilo legado
  * b2b-detail.ui.js (KV blocks 2-cols com b2b-sec-title +  b2b-kv).
  *
- * Sections:
- *   Gestao         · ManagementWidget (status switcher + account manager)
- *   Dados gerais   · edicao rapida (form gold-tinted · b2b-card-gold)
- *   Contato        · b2b-kv list (responsavel/telefone/email/instagram)
- *   Voucher        · b2b-kv list (combo/validade/cap)
- *   Vigencia       · b2b-kv list (teto/duracao)
- *   Operacional    · slug/health/criada (b2b-kv mono em valores tecnicos)
- *   Acoes          · status changes (aprovar/pausar/reativar)
+ * Sections (ordem mirror legacy modal):
+ *   3 NextStepHint     · proximo passo do funil
+ *   4 DnaBar           · 3 dimensoes scoring
+ *   1 ManagementWidget · status switcher + account manager (gestao)
+ *      Edicao rapida   · form gold-tinted (pre-existente · mantido)
+ *   6 KvSection        · 2-col KV (Contato/Voucher/Vigencia + Narrativa/...)
+ *   18 TimelineSection · historico cronologico (no rodape antes de LGPD)
+ *   19 LgpdSection     · acoes anonymize/export/consent
  */
 
 import Link from 'next/link'
@@ -21,6 +21,11 @@ import {
 } from '../actions'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
 import { ManagementWidget } from './ManagementWidget'
+import { NextStepHint } from './sections/NextStepHint'
+import { DnaBar } from './sections/DnaBar'
+import { KvSection } from './sections/KvSection'
+import { TimelineSection } from './sections/TimelineSection'
+import { LgpdSection } from './sections/LgpdSection'
 
 const STATUS_LABELS: Record<string, string> = {
   prospect: 'Prospect',
@@ -30,12 +35,6 @@ const STATUS_LABELS: Record<string, string> = {
   review: 'Em revisão',
   paused: 'Pausada',
   closed: 'Encerrada',
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  transactional: 'Transacional',
-  occasion: 'Ocasião',
-  institutional: 'Institucional',
 }
 
 export function DetailTab({
@@ -49,7 +48,13 @@ export function DetailTab({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {/* Gestao · status + account manager */}
+      {/* Sec 3 · Next step hint */}
+      <NextStepHint partnership={partnership} />
+
+      {/* Sec 4 · DNA bar */}
+      <DnaBar partnership={partnership} />
+
+      {/* Sec 1 · Gestao (status + account manager) */}
       <section className="flex flex-col gap-2">
         <h2 className="b2b-sec-title" style={{ marginTop: 0 }}>Gestão</h2>
         <ManagementWidget
@@ -100,6 +105,7 @@ export function DetailTab({
             <textarea
               name="notes"
               rows={3}
+              defaultValue={partnership.notes ?? ''}
               disabled={!canManage}
               className="b2b-input"
               style={{ resize: 'vertical', minHeight: 64 }}
@@ -120,55 +126,13 @@ export function DetailTab({
         </form>
       </section>
 
-      {/* Ficha completa · 2-col KV */}
-      <div className="b2b-detail-cols">
-        {/* Coluna 1 · Contato + Voucher */}
-        <div>
-          <div className="b2b-sec-title">Contato</div>
-          <KV label="Responsável" value={partnership.contactName} />
-          <KV label="Telefone" value={partnership.contactPhone} mono />
-          <KV label="E-mail" value={partnership.contactEmail} />
-          <KV label="Instagram" value={partnership.contactInstagram} />
+      {/* Sec 6 · 2-col KV (ficha completa) */}
+      <KvSection partnership={partnership} />
 
-          <div className="b2b-sec-title">Voucher</div>
-          <KV label="Combo padrão" value={partnership.voucherCombo} />
-          <KV label="Validade" value={`${partnership.voucherValidityDays} dias`} />
-          <KV
-            label="Cap mensal"
-            value={partnership.voucherMonthlyCap ? `${partnership.voucherMonthlyCap} un.` : null}
-          />
-
-          <div className="b2b-sec-title">Vigência</div>
-          <KV
-            label="Duração contrato"
-            value={partnership.contractDurationMonths ? `${partnership.contractDurationMonths} meses` : null}
-          />
-        </div>
-
-        {/* Coluna 2 · Operacional + Acoes */}
-        <div>
-          <div className="b2b-sec-title">Operacional</div>
-          <KV label="Slug" value={partnership.slug} mono />
-          <KV label="Tipo" value={TYPE_LABELS[partnership.type] || partnership.type} />
-          <KV label="Tier" value={partnership.tier?.toString() ?? null} />
-          <KV label="Status" value={STATUS_LABELS[partnership.status] || partnership.status} />
-          <KV label="Health" value={partnership.healthColor} />
-          <KV label="DNA score" value={partnership.dnaScore != null ? `${partnership.dnaScore.toFixed(1)}/10` : null} />
-          <KV label="Account manager" value={partnership.accountManager} />
-
-          <div className="b2b-sec-title">Histórico</div>
-          <KV label="Criada em" value={fmtDate(partnership.createdAt)} mono />
-          <KV label="Atualizada" value={fmtDate(partnership.updatedAt)} mono />
-          {partnership.assignedAt ? (
-            <KV label="Manager atribuído" value={fmtDate(partnership.assignedAt)} mono />
-          ) : null}
-        </div>
-      </div>
-
-      {/* Acoes · status changes */}
+      {/* Acoes · status changes (mantem) */}
       {canManage && (
         <section className="flex flex-col gap-2">
-          <h2 className="b2b-sec-title">Ações</h2>
+          <h2 className="b2b-sec-title">Ações rápidas de status</h2>
           <div className="flex flex-wrap gap-2">
             {partnership.status === 'dna_check' && (
               <form action={approvePartnershipAction}>
@@ -203,6 +167,16 @@ export function DetailTab({
           </div>
         </section>
       )}
+
+      {/* Sec 18 · Timeline (historico cronologico) */}
+      <TimelineSection partnershipId={partnership.id} />
+
+      {/* Sec 19 · LGPD compliance (rodape) */}
+      <LgpdSection
+        partnershipId={partnership.id}
+        partnershipName={partnership.name}
+        canManage={canManage}
+      />
     </div>
   )
 }
@@ -235,25 +209,9 @@ function Field({
   )
 }
 
-function KV({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: string | null | undefined
-  mono?: boolean
-}) {
-  if (value == null || value === '') return null
-  return (
-    <div className="b2b-kv">
-      <span className="b2b-kv-lbl">{label}</span>
-      <span className={`b2b-kv-val${mono ? ' is-mono' : ''}`}>{value}</span>
-    </div>
-  )
-}
-
-function fmtDate(iso: string): string {
+// fmtDate moved out (no longer used here · KvSection ja formata)
+// (kept for stability of imports if any — unused but harmless)
+export function _fmtDate(iso: string): string {
   if (!iso) return '—'
   try {
     return new Date(iso).toLocaleDateString('pt-BR', {
@@ -265,3 +223,5 @@ function fmtDate(iso: string): string {
     return iso
   }
 }
+
+void STATUS_LABELS

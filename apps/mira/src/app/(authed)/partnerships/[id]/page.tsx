@@ -11,7 +11,7 @@
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Info, Ticket, BarChart3, TrendingUp, Activity, MessageSquare, FileSignature } from 'lucide-react'
+import { ArrowLeft, Info, Ticket, BarChart3, TrendingUp, Activity, MessageSquare, FileSignature, Users } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import { DetailTab } from './DetailTab'
 import { VouchersTab } from './VouchersTab'
@@ -140,6 +140,14 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
               </Link>
             ) : null}
             <Link
+              href={`/partnerships/${partnership.id}?tab=vouchers`}
+              className="b2b-btn"
+              title="Emitir/gerenciar vouchers da parceria"
+            >
+              <Ticket className="w-3 h-3 inline mr-1" />
+              Vouchers
+            </Link>
+            <Link
               href={`/partnerships/${partnership.id}/dossie`}
               target="_blank"
               rel="noopener"
@@ -148,6 +156,16 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
             >
               Dossiê
             </Link>
+            {partnership.isCollective ? (
+              <Link
+                href={`/partnerships/${partnership.id}?tab=crescer`}
+                className="b2b-btn"
+                title="Registrar palestras, eventos e exposições ao grupo (sec Eventos)"
+              >
+                <Users className="w-3 h-3 inline mr-1" />
+                Alcance grupo
+              </Link>
+            ) : null}
             <Link
               href={`/partnerships/${partnership.id}?tab=crescer`}
               className="b2b-btn b2b-btn-primary"

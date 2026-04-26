@@ -10,6 +10,10 @@
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import type { B2BPartnershipDTO, PerformanceFull } from '@clinicai/repositories'
+import { ImpactSection } from './sections/ImpactSection'
+import { RoiSection } from './sections/RoiSection'
+import { CostSection } from './sections/CostSection'
+import { TrendSection } from './sections/TrendSection'
 
 function fmtBRL(v: number | null | undefined): string {
   if (v == null) return 'R$ 0,00'
@@ -67,6 +71,15 @@ export async function PerformanceTab({ partnership }: { partnership: B2BPartners
         <VelocitySection data={data} />
       </div>
       <VouchersFunnel data={data} />
+      {/* Sec 13 · Impact score */}
+      <ImpactSection partnershipId={partnership.id} />
+      {/* Sec 14 · ROI real */}
+      <RoiSection partnershipId={partnership.id} />
+      {/* Sec 15 · Cost breakdown */}
+      <CostSection partnershipId={partnership.id} />
+      {/* Sec 16 · Health trend 90d (server-rendered via mig 800-35 RPC) */}
+      <TrendSection partnershipId={partnership.id} />
+      {/* Health trend (legacy ja inclui · mantem como redundancia/backup) */}
       <HealthTrend data={data} />
     </div>
   )

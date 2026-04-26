@@ -13,6 +13,7 @@ import type { GrowthPanel, B2BPartnershipDTO } from '@clinicai/repositories'
 import { DiagnosticSection } from './DiagnosticSection'
 import { ActionSection } from './ActionSection'
 import { PitchMode } from './PitchMode'
+import { WowActionsSection } from './sections/WowActionsSection'
 
 export function GrowthClient({
   data,
@@ -54,6 +55,9 @@ export function GrowthClient({
 
       {/* Seção 1 · Diagnóstico */}
       <DiagnosticSection data={data} />
+
+      {/* Sec 12 · Acoes premium (Dossie, Painel, IA, etc) */}
+      <WowActionsSection partnership={partnership} />
 
       {/* Seção 2 · Ação */}
       <ActionSection data={data} partnership={partnership} />
