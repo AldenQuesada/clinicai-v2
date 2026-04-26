@@ -525,7 +525,8 @@ export function CommClient({
       </section>
 
       <aside className="bcomm-col bcomm-col-panel">
-        {/* Mig 800-41 · bucket rail · filtra todas as tabs */}
+        {/* Mig 800-41 · bucket rail · filtra todas as tabs · botoes "+" no
+            mesmo nivel pra evitar colisao com as tabs */}
         <BucketRail
           value={bucketFilter}
           counts={bucketCounts}
@@ -533,6 +534,28 @@ export function CommClient({
             setBucketFilter(b)
             setFilterEventKey(null) // limpa filtro de event ao trocar bucket
           }}
+          actions={
+            editing ? null : (
+              <>
+                <button
+                  type="button"
+                  className="bcomm-btn bcomm-btn-xs"
+                  title="Criar novo evento (event_key) custom"
+                  onClick={() => setShowNewEvent(true)}
+                >
+                  + Evento
+                </button>
+                <button
+                  type="button"
+                  className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
+                  title="Criar novo template"
+                  onClick={() => handleNew()}
+                >
+                  + Template
+                </button>
+              </>
+            )
+          }
         />
         <div className="bcomm-tabs-bar">
           <nav className="bcomm-tabs" role="tablist">
@@ -557,26 +580,7 @@ export function CommClient({
           </nav>
           {editing ? (
             <span className="bcomm-tabs-editing">Editando…</span>
-          ) : (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                className="bcomm-btn bcomm-btn-xs"
-                title="Criar novo evento (event_key) custom"
-                onClick={() => setShowNewEvent(true)}
-              >
-                + Evento
-              </button>
-              <button
-                type="button"
-                className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
-                title="Criar novo template"
-                onClick={() => handleNew()}
-              >
-                + Template
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
 
         <div className="bcomm-panel-body">
@@ -888,21 +892,27 @@ function EventsTab({
   templates.forEach((t) => {
     if (!t.partnership_id) counts[t.event_key] = (counts[t.event_key] || 0) + 1
   })
-  const total = templates.filter((t) => !t.partnership_id).length
 
   return (
     <>
-      {/* Chips agrupados por categoria do catalogo · 1 row por grupo */}
+      {/* Chips agrupados por categoria do catalogo · 1 row por grupo.
+          "Todos" foi removido (Alden 2026-04-26 · redundante com bucket
+          rail acima · gerava confusao). Pra limpar filtro de event_key,
+          basta clicar no chip ativo de novo. */}
       <div className="bcomm-chips-grouped">
-        <div className="bcomm-chips-row">
-          <button
-            type="button"
-            className={'bcomm-chip' + (!filterEventKey ? ' bcomm-chip-active' : '')}
-            onClick={() => onChipClick(null)}
-          >
-            Todos <span className="bcomm-chip-count">{total}</span>
-          </button>
-        </div>
+        {filterEventKey ? (
+          <div className="bcomm-chips-row">
+            <button
+              type="button"
+              className="bcomm-chip"
+              onClick={() => onChipClick(null)}
+              title="Limpar filtro de evento"
+              style={{ opacity: 0.7 }}
+            >
+              ✕ Limpar filtro
+            </button>
+          </div>
+        ) : null}
 
         {catalog.map((g) => (
           <div key={g.group} className="bcomm-chips-group">
@@ -2841,61 +2851,68 @@ function BucketRail({
   value,
   counts,
   onChange,
+  actions,
 }: {
   value: string
   counts: Record<string, number>
   onChange: (bucket: string) => void
+  actions?: React.ReactNode
 }) {
   return (
     <div
       className="bcomm-bucket-rail"
       style={{
         display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         gap: 8,
-        padding: '12px 14px 8px',
+        padding: '12px 14px 10px',
         borderBottom: '1px solid var(--b2b-border)',
         background: 'var(--b2b-bg-1)',
       }}
     >
-      {BUCKETS.map((b) => {
-        const active = value === b.id
-        return (
-          <button
-            key={b.id}
-            type="button"
-            onClick={() => onChange(b.id)}
-            className={'bcomm-bucket-chip' + (active ? ' is-active' : '')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              borderRadius: 999,
-              border: '1px solid ' + (active ? 'var(--b2b-gold)' : 'var(--b2b-border)'),
-              background: active ? 'var(--b2b-gold)' : 'transparent',
-              color: active ? '#0F0D0A' : 'var(--b2b-fg-1)',
-              fontSize: 12,
-              fontWeight: active ? 600 : 500,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            title={`Filtrar por bucket · ${b.label}`}
-            aria-pressed={active}
-          >
-            <span aria-hidden>{b.icon}</span>
-            <span>{b.label}</span>
-            <span
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {BUCKETS.map((b) => {
+          const active = value === b.id
+          return (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => onChange(b.id)}
+              className={'bcomm-bucket-chip' + (active ? ' is-active' : '')}
               style={{
-                opacity: 0.7,
-                fontSize: 11,
-                fontVariantNumeric: 'tabular-nums',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '1px solid ' + (active ? 'var(--b2b-gold)' : 'var(--b2b-border)'),
+                background: active ? 'var(--b2b-gold)' : 'transparent',
+                color: active ? '#0F0D0A' : 'var(--b2b-fg-1)',
+                fontSize: 12,
+                fontWeight: active ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
               }}
+              title={`Filtrar por bucket · ${b.label}`}
+              aria-pressed={active}
             >
-              {counts[b.id] ?? 0}
-            </span>
-          </button>
-        )
-      })}
+              <span aria-hidden>{b.icon}</span>
+              <span>{b.label}</span>
+              <span
+                style={{
+                  opacity: 0.7,
+                  fontSize: 11,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {counts[b.id] ?? 0}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      {actions ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{actions}</div> : null}
     </div>
   )
 }
