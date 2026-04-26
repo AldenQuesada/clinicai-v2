@@ -163,6 +163,13 @@ body.b2bm2-page {
 }
 .b2bm2-card-sub strong { color: var(--m2-text); }
 
+/* Body do card · padding interno consistente quando ha ObjectiveSection */
+.b2bm2-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ─── Alertas (topo) ──────────────────────────────────────────────────────── */
 
 .b2bm2-alerts { display: flex; flex-direction: column; gap: 6px; }
