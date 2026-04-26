@@ -7,6 +7,7 @@
  */
 
 import { AppHeader } from '@/components/AppHeader'
+import { MiraFooter } from '@/components/MiraFooter'
 
 export default function AuthedLayout({
   children,
@@ -17,6 +18,7 @@ export default function AuthedLayout({
     <div className="flex flex-col h-screen w-full overflow-hidden bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))]">
       <AppHeader />
       <div className="flex flex-1 min-h-0">{children}</div>
+      <MiraFooter />
     </div>
   )
 }
