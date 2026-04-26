@@ -50,9 +50,12 @@ export default async function ConfigPage({ searchParams }: PageProps) {
   const activeTab: Tab =
     sp.tab && (VALID_TABS as readonly string[]).includes(sp.tab) ? (sp.tab as Tab) : 'overview'
 
-  // Tabs com 2 blocos lado a lado (overview/pessoas/logs) usam wrap maior.
+  // Tabs com 2 blocos lado a lado (overview/pessoas/logs/channels) usam wrap maior.
   const wrapMax =
-    activeTab === 'overview' || activeTab === 'pessoas' || activeTab === 'logs'
+    activeTab === 'overview' ||
+    activeTab === 'pessoas' ||
+    activeTab === 'logs' ||
+    activeTab === 'channels'
       ? 'max-w-[1200px]'
       : 'max-w-[960px]'
 

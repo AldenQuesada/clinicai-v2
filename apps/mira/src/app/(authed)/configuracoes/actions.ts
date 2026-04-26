@@ -21,11 +21,29 @@ export async function updateChannelAction(formData: FormData) {
   const id = String(formData.get('id') || '')
   if (!id) throw new Error('id obrigatorio')
 
-  const evolutionInstance = String(formData.get('evolutionInstance') || '') || null
+  // 2026-04-26: layout novo manda wa_number_id via dropdown (junção visual
+  // numero+canal). Mantem backward compat com evolution_instance livre se
+  // o form antigo ainda passar isso.
+  const waNumberRaw = formData.get('waNumberId')
+  const waNumberId = waNumberRaw != null
+    ? (String(waNumberRaw).trim() || null)
+    : undefined
+  const evoRaw = formData.get('evolutionInstance')
+  const evolutionInstance = evoRaw != null
+    ? (String(evoRaw).trim() || null)
+    : undefined
   const isActive = String(formData.get('isActive') || 'true') === 'true'
-  const notes = String(formData.get('notes') || '') || null
+  const notesRaw = formData.get('notes')
+  const notes = notesRaw != null ? (String(notesRaw).trim() || null) : undefined
 
-  const r = await repos.miraChannels.update(id, { evolutionInstance, isActive, notes })
+  const patch: { waNumberId?: string | null; evolutionInstance?: string | null; isActive?: boolean; notes?: string | null } = {
+    isActive,
+  }
+  if (waNumberId !== undefined) patch.waNumberId = waNumberId
+  if (evolutionInstance !== undefined) patch.evolutionInstance = evolutionInstance
+  if (notes !== undefined) patch.notes = notes
+
+  const r = await repos.miraChannels.update(id, patch)
   if (!r.ok) throw new Error(r.error || 'Erro ao atualizar canal')
 
   revalidatePath('/configuracoes')
