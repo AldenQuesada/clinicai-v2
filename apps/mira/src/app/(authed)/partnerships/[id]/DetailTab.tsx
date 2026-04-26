@@ -1,9 +1,15 @@
 /**
- * Partnership detail · tab "Detalhe" · dados gerais + edicao + acoes.
- * Server Component · forms via Server Actions.
+ * Partnership detail · tab "Detalhe" · ficha completa em estilo legado
+ * b2b-detail.ui.js (KV blocks 2-cols com b2b-sec-title +  b2b-kv).
  *
- * Visual mirror b2b-config.css `.bcfg-admin-form` (gold tinted form),
- * `.bcfg-about-row` (metadata grid), `.bcfg-form-actions`.
+ * Sections:
+ *   Gestao         · ManagementWidget (status switcher + account manager)
+ *   Dados gerais   · edicao rapida (form gold-tinted · b2b-card-gold)
+ *   Contato        · b2b-kv list (responsavel/telefone/email/instagram)
+ *   Voucher        · b2b-kv list (combo/validade/cap)
+ *   Vigencia       · b2b-kv list (teto/duracao)
+ *   Operacional    · slug/health/criada (b2b-kv mono em valores tecnicos)
+ *   Acoes          · status changes (aprovar/pausar/reativar)
  */
 
 import Link from 'next/link'
@@ -16,6 +22,22 @@ import {
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
 import { ManagementWidget } from './ManagementWidget'
 
+const STATUS_LABELS: Record<string, string> = {
+  prospect: 'Prospect',
+  dna_check: 'Avaliar DNA',
+  contract: 'Em contrato',
+  active: 'Ativa',
+  review: 'Em revisão',
+  paused: 'Pausada',
+  closed: 'Encerrada',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  transactional: 'Transacional',
+  occasion: 'Ocasião',
+  institutional: 'Institucional',
+}
+
 export function DetailTab({
   partnership,
   canManage,
@@ -26,9 +48,10 @@ export function DetailTab({
   managers: string[]
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      {/* Status switcher + Account manager · sempre no topo */}
-      <Section title="Gestão">
+    <div className="flex flex-col gap-4">
+      {/* Gestao · status + account manager */}
+      <section className="flex flex-col gap-2">
+        <h2 className="b2b-sec-title" style={{ marginTop: 0 }}>Gestão</h2>
         <ManagementWidget
           partnershipId={partnership.id}
           currentStatus={partnership.status}
@@ -36,35 +59,35 @@ export function DetailTab({
           managers={managers}
           canManage={canManage}
         />
-      </Section>
+      </section>
 
-      {/* CTA edicao completa (40+ campos) */}
+      {/* CTA edicao completa */}
       {canManage && (
-        <div className="flex items-center justify-between rounded-lg border border-[#C9A96E]/30 bg-[#C9A96E]/[0.06] px-3.5 py-2.5">
+        <div className="b2b-card b2b-card-gold flex-row items-center justify-between" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold text-[#F5F0E8]">Edição completa da parceria</span>
-            <span className="text-[10.5px] text-[#9CA3AF]">
-              DNA, voucher, contrato, profissionais, narrativa — abre o wizard 3-step.
+            <span className="text-[12px] font-semibold text-[var(--b2b-ivory)]">
+              Edição completa da parceria
+            </span>
+            <span className="text-[11px] text-[var(--b2b-text-muted)]">
+              DNA, voucher, contrato, profissionais, narrativa — wizard 3-step.
             </span>
           </div>
           <Link
             href={`/partnerships/${partnership.id}/editar`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
+            className="b2b-btn b2b-btn-primary inline-flex items-center gap-1.5"
           >
             <Pencil className="w-3 h-3" /> Abrir editor
           </Link>
         </div>
       )}
 
-      {/* Dados gerais · edicao rapida */}
-      <Section title="Dados gerais (edição rápida)">
-        <form
-          action={updatePartnershipBasicAction}
-          className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3"
-        >
+      {/* Dados gerais · edicao rapida (form gold-tinted) */}
+      <section className="flex flex-col gap-2">
+        <h2 className="b2b-sec-title" style={{ marginTop: 0 }}>Dados gerais (edição rápida)</h2>
+        <form action={updatePartnershipBasicAction} className="b2b-card b2b-card-gold">
           <input type="hidden" name="id" value={partnership.id} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <div className="b2b-grid-2" style={{ marginTop: 4 }}>
             <Field label="Contato (nome)" name="contactName" defaultValue={partnership.contactName ?? ''} disabled={!canManage} />
             <Field label="Telefone" name="contactPhone" defaultValue={partnership.contactPhone ?? ''} disabled={!canManage} mono />
             <Field label="Email" name="contactEmail" defaultValue={partnership.contactEmail ?? ''} disabled={!canManage} />
@@ -72,62 +95,85 @@ export function DetailTab({
             <Field label="Pilar" name="pillar" defaultValue={partnership.pillar} disabled={!canManage} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-              Observações
-            </label>
+          <div className="b2b-field">
+            <label className="b2b-field-lbl">Observações</label>
             <textarea
               name="notes"
               rows={3}
               disabled={!canManage}
-              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 resize-y"
+              className="b2b-input"
+              style={{ resize: 'vertical', minHeight: 64 }}
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-1.5 border-t border-white/10">
+          <div className="b2b-form-actions">
             {canManage ? (
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
-              >
+              <button type="submit" className="b2b-btn b2b-btn-primary">
                 Salvar
               </button>
             ) : (
-              <span className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+              <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
                 Apenas owner/admin podem editar.
               </span>
             )}
           </div>
         </form>
-      </Section>
+      </section>
 
-      {/* Metadados · about-row pattern */}
-      <Section title="Metadados">
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2 flex flex-col">
-          <Meta label="Slug" value={partnership.slug} mono />
-          <Meta label="Status" value={partnership.status} />
-          <Meta label="Tipo" value={partnership.type} />
-          <Meta label="Tier" value={partnership.tier?.toString() ?? '—'} />
-          <Meta label="Combo padrão" value={partnership.voucherCombo ?? '—'} />
-          <Meta label="Validade voucher (dias)" value={String(partnership.voucherValidityDays)} />
-          <Meta label="Cap mensal" value={partnership.voucherMonthlyCap?.toString() ?? '—'} />
-          <Meta label="Health" value={partnership.healthColor} />
-          <Meta label="Criada em" value={fmtDate(partnership.createdAt)} />
-          <Meta label="Última atualização" value={fmtDate(partnership.updatedAt)} last />
+      {/* Ficha completa · 2-col KV */}
+      <div className="b2b-detail-cols">
+        {/* Coluna 1 · Contato + Voucher */}
+        <div>
+          <div className="b2b-sec-title">Contato</div>
+          <KV label="Responsável" value={partnership.contactName} />
+          <KV label="Telefone" value={partnership.contactPhone} mono />
+          <KV label="E-mail" value={partnership.contactEmail} />
+          <KV label="Instagram" value={partnership.contactInstagram} />
+
+          <div className="b2b-sec-title">Voucher</div>
+          <KV label="Combo padrão" value={partnership.voucherCombo} />
+          <KV label="Validade" value={`${partnership.voucherValidityDays} dias`} />
+          <KV
+            label="Cap mensal"
+            value={partnership.voucherMonthlyCap ? `${partnership.voucherMonthlyCap} un.` : null}
+          />
+
+          <div className="b2b-sec-title">Vigência</div>
+          <KV
+            label="Duração contrato"
+            value={partnership.contractDurationMonths ? `${partnership.contractDurationMonths} meses` : null}
+          />
         </div>
-      </Section>
+
+        {/* Coluna 2 · Operacional + Acoes */}
+        <div>
+          <div className="b2b-sec-title">Operacional</div>
+          <KV label="Slug" value={partnership.slug} mono />
+          <KV label="Tipo" value={TYPE_LABELS[partnership.type] || partnership.type} />
+          <KV label="Tier" value={partnership.tier?.toString() ?? null} />
+          <KV label="Status" value={STATUS_LABELS[partnership.status] || partnership.status} />
+          <KV label="Health" value={partnership.healthColor} />
+          <KV label="DNA score" value={partnership.dnaScore != null ? `${partnership.dnaScore.toFixed(1)}/10` : null} />
+          <KV label="Account manager" value={partnership.accountManager} />
+
+          <div className="b2b-sec-title">Histórico</div>
+          <KV label="Criada em" value={fmtDate(partnership.createdAt)} mono />
+          <KV label="Atualizada" value={fmtDate(partnership.updatedAt)} mono />
+          {partnership.assignedAt ? (
+            <KV label="Manager atribuído" value={fmtDate(partnership.assignedAt)} mono />
+          ) : null}
+        </div>
+      </div>
 
       {/* Acoes · status changes */}
       {canManage && (
-        <Section title="Ações">
+        <section className="flex flex-col gap-2">
+          <h2 className="b2b-sec-title">Ações</h2>
           <div className="flex flex-wrap gap-2">
             {partnership.status === 'dna_check' && (
               <form action={approvePartnershipAction}>
                 <input type="hidden" name="id" value={partnership.id} />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/25 transition-colors"
-                >
+                <button type="submit" className="b2b-btn" style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#10B981' }}>
                   Aprovar parceria
                 </button>
               </form>
@@ -138,10 +184,7 @@ export function DetailTab({
                 <input type="hidden" name="id" value={partnership.id} />
                 <input type="hidden" name="status" value="paused" />
                 <input type="hidden" name="reason" value="paused_via_ui" />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/30 hover:bg-[#F59E0B]/25 transition-colors"
-                >
+                <button type="submit" className="b2b-btn" style={{ borderColor: 'rgba(245,158,11,0.4)', color: '#F59E0B' }}>
                   Pausar
                 </button>
               </form>
@@ -152,28 +195,14 @@ export function DetailTab({
                 <input type="hidden" name="id" value={partnership.id} />
                 <input type="hidden" name="status" value="active" />
                 <input type="hidden" name="reason" value="reactivated_via_ui" />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/25 transition-colors"
-                >
+                <button type="submit" className="b2b-btn" style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#10B981' }}>
                   Reativar
                 </button>
               </form>
             )}
           </div>
-        </Section>
+        </section>
       )}
-    </div>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
-        {title}
-      </h3>
-      {children}
     </div>
   )
 }
@@ -192,26 +221,34 @@ function Field({
   mono?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-        {label}
-      </label>
+    <div className="b2b-field" style={{ marginBottom: 0 }}>
+      <label className="b2b-field-lbl">{label}</label>
       <input
         type="text"
         name={name}
         defaultValue={defaultValue}
         disabled={disabled}
-        className={`w-full px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50 ${mono ? 'font-mono' : ''}`}
+        className="b2b-input"
+        style={mono ? { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' } : undefined}
       />
     </div>
   )
 }
 
-function Meta({ label, value, mono, last }: { label: string; value: string; mono?: boolean; last?: boolean }) {
+function KV({
+  label,
+  value,
+  mono,
+}: {
+  label: string
+  value: string | null | undefined
+  mono?: boolean
+}) {
+  if (value == null || value === '') return null
   return (
-    <div className={`flex justify-between gap-3 py-1.5 text-[11.5px] ${last ? '' : 'border-b border-dashed border-white/10'}`}>
-      <span className="text-[#9CA3AF]">{label}</span>
-      <span className={`text-[#F5F0E8] ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
+    <div className="b2b-kv">
+      <span className="b2b-kv-lbl">{label}</span>
+      <span className={`b2b-kv-val${mono ? ' is-mono' : ''}`}>{value}</span>
     </div>
   )
 }

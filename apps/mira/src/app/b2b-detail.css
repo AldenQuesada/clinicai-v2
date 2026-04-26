@@ -1,0 +1,788 @@
+/**
+ * Mira · b2b-detail.css.
+ *
+ * Polish luxury da pagina /partnerships/[id] espelhando 1:1 o
+ * legacy js/b2b/ui/b2b-detail.ui.js + css/b2b.css (b2b-detail-*,
+ * b2b-perf-*, b2b-kv, b2b-quote, b2b-slogans, b2b-next-step).
+ *
+ * Tokens: usa --b2b-* canonicos definidos em globals.css. NUNCA
+ * usar Tailwind utilities pra cores/espacamento aqui · prefira
+ * estas classes pra manter paridade com b2b-partners.html.
+ */
+
+/* ─── Header detail ────────────────────────────────────────── */
+.b2b-detail-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-detail-hdr-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.b2b-detail-name {
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1.05;
+  color: var(--b2b-ivory);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+.b2b-detail-name em {
+  font-style: italic;
+  color: var(--b2b-champagne);
+  font-weight: 400;
+}
+.b2b-detail-sub {
+  font-size: 11.5px;
+  color: var(--b2b-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+.b2b-detail-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.b2b-detail-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ─── Pills semanticos (health + tier + status) ─────────────── */
+.b2b-pill-health[data-health="green"]   { background: rgba(16,185,129,0.15); color: #10B981 }
+.b2b-pill-health[data-health="yellow"]  { background: rgba(245,158,11,0.18); color: #F59E0B }
+.b2b-pill-health[data-health="red"]     { background: rgba(217,122,122,0.18); color: var(--b2b-red) }
+.b2b-pill-health[data-health="unknown"] { background: var(--b2b-bg-3); color: var(--b2b-text-muted) }
+
+.b2b-pill-tier-1 { background: rgba(201,169,110,0.28); color: var(--b2b-champagne-light); font-weight: 600; }
+.b2b-pill-tier-2 { background: rgba(181,168,148,0.18); color: var(--b2b-text-dim); font-weight: 600; }
+.b2b-pill-tier-3 { background: var(--b2b-bg-3); color: var(--b2b-text-dim); font-weight: 500; }
+
+.b2b-pill-status[data-status="active"]    { background: rgba(16,185,129,0.15); color: #10B981 }
+.b2b-pill-status[data-status="paused"]    { background: rgba(245,158,11,0.18); color: #F59E0B }
+.b2b-pill-status[data-status="prospect"]  { background: rgba(255,255,255,0.04); color: var(--b2b-text-dim) }
+.b2b-pill-status[data-status="dna_check"] { background: rgba(201,169,110,0.18); color: var(--b2b-champagne) }
+.b2b-pill-status[data-status="contract"]  { background: rgba(138,158,136,0.18); color: var(--b2b-sage) }
+.b2b-pill-status[data-status="review"]    { background: rgba(245,158,11,0.12); color: var(--b2b-amber) }
+.b2b-pill-status[data-status="closed"]    { background: rgba(217,122,122,0.15); color: var(--b2b-red) }
+
+/* ─── Tab bar (sub-tabs internas do detail) ─────────────────── */
+.b2b-tab-bar {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 18px;
+  border-bottom: 1px solid var(--b2b-border);
+  flex-wrap: wrap;
+}
+.b2b-tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 10px 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--b2b-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 150ms, border-color 150ms;
+  font-family: inherit;
+  text-decoration: none;
+}
+.b2b-tab-link:hover { color: var(--b2b-text-dim); }
+.b2b-tab-link.is-active {
+  color: var(--b2b-champagne);
+  border-bottom-color: var(--b2b-champagne);
+}
+
+/* ─── Card luxury (titulo + corpo) usado em sub-secoes ──────── */
+.b2b-card {
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 8px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.b2b-card-gold {
+  background: rgba(201, 169, 110, 0.04);
+  border-color: rgba(201, 169, 110, 0.22);
+}
+.b2b-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  color: var(--b2b-champagne);
+  margin: 0;
+}
+.b2b-card-sub {
+  font-size: 11.5px;
+  color: var(--b2b-text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ─── Section title (h-rule estilo legado) ──────────────────── */
+.b2b-sec-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--b2b-champagne);
+  font-weight: 600;
+  margin: 16px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--b2b-border);
+}
+
+/* ─── KV pair (label/value linha) ───────────────────────────── */
+.b2b-kv {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  font-size: 12.5px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--b2b-border);
+}
+.b2b-kv:last-child { border-bottom: none; }
+.b2b-kv-lbl { color: var(--b2b-text-muted); font-weight: 500; }
+.b2b-kv-val { color: var(--b2b-ivory); }
+.b2b-kv-val.is-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* ─── Detail cols (2-up) ────────────────────────────────────── */
+.b2b-detail-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 880px) {
+  .b2b-detail-cols { grid-template-columns: 1fr; }
+}
+
+/* ─── Slogans (italics gold luxury) ─────────────────────────── */
+.b2b-slogans { list-style: none; padding: 0; margin: 0 0 12px; }
+.b2b-slogans li {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 14.5px;
+  color: var(--b2b-champagne-light);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-slogans li:last-child { border-bottom: none; }
+
+/* ─── Quote block (narrative) ───────────────────────────────── */
+.b2b-quote {
+  margin: 14px 0;
+  padding: 14px 18px;
+  background: var(--b2b-bg-2);
+  border-left: 2px solid var(--b2b-champagne);
+  border-radius: 0 6px 6px 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--b2b-champagne-light);
+  line-height: 1.55;
+}
+.b2b-quote cite {
+  display: block;
+  font-size: 11px;
+  font-style: normal;
+  margin-top: 8px;
+  color: var(--b2b-text-muted);
+  letter-spacing: 0.4px;
+}
+
+/* ─── Next step hint (banner ações) ─────────────────────────── */
+.b2b-next-step {
+  background: linear-gradient(135deg, rgba(201,169,110,0.10), rgba(201,169,110,0.04));
+  border: 1px solid rgba(201,169,110,0.28);
+  border-left: 3px solid var(--b2b-champagne);
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.b2b-next-step-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--b2b-champagne);
+}
+.b2b-next-step-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--b2b-ivory);
+  line-height: 1.2;
+}
+.b2b-next-step-reason {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--b2b-text-dim);
+}
+.b2b-next-step-action {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--b2b-ivory);
+  font-weight: 500;
+}
+
+/* ─── Performance host + meta ───────────────────────────────── */
+.b2b-perf-host { display: flex; flex-direction: column; gap: 14px; }
+.b2b-perf-meta {
+  font-size: 11.5px;
+  color: var(--b2b-text-muted);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 6px 0 14px;
+  border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-perf-meta span:not(:last-child)::after {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  background: var(--b2b-border-strong);
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-left: 14px;
+}
+
+/* ─── KPI grid (perf cards) ─────────────────────────────────── */
+.b2b-perf-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.b2b-perf-kpi {
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.b2b-perf-kpi-val {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--b2b-champagne);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.b2b-perf-kpi-pos .b2b-perf-kpi-val { color: #10B981; }
+.b2b-perf-kpi-neg .b2b-perf-kpi-val { color: #EF4444; }
+.b2b-perf-kpi-lbl {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--b2b-text-muted);
+  font-weight: 600;
+}
+.b2b-perf-kpi-sub {
+  font-size: 11px;
+  color: var(--b2b-text-dim);
+  line-height: 1.4;
+}
+
+/* ─── Section perf (card + header) ──────────────────────────── */
+.b2b-perf-section {
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 8px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.b2b-perf-section-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.b2b-perf-section h3 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--b2b-ivory);
+  letter-spacing: 0.2px;
+}
+.b2b-perf-sub {
+  font-size: 11px;
+  color: var(--b2b-text-muted);
+  letter-spacing: 0.3px;
+}
+.b2b-perf-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 720px) { .b2b-perf-grid-2 { grid-template-columns: 1fr; } }
+
+/* ─── Churn risk (badge + bar + signals) ────────────────────── */
+.b2b-perf-churn-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.b2b-perf-churn-badge[data-level="low"]      { background: rgba(16,185,129,0.18); color: #10B981 }
+.b2b-perf-churn-badge[data-level="medium"]   { background: rgba(245,158,11,0.18); color: #F59E0B }
+.b2b-perf-churn-badge[data-level="high"]     { background: rgba(249,115,22,0.18); color: #F97316 }
+.b2b-perf-churn-badge[data-level="critical"] { background: rgba(239,68,68,0.18);  color: #EF4444 }
+
+.b2b-perf-churn-bar {
+  height: 8px;
+  background: var(--b2b-bg-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.b2b-perf-churn-fill {
+  height: 100%;
+  width: calc(var(--pct, 0) * 1%);
+  transition: width 400ms ease;
+  background: var(--b2b-text-muted);
+}
+.b2b-perf-churn-fill[data-level="low"]      { background: #10B981 }
+.b2b-perf-churn-fill[data-level="medium"]   { background: #F59E0B }
+.b2b-perf-churn-fill[data-level="high"]     { background: #F97316 }
+.b2b-perf-churn-fill[data-level="critical"] { background: #EF4444 }
+
+.b2b-perf-signals {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--b2b-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: disc;
+}
+.b2b-perf-signals-empty {
+  font-size: 12.5px;
+  color: var(--b2b-sage);
+  font-style: italic;
+}
+
+/* ─── Funnel de vouchers ────────────────────────────────────── */
+.b2b-perf-funnel { display: flex; flex-direction: column; gap: 8px; }
+.b2b-perf-funnel-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 44px;
+  gap: 12px;
+  align-items: center;
+}
+.b2b-perf-funnel-lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--b2b-text-muted);
+  font-weight: 600;
+}
+.b2b-perf-funnel-bar {
+  height: 16px;
+  background: var(--b2b-bg-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.b2b-perf-funnel-fill {
+  height: 100%;
+  background: var(--b2b-champagne);
+  transition: width 400ms ease;
+}
+.b2b-perf-funnel-num {
+  text-align: right;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--b2b-ivory);
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.b2b-perf-footnote {
+  font-size: 11px;
+  color: var(--b2b-text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ─── NPS hero ──────────────────────────────────────────────── */
+.b2b-perf-nps-hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.b2b-perf-nps-big {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 56px;
+  font-weight: 500;
+  color: var(--b2b-champagne);
+  line-height: 1;
+}
+.b2b-perf-nps-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--b2b-text-dim);
+}
+.b2b-perf-nps-breakdown strong { font-weight: 600; }
+
+/* ─── Health timeline ───────────────────────────────────────── */
+.b2b-perf-health-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--b2b-text-dim);
+}
+.b2b-perf-health-evt {
+  display: grid;
+  grid-template-columns: 14px 96px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.b2b-perf-health-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--b2b-text-muted);
+}
+.b2b-perf-health-dot[data-health="green"]   { background: #10B981 }
+.b2b-perf-health-dot[data-health="yellow"]  { background: #F59E0B }
+.b2b-perf-health-dot[data-health="red"]     { background: #EF4444 }
+.b2b-perf-health-date {
+  color: var(--b2b-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* ─── Velocity ──────────────────────────────────────────────── */
+.b2b-perf-velocity {
+  text-align: center;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.b2b-perf-velocity-big {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 42px;
+  font-weight: 500;
+  color: var(--b2b-champagne);
+  line-height: 1;
+}
+.b2b-perf-velocity-big span {
+  font-size: 14px;
+  color: var(--b2b-text-muted);
+  margin-left: 6px;
+}
+.b2b-perf-velocity-sub {
+  font-size: 12px;
+  color: var(--b2b-text-dim);
+  margin: 4px 0 4px;
+}
+.b2b-perf-velocity-delta {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.b2b-perf-velocity-delta.up   { color: #10B981 }
+.b2b-perf-velocity-delta.down { color: #EF4444 }
+.b2b-perf-velocity-delta.flat { color: var(--b2b-text-muted) }
+
+/* ─── Action card (acoes 1-clique no GrowthClient) ──────────── */
+.b2b-action-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 10px;
+  color: var(--b2b-ivory);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms, background 200ms, transform 200ms;
+  width: 100%;
+  font-family: inherit;
+  text-decoration: none;
+}
+.b2b-action-card:hover:not(:disabled) {
+  border-color: var(--b2b-border-strong);
+  background: var(--b2b-bg-2);
+  transform: translateY(-1px);
+}
+.b2b-action-card:disabled { opacity: 0.55; cursor: not-allowed; }
+.b2b-action-card-primary {
+  background: rgba(201, 169, 110, 0.06);
+  border-color: rgba(201, 169, 110, 0.28);
+}
+.b2b-action-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--b2b-ivory);
+  letter-spacing: 0.2px;
+}
+.b2b-action-card-sub {
+  font-size: 11px;
+  color: var(--b2b-text-muted);
+  line-height: 1.45;
+}
+
+/* ─── Insight banner (sugestoes da action section) ──────────── */
+.b2b-insight {
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--b2b-ivory);
+  border: 1px solid var(--b2b-border);
+  background: var(--b2b-bg-1);
+}
+.b2b-insight[data-tone="warn"] {
+  background: rgba(217,122,122,0.06);
+  border-color: rgba(217,122,122,0.30);
+}
+.b2b-insight[data-tone="ok"] {
+  background: rgba(138,158,136,0.07);
+  border-color: rgba(138,158,136,0.30);
+}
+.b2b-insight[data-tone="opportunity"] {
+  background: rgba(201,169,110,0.05);
+  border-color: rgba(201,169,110,0.25);
+}
+.b2b-insight-icon { font-size: 16px; flex-shrink: 0; }
+
+/* ─── Pitch banner (CTA do GrowthClient) ────────────────────── */
+.b2b-pitch-banner {
+  background: linear-gradient(135deg, rgba(201,169,110,0.14) 0%, rgba(201,169,110,0.04) 100%);
+  border: 1px solid rgba(201,169,110,0.28);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.b2b-pitch-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.b2b-pitch-banner-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: radial-gradient(circle, rgba(201,169,110,0.30) 0%, rgba(201,169,110,0.05) 100%);
+}
+.b2b-pitch-banner-eyebrow {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--b2b-champagne);
+  font-weight: 700;
+}
+.b2b-pitch-banner-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--b2b-ivory);
+  margin-top: 2px;
+  line-height: 1.15;
+}
+.b2b-pitch-banner-sub {
+  font-size: 11.5px;
+  color: var(--b2b-text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ─── Diagnostic cards (4-up) ───────────────────────────────── */
+.b2b-diag-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+@media (max-width: 720px) { .b2b-diag-grid { grid-template-columns: 1fr; } }
+
+.b2b-diag-card {
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 8px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.b2b-diag-card-highlight {
+  border-color: rgba(201, 169, 110, 0.28);
+  background: linear-gradient(135deg, rgba(201,169,110,0.06) 0%, var(--b2b-bg-1) 60%);
+}
+.b2b-diag-card-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.b2b-diag-card-emoji { font-size: 14px; }
+.b2b-diag-card-title {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--b2b-champagne);
+  font-weight: 700;
+}
+.b2b-diag-big {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.b2b-diag-bar {
+  height: 6px;
+  background: var(--b2b-bg-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.b2b-diag-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 600ms ease;
+}
+.b2b-diag-tier-label { font-size: 12px; font-weight: 500; }
+.b2b-diag-foot {
+  font-size: 10.5px;
+  color: var(--b2b-text-muted);
+  line-height: 1.4;
+}
+.b2b-diag-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.b2b-diag-mini-val {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--b2b-ivory);
+}
+.b2b-diag-mini-lbl {
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--b2b-text-muted);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* ─── Status pill colors (vouchers) ─────────────────────────── */
+.b2b-vch-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--b2b-bg-1);
+  border: 1px solid var(--b2b-border);
+  border-radius: 8px;
+  transition: border-color 150ms, background 150ms;
+}
+.b2b-vch-row:hover { border-color: var(--b2b-border-strong); background: var(--b2b-bg-2); }
+.b2b-vch-token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--b2b-champagne);
+  letter-spacing: 0.4px;
+}
+.b2b-vch-name {
+  font-size: 12.5px;
+  color: var(--b2b-ivory);
+}
+.b2b-vch-meta {
+  font-size: 10.5px;
+  color: var(--b2b-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.b2b-vch-status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.b2b-vch-status[data-status="issued"]    { background: rgba(255,255,255,0.06); color: var(--b2b-text-dim); }
+.b2b-vch-status[data-status="delivered"] { background: rgba(59,130,246,0.18);  color: #93C5FD; }
+.b2b-vch-status[data-status="opened"]    { background: rgba(245,158,11,0.18);  color: #F59E0B; }
+.b2b-vch-status[data-status="redeemed"]  { background: rgba(16,185,129,0.18);  color: #10B981; }
+.b2b-vch-status[data-status="expired"]   { background: rgba(255,255,255,0.05); color: var(--b2b-text-muted); }
+.b2b-vch-status[data-status="cancelled"] { background: rgba(217,122,122,0.15); color: var(--b2b-red); }
+
+/* ─── Feedback banner ───────────────────────────────────────── */
+.b2b-feedback {
+  font-size: 11.5px;
+  color: var(--b2b-champagne);
+  background: rgba(201,169,110,0.08);
+  border: 1px solid rgba(201,169,110,0.22);
+  border-radius: 6px;
+  padding: 10px 14px;
+  letter-spacing: 0.2px;
+}
+
+/* ─── Voltar (back link luxury) ─────────────────────────────── */
+.b2b-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  color: var(--b2b-text-muted);
+  transition: color 150ms;
+  text-decoration: none;
+}
+.b2b-back-link:hover { color: var(--b2b-champagne); }

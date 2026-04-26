@@ -5,6 +5,9 @@
  *   ImpactScore (hero · score 0-100 + barra) │ Conversion Lifetime
  *   ────────────────────────────────────────  │ ────────────────────
  *   Trend (90d direção + history dots)        │ Cost (vouchers brl + cap)
+ *
+ * Visual luxury · classes b2b-diag-* · Cormorant 44px nos numbers,
+ * eyebrow champagne, bars com transition 600ms.
  */
 
 import type { GrowthPanel } from '@clinicai/repositories'
@@ -34,17 +37,13 @@ export function DiagnosticSection({ data }: { data: GrowthPanel }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span
-          className="text-[10px] uppercase tracking-[2px] font-bold text-[#C9A96E]"
-        >
-          🎯 Diagnóstico
-        </span>
-        <span className="text-[11px] text-[#9CA3AF]">
+        <span className="eyebrow">🎯 Diagnóstico</span>
+        <span className="text-[11.5px] text-[var(--b2b-text-muted)]">
           Onde estamos perdendo conversão?
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="b2b-diag-grid">
         <ImpactCard data={data} />
         <ConversionCard data={data} />
         <TrendCard data={data} />
@@ -62,29 +61,25 @@ function ImpactCard({ data }: { data: GrowthPanel }) {
 
   return (
     <Card title="Score de Impacto" emoji="⚡" highlight>
-      <div className="flex items-baseline gap-3 mt-2">
-        <div
-          className="font-mono leading-none"
-          style={{ fontSize: 48, fontWeight: 700, color }}
-        >
+      <div className="flex items-baseline gap-3">
+        <div className="b2b-diag-big" style={{ color }}>
           {score}
         </div>
-        <div className="text-[11px] text-[#9CA3AF]">/ 100</div>
+        <div className="text-[11px] text-[var(--b2b-text-muted)]">/ 100</div>
       </div>
-      <div className="mt-3 h-2 bg-white/5 rounded-full overflow-hidden">
+      <div className="b2b-diag-bar">
         <div
-          className="h-full rounded-full"
+          className="b2b-diag-bar-fill"
           style={{
             width: `${score}%`,
             background: `linear-gradient(90deg, ${color}88, ${color})`,
-            transition: 'width 600ms ease',
           }}
         />
       </div>
-      <div className="text-[12px] mt-2" style={{ color }}>
+      <div className="b2b-diag-tier-label" style={{ color }}>
         {tier}
       </div>
-      <div className="text-[10px] text-[#6B7280] mt-1">
+      <div className="b2b-diag-foot">
         Composto de vouchers convertidos + NPS + alcance − custo
       </div>
     </Card>
@@ -98,24 +93,21 @@ function ConversionCard({ data }: { data: GrowthPanel }) {
 
   return (
     <Card title="Conversão (lifetime)" emoji="💰">
-      <div className="flex items-baseline gap-3 mt-2">
-        <div
-          className="font-mono leading-none"
-          style={{ fontSize: 36, fontWeight: 700, color }}
-        >
+      <div className="flex items-baseline gap-3">
+        <div className="b2b-diag-big" style={{ color, fontSize: 36 }}>
           {conv.toFixed(1)}%
         </div>
-        <div className="text-[11px] text-[#9CA3AF]">conversão</div>
+        <div className="text-[11px] text-[var(--b2b-text-muted)]">conversão</div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      <div className="b2b-diag-mini-grid">
         <Mini lbl="Emitidos" val={c.vouchers_total} />
         <Mini lbl="Compareceram" val={c.vouchers_redeemed} />
         <Mini lbl="Pagaram" val={c.vouchers_purchased} color={color} />
       </div>
 
-      <div className="text-[10px] text-[#6B7280] mt-2">
-        Stages: Emitiu → Compareceu → Pagou (recorte total da parceria)
+      <div className="b2b-diag-foot">
+        Stages: Emitiu → Compareceu → Pagou (recorte total)
       </div>
     </Card>
   )
@@ -127,41 +119,38 @@ function TrendCard({ data }: { data: GrowthPanel }) {
 
   return (
     <Card title="Tendência (90d)" emoji="📈">
-      <div className="flex items-baseline gap-3 mt-2">
-        <span
-          className="font-mono leading-none"
-          style={{ fontSize: 36, fontWeight: 700, color: dir.color }}
-        >
+      <div className="flex items-baseline gap-3">
+        <span className="b2b-diag-big" style={{ color: dir.color, fontSize: 38 }}>
           {dir.arrow}
         </span>
         <div>
-          <div className="text-[14px] text-[#F5F0E8]" style={{ color: dir.color }}>
+          <div className="b2b-diag-tier-label" style={{ color: dir.color }}>
             {dir.lbl}
           </div>
-          <div className="text-[11px] text-[#9CA3AF]">
+          <div className="text-[11px] text-[var(--b2b-text-muted)]">
             {t.changes_90d} mudança(s) na janela
           </div>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5">
-        <span className="text-[10px] text-[#6B7280]">de</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-[var(--b2b-text-muted)]">de</span>
         <span
           className="inline-block w-3 h-3 rounded-full"
           style={{ background: HEALTH_COLOR[t.first] || '#6B7280' }}
           title={`início: ${t.first}`}
         />
-        <span className="text-[10px] text-[#6B7280]">→</span>
+        <span className="text-[10px] text-[var(--b2b-text-muted)]">→</span>
         <span
           className="inline-block w-3 h-3 rounded-full"
           style={{ background: HEALTH_COLOR[t.current] || '#6B7280' }}
           title={`atual: ${t.current}`}
         />
-        <span className="text-[10px] text-[#6B7280] ml-1">hoje</span>
+        <span className="text-[10px] text-[var(--b2b-text-muted)] ml-1">hoje</span>
       </div>
 
       {t.history.length > 0 ? (
-        <div className="mt-3 flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
           {t.history
             .slice(0, 12)
             .reverse()
@@ -182,47 +171,47 @@ function TrendCard({ data }: { data: GrowthPanel }) {
 function CostCard({ data }: { data: GrowthPanel }) {
   const c = data.cost
   const overCap = c.over_cap
-  const color = overCap ? '#EF4444' : '#F5F0E8'
+  const color = overCap ? '#EF4444' : 'var(--b2b-ivory)'
   const cap = c.monthly_cap_brl
   const pct = cap && cap > 0 ? Math.min(100, (c.vouchers_brl / cap) * 100) : null
 
   return (
     <Card title="Custo acumulado" emoji="💵">
-      <div className="flex items-baseline gap-3 mt-2">
-        <div
-          className="font-mono leading-none"
-          style={{ fontSize: 32, fontWeight: 700, color }}
-        >
+      <div className="flex items-baseline gap-3 flex-wrap">
+        <div className="b2b-diag-big" style={{ color, fontSize: 32 }}>
           {fmtBrl(c.vouchers_brl)}
         </div>
         {overCap ? (
-          <span className="text-[10px] text-[#EF4444] uppercase tracking-[1px] font-bold">
+          <span
+            className="text-[10px] uppercase tracking-[1.4px] font-bold"
+            style={{ color: '#EF4444' }}
+          >
             ⚠ ACIMA DO CAP
           </span>
         ) : null}
       </div>
 
-      <div className="mt-2 text-[11px] text-[#9CA3AF]">
+      <div className="text-[11px] text-[var(--b2b-text-muted)]">
         {fmtBrl(c.voucher_unit_cost_brl)}/voucher · vouchers comparecidos
       </div>
 
       {pct !== null ? (
         <>
-          <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div className="b2b-diag-bar">
             <div
-              className="h-full rounded-full"
+              className="b2b-diag-bar-fill"
               style={{
                 width: `${pct}%`,
                 background: overCap ? '#EF4444' : pct > 80 ? '#F59E0B' : '#10B981',
               }}
             />
           </div>
-          <div className="text-[10px] text-[#6B7280] mt-1">
+          <div className="b2b-diag-foot">
             {pct.toFixed(0)}% do teto mensal ({fmtBrl(cap || 0)})
           </div>
         </>
       ) : (
-        <div className="text-[10px] text-[#6B7280] mt-2">
+        <div className="b2b-diag-foot">
           Sem teto configurado · veja Configurações → Padrões
         </div>
       )}
@@ -242,17 +231,10 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <div
-      className="rounded-lg border bg-white/[0.02] p-4"
-      style={{
-        borderColor: highlight ? 'rgba(201,169,110,0.25)' : 'rgba(255,255,255,0.1)',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span style={{ fontSize: 14 }}>{emoji}</span>
-        <span className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#C9A96E]">
-          {title}
-        </span>
+    <div className={`b2b-diag-card${highlight ? ' b2b-diag-card-highlight' : ''}`}>
+      <div className="b2b-diag-card-hdr">
+        <span className="b2b-diag-card-emoji">{emoji}</span>
+        <span className="b2b-diag-card-title">{title}</span>
       </div>
       {children}
     </div>
@@ -270,15 +252,10 @@ function Mini({
 }) {
   return (
     <div>
-      <div
-        className="text-xl font-mono leading-none"
-        style={{ color: color || '#F5F0E8', fontWeight: 600 }}
-      >
+      <div className="b2b-diag-mini-val" style={color ? { color } : undefined}>
         {val}
       </div>
-      <div className="text-[10px] uppercase tracking-[1px] text-[#9CA3AF] mt-1">
-        {lbl}
-      </div>
+      <div className="b2b-diag-mini-lbl">{lbl}</div>
     </div>
   )
 }

@@ -1,9 +1,12 @@
 /**
- * Partnership detail · 5 abas (Detalhe / Vouchers / Performance / Comentarios / Health).
+ * Partnership detail · 6 abas (Detalhe / Vouchers / Performance / Crescer / Comentarios / Health).
  *
- * Espelho do `b2b-detail.ui.js` overlay legacy adaptado pra rota dedicada.
- * Detalhe traz status switcher + AccountManager + ficha completa (KV blocks).
- * Tab "ativa" highlightada via search param `?tab=`.
+ * Header luxury espelha 1:1 b2b-detail.ui.js legacy:
+ *   - Eyebrow `pillar · category` em champagne
+ *   - Nome em Cormorant Garamond 32px
+ *   - Pills: Tier N (gold-tinted), health (semantico), status (data-status)
+ *   - Sub linha mono · slug · type
+ *   - Tabs sub-internas com border-bottom champagne (b2b-tab-bar)
  */
 
 import Link from 'next/link'
@@ -35,6 +38,22 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]['key']
 
+const STATUS_LABELS: Record<string, string> = {
+  prospect: 'Prospect',
+  dna_check: 'Avaliar DNA',
+  contract: 'Em contrato',
+  active: 'Ativa',
+  review: 'Em revisão',
+  paused: 'Pausada',
+  closed: 'Encerrada',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  transactional: 'Transacional',
+  occasion: 'Ocasião',
+  institutional: 'Institucional',
+}
+
 export default async function PartnershipDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params
   const sp = await searchParams
@@ -56,30 +75,89 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
       ? await repos.b2bCollab.teamManagers().catch(() => [])
       : []
 
+  const tierClass = partnership.tier ? `b2b-pill-tier-${partnership.tier}` : ''
+
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
-        <Link
-          href="/partnerships"
-          className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF] hover:text-[#C9A96E] transition-colors"
-        >
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+      <div className="max-w-[1080px] mx-auto px-7 py-7 flex flex-col gap-1">
+        <Link href="/partnerships" className="b2b-back-link mb-3">
           <ArrowLeft className="w-3 h-3" />
           Voltar
         </Link>
 
-        {/* Header denso */}
-        <div className="pb-2 border-b border-white/10">
-          <span className="eyebrow text-[#C9A96E]">Semana · Detalhe da parceria</span>
-          <h1 className="font-display text-2xl text-[#F5F0E8] mt-1">
-            {partnership.name}
-          </h1>
-          <p className="text-[11px] text-[#9CA3AF] mt-1 font-mono">
-            {partnership.pillar} · {partnership.type} · slug: {partnership.slug}
-          </p>
-        </div>
+        {/* Header luxury · espelho b2b-detail-hdr legado */}
+        <header className="b2b-detail-hdr">
+          <div className="b2b-detail-hdr-main">
+            <div className="eyebrow">
+              {partnership.pillar}
+              {partnership.category ? ` · ${partnership.category}` : ''}
+            </div>
+            <h1 className="b2b-detail-name">{partnership.name}</h1>
+            <div className="b2b-detail-sub">
+              {TYPE_LABELS[partnership.type] || partnership.type} · slug {partnership.slug}
+            </div>
+            <div className="b2b-detail-meta">
+              {partnership.tier ? (
+                <span className={`b2b-pill ${tierClass}`}>Tier {partnership.tier}</span>
+              ) : null}
+              <span
+                className="b2b-pill b2b-pill-health"
+                data-health={partnership.healthColor}
+              >
+                Saúde · {partnership.healthColor}
+              </span>
+              <span
+                className="b2b-pill b2b-pill-status"
+                data-status={partnership.status}
+              >
+                {STATUS_LABELS[partnership.status] || partnership.status}
+              </span>
+              <span className="b2b-pill b2b-pill-type">
+                {TYPE_LABELS[partnership.type] || partnership.type}
+              </span>
+              {partnership.dnaScore != null ? (
+                <span className="b2b-pill b2b-pill-tier">
+                  DNA {partnership.dnaScore.toFixed(1)}/10
+                </span>
+              ) : null}
+              {partnership.accountManager ? (
+                <span className="b2b-pill" title="Account manager">
+                  @{partnership.accountManager}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="b2b-detail-actions">
+            {canManage ? (
+              <Link
+                href={`/partnerships/${partnership.id}/editar`}
+                className="b2b-btn"
+                title="Wizard 3-step com 40+ campos"
+              >
+                Editar
+              </Link>
+            ) : null}
+            <Link
+              href={`/partnerships/${partnership.id}/dossie`}
+              target="_blank"
+              rel="noopener"
+              className="b2b-btn"
+              title="Abre 6 slides imprimíveis"
+            >
+              Dossiê
+            </Link>
+            <Link
+              href={`/partnerships/${partnership.id}?tab=crescer`}
+              className="b2b-btn b2b-btn-primary"
+              title="Pitch Mode + diagnóstico + ações"
+            >
+              Crescer
+            </Link>
+          </div>
+        </header>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-white/10 -mt-1">
+        {/* Tabs sub-internas (b2b-tab-bar mirror b2b-app-tabs legado) */}
+        <nav className="b2b-tab-bar">
           {TABS.map((t) => {
             const Icon = t.icon
             const isActive = activeTab === t.key
@@ -87,18 +165,14 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
               <Link
                 key={t.key}
                 href={`/partnerships/${id}?tab=${t.key}`}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-[1px] border-b-2 transition-colors ${
-                  isActive
-                    ? 'text-[#C9A96E] border-[#C9A96E]'
-                    : 'text-[#9CA3AF] border-transparent hover:text-[#F5F0E8]'
-                }`}
+                className={`b2b-tab-link ${isActive ? 'is-active' : ''}`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 {t.label}
               </Link>
             )
           })}
-        </div>
+        </nav>
 
         {/* Tab content */}
         {activeTab === 'detail' && (

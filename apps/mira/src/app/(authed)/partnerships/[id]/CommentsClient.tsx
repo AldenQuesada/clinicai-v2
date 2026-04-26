@@ -5,6 +5,8 @@
  *
  * Lista de cards + textarea + botao Postar. Mention highlighter @nome.
  * Ctrl/Cmd+Enter posta. Soft-delete via owner/admin.
+ *
+ * Visual luxury · b2b-card pra rows + b2b-card-gold pro form.
  */
 
 import { useRouter } from 'next/navigation'
@@ -48,7 +50,7 @@ function renderMentions(text: string): React.ReactNode[] {
     parts.push(
       <span
         key={`m-${match.index}`}
-        className="text-[#C9A96E] font-medium"
+        style={{ color: 'var(--b2b-champagne)', fontWeight: 500 }}
         data-mention={match[1].toLowerCase()}
       >
         @{match[1]}
@@ -109,25 +111,21 @@ export function CommentsClient({
     <div className="flex flex-col gap-3">
       {/* Lista */}
       {initialItems.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-[12.5px] text-[#9CA3AF]">
+        <div className="b2b-empty">
           Nenhum comentário ainda. Seja o primeiro a registrar contexto.
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {initialItems.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-3"
-            >
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="font-bold text-[#F5F0E8]">
-                    {c.author_name || (
-                      <em className="opacity-60">sem autor</em>
-                    )}
+            <div key={c.id} className="b2b-card">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[11.5px]">
+                  <span className="font-semibold" style={{ color: 'var(--b2b-ivory)' }}>
+                    {c.author_name || <em style={{ opacity: 0.6 }}>sem autor</em>}
                   </span>
                   <span
-                    className="text-[10px] text-[#9CA3AF] font-mono"
+                    className="text-[10px] font-mono"
+                    style={{ color: 'var(--b2b-text-muted)' }}
                     title={fmtAbs(c.created_at)}
                   >
                     {fmtRelative(c.created_at)}
@@ -136,7 +134,8 @@ export function CommentsClient({
                 {canDelete ? (
                   <button
                     type="button"
-                    className="text-[#9CA3AF] hover:text-[#FCA5A5] text-[14px] leading-none"
+                    className="text-[14px] leading-none"
+                    style={{ color: 'var(--b2b-text-muted)' }}
                     onClick={() => onDelete(c.id)}
                     disabled={pending}
                     title="Remover"
@@ -145,7 +144,10 @@ export function CommentsClient({
                   </button>
                 ) : null}
               </div>
-              <div className="text-[13px] text-[#F5F0E8] whitespace-pre-wrap">
+              <div
+                className="text-[13px] whitespace-pre-wrap"
+                style={{ color: 'var(--b2b-ivory)', lineHeight: 1.55 }}
+              >
                 {c.body.split('\n').map((line, i, arr) => (
                   <span key={i}>
                     {renderMentions(line)}
@@ -159,7 +161,7 @@ export function CommentsClient({
       )}
 
       {/* Form */}
-      <div className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-2">
+      <div className="b2b-card b2b-card-gold">
         <textarea
           rows={3}
           value={body}
@@ -171,16 +173,17 @@ export function CommentsClient({
             }
           }}
           placeholder="Escreva uma nota interna (contexto, ligação, decisão)…"
-          className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 resize-y"
+          className="b2b-input"
+          style={{ resize: 'vertical', minHeight: 64 }}
           disabled={pending}
         />
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <span className="text-[10px] uppercase tracking-[1.4px] text-[var(--b2b-text-muted)]">
             Ctrl/Cmd+Enter para enviar
           </span>
           <button
             type="button"
-            className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-50"
+            className="b2b-btn b2b-btn-primary"
             onClick={onPost}
             disabled={pending}
           >
@@ -189,11 +192,7 @@ export function CommentsClient({
         </div>
       </div>
 
-      {feedback ? (
-        <div className="text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 border border-[#C9A96E]/20 rounded px-3 py-2">
-          {feedback}
-        </div>
-      ) : null}
+      {feedback ? <div className="b2b-feedback">{feedback}</div> : null}
     </div>
   )
 }

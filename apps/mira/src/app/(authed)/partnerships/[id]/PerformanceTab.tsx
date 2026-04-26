@@ -2,6 +2,10 @@
  * Partnership detail · tab "Performance" · espelho 1:1 de
  * `b2b-detail-performance.ui.js`. Dashboard ROI + churn + vouchers funnel
  * + NPS + health trend + velocity em 1 tela.
+ *
+ * Visual luxury usando classes b2b-perf-* canonicas (Cormorant 30-56px,
+ * cards b2b-perf-section, KPIs grid auto-fit, churn bar com data-level,
+ * funnel grid 110/1fr/44, health timeline com dots).
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -34,24 +38,31 @@ function fmtDate(iso: string | null | undefined): string {
   }
 }
 
+const LEVEL_LABELS: Record<string, string> = {
+  low: 'Baixo',
+  medium: 'Médio',
+  high: 'Alto',
+  critical: 'Crítico',
+}
+
 export async function PerformanceTab({ partnership }: { partnership: B2BPartnershipDTO }) {
   const { repos } = await loadMiraServerContext()
   const data = await repos.b2bPerformance.full(partnership.id).catch(() => null)
 
   if (!data || !data.ok) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-xs text-[#9CA3AF]">
+      <div className="b2b-empty">
         Sem dados de performance ainda. {data?.error || ''}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="b2b-perf-host">
       <Meta data={data} />
       <KPIs data={data} />
       <ChurnRisk data={data} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="b2b-perf-grid-2">
         <NPSSection data={data} />
         <VelocitySection data={data} />
       </div>
@@ -73,8 +84,10 @@ function Meta({ data }: { data: PerformanceFull }) {
     bits.push(`último voucher há ${h.days_since_last_voucher}d`)
   }
   return (
-    <div className="text-[11px] text-[#9CA3AF] flex flex-wrap gap-x-3 gap-y-1">
-      {bits.join(' · ')}
+    <div className="b2b-perf-meta">
+      {bits.map((b, i) => (
+        <span key={i}>{b}</span>
+      ))}
     </div>
   )
 }
@@ -119,25 +132,17 @@ function KPIs({ data }: { data: PerformanceFull }) {
     },
   ] as const
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+    <div className="b2b-perf-kpis">
       {cards.map((c) => {
-        const color =
-          c.tone === 'pos' ? '#10B981' : c.tone === 'neg' ? '#EF4444' : '#F5F0E8'
+        const cls =
+          'b2b-perf-kpi' +
+          (c.tone === 'pos' ? ' b2b-perf-kpi-pos' : '') +
+          (c.tone === 'neg' ? ' b2b-perf-kpi-neg' : '')
         return (
-          <div
-            key={c.lbl}
-            className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-3"
-          >
-            <div className="text-[10px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-              {c.lbl}
-            </div>
-            <div
-              className="text-2xl font-semibold font-mono leading-none mt-1.5"
-              style={{ color }}
-            >
-              {c.val}
-            </div>
-            <div className="text-[11px] text-[#6B7280] mt-1.5">{c.sub}</div>
+          <div key={c.lbl} className={cls}>
+            <div className="b2b-perf-kpi-val">{c.val}</div>
+            <div className="b2b-perf-kpi-lbl">{c.lbl}</div>
+            <div className="b2b-perf-kpi-sub">{c.sub}</div>
           </div>
         )
       })}
@@ -145,52 +150,34 @@ function KPIs({ data }: { data: PerformanceFull }) {
   )
 }
 
-const LEVEL_LABELS: Record<string, string> = {
-  low: 'Baixo',
-  medium: 'Médio',
-  high: 'Alto',
-  critical: 'Crítico',
-}
-
-const LEVEL_COLOR: Record<string, string> = {
-  low: '#10B981',
-  medium: '#F59E0B',
-  high: '#F97316',
-  critical: '#EF4444',
-}
-
 function ChurnRisk({ data }: { data: PerformanceFull }) {
   const cr = data.churn_risk
   const signals = Array.isArray(cr.signals) ? cr.signals : []
-  const color = LEVEL_COLOR[cr.level] || '#9CA3AF'
   return (
-    <Section
-      title="Churn risk"
-      right={
-        <span
-          className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[1px]"
-          style={{ background: color + '26', color }}
-        >
+    <section className="b2b-perf-section">
+      <div className="b2b-perf-section-hdr">
+        <h3>Churn risk</h3>
+        <span className="b2b-perf-churn-badge" data-level={cr.level}>
           {cr.score}/100 · {LEVEL_LABELS[cr.level] || cr.level}
         </span>
-      }
-    >
-      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-2">
+      </div>
+      <div className="b2b-perf-churn-bar">
         <div
-          className="h-full rounded-full transition-[width]"
-          style={{ width: `${cr.score || 0}%`, background: color }}
+          className="b2b-perf-churn-fill"
+          data-level={cr.level}
+          style={{ ['--pct' as string]: cr.score || 0 } as React.CSSProperties}
         />
       </div>
       {signals.length ? (
-        <ul className="mt-3 flex flex-col gap-1.5 text-[12px] text-[#F5F0E8]">
+        <ul className="b2b-perf-signals">
           {signals.map((s, i) => (
-            <li key={i}>• {s}</li>
+            <li key={i}>{s}</li>
           ))}
         </ul>
       ) : (
-        <div className="mt-3 text-[12px] text-[#10B981]">Sem sinais de risco. ✓</div>
+        <div className="b2b-perf-signals-empty">Sem sinais de risco. ✓</div>
       )}
-    </Section>
+    </section>
   )
 }
 
@@ -198,11 +185,14 @@ function VouchersFunnel({ data }: { data: PerformanceFull }) {
   const v = data.vouchers
   if (!v.total) {
     return (
-      <Section title="Funnel de vouchers">
-        <div className="text-[12px] text-[#9CA3AF] py-2">
+      <section className="b2b-perf-section">
+        <div className="b2b-perf-section-hdr">
+          <h3>Funnel de vouchers</h3>
+        </div>
+        <div className="b2b-empty" style={{ padding: 18 }}>
           Ainda sem vouchers emitidos.
         </div>
-      </Section>
+      </section>
     )
   }
   const stages = [
@@ -216,38 +206,37 @@ function VouchersFunnel({ data }: { data: PerformanceFull }) {
     return Math.max(m, Number(n) || 0)
   }, 1)
   return (
-    <Section
-      title="Funnel de vouchers"
-      right={
-        <span className="text-[11px] text-[#9CA3AF]">
+    <section className="b2b-perf-section">
+      <div className="b2b-perf-section-hdr">
+        <h3>Funnel de vouchers</h3>
+        <span className="b2b-perf-sub">
           {v.redemption_rate_pct || 0}% redemption · {v.total} total
         </span>
-      }
-    >
-      <div className="flex flex-col gap-2 mt-2">
+      </div>
+      <div className="b2b-perf-funnel">
         {stages.map((s) => {
           const n = Number((v as unknown as Record<string, number | string | null>)[s.key]) || 0
           const pct = max > 0 ? (n / max) * 100 : 0
           return (
-            <div key={s.key} className="grid grid-cols-[100px_1fr_50px] items-center gap-3">
-              <div className="text-[11px] text-[#9CA3AF]">{s.label}</div>
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+            <div key={s.key} className="b2b-perf-funnel-row">
+              <div className="b2b-perf-funnel-lbl">{s.label}</div>
+              <div className="b2b-perf-funnel-bar">
                 <div
-                  className="h-full rounded-full bg-[#C9A96E]"
+                  className="b2b-perf-funnel-fill"
                   style={{ width: `${pct.toFixed(1)}%` }}
                 />
               </div>
-              <div className="text-[12px] text-[#F5F0E8] font-mono text-right">{n}</div>
+              <div className="b2b-perf-funnel-num">{n}</div>
             </div>
           )
         })}
       </div>
       {v.last_issued_at ? (
-        <div className="text-[10px] text-[#6B7280] mt-2">
+        <div className="b2b-perf-footnote">
           Último voucher emitido: {fmtDate(v.last_issued_at)}
         </div>
       ) : null}
-    </Section>
+    </section>
   )
 }
 
@@ -256,32 +245,27 @@ function NPSSection({ data }: { data: PerformanceFull }) {
   const responses = Number(n.responses_count || n.responses || 0)
   if (!responses) {
     return (
-      <Section title="NPS">
-        <div className="text-[12px] text-[#9CA3AF] py-2">
-          Sem respostas de NPS ainda.
+      <section className="b2b-perf-section">
+        <div className="b2b-perf-section-hdr">
+          <h3>NPS</h3>
         </div>
-      </Section>
+        <div className="b2b-perf-signals-empty">Sem respostas de NPS ainda.</div>
+      </section>
     )
   }
   const nps = n.nps_score != null ? Number(n.nps_score).toFixed(0) : '—'
   return (
-    <Section
-      title="NPS"
-      right={
-        <span className="text-[11px] text-[#9CA3AF]">
+    <section className="b2b-perf-section">
+      <div className="b2b-perf-section-hdr">
+        <h3>NPS</h3>
+        <span className="b2b-perf-sub">
           {responses} respostas · média{' '}
           {n.avg_score != null ? Number(n.avg_score).toFixed(1) + '/10' : '—'}
         </span>
-      }
-    >
-      <div className="flex items-center gap-4 mt-2">
-        <div
-          className="text-5xl text-[#C9A96E] leading-none"
-          style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}
-        >
-          {nps}
-        </div>
-        <div className="flex flex-col gap-0.5 text-[11px]">
+      </div>
+      <div className="b2b-perf-nps-hero">
+        <div className="b2b-perf-nps-big">{nps}</div>
+        <div className="b2b-perf-nps-breakdown">
           <div>
             <strong style={{ color: '#10B981' }}>{n.promoters || 0}</strong> promotores
           </div>
@@ -291,7 +275,7 @@ function NPSSection({ data }: { data: PerformanceFull }) {
           </div>
         </div>
       </div>
-    </Section>
+    </section>
   )
 }
 
@@ -299,42 +283,40 @@ function VelocitySection({ data }: { data: PerformanceFull }) {
   const v = data.velocity
   if (v.insufficient_data || !v.n) {
     return (
-      <Section title="Velocity">
-        <div className="text-[12px] text-[#9CA3AF] py-2">
+      <section className="b2b-perf-section">
+        <div className="b2b-perf-section-hdr">
+          <h3>Velocity</h3>
+        </div>
+        <div className="b2b-perf-signals-empty">
           Dados insuficientes pra calcular velocity.
         </div>
-      </Section>
+      </section>
     )
   }
   const delta = Number(v.delta_pct || 0)
   const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '·'
-  const color = delta > 0 ? '#EF4444' : delta < 0 ? '#10B981' : '#9CA3AF'
+  const cls = delta > 0 ? 'down' : delta < 0 ? 'up' : 'flat'
   return (
-    <Section title="Velocity · dias até primeira voucher">
-      <div className="flex flex-col gap-1 mt-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold text-[#F5F0E8] font-mono">
-            {Number(v.avg_days || 0).toFixed(1)}
-          </span>
-          <span className="text-[11px] text-[#9CA3AF]">dias</span>
+    <section className="b2b-perf-section">
+      <div className="b2b-perf-section-hdr">
+        <h3>Velocity · 1ª voucher</h3>
+      </div>
+      <div className="b2b-perf-velocity">
+        <div className="b2b-perf-velocity-big">
+          {Number(v.avg_days || 0).toFixed(1)}
+          <span>dias</span>
         </div>
-        <div className="text-[11px] text-[#9CA3AF]">
-          Range {Number(v.min_days || 0).toFixed(1)} – {Number(v.max_days || 0).toFixed(1)}{' '}
-          · {v.n} amostras
+        <div className="b2b-perf-velocity-sub">
+          Range {Number(v.min_days || 0).toFixed(1)} – {Number(v.max_days || 0).toFixed(1)}
+          {' · '}
+          {v.n} amostras
         </div>
-        <div className="text-[11px] mt-1" style={{ color }}>
+        <div className={`b2b-perf-velocity-delta ${cls}`}>
           {arrow} {Math.abs(delta).toFixed(1)}% vs período anterior
         </div>
       </div>
-    </Section>
+    </section>
   )
-}
-
-const HEALTH_DOT: Record<string, string> = {
-  green: '#10B981',
-  yellow: '#F59E0B',
-  red: '#EF4444',
-  unknown: '#6B7280',
 }
 
 function HealthTrend({ data }: { data: PerformanceFull }) {
@@ -342,60 +324,30 @@ function HealthTrend({ data }: { data: PerformanceFull }) {
   const t = h?.trend || { trend: null, changes: 0, history: [] }
   const hist = Array.isArray(t.history) ? t.history : []
   return (
-    <Section
-      title="Saúde · últimos 90 dias"
-      right={
-        <span className="text-[11px] text-[#9CA3AF]">
+    <section className="b2b-perf-section">
+      <div className="b2b-perf-section-hdr">
+        <h3>Saúde · últimos 90 dias</h3>
+        <span className="b2b-perf-sub">
           Atual: {h.current || 'unknown'}
           {t.trend ? ` · tendência: ${t.trend}` : ''} · {t.changes || 0} mudanças
         </span>
-      }
-    >
+      </div>
       {hist.length ? (
-        <div className="flex flex-col gap-1.5 mt-2">
+        <div className="b2b-perf-health-timeline">
           {hist.map((evt, i) => (
-            <div key={i} className="flex items-center gap-3 text-[12px]">
-              <span
-                className="inline-block w-2 h-2 rounded-full shrink-0"
-                style={{ background: HEALTH_DOT[evt.color] || HEALTH_DOT.unknown }}
-              />
-              <span className="text-[10px] text-[#6B7280] font-mono w-20 shrink-0">
-                {fmtDate(evt.at)}
-              </span>
-              <span className="text-[#9CA3AF]">
+            <div key={i} className="b2b-perf-health-evt">
+              <span className="b2b-perf-health-dot" data-health={evt.color || 'unknown'} />
+              <span className="b2b-perf-health-date">{fmtDate(evt.at)}</span>
+              <span style={{ color: 'var(--b2b-text-dim)' }}>
                 {evt.previous || 'novo'} →{' '}
-                <strong className="text-[#F5F0E8]">{evt.color}</strong>
+                <strong style={{ color: 'var(--b2b-ivory)' }}>{evt.color}</strong>
               </span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-[12px] text-[#9CA3AF] py-2">
-          Sem mudanças de saúde no período.
-        </div>
+        <div className="b2b-perf-signals-empty">Sem mudanças de saúde no período.</div>
       )}
-    </Section>
-  )
-}
-
-function Section({
-  title,
-  right,
-  children,
-}: {
-  title: string
-  right?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
-          {title}
-        </h3>
-        {right}
-      </div>
-      {children}
-    </div>
+    </section>
   )
 }

@@ -7,13 +7,12 @@
  * de qualidade (= mais conversao no funnel).
  *
  * Acoes nesta versao (P1):
- *   📋 Aplicar Playbook · cria tasks/contents/metas iniciais (mig 800-22 · b2b_apply_playbook RPC)
+ *   📋 Aplicar Playbook · cria tasks/contents/metas iniciais (mig 800-22)
  *   📄 Dossie PDF       · gera HTML imprimivel pra apresentar interno
  *   🔗 Link painel      · copia URL publico do painel da parceira
  *   🎟 Emitir voucher    · navega pra tab Vouchers
  *
- * P2 (depois): IA conteudo (Claude gera ideas), Insights inline (top 3
- * recomendacoes Claude Haiku contextuais).
+ * Visual luxury · b2b-action-card + b2b-insight pra sugestoes.
  */
 
 import Link from 'next/link'
@@ -94,10 +93,8 @@ export function ActionSection({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span className="text-[10px] uppercase tracking-[2px] font-bold text-[#C9A96E]">
-          💡 Ação
-        </span>
-        <span className="text-[11px] text-[#9CA3AF]">
+        <span className="eyebrow">💡 Ação</span>
+        <span className="text-[11.5px] text-[var(--b2b-text-muted)]">
           O que fazer agora pra aumentar conversão?
         </span>
       </div>
@@ -113,28 +110,26 @@ export function ActionSection({
           href={`/partnerships/${partnership.id}?tab=vouchers`}
           className="b2b-action-card b2b-action-card-primary"
         >
-          <Ticket className="w-5 h-5" />
-          <div className="flex flex-col gap-0.5">
-            <div className="text-[12px] font-bold text-[#F5F0E8]">
-              Emitir voucher novo
-            </div>
-            <div className="text-[10.5px] text-[#9CA3AF]">
+          <Ticket className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="b2b-action-card-title">Emitir voucher novo</div>
+            <div className="b2b-action-card-sub">
               Pula direto pro form em Vouchers
             </div>
           </div>
         </Link>
 
-        <button
-          type="button"
-          onClick={copyPainelUrl}
-          className="b2b-action-card"
-        >
-          {copied ? <Check className="w-5 h-5 text-[#10B981]" /> : <Link2 className="w-5 h-5" />}
-          <div className="flex flex-col gap-0.5 text-left">
-            <div className="text-[12px] font-bold text-[#F5F0E8]">
+        <button type="button" onClick={copyPainelUrl} className="b2b-action-card">
+          {copied ? (
+            <Check className="w-5 h-5" style={{ color: '#10B981', flexShrink: 0 }} />
+          ) : (
+            <Link2 className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          )}
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="b2b-action-card-title">
               {copied ? 'Link copiado!' : 'Link do painel da parceira'}
             </div>
-            <div className="text-[10.5px] text-[#9CA3AF] truncate max-w-[280px]">
+            <div className="b2b-action-card-sub truncate" style={{ maxWidth: 280 }}>
               {painelUrl}
             </div>
           </div>
@@ -146,88 +141,32 @@ export function ActionSection({
           rel="noopener"
           className="b2b-action-card"
         >
-          <FileText className="w-5 h-5" />
-          <div className="flex flex-col gap-0.5 text-left">
-            <div className="text-[12px] font-bold text-[#F5F0E8]">
-              Dossiê PDF
-            </div>
-            <div className="text-[10.5px] text-[#9CA3AF]">
-              Abre os 6 slides em nova aba e dispara o diálogo de impressão · salve como PDF
+          <FileText className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="b2b-action-card-title">Dossiê PDF</div>
+            <div className="b2b-action-card-sub">
+              Abre os 6 slides em nova aba e dispara o diálogo de impressão
             </div>
           </div>
         </Link>
       </div>
 
-      {feedback ? (
-        <div className="text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 border border-[#C9A96E]/20 rounded px-3 py-2">
-          {feedback}
-        </div>
-      ) : null}
+      {feedback ? <div className="b2b-feedback">{feedback}</div> : null}
 
       {/* Sugestoes (Insights P1 · regra-baseado) */}
       {suggestions.length > 0 ? (
         <div className="flex flex-col gap-2 mt-2">
-          <div className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#9CA3AF]">
+          <div className="text-[10px] uppercase tracking-[1.6px] font-bold text-[var(--b2b-text-muted)]">
             Sugestões pra essa parceria
           </div>
           {suggestions.map((s, i) => (
-            <div
-              key={i}
-              className="rounded-lg border px-3.5 py-2.5 flex items-start gap-3"
-              style={{
-                borderColor:
-                  s.tone === 'warn'
-                    ? 'rgba(239,68,68,0.3)'
-                    : s.tone === 'ok'
-                    ? 'rgba(16,185,129,0.3)'
-                    : 'rgba(201,169,110,0.25)',
-                background:
-                  s.tone === 'warn'
-                    ? 'rgba(239,68,68,0.05)'
-                    : s.tone === 'ok'
-                    ? 'rgba(16,185,129,0.05)'
-                    : 'rgba(201,169,110,0.04)',
-              }}
-            >
-              <span className="text-base shrink-0">{s.icon}</span>
-              <span className="text-[12.5px] text-[#F5F0E8] leading-relaxed">
-                {s.text}
-              </span>
+            <div key={i} className="b2b-insight" data-tone={s.tone}>
+              <span className="b2b-insight-icon">{s.icon}</span>
+              <span>{s.text}</span>
             </div>
           ))}
         </div>
       ) : null}
-
-      <style jsx>{`
-        .b2b-action-card {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 14px 16px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          color: #f5f0e8;
-          text-align: left;
-          cursor: pointer;
-          transition: all 200ms ease;
-          width: 100%;
-        }
-        .b2b-action-card:hover:not(:disabled) {
-          border-color: rgba(201, 169, 110, 0.4);
-          background: rgba(201, 169, 110, 0.05);
-          transform: translateY(-1px);
-        }
-        .b2b-action-card:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        .b2b-action-card-primary {
-          border-color: rgba(201, 169, 110, 0.25);
-          background: rgba(201, 169, 110, 0.04);
-        }
-      `}</style>
     </div>
   )
 }
-

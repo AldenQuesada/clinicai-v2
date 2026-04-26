@@ -10,6 +10,7 @@
  *   - paused / closed → renewal (reativacao via novo ciclo)
  *
  * Mostra resultado inline (X tasks / Y contents / Z metas) por 4s.
+ * Visual: usa b2b-action-card global (b2b-detail.css).
  */
 
 import { useState, useTransition } from 'react'
@@ -75,63 +76,35 @@ export function ApplyPlaybookButton({
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className={
-          'b2b-action-card' + (pending ? ' b2b-action-card-pending' : '')
-        }
+        className={`b2b-action-card${pending ? ' b2b-action-card-primary' : ''}`}
         title={`Aplica template "${KIND_LABEL[kind]}" da clinica`}
       >
         {pending ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
         ) : (
-          <Lightbulb className="w-5 h-5" />
+          <Lightbulb className="w-5 h-5" style={{ color: 'var(--b2b-champagne)', flexShrink: 0 }} />
         )}
-        <div className="flex flex-col gap-0.5 text-left">
-          <div className="text-[12px] font-bold text-[#F5F0E8]">
-            {pending ? 'Aplicando...' : 'Aplicar Playbook'}
-            <span className="ml-1.5 text-[8px] uppercase tracking-[1px] px-1 py-px rounded bg-[#C9A96E]/15 text-[#C9A96E]">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="b2b-action-card-title flex items-center gap-1.5">
+            <span>{pending ? 'Aplicando...' : 'Aplicar Playbook'}</span>
+            <span
+              className="text-[8.5px] uppercase tracking-[1px] px-1.5 py-[1px] rounded font-bold"
+              style={{
+                background: 'rgba(201,169,110,0.18)',
+                color: 'var(--b2b-champagne)',
+              }}
+            >
               {KIND_LABEL[kind]}
             </span>
           </div>
-          <div className="text-[10.5px] text-[#9CA3AF]">
-            Cria tasks iniciais + content padrao + metas operacionais. Idempotente.
+          <div className="b2b-action-card-sub">
+            Cria tasks + content padrão + metas operacionais. Idempotente.
           </div>
         </div>
       </button>
       {localMsg ? (
-        <div className="sm:col-span-2 text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 border border-[#C9A96E]/20 rounded px-3 py-2">
-          {localMsg}
-        </div>
+        <div className="sm:col-span-2 b2b-feedback">{localMsg}</div>
       ) : null}
-
-      <style jsx>{`
-        .b2b-action-card {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 14px 16px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          color: #f5f0e8;
-          text-align: left;
-          cursor: pointer;
-          transition: all 200ms ease;
-          width: 100%;
-        }
-        .b2b-action-card:hover:not(:disabled) {
-          border-color: rgba(201, 169, 110, 0.4);
-          background: rgba(201, 169, 110, 0.05);
-          transform: translateY(-1px);
-        }
-        .b2b-action-card:disabled {
-          opacity: 0.7;
-          cursor: progress;
-        }
-        .b2b-action-card-pending {
-          border-color: rgba(201, 169, 110, 0.4);
-          background: rgba(201, 169, 110, 0.05);
-        }
-      `}</style>
     </>
   )
 }

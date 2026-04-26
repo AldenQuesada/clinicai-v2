@@ -7,6 +7,7 @@
  *   - Account manager dropdown + assign (B2BAccountManager)
  *   - Status switcher com prompt de razao (Status select da b2b-detail-actions)
  *
+ * Visual luxury · b2b-card-gold + b2b-input + b2b-btn-primary.
  * Restrito a owner/admin via prop canManage.
  */
 
@@ -126,12 +127,17 @@ export function ManagementWidget({
 
   if (!canManage) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-3 text-[11px] text-[#9CA3AF]">
-        Status: <strong className="text-[#F5F0E8]">{STATUS_LABELS[currentStatus]}</strong>
-        {currentManager ? (
-          <> · Account manager: <strong className="text-[#F5F0E8]">@{currentManager}</strong></>
-        ) : null}
-        <div className="mt-1.5 text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+      <div className="b2b-card">
+        <div style={{ fontSize: 12, color: 'var(--b2b-text-dim)' }}>
+          Status: <strong style={{ color: 'var(--b2b-ivory)' }}>{STATUS_LABELS[currentStatus]}</strong>
+          {currentManager ? (
+            <>
+              {' · '}Account manager:{' '}
+              <strong style={{ color: 'var(--b2b-ivory)' }}>@{currentManager}</strong>
+            </>
+          ) : null}
+        </div>
+        <div className="text-[10px] uppercase tracking-[1.4px] text-[var(--b2b-text-muted)] mt-1">
           Apenas owner/admin podem alterar.
         </div>
       </div>
@@ -141,19 +147,18 @@ export function ManagementWidget({
   const allowed = ALLOWED_TRANSITIONS[currentStatus] || []
 
   return (
-    <div className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="b2b-card b2b-card-gold">
+      <div className="b2b-grid-2">
         {/* Account manager */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-            Account manager
-          </label>
+        <div className="b2b-field" style={{ marginBottom: 0 }}>
+          <label className="b2b-field-lbl">Account manager</label>
           <div className="flex gap-2">
             <select
-              className="flex-1 px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50"
+              className="b2b-input"
               value={managerValue}
               onChange={(e) => setManagerValue(e.target.value)}
               disabled={pending}
+              style={{ flex: 1 }}
             >
               <option value="">— sem responsável —</option>
               {managers.map((m) => (
@@ -164,7 +169,7 @@ export function ManagementWidget({
             </select>
             <button
               type="button"
-              className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-50"
+              className="b2b-btn b2b-btn-primary"
               onClick={onAssign}
               disabled={pending}
             >
@@ -174,12 +179,10 @@ export function ManagementWidget({
         </div>
 
         {/* Status switcher */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-            Status
-          </label>
+        <div className="b2b-field" style={{ marginBottom: 0 }}>
+          <label className="b2b-field-lbl">Status</label>
           <select
-            className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 disabled:opacity-50"
+            className="b2b-input"
             value={statusValue}
             onChange={(e) => onStatusChange(e.target.value as PartnershipStatus)}
             disabled={pending}
@@ -197,11 +200,7 @@ export function ManagementWidget({
         </div>
       </div>
 
-      {feedback ? (
-        <div className="text-[11px] text-[#C9A96E] pt-2 border-t border-[#C9A96E]/10">
-          {feedback}
-        </div>
-      ) : null}
+      {feedback ? <div className="b2b-feedback">{feedback}</div> : null}
     </div>
   )
 }

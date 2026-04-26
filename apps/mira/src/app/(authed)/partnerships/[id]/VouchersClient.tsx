@@ -6,6 +6,9 @@
  *
  * Funil + lista de vouchers + form inline de emissao + acoes
  * (copiar link, marcar entregue, cancelar).
+ *
+ * Visual: usa b2b-perf-kpi pros 4 cards do funil, b2b-card-gold pro form,
+ * b2b-vch-row pra lista com data-status, b2b-btn pros CTAs.
  */
 
 import { useRouter } from 'next/navigation'
@@ -46,15 +49,6 @@ const STATUS_LABEL: Record<VoucherRow['status'], string> = {
   redeemed: 'Resgatado',
   expired: 'Expirado',
   cancelled: 'Cancelado',
-}
-
-const STATUS_COLOR: Record<VoucherRow['status'], string> = {
-  issued: '#9CA3AF',
-  delivered: '#3B82F6',
-  opened: '#F59E0B',
-  redeemed: '#10B981',
-  expired: '#6B7280',
-  cancelled: '#EF4444',
 }
 
 function voucherUrl(token: string): string {
@@ -170,29 +164,19 @@ export function VouchersClient({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Funnel */}
+      {/* Funnel · 4 KPI cards */}
       {funnel ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="b2b-perf-kpis">
           {(['issued', 'delivered', 'opened', 'redeemed'] as const).map((k) => (
-            <div
-              key={k}
-              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-center"
-            >
-              <div
-                className="text-2xl font-semibold font-mono leading-none"
-                style={{ color: STATUS_COLOR[k] }}
-              >
-                {funnel[k] || 0}
-              </div>
-              <div className="text-[10px] uppercase tracking-[1.2px] text-[#9CA3AF] mt-1.5">
-                {STATUS_LABEL[k]}
-              </div>
+            <div key={k} className="b2b-perf-kpi">
+              <div className="b2b-perf-kpi-val">{funnel[k] || 0}</div>
+              <div className="b2b-perf-kpi-lbl">{STATUS_LABEL[k]}</div>
             </div>
           ))}
         </div>
       ) : null}
-      {funnel && (funnel.expired > 0 || funnel.cancelled > 0) ? (
-        <div className="text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+      {funnel && (funnel.expired > 0 || funnel.cancelled > 0 || funnel.total > 0) ? (
+        <div className="text-[10.5px] uppercase tracking-[1.4px] text-[var(--b2b-text-muted)]">
           Expirados: {funnel.expired || 0} · Cancelados: {funnel.cancelled || 0} · Redemption{' '}
           {funnel.redemption_rate_pct || 0}%
         </div>
@@ -201,11 +185,8 @@ export function VouchersClient({
       {/* Header com toggle do form */}
       {canManage ? (
         showForm ? (
-          <form
-            onSubmit={onIssue}
-            className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <form onSubmit={onIssue} className="b2b-card b2b-card-gold">
+            <div className="b2b-grid-2">
               <Field
                 label="Nome do destinatário *"
                 value={recipientName}
@@ -236,22 +217,21 @@ export function VouchersClient({
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-                Observações
-              </label>
+            <div className="b2b-field" style={{ marginBottom: 0 }}>
+              <label className="b2b-field-lbl">Observações</label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 resize-y"
+                className="b2b-input"
+                style={{ resize: 'vertical', minHeight: 56 }}
               />
             </div>
 
-            <div className="flex items-center gap-2 pt-1.5 border-t border-white/10">
+            <div className="b2b-form-actions">
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-white/5 text-[#9CA3AF] hover:bg-white/10 transition-colors"
+                className="b2b-btn"
                 onClick={() => {
                   setShowForm(false)
                   resetForm()
@@ -262,7 +242,7 @@ export function VouchersClient({
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-50"
+                className="b2b-btn b2b-btn-primary"
                 disabled={pending}
               >
                 {pending ? 'Emitindo…' : 'Emitir voucher'}
@@ -272,7 +252,7 @@ export function VouchersClient({
         ) : (
           <button
             type="button"
-            className="self-start px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
+            className="b2b-btn b2b-btn-primary self-start"
             onClick={() => setShowForm(true)}
           >
             + Emitir voucher
@@ -280,19 +260,15 @@ export function VouchersClient({
         )
       ) : null}
 
-      {feedback ? (
-        <div className="text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 border border-[#C9A96E]/20 rounded px-3 py-2">
-          {feedback}
-        </div>
-      ) : null}
+      {feedback ? <div className="b2b-feedback">{feedback}</div> : null}
 
       {/* Lista */}
       {initialVouchers.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center text-[12.5px] text-[#9CA3AF]">
+        <div className="b2b-empty">
           Esta parceria ainda não tem vouchers emitidos.
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {initialVouchers.map((v) => (
             <VoucherRow
               key={v.id}
@@ -324,18 +300,15 @@ function Field({
   mono?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-bold uppercase tracking-[1px] text-[#9CA3AF]">
-        {label}
-      </label>
+    <div className="b2b-field" style={{ marginBottom: 0 }}>
+      <label className="b2b-field-lbl">{label}</label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-[#F5F0E8] text-xs focus:outline-none focus:border-[#C9A96E]/50 ${
-          mono ? 'font-mono' : ''
-        }`}
+        className="b2b-input"
+        style={mono ? { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' } : undefined}
       />
     </div>
   )
@@ -357,65 +330,62 @@ function VoucherRow({
   onCancel: () => void
 }) {
   return (
-    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors">
-      <span className="font-mono text-[11px] text-[#C9A96E]">{v.token}</span>
+    <div className="b2b-vch-row">
+      <span className="b2b-vch-token">{v.token}</span>
 
-      <div className="min-w-0 flex flex-col gap-0.5">
-        <span className="text-xs text-[#F5F0E8] truncate">
+      <div className="min-w-0 flex flex-col">
+        <span className="b2b-vch-name">
           {v.recipientName || '—'}
           {v.combo ? (
-            <span className="ml-2 text-[10px] uppercase tracking-[1.2px] text-[#6B7280]">
+            <span className="ml-2 text-[10px] uppercase tracking-[1.4px] text-[var(--b2b-text-muted)]">
               {v.combo}
             </span>
           ) : null}
         </span>
-        <div className="flex items-center gap-3 text-[10.5px] font-mono text-[#9CA3AF]">
+        <div className="b2b-vch-meta">
           {v.recipientPhone ? <span>{v.recipientPhone}</span> : null}
-          <span className="text-[#6B7280]">
+          <span>
             emit {fmt(v.issuedAt)} · até {fmt(v.validUntil)}
           </span>
         </div>
       </div>
 
-      <span
-        className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px]"
-        style={{
-          background: STATUS_COLOR[v.status] + '26',
-          color: STATUS_COLOR[v.status],
-        }}
-      >
+      <span className="b2b-vch-status" data-status={v.status}>
         {STATUS_LABEL[v.status]}
       </span>
 
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
-          className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] bg-white/5 text-[#9CA3AF] hover:bg-white/10 transition-colors"
+          className="b2b-btn"
+          style={{ padding: '4px 8px', fontSize: 11 }}
           onClick={onCopy}
           title="Copiar link"
         >
-          🔗
+          Link
         </button>
         {canManage && v.status === 'issued' ? (
           <button
             type="button"
-            className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] bg-[#3B82F6]/15 text-[#3B82F6] hover:bg-[#3B82F6]/25 transition-colors disabled:opacity-50"
+            className="b2b-btn"
+            style={{ padding: '4px 8px', fontSize: 11, borderColor: 'rgba(59,130,246,0.4)', color: '#93C5FD' }}
             onClick={onMarkDelivered}
             disabled={busy}
             title="Marcar como entregue"
           >
-            ✓
+            Entregue
           </button>
         ) : null}
         {canManage && v.status !== 'cancelled' && v.status !== 'expired' && v.status !== 'redeemed' ? (
           <button
             type="button"
-            className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-[1px] bg-[#EF4444]/15 text-[#FCA5A5] hover:bg-[#EF4444]/25 transition-colors disabled:opacity-50"
+            className="b2b-btn"
+            style={{ padding: '4px 8px', fontSize: 11, borderColor: 'rgba(217,122,122,0.4)', color: 'var(--b2b-red)' }}
             onClick={onCancel}
             disabled={busy}
             title="Cancelar voucher"
           >
-            🗑
+            Cancelar
           </button>
         ) : null}
       </div>
