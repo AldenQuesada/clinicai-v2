@@ -272,6 +272,7 @@ export {
   type B2BCommTemplateSequenceGroup,
   type B2BCommEventDef,
   type B2BCommEventCatalog,
+  type B2BCommEventKeyDTO,
   type B2BCommStats,
   type B2BCommHistoryEntry,
 } from './b2b-comm-template.repository'

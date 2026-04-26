@@ -525,11 +525,18 @@ export interface B2BCommEventDef {
   key: string
   label: string
   trigger?: string
-  recipient?: 'partner' | 'beneficiary' | 'admin'
+  /** String livre desde mig 800-41 (era union). UI sugere parceiros/convidadas/admin. */
+  recipient?: string
+  /** Mig 800-41 · bucket pra filtro (parceiros/convidadas/admin · string livre). */
+  bucket?: string
+  /** Mig 800-41 · system keys nao podem ser deletadas via UI. */
+  is_system?: boolean
 }
 
 export type B2BCommEventCatalog = Array<{
   group: string
+  /** Mig 800-41 · bucket do grupo (parceiros/convidadas/admin). */
+  bucket?: string
   events: B2BCommEventDef[]
 }>
 

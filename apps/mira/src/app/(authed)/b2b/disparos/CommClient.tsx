@@ -292,9 +292,54 @@ export function CommClient({
 
   const [activeTab, setActiveTab] = useState<TabId>('events')
   const [filterEventKey, setFilterEventKey] = useState<string | null>(null)
+  // Mig 800-41 · bucket filter ('all' = sem filtro)
+  const [bucketFilter, setBucketFilter] = useState<string>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState<EditorDraft | null>(null)
   const [previewHistory, setPreviewHistory] = useState<B2BCommHistoryEntry | null>(null)
+
+  // Mapa event_key -> bucket (computed do catalog) · usado pra filtrar
+  // listas em todas as tabs.
+  const eventKeyToBucket = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const g of catalog) {
+      const groupBucket = g.bucket || 'parceiros'
+      for (const ev of g.events) {
+        m.set(ev.key, ev.bucket || groupBucket)
+      }
+    }
+    return m
+  }, [catalog])
+
+  // Catalog filtrado por bucket · alimenta tabs Events/Templates
+  const filteredCatalog = useMemo(() => {
+    if (bucketFilter === 'all') return catalog
+    return catalog
+      .map((g) => ({
+        ...g,
+        events: g.events.filter((ev) => (ev.bucket || g.bucket || 'parceiros') === bucketFilter),
+      }))
+      .filter((g) => g.events.length > 0)
+  }, [catalog, bucketFilter])
+
+  // Counts por bucket · alimenta os chips do rail
+  const bucketCounts = useMemo(() => {
+    const counts = { all: 0, parceiros: 0, convidadas: 0, admin: 0 } as Record<string, number>
+    for (const t of templates) {
+      const bucket = eventKeyToBucket.get(t.event_key) || 'parceiros'
+      counts.all += 1
+      counts[bucket] = (counts[bucket] || 0) + 1
+    }
+    return counts
+  }, [templates, eventKeyToBucket])
+
+  // Templates filtrados por bucket · alimenta tab Templates
+  const filteredTemplates = useMemo(() => {
+    if (bucketFilter === 'all') return templates
+    return templates.filter(
+      (t) => (eventKeyToBucket.get(t.event_key) || 'parceiros') === bucketFilter,
+    )
+  }, [templates, bucketFilter, eventKeyToBucket])
 
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === selectedId) || null,
@@ -477,6 +522,15 @@ export function CommClient({
       </section>
 
       <aside className="bcomm-col bcomm-col-panel">
+        {/* Mig 800-41 · bucket rail · filtra todas as tabs */}
+        <BucketRail
+          value={bucketFilter}
+          counts={bucketCounts}
+          onChange={(b) => {
+            setBucketFilter(b)
+            setFilterEventKey(null) // limpa filtro de event ao trocar bucket
+          }}
+        />
         <div className="bcomm-tabs-bar">
           <nav className="bcomm-tabs" role="tablist">
             {TABS.map((t) => {
@@ -524,8 +578,8 @@ export function CommClient({
             />
           ) : activeTab === 'events' ? (
             <EventsTab
-              catalog={catalog}
-              templates={templates}
+              catalog={filteredCatalog}
+              templates={filteredTemplates}
               filterEventKey={filterEventKey}
               selectedId={selectedId}
               onChipClick={setFilterEventKey}
@@ -535,8 +589,8 @@ export function CommClient({
             />
           ) : activeTab === 'templates' ? (
             <TemplatesTab
-              templates={templates}
-              catalog={catalog}
+              templates={filteredTemplates}
+              catalog={filteredCatalog}
               selectedId={selectedId}
               onSelect={handleSelect}
               onEdit={handleEdit}
@@ -2745,6 +2799,80 @@ function ConfirmModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BucketRail · Mig 800-41 · 4 chips no topo (Todos · Parceiros · Convidadas · Admin)
+// Filtra todas as tabs simultaneamente. Counts vem dos templates ativos.
+// ═══════════════════════════════════════════════════════════════════════
+const BUCKETS: Array<{ id: string; label: string; icon: string }> = [
+  { id: 'all', label: 'Todos', icon: '🔍' },
+  { id: 'parceiros', label: 'Parceiros', icon: '📦' },
+  { id: 'convidadas', label: 'Convidadas', icon: '👥' },
+  { id: 'admin', label: 'Admin', icon: '👨‍⚕️' },
+]
+
+function BucketRail({
+  value,
+  counts,
+  onChange,
+}: {
+  value: string
+  counts: Record<string, number>
+  onChange: (bucket: string) => void
+}) {
+  return (
+    <div
+      className="bcomm-bucket-rail"
+      style={{
+        display: 'flex',
+        gap: 8,
+        padding: '12px 14px 8px',
+        borderBottom: '1px solid var(--b2b-border)',
+        background: 'var(--b2b-bg-1)',
+      }}
+    >
+      {BUCKETS.map((b) => {
+        const active = value === b.id
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onChange(b.id)}
+            className={'bcomm-bucket-chip' + (active ? ' is-active' : '')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 999,
+              border: '1px solid ' + (active ? 'var(--b2b-gold)' : 'var(--b2b-border)'),
+              background: active ? 'var(--b2b-gold)' : 'transparent',
+              color: active ? '#0F0D0A' : 'var(--b2b-fg-1)',
+              fontSize: 12,
+              fontWeight: active ? 600 : 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            title={`Filtrar por bucket · ${b.label}`}
+            aria-pressed={active}
+          >
+            <span aria-hidden>{b.icon}</span>
+            <span>{b.label}</span>
+            <span
+              style={{
+                opacity: 0.7,
+                fontSize: 11,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {counts[b.id] ?? 0}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }

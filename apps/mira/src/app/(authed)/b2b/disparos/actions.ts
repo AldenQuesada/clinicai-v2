@@ -5,6 +5,7 @@ import { loadMiraServerContext } from '@/lib/server-context'
 import type {
   B2BCommTemplateRaw,
   B2BCommTemplateSequenceGroup,
+  B2BCommEventKeyDTO,
 } from '@clinicai/repositories'
 
 function assertCanManage(role: string | null | undefined) {
@@ -101,6 +102,43 @@ export async function assignToSequenceAction(
  * Soft fallback: se sequence destino ja existir, NAO mescla — retorna erro
  * pra UI tratar (evita conflito de ordens duplicadas).
  */
+// ═══════════════════════════════════════════════════════════════════════
+// Mig 800-41 · catalogo editavel de event_keys
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function listEventKeysAction(): Promise<B2BCommEventKeyDTO[]> {
+  const { ctx, repos } = await loadMiraServerContext()
+  if (!ctx.clinic_id) return []
+  return repos.b2bTemplates.listEventKeys(ctx.clinic_id).catch(() => [])
+}
+
+export async function upsertEventKeyAction(payload: {
+  key: string
+  label?: string
+  bucket?: string
+  groupLabel?: string
+  recipientRole?: string
+  triggerDesc?: string | null
+  isActive?: boolean
+  sortOrder?: number
+}): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  const r = await repos.b2bTemplates.upsertEventKey(payload)
+  revalidatePath('/b2b/disparos')
+  return r
+}
+
+export async function deleteEventKeyAction(
+  key: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  const r = await repos.b2bTemplates.deleteEventKey(key)
+  revalidatePath('/b2b/disparos')
+  return r
+}
+
 export async function renameSequenceAction(
   oldName: string,
   newName: string,
