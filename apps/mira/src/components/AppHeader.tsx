@@ -18,10 +18,12 @@ import {
   B2BPartnershipRepository,
   B2BInsightsRepository,
   B2BApplicationRepository,
+  B2BAnalyticsRepository,
   type Insight,
 } from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppNav, type SubtabCounts } from './AppNav'
+import { buildSystemInsights } from '@/lib/system-insights'
 
 const PAINEL_URL =
   process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -64,10 +66,12 @@ export async function AppHeader() {
       const partnerRepo = new B2BPartnershipRepository(supabase)
       const insightsRepo = new B2BInsightsRepository(supabase)
       const applicationsRepo = new B2BApplicationRepository(supabase)
-      const [partners, insightsRes, pendingApplications] = await Promise.all([
+      const analyticsRepo = new B2BAnalyticsRepository(supabase)
+      const [partners, insightsRes, pendingApplications, analyticsBlob] = await Promise.all([
         partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
         insightsRepo.global().catch(() => null),
         applicationsRepo.countPending().catch(() => 0),
+        analyticsRepo.get(30).catch(() => null),
       ])
       quickPartners = partners.map((p) => ({
         id: p.id,
@@ -76,7 +80,14 @@ export async function AppHeader() {
         status: p.status ?? null,
         pillar: p.pillar ?? null,
       }))
-      insights = insightsRes?.insights ?? []
+      // Merge: insights por parceria (RPC) + system insights sinteticos.
+      // System insights vem antes na lista pra aparecer agrupado por severity
+      // no sino (ja que ordena por severity > score).
+      const sysInsights = buildSystemInsights({
+        data: analyticsBlob,
+        pendingApplications,
+      })
+      insights = [...sysInsights, ...(insightsRes?.insights ?? [])]
 
       // Counts in-memory · zero query extra (partners ja fetched)
       const byStatus = (s: string) =>

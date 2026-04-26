@@ -24,10 +24,19 @@ import {
   type OverviewSignal,
   type SignalStatus,
 } from './_shared/overviewAnalyzer'
+import {
+  computePop,
+  computeVoucherPop,
+  formatPopTooltip,
+  type PopDelta,
+} from './_shared/popUtils'
+import { PopChip } from './_shared/PopChip'
+import { FinancialCard } from './_shared/FinancialCard'
 import type {
   AnalyticsBlob,
   B2BFunnelBenchmarkDTO,
   B2BFunnelStage,
+  FinancialKpisBlob,
 } from '@clinicai/repositories'
 
 /**
@@ -96,19 +105,34 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
 
   // Defensive: loadMiraServerContext throw se ctx auth invalido. Antes
   // escapava do .catch da chamada b2bAnalytics e crashava o segmento.
+  //
+  // PoP fetch (mig 800-29):
+  //   - data         : analytics(days)        · periodo atual
+  //   - dataDouble   : analytics(2*days)      · 2x do periodo · usado pra
+  //                    derivar o periodo anterior (diff = anterior)
+  //   - financial    : b2b_financial_kpis(days) · ja traz current/previous/delta
+  //                    nativo no RPC (revenue, ticket medio, CAC).
   let data: AnalyticsBlob | null = null
+  let dataDouble: AnalyticsBlob | null = null
+  let financial: FinancialKpisBlob | null = null
   let fetchError: string | null = null
   let benchmarks: FunnelBenchmarks = FUNNEL_BENCHMARKS_FALLBACK
   try {
     const { repos } = await loadMiraServerContext()
-    const [analyticsRes, benchmarkRows] = await Promise.all([
-      repos.b2bAnalytics.get(days).catch((e) => {
-        fetchError = e instanceof Error ? e.message : String(e)
-        return null
-      }),
-      repos.b2bFunnelBenchmarks.list().catch(() => []),
-    ])
+    const [analyticsRes, analyticsDoubleRes, financialRes, benchmarkRows] =
+      await Promise.all([
+        repos.b2bAnalytics.get(days).catch((e) => {
+          fetchError = e instanceof Error ? e.message : String(e)
+          return null
+        }),
+        // 2x o periodo · usado pra derivar PoP de vouchers (diff entre janelas)
+        repos.b2bAnalytics.get(days * 2).catch(() => null),
+        repos.b2bFinancial.getKpis(days).catch(() => null),
+        repos.b2bFunnelBenchmarks.list().catch(() => []),
+      ])
     data = analyticsRes
+    dataDouble = analyticsDoubleRes
+    financial = financialRes
     benchmarks = buildBenchmarks(benchmarkRows)
   } catch (e) {
     fetchError = e instanceof Error ? e.message : String(e)
@@ -161,6 +185,8 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
         ) : (
           <ObjectivesView
             data={data}
+            dataDouble={dataDouble}
+            financial={financial}
             days={days}
             rangeLabel={timeRangeLabel(tr)}
             benchmarks={benchmarks}
@@ -173,11 +199,15 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
 
 function ObjectivesView({
   data,
+  dataDouble,
+  financial,
   days,
   rangeLabel,
   benchmarks,
 }: {
   data: AnalyticsBlob
+  dataDouble: AnalyticsBlob | null
+  financial: FinancialKpisBlob | null
   days: number
   rangeLabel: string
   benchmarks: FunnelBenchmarks
@@ -202,6 +232,10 @@ function ObjectivesView({
   const totalRed = Number(h.red ?? 0)
   const vouchersTotal = Number(v.total ?? 0)
   const vouchersPaid = Number(v.purchased ?? 0)
+  const vouchersDelivered = Number(v.delivered ?? 0)
+  const vouchersOpened = Number(v.opened ?? 0)
+  const vouchersScheduled = Number(v.scheduled ?? 0)
+  const vouchersRedeemed = Number(v.redeemed ?? 0)
   const convPct =
     vouchersTotal > 0 ? ((vouchersPaid / vouchersTotal) * 100).toFixed(1) : '0'
   const npsLabel =
@@ -209,12 +243,84 @@ function ObjectivesView({
       ? String(nps.nps_score)
       : '—'
 
+  // ─── PoP · derivado de dataDouble (analytics 2x days) ─────────────────
+  // Periodo anterior = diff entre janela 2N e janela N.
+  // Funciona pra COUNT(*) FILTER (que sao counts do periodo).
+  // NAO funciona pra estado-agora (saude.green/yellow/red etc).
+  const dv = dataDouble?.vouchers ?? ({} as AnalyticsBlob['vouchers'])
+  const da = dataDouble?.applications ?? ({} as AnalyticsBlob['applications'])
+  const dm = dataDouble?.mira ?? ({} as AnalyticsBlob['mira'])
+  const prevVouchersTotal = Math.max(0, Number(dv.total ?? 0) - vouchersTotal)
+  const prevVouchersPaid = Math.max(0, Number(dv.purchased ?? 0) - vouchersPaid)
+  const prevVouchersDelivered = Math.max(0, Number(dv.delivered ?? 0) - vouchersDelivered)
+  const prevVouchersOpened = Math.max(0, Number(dv.opened ?? 0) - vouchersOpened)
+  const prevVouchersScheduled = Math.max(0, Number(dv.scheduled ?? 0) - vouchersScheduled)
+  const prevVouchersRedeemed = Math.max(0, Number(dv.redeemed ?? 0) - vouchersRedeemed)
+  const prevApplications = Math.max(0, Number(da.total ?? 0) - Number(a.total ?? 0))
+  const prevApplicationsApproved = Math.max(0, Number(da.approved ?? 0) - Number(a.approved ?? 0))
+  const prevNpsResponses = Math.max(0, Number(dm.nps_responses ?? 0) - Number(m.nps_responses ?? 0))
+
+  const voucherPop = computeVoucherPop(
+    { total: vouchersTotal, purchased: vouchersPaid },
+    { total: prevVouchersTotal, purchased: prevVouchersPaid },
+  )
+  const popApplications: PopDelta = computePop(
+    Number(a.total ?? 0),
+    prevApplications,
+    prevApplications,
+  )
+  const popApprovals: PopDelta = computePop(
+    Number(a.approved ?? 0),
+    prevApplicationsApproved,
+    prevApplications,
+  )
+  const popDelivered: PopDelta = computePop(
+    vouchersDelivered,
+    prevVouchersDelivered,
+    prevVouchersTotal,
+  )
+  const popOpened: PopDelta = computePop(
+    vouchersOpened,
+    prevVouchersOpened,
+    prevVouchersTotal,
+  )
+  const popScheduled: PopDelta = computePop(
+    vouchersScheduled,
+    prevVouchersScheduled,
+    prevVouchersTotal,
+  )
+  const popRedeemed: PopDelta = computePop(
+    vouchersRedeemed,
+    prevVouchersRedeemed,
+    prevVouchersTotal,
+  )
+  const popNps: PopDelta = computePop(
+    Number(m.nps_responses ?? 0),
+    prevNpsResponses,
+    prevNpsResponses,
+  )
+
+  // Tooltip text comum · range do periodo anterior
+  const popTooltip = (() => {
+    if (!financial)
+      return `vs últimos ${days}d (período anterior de mesma duração)`
+    return formatPopTooltip(
+      financial.range_previous.from,
+      financial.range_previous.to,
+      days,
+    )
+  })()
+
   return (
     <>
       {/* ═══ CAMADA 0 · DIAGNÓSTICO INTERPRETATIVO ═══ */}
       <DiagnosticBanner diag={diag} />
 
-      {/* ═══ CAMADA 1 · SNAPSHOT (geral) · labels diferenciam estado vs periodo ═══ */}
+      {/* ═══ CAMADA 1 · SNAPSHOT (geral) · labels diferenciam estado vs periodo ═══
+          PoP chips adicionados (mig 800-29):
+            - Vouchers / Conversão · derivados de dataDouble (analytics 2x days)
+            - Ativas / Saúde · NÃO mostram PoP · sao snapshots de estado-agora
+       */}
       <SnapshotRow
         kpis={[
           { lbl: 'Ativas', val: String(totalActive), sub: 'parcerias · agora' },
@@ -224,7 +330,13 @@ function ObjectivesView({
             sub: 'pendentes · agora',
             tone: (a.pending ?? 0) > 0 ? 'amber' : null,
           },
-          { lbl: 'Vouchers', val: String(vouchersTotal), sub: rangeLabel },
+          {
+            lbl: 'Vouchers',
+            val: String(vouchersTotal),
+            sub: rangeLabel,
+            pop: voucherPop.total.delta,
+            popTooltip: popTooltip + ` · anterior: ${voucherPop.total.previous}`,
+          },
           {
             lbl: 'Conversão',
             val: `${convPct}%`,
@@ -237,6 +349,10 @@ function ObjectivesView({
                   : Number(convPct) < 12
                     ? 'red'
                     : 'amber',
+            pop: voucherPop.conversion_pct.delta,
+            popTooltip:
+              popTooltip +
+              ` · anterior: ${voucherPop.conversion_pct.previous.toFixed(1)}%`,
           },
           {
             lbl: 'NPS',
@@ -251,6 +367,9 @@ function ObjectivesView({
           },
         ]}
       />
+
+      {/* ═══ CAMADA 1.5 · FINANCEIRO (mig 800-29) ═══ */}
+      <FinancialCard blob={financial} days={days} />
 
       {/* ═══ CAMADA 2 · CONVERSÃO (foco principal · SO WHAT) ═══ */}
       <CompactSection
@@ -297,13 +416,26 @@ function ObjectivesView({
         >
           <CompactKpiGrid
             kpis={[
-              { lbl: 'Total', val: a.total ?? 0 },
+              {
+                lbl: 'Total',
+                val: a.total ?? 0,
+                pop: popApplications,
+                popTooltip:
+                  popTooltip + ` · anterior: ${prevApplications}`,
+              },
               {
                 lbl: 'Pendentes',
                 val: a.pending ?? 0,
                 tone: (a.pending ?? 0) > 0 ? 'amber' : null,
               },
-              { lbl: 'Aprovadas', val: a.approved ?? 0, tone: 'green' },
+              {
+                lbl: 'Aprovadas',
+                val: a.approved ?? 0,
+                tone: 'green',
+                pop: popApprovals,
+                popTooltip:
+                  popTooltip + ` · anterior: ${prevApplicationsApproved}`,
+              },
               {
                 lbl: 'Taxa',
                 val: `${a.conversion_rate ?? 0}%`,
@@ -330,40 +462,57 @@ function ObjectivesView({
           />
           <SectionInterpretation signal={sig('velocity')} />
         </CompactSection>
-      </div>
 
-      {/* ═══ CAMADA 4 · ATIVIDADE MIRA (slim, snapshot atual) ═══ */}
-      <CompactSection
-        emoji="🤖"
-        title="Atividade Mira"
-        sub="Sistemas em background"
-        slim
-        snapshot
-      >
-        <CompactKpiGrid
-          kpis={[
-            {
-              lbl: 'Telefones',
-              val: m.wa_senders_active ?? 0,
-              sub: `${m.wa_senders_total ?? 0} cadastrados`,
-            },
-            {
-              lbl: 'NPS respostas',
-              val: m.nps_responses ?? 0,
-              sub:
-                (nps.responses ?? 0) > 0
-                  ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
-                  : '—',
-            },
-            {
-              lbl: 'Insights',
-              val: m.insights_active ?? 0,
-              sub: (m.insights_active ?? 0) > 0 ? 'Veja /insights' : 'Tudo em ordem',
-            },
-          ]}
-        />
-        <SectionInterpretation signal={sig('mira')} />
-      </CompactSection>
+        {/* Atividade Mira · agora vive lado-a-lado no grid (era full-width).
+            Alertas (NPS silente / sem sender) saem pro sino via system-insights. */}
+        <CompactSection
+          emoji="🤖"
+          title="Atividade Mira"
+          sub="Snapshot atual · alertas no sino"
+          snapshot
+        >
+          <CompactKpiGrid
+            kpis={[
+              {
+                lbl: 'Telefones',
+                val: m.wa_senders_active ?? 0,
+                sub:
+                  Number(m.wa_senders_active ?? 0) === 0
+                    ? 'configure 1+ no sino'
+                    : `${m.wa_senders_total ?? 0} cadastrados`,
+                tone:
+                  Number(m.wa_senders_active ?? 0) === 0
+                    ? 'red'
+                    : Number(m.wa_senders_active ?? 0) <
+                        Number(m.wa_senders_total ?? 0)
+                      ? 'amber'
+                      : 'green',
+              },
+              {
+                lbl: 'NPS respostas',
+                val: m.nps_responses ?? 0,
+                sub:
+                  (nps.responses ?? 0) > 0
+                    ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
+                    : 'disparar campanha',
+                tone:
+                  (nps.responses ?? 0) === 0
+                    ? 'amber'
+                    : nps.nps_score != null && nps.nps_score >= 8
+                      ? 'green'
+                      : null,
+              },
+              {
+                lbl: 'Insights',
+                val: m.insights_active ?? 0,
+                sub:
+                  (m.insights_active ?? 0) > 0 ? 'ver no sino' : 'tudo em ordem',
+                tone: (m.insights_active ?? 0) > 0 ? 'amber' : 'green',
+              },
+            ]}
+          />
+        </CompactSection>
+      </div>
 
       {/* Footer */}
       <div
@@ -709,14 +858,25 @@ function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
           <div key={k.lbl} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div
               style={{
-                fontFamily: '"Cormorant Garamond", Georgia, serif',
-                fontSize: 22,
-                fontWeight: 500,
-                color,
-                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'baseline',
+                flexWrap: 'wrap',
               }}
             >
-              {k.val}
+              <span
+                style={{
+                  fontFamily: '"Cormorant Garamond", Georgia, serif',
+                  fontSize: 22,
+                  fontWeight: 500,
+                  color,
+                  lineHeight: 1,
+                }}
+              >
+                {k.val}
+              </span>
+              {k.pop ? (
+                <PopChip delta={k.pop} tooltip={k.popTooltip ?? ''} />
+              ) : null}
             </div>
             <div
               style={{
@@ -857,14 +1017,25 @@ function CompactKpiGrid({ kpis }: { kpis: Kpi[] }) {
           <div key={k.lbl} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <div
               style={{
-                fontFamily: '"Cormorant Garamond", Georgia, serif',
-                fontSize: 20,
-                fontWeight: 500,
-                color,
-                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'baseline',
+                flexWrap: 'wrap',
               }}
             >
-              {k.val}
+              <span
+                style={{
+                  fontFamily: '"Cormorant Garamond", Georgia, serif',
+                  fontSize: 20,
+                  fontWeight: 500,
+                  color,
+                  lineHeight: 1,
+                }}
+              >
+                {k.val}
+              </span>
+              {k.pop ? (
+                <PopChip delta={k.pop} tooltip={k.popTooltip ?? ''} />
+              ) : null}
             </div>
             <div
               style={{
@@ -908,6 +1079,10 @@ interface Kpi {
   val: number | string
   sub?: string
   tone?: Tone
+  /** PoP delta · quando presente, renderiza PopChip ao lado do valor */
+  pop?: PopDelta
+  /** Tooltip do chip · ex "vs ultimos 30d (28/03 a 26/04)" */
+  popTooltip?: string
 }
 
 function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {

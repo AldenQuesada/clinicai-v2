@@ -54,22 +54,18 @@ export default async function ParceirosPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        <div className="b2bm2-row">
-          <div className="b2bm2-col-full">
-            <Scatter rows={performance} />
-          </div>
-        </div>
-
-        <div className="b2bm2-row">
-          <div className="b2bm2-col-full">
-            <Heatmap rows={performance} vouchers={vouchers} />
-          </div>
-        </div>
-
-        <div className="b2bm2-row">
-          <div className="b2bm2-col-full">
+        {/* Layout 2-col · pedido Alden 2026-04-26.
+            Esquerda: Ranking (tabela completa com todos parceiros).
+            Direita: Scatter + Heatmap empilhados (visualizacoes de leitura
+            rapida). Em telas <1100px colapsa pra single column. */}
+        <div className="b2bm2-parceiros-2col">
+          <div className="b2bm2-parceiros-main">
             <Ranking rows={performance} />
           </div>
+          <aside className="b2bm2-parceiros-side">
+            <Scatter rows={performance} />
+            <Heatmap rows={performance} vouchers={vouchers} />
+          </aside>
         </div>
       </div>
     </main>

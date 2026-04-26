@@ -39,6 +39,11 @@ const KIND_LABELS: Record<InsightKind, string> = {
   no_activity_60d: 'Sem atividade 60d',
   nps_excellent: 'NPS excelente',
   high_impact: 'Alto impacto',
+  // System-level (sintetizados no app · ver lib/system-insights.ts)
+  system_no_senders: 'Sem WhatsApp ativo',
+  system_nps_silent: 'NPS sem respostas',
+  system_velocity_slow: 'Aprovação lenta',
+  system_pending_apps: 'Candidaturas pendentes',
 }
 
 const SEVERITY_ORDER: InsightSeverity[] = ['critical', 'warning', 'success', 'info']

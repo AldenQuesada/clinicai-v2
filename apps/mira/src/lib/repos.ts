@@ -37,6 +37,7 @@ import {
   B2BClosureRepository,
   B2BCollabRepository,
   B2BAnalyticsRepository,
+  B2BFinancialRepository,
   B2BMetricsV2Repository,
   B2BPerformanceRepository,
   B2BCommentsRepository,
@@ -86,6 +87,7 @@ export interface MiraRepos {
   b2bClosure: B2BClosureRepository
   b2bCollab: B2BCollabRepository
   b2bAnalytics: B2BAnalyticsRepository
+  b2bFinancial: B2BFinancialRepository
   b2bMetricsV2: B2BMetricsV2Repository
   b2bPerformance: B2BPerformanceRepository
   b2bComments: B2BCommentsRepository
@@ -135,6 +137,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bClosure: new B2BClosureRepository(supabase),
     b2bCollab: new B2BCollabRepository(supabase),
     b2bAnalytics: new B2BAnalyticsRepository(supabase),
+    b2bFinancial: new B2BFinancialRepository(supabase),
     b2bMetricsV2: new B2BMetricsV2Repository(supabase),
     b2bPerformance: new B2BPerformanceRepository(supabase),
     b2bComments: new B2BCommentsRepository(supabase),

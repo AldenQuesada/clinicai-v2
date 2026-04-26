@@ -19,6 +19,13 @@ export type InsightKind =
   | 'no_activity_60d'
   | 'nps_excellent'
   | 'high_impact'
+  // System-level (sintetizados no app · nao vem da RPC). Usado pra puxar
+  // alertas operacionais (sem WhatsApp ativo, NPS sem respostas, candidaturas
+  // demoradas) pro sino · cada um aponta pra acao concreta.
+  | 'system_no_senders'
+  | 'system_nps_silent'
+  | 'system_velocity_slow'
+  | 'system_pending_apps'
 
 export interface Insight {
   kind: InsightKind

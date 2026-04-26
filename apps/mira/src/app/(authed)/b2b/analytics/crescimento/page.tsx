@@ -53,16 +53,18 @@ export default async function CrescimentoPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        <div className="b2bm2-row">
-          <div className="b2bm2-col-full">
-            <Cockpit data={growth} />
-          </div>
-        </div>
-
-        <div className="b2bm2-row">
-          <div className="b2bm2-col-full">
-            <Funnel data={funnel} />
-          </div>
+        {/* 2-col side-by-side · Cockpit semanal + Funnel pipeline.
+            Pedido Alden 2026-04-26: estavam empilhados full-width (enormes).
+            Agora compactos em colunas; mobile colapsa via media query. */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+            gap: 16,
+          }}
+        >
+          <Cockpit data={growth} />
+          <Funnel data={funnel} />
         </div>
       </div>
     </main>

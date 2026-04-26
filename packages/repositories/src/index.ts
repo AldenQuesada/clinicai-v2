@@ -106,6 +106,14 @@ export {
   type AnalyticsBlob,
 } from './b2b-analytics.repository'
 export {
+  B2BFinancialRepository,
+  type FinancialSnapshot,
+  type FinancialDelta,
+  type FinancialDeltaEntry,
+  type FinancialSignal,
+  type FinancialKpisBlob,
+} from './b2b-financial.repository'
+export {
   B2BNpsRepository,
   type NpsBucket,
   type NpsResponseEntry,
