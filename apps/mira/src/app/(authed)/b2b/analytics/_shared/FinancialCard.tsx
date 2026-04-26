@@ -88,21 +88,7 @@ export function FinancialCard({
   const dTicket = computePop(cur.ticket_medio, prv.ticket_medio, prv.conversions)
   const dCac = computePop(cur.cac, prv.cac, prv.conversions, true)
 
-  // Status global do card baseado em signals mais severos
-  type WorstStatus = 'green' | 'amber' | 'red' | 'neutral'
-  const worstSignal = blob.signals.reduce<WorstStatus>(
-    (acc: WorstStatus, s: FinancialSignal): WorstStatus => {
-      const order: Record<WorstStatus, number> = {
-        red: 3,
-        amber: 2,
-        neutral: 1,
-        green: 0,
-      }
-      return order[s.status] > order[acc] ? s.status : acc
-    },
-    'neutral',
-  )
-
+  // Cores dos signals · usadas no render abaixo
   const SIGNAL_TONES: Record<string, { fg: string; bg: string }> = {
     red: { fg: '#FCA5A5', bg: 'rgba(239,68,68,0.06)' },
     amber: { fg: '#FCD34D', bg: 'rgba(245,158,11,0.06)' },
@@ -286,7 +272,7 @@ export function FinancialCard({
             )
           })}
         </div>
-      ) : worstSignal !== 'neutral' ? null : null}
+      ) : null}
     </div>
   )
 }
