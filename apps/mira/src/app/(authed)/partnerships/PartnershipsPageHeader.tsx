@@ -3,21 +3,9 @@
  *
  * MIRROR 1:1 do legacy b2b-shell.ui.js _renderHeader.
  *
- * Estrutura legacy (cravada em b2b-shell.ui.js _renderHeader):
- *   <header class="b2b-header">
- *     <div class="b2b-header-top">
- *       <div>
- *         <div class="b2b-eyebrow">Círculo Mirian de Paula</div>
- *         <h1 class="b2b-title">Programa de <em>parcerias B2B</em></h1>
- *       </div>
- *       <div class="b2b-header-ctrl">
- *         {ScoutToggle} {BudgetBadge}
- *       </div>
- *     </div>
- *   </header>
- *
- * Server Component · fetcha scout consumption defensivo. Toggle e visual
- * (statico) por enquanto · interactividade vem com pedido especifico.
+ * Usa inline styles em vez de Tailwind arbitrary classes pra eliminar
+ * qualquer suspeita de JIT purge no novo path · mais explicito visual
+ * mas garante render confiavel.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
@@ -38,74 +26,172 @@ export async function PartnershipsPageHeader() {
   const pct = capBrl > 0 ? Math.min(100, (totalBrl / capBrl) * 100) : 0
 
   return (
-    <header className="px-5 py-4 bg-[#0F0D0A] border-b border-[#C9A96E]/20">
-      <div className="flex items-center justify-between gap-6 flex-wrap">
+    <header
+      style={{
+        padding: '24px 20px 20px',
+        background: '#0F0D0A',
+        borderBottom: '1px solid rgba(201,169,110,0.2)',
+        marginBottom: 16,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 24,
+          flexWrap: 'wrap',
+        }}
+      >
         {/* Esq · eyebrow + title */}
-        <div className="flex flex-col gap-1.5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div
-            className="text-[10px] uppercase font-semibold text-[#C9A96E]"
-            style={{ letterSpacing: '4px' }}
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '4px',
+              color: '#C9A96E',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
           >
             Círculo Mirian de Paula
           </div>
           <h1
-            className="font-display text-[32px] text-[#F5F0E8] leading-none"
-            style={{ fontWeight: 300 }}
+            style={{
+              fontFamily: '"Cormorant Garamond", Georgia, serif',
+              fontWeight: 300,
+              fontSize: 36,
+              lineHeight: 1,
+              color: '#F5F0E8',
+              margin: 0,
+            }}
           >
-            Programa de <em className="text-[#C9A96E]" style={{ fontStyle: 'italic' }}>parcerias B2B</em>
+            Programa de{' '}
+            <em style={{ fontStyle: 'italic', color: '#C9A96E' }}>parcerias B2B</em>
           </h1>
         </div>
 
         {/* Dir · Scout toggle + Budget badge */}
-        <div className="flex items-center gap-3">
-          {/* Scout toggle (visual · static por enquanto) */}
-          <div className="flex items-center gap-3 px-3.5 py-2 rounded-lg border border-[#C9A96E]/25 bg-white/[0.02]">
-            <div className="flex flex-col leading-tight">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid rgba(201,169,110,0.25)',
+              background: 'rgba(255,255,255,0.02)',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
               <span
-                className="text-[10px] uppercase font-bold text-[#9CA3AF]"
-                style={{ letterSpacing: '2px' }}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                  color: '#9CA3AF',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
               >
                 Scout
               </span>
-              <span className={`text-[11px] ${enabled ? 'text-[#C9A96E]' : 'text-[#7A7165]'}`}>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: enabled ? '#C9A96E' : '#7A7165',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
+              >
                 {enabled ? 'Ativo' : 'Desligado'}
               </span>
             </div>
             <div
-              className={`relative w-10 h-5 rounded-full transition-colors ${
-                enabled ? 'bg-[#C9A96E]' : 'bg-white/10'
-              }`}
-              aria-pressed={enabled}
+              style={{
+                position: 'relative',
+                width: 40,
+                height: 20,
+                borderRadius: 999,
+                background: enabled ? '#C9A96E' : 'rgba(255,255,255,0.1)',
+                transition: 'background 200ms ease',
+              }}
               role="img"
               aria-label={enabled ? 'Scout ativo' : 'Scout desligado'}
             >
               <div
-                className={`absolute top-[2px] w-4 h-4 rounded-full bg-[#0F0D0A] transition-all ${
-                  enabled ? 'left-[22px]' : 'left-[2px]'
-                }`}
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: enabled ? 22 : 2,
+                  width: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: '#0F0D0A',
+                  transition: 'left 200ms ease',
+                }}
               />
             </div>
           </div>
 
-          {/* Budget badge */}
-          <div className="flex flex-col gap-1 px-3.5 py-2 rounded-lg border border-[#C9A96E]/25 bg-white/[0.02] min-w-[170px]">
-            <div className="flex items-center justify-between">
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid rgba(201,169,110,0.25)',
+              background: 'rgba(255,255,255,0.02)',
+              minWidth: 170,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <span
-                className="text-[10px] uppercase font-bold text-[#9CA3AF]"
-                style={{ letterSpacing: '2px' }}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                  color: '#9CA3AF',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
               >
                 Budget
               </span>
-              <span className="text-[11px] font-mono text-[#F5F0E8]">
-                R$ {totalBrl.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/{capBrl.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: 'ui-monospace, monospace',
+                  color: '#F5F0E8',
+                }}
+              >
+                R$ {totalBrl.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/
+                {capBrl.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
               </span>
             </div>
-            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+            <div
+              style={{
+                height: 4,
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
               <div
-                className="h-full rounded-full"
                 style={{
+                  height: '100%',
                   width: `${pct}%`,
-                  background: pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#C9A96E',
+                  borderRadius: 999,
+                  background:
+                    pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#C9A96E',
                   transition: 'width 400ms ease',
                 }}
               />

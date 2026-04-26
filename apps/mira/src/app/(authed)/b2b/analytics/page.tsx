@@ -1,507 +1,69 @@
 /**
- * /b2b/analytics · Visão geral do programa B2B agrupada por OBJETIVOS.
+ * /b2b/analytics · MODO DIAGNOSTICO MINIMO 2026-04-26
  *
- * 6 objetivos visuais (decisao 2026-04-25 com Alden):
- *   🎯 Crescimento de novas parcerias    (KPI grid · 5 cards)
- *   🎟 Atividade do voucher (volume)     (KPI 6 + Origem em 2-col)
- *   💰 Conversão da convidada (funil)    (JourneyBar wide)
- *   ⏱ Velocity / tempo de resposta      (KPI 2 + Atividade Mira em 2-col)
- *   🩺 Saúde do programa                 (HealthBar wide)
+ * TODA logica original de Visao Geral comentada e substituida por um
+ * server component que fetcha o RPC e renderiza JSON inline. Se ESTA
+ * versao crasha, o bug nao esta no codigo do view (foi todo removido) ·
+ * esta no fetch ou em algo acima.
  *
- * Server Component puro (zero loading state) · TimeRangePicker shared
- * controla a janela via querystring · namespace .b2bm2-* consistente.
+ * Restaurar versao real depois de confirmar que o RPC fetch funciona.
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
-import {
-  TimeRangePicker,
-  parseTimeRange,
-} from './_shared/TimeRangePicker'
-import type { AnalyticsBlob } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
 
-interface PageProps {
-  searchParams: Promise<{ days?: string; from?: string; to?: string }>
-}
+export default async function AnalyticsOverviewPage() {
+  const stamp = new Date().toISOString()
 
-export default async function AnalyticsOverviewPage({ searchParams }: PageProps) {
-  const sp = await searchParams
-  const tr = parseTimeRange(sp)
-  const days = tr.days ?? Math.max(
-    1,
-    Math.ceil(
-      (new Date(tr.toIso! + 'T23:59:59Z').getTime() -
-        new Date(tr.fromIso! + 'T00:00:00Z').getTime()) /
-        86400000,
-    ),
-  )
+  let stage = 'init'
+  let result: unknown = null
+  let errMsg: string | null = null
 
-  // Defensive: loadMiraServerContext throw se ctx auth invalido. Antes
-  // escapava do .catch da chamada b2bAnalytics e crashava o segmento.
-  let data: AnalyticsBlob | null = null
-  let fetchError: string | null = null
   try {
-    const { repos } = await loadMiraServerContext()
-    data = await repos.b2bAnalytics.get(days).catch((e) => {
-      fetchError = e instanceof Error ? e.message : String(e)
+    stage = 'load-ctx'
+    const { repos, ctx } = await loadMiraServerContext()
+    stage = `ctx-ok clinic_id=${ctx.clinic_id}`
+
+    stage = 'rpc-call'
+    result = await repos.b2bAnalytics.get(30).catch((e) => {
+      errMsg = e instanceof Error ? e.message : String(e)
       return null
     })
+    stage = `rpc-${result ? 'ok' : 'null-with-catch'}`
   } catch (e) {
-    fetchError = e instanceof Error ? e.message : String(e)
-    data = null
+    errMsg = e instanceof Error ? e.message : String(e)
+    stage = `THROW at ${stage}`
   }
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2bm2-wrap">
-        <header className="b2bm2-header">
-          <div>
-            <div className="b2bm2-eyebrow">Programa de parcerias B2B</div>
-            <h1 className="b2bm2-title">Visão geral</h1>
-            <p className="b2bm2-sub">
-              Resumo do programa agrupado por objetivo · janela atual:{' '}
-              {tr.fromIso && tr.toIso
-                ? `${tr.fromIso} → ${tr.toIso}`
-                : `últimos ${days} dias`}
-              .
-            </p>
-          </div>
-          <div className="b2bm2-header-ctrl">
-            <TimeRangePicker />
-          </div>
-        </header>
-
-        {/* DEBUG MODE temporario · 2026-04-26 · cravar bug do server crash.
-            DELETAR e restaurar <ObjectivesView data={data} /> apos. */}
-        <div style={{
-          padding: 16,
-          background: 'rgba(201,169,110,0.05)',
-          border: '1px solid rgba(201,169,110,0.3)',
-          borderRadius: 8,
-          marginBottom: 12,
-          color: '#F5F0E8',
-        }}>
-          <strong style={{ color: '#C9A96E', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.4 }}>
-            🔧 Debug · Visão Geral em modo diagnostico
-          </strong>
-          <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-            ObjectivesView temporariamente desativada · vendo shape do data direto do RPC.
-          </p>
-          <pre style={{
-            marginTop: 12,
-            padding: 10,
-            background: 'rgba(0,0,0,0.4)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 4,
-            fontSize: 11,
-            fontFamily: 'ui-monospace, monospace',
-            color: '#F5F0E8',
-            whiteSpace: 'pre-wrap',
-            maxHeight: 600,
-            overflow: 'auto',
-          }}>
-{`fetchError : ${fetchError ?? '— (nada · fetch ok)'}
-data       : ${data ? JSON.stringify(data, null, 2) : 'null'}`}
-          </pre>
-        </div>
-
-        {!data || !data.ok ? (
-          <div className="b2bm2-card b2bm2-empty">
-            <strong>data.ok = false · empty card</strong>
-            <p>
-              Veja o dump acima · campo `ok` veio false ou data null.
-            </p>
-          </div>
-        ) : null}
-      </div>
-    </main>
-  )
-}
-
-function ObjectivesView({ data }: { data: AnalyticsBlob }) {
-  // Defensive defaults · RPC pode retornar shape parcial (ex.: legado sem
-  // mira.insights_active ou sem mira.nps_summary). Crash em destructuring
-  // bota o Server Component em erro genérico inutil em prod.
-  const a = data.applications ?? ({} as AnalyticsBlob['applications'])
-  const v = data.vouchers ?? ({} as AnalyticsBlob['vouchers'])
-  const t = data.timing ?? ({} as AnalyticsBlob['timing'])
-  const h = data.health ?? ({} as AnalyticsBlob['health'])
-  const m = data.mira ?? ({} as AnalyticsBlob['mira'])
-  const nps = m.nps_summary ?? { responses: 0, nps_score: null }
-
-  return (
-    <>
-      {/* ─── OBJETIVO 1 · Crescimento de novas parcerias ──────────────── */}
-      <ObjectiveSection
-        emoji="🎯"
-        title="Crescimento de novas parcerias"
-        sub="Funil de candidaturas → aprovações no período. Fonte do crescimento do programa."
-      >
-        <KpiGrid
-          kpis={[
-            { lbl: 'Total candidaturas', val: a.total ?? 0 },
-            {
-              lbl: 'Pendentes',
-              val: a.pending ?? 0,
-              tone: (a.pending ?? 0) > 0 ? 'amber' : null,
-            },
-            { lbl: 'Aprovadas', val: a.approved ?? 0, tone: 'green' },
-            { lbl: 'Rejeitadas', val: a.rejected ?? 0 },
-            {
-              lbl: 'Taxa conversão',
-              val: `${a.conversion_rate ?? 0}%`,
-              sub: `${a.approved ?? 0}/${a.total ?? 0} viraram parceria`,
-            },
-          ]}
-        />
-      </ObjectiveSection>
-
-      {/* ─── OBJETIVO 2 · Atividade do voucher (volume) · 2 colunas ──── */}
-      <div className="b2bm2-row b2bm2-row-2col">
-        <ObjectiveSection
-          emoji="🎟"
-          title="Vouchers (volume bruto)"
-          sub="Total de vouchers movimentados no período (exclui demos)."
-        >
-          <KpiGrid
-            kpis={[
-              { lbl: 'Emitidos', val: v.total ?? 0 },
-              { lbl: 'Entregues', val: v.delivered ?? 0 },
-              { lbl: 'Abertos', val: v.opened ?? 0 },
-              {
-                lbl: 'Agendaram',
-                val: v.scheduled ?? 0,
-                tone: (v.scheduled ?? 0) > 0 ? 'amber' : null,
-              },
-              { lbl: 'Compareceram', val: v.redeemed ?? 0, tone: 'green' },
-              { lbl: 'Pagaram', val: v.purchased ?? 0, tone: 'green' },
-            ]}
-          />
-        </ObjectiveSection>
-
-        <ObjectiveSection
-          emoji="🌟"
-          title="Origem dos vouchers"
-          sub="Quantos vieram da Mira (automação) vs admin manual vs backfill histórico."
-        >
-          <VoucherSplit v={v} />
-        </ObjectiveSection>
-      </div>
-
-      {/* ─── OBJETIVO 3 · Conversão da convidada (funnel wide) ────────── */}
-      <ObjectiveSection
-        emoji="💰"
-        title="Conversão da convidada (funil)"
-        sub="Voucher enviado → agendou → compareceu → virou paciente pagante."
-      >
-        <JourneyBar v={v} />
-      </ObjectiveSection>
-
-      {/* ─── OBJETIVO 4 · Velocity (2 colunas) ────────────────────────── */}
-      <div className="b2bm2-row b2bm2-row-2col">
-        <ObjectiveSection
-          emoji="⏱"
-          title="Velocity de aprovação"
-          sub="Tempo até a Mira/admin aprovar uma candidatura nova."
-        >
-          <KpiGrid
-            kpis={[
-              {
-                lbl: 'Média',
-                val: `${t.avg_approval_hours ?? 0}h`,
-                sub: `${t.resolved_count ?? 0} resolvidas`,
-              },
-              { lbl: 'Maior tempo', val: `${t.max_approval_hours ?? 0}h` },
-            ]}
-          />
-        </ObjectiveSection>
-
-        <ObjectiveSection
-          emoji="🤖"
-          title="Atividade Mira (background)"
-          sub="Estado dos sistemas que rodam atrás (telefones autorizados, NPS, insights)."
-        >
-          <KpiGrid
-            kpis={[
-              {
-                lbl: 'Telefones',
-                val: m.wa_senders_active ?? 0,
-                sub: `de ${m.wa_senders_total ?? 0} cadastrados`,
-              },
-              {
-                lbl: 'Respostas NPS',
-                val: m.nps_responses ?? 0,
-                sub:
-                  (nps.responses ?? 0) > 0
-                    ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
-                    : '',
-              },
-              {
-                lbl: 'Insights ativos',
-                val: m.insights_active ?? 0,
-                sub:
-                  (m.insights_active ?? 0) > 0 ? 'Olha na página' : 'Tudo em ordem',
-              },
-            ]}
-          />
-        </ObjectiveSection>
-      </div>
-
-      {/* ─── OBJETIVO 5 · Saúde do programa ────────────────────────────── */}
-      <ObjectiveSection
-        emoji="🩺"
-        title="Saúde do programa"
-        sub="Distribuição das parcerias ativas por saúde · sinais de alerta agregados."
-      >
-        <HealthBar h={h} />
-      </ObjectiveSection>
-
-      {/* Footer info */}
-      <div
+    <main style={{ padding: 24, background: '#0F0D0A', color: '#F5F0E8', minHeight: '100%' }}>
+      <h1 style={{ color: '#C9A96E', fontSize: 22, marginBottom: 12 }}>
+        🔧 Analytics · DIAGNOSTIC MODE
+      </h1>
+      <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>
+        Visao geral original removida temporariamente. Quando este card aparece,
+        o segmento /b2b/analytics renderiza OK; bug do 500 estava em ObjectivesView
+        ou no fetch · log abaixo identifica.
+      </p>
+      <pre
         style={{
-          fontSize: 11,
-          color: 'var(--b2b-text-muted)',
-          textAlign: 'right',
-          marginTop: 8,
+          background: 'rgba(0,0,0,0.5)',
+          border: '1px solid rgba(201,169,110,0.3)',
+          padding: 12,
+          borderRadius: 6,
+          fontSize: 12,
+          fontFamily: 'ui-monospace, monospace',
+          whiteSpace: 'pre-wrap',
+          maxHeight: 600,
+          overflow: 'auto',
         }}
       >
-        Gerado em {new Date(data.generated_at).toLocaleString('pt-BR')}
-      </div>
-    </>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Building blocks
-// ═══════════════════════════════════════════════════════════════════════
-
-function ObjectiveSection({
-  emoji,
-  title,
-  sub,
-  children,
-}: {
-  emoji: string
-  title: string
-  sub?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="b2bm2-card">
-      <div className="b2bm2-card-hdr">
-        <h3>
-          <span style={{ marginRight: 8 }}>{emoji}</span>
-          {title}
-        </h3>
-        {sub ? <div className="b2bm2-card-sub">{sub}</div> : null}
-      </div>
-      <div className="b2bm2-card-body">{children}</div>
-    </div>
-  )
-}
-
-type Tone = 'green' | 'amber' | 'red' | null
-interface Kpi {
-  lbl: string
-  val: number | string
-  sub?: string
-  tone?: Tone
-}
-
-function KpiGrid({ kpis }: { kpis: Kpi[] }) {
-  return (
-    <div className="b2bm-kpi-grid">
-      {kpis.map((k) => {
-        const color =
-          k.tone === 'green'
-            ? '#10B981'
-            : k.tone === 'amber'
-            ? '#F59E0B'
-            : k.tone === 'red'
-            ? '#EF4444'
-            : undefined
-        return (
-          <div key={k.lbl} className="b2bm-kpi">
-            <div
-              className="b2bm-kpi-val"
-              style={color ? { color } : undefined}
-            >
-              {k.val}
-            </div>
-            <div className="b2bm-kpi-lbl">{k.lbl}</div>
-            {k.sub ? <div className="b2bm-kpi-sub">{k.sub}</div> : null}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {
-  const total = Number(h.total || 0)
-  if (!total) {
-    return <div className="b2bm2-empty">Nenhuma parceria ativa.</div>
-  }
-  const g = Number(h.green || 0)
-  const y = Number(h.yellow || 0)
-  const r = Number(h.red || 0)
-  const u = Number(h.unknown || 0)
-  const pct = (n: number) => ((n / total) * 100).toFixed(1)
-
-  return (
-    <>
-      <div className="b2b-health-bar">
-        {g > 0 ? (
-          <div
-            style={{ width: `${pct(g)}%`, background: '#10B981' }}
-            title={`Verde · ${g}`}
-          />
-        ) : null}
-        {y > 0 ? (
-          <div
-            style={{ width: `${pct(y)}%`, background: '#F59E0B' }}
-            title={`Amarela · ${y}`}
-          />
-        ) : null}
-        {r > 0 ? (
-          <div
-            style={{ width: `${pct(r)}%`, background: '#EF4444' }}
-            title={`Vermelha · ${r}`}
-          />
-        ) : null}
-        {u > 0 ? (
-          <div
-            style={{ width: `${pct(u)}%`, background: '#64748B' }}
-            title={`Sem dado · ${u}`}
-          />
-        ) : null}
-      </div>
-      <div className="b2b-health-legend">
-        {g > 0 ? (
-          <span>
-            <i style={{ background: '#10B981' }} /> {g} verdes
-          </span>
-        ) : null}
-        {y > 0 ? (
-          <span>
-            <i style={{ background: '#F59E0B' }} /> {y} em atenção
-          </span>
-        ) : null}
-        {r > 0 ? (
-          <span>
-            <i style={{ background: '#EF4444' }} /> {r} críticas
-          </span>
-        ) : null}
-        {u > 0 ? (
-          <span>
-            <i style={{ background: '#64748B' }} /> {u} sem dado
-          </span>
-        ) : null}
-      </div>
-    </>
-  )
-}
-
-function VoucherSplit({ v }: { v: AnalyticsBlob['vouchers'] }) {
-  const total = Number(v.total || 0)
-  if (!total) {
-    return <div className="b2bm2-empty">Nenhum voucher no período.</div>
-  }
-  const mira = Number(v.via_mira || 0)
-  const admin = Number(v.via_admin || 0)
-  const bf = Number(v.via_backfill || 0)
-  const pct = (n: number) => ((n / total) * 100).toFixed(0)
-
-  return (
-    <>
-      <div className="b2b-split-bar">
-        {mira > 0 ? (
-          <div
-            style={{
-              width: `${pct(mira)}%`,
-              background: 'var(--m2-gold, #C9A96E)',
-            }}
-            title="Via Mira"
-          />
-        ) : null}
-        {admin > 0 ? (
-          <div
-            style={{ width: `${pct(admin)}%`, background: '#60A5FA' }}
-            title="Manual"
-          />
-        ) : null}
-        {bf > 0 ? (
-          <div
-            style={{ width: `${pct(bf)}%`, background: '#64748B' }}
-            title="Backfill"
-          />
-        ) : null}
-      </div>
-      <div className="b2b-split-legend">
-        {mira > 0 ? (
-          <span>
-            <i style={{ background: 'var(--m2-gold, #C9A96E)' }} />
-            {mira} via Mira ({pct(mira)}%)
-          </span>
-        ) : null}
-        {admin > 0 ? (
-          <span>
-            <i style={{ background: '#60A5FA' }} />
-            {admin} manual
-          </span>
-        ) : null}
-        {bf > 0 ? (
-          <span>
-            <i style={{ background: '#64748B' }} />
-            {bf} histórico
-          </span>
-        ) : null}
-      </div>
-    </>
-  )
-}
-
-function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
-  const total = Number(v.total || 0)
-  if (!total) {
-    return <div className="b2bm2-empty">Nenhum voucher no período.</div>
-  }
-  const delivered = Number(v.delivered || 0)
-  const opened = Number(v.opened || 0)
-  const scheduled = Number(v.scheduled || 0)
-  const redeemed = Number(v.redeemed || 0)
-  const purchased = Number(v.purchased || 0)
-  const pct = (n: number) => Math.round((n / total) * 100)
-
-  const steps = [
-    { lbl: 'Enviados', n: total, pct: 100, color: '#64748B' },
-    { lbl: 'Entregues', n: delivered, pct: pct(delivered), color: '#60A5FA' },
-    { lbl: 'Abertos', n: opened, pct: pct(opened), color: '#A78BFA' },
-    { lbl: 'Agendaram', n: scheduled, pct: pct(scheduled), color: '#F59E0B' },
-    { lbl: 'Compareceram', n: redeemed, pct: pct(redeemed), color: '#10B981' },
-    {
-      lbl: 'Pagaram',
-      n: purchased,
-      pct: pct(purchased),
-      color: 'var(--m2-gold, #C9A96E)',
-    },
-  ]
-
-  return (
-    <div className="b2b-journey">
-      {steps.map((s) => (
-        <div key={s.lbl} className="b2b-journey-step">
-          <div className="b2b-journey-lbl">{s.lbl}</div>
-          <div className="b2b-journey-n" style={{ color: s.color }}>
-            {s.n}
-          </div>
-          <div className="b2b-journey-pct">{s.pct}%</div>
-          <div className="b2b-journey-bar">
-            <div style={{ width: `${s.pct}%`, background: s.color }} />
-          </div>
-        </div>
-      ))}
-    </div>
+{`generated_at : ${stamp}
+stage        : ${stage}
+errMsg       : ${errMsg ?? '— (no err)'}
+result       : ${result ? JSON.stringify(result, null, 2) : 'null'}`}
+      </pre>
+    </main>
   )
 }
