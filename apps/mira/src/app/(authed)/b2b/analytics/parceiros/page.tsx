@@ -9,10 +9,8 @@ import { loadMiraServerContext } from '@/lib/server-context'
 import { Scatter } from './Scatter'
 import { Heatmap } from './Heatmap'
 import { Ranking } from './Ranking'
-import {
-  TimeRangePicker,
-  parseTimeRange,
-} from '../_shared/TimeRangePicker'
+import { TimeRangePicker } from '../_shared/TimeRangePicker'
+import { parseTimeRange } from '../_shared/timeRangeUtils'
 
 export const dynamic = 'force-dynamic'
 

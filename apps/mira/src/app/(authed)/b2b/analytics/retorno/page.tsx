@@ -9,10 +9,8 @@ import { loadMiraServerContext } from '@/lib/server-context'
 import { Forecast } from './Forecast'
 import { Payback } from './Payback'
 import { Velocity } from './Velocity'
-import {
-  TimeRangePicker,
-  parseTimeRange,
-} from '../_shared/TimeRangePicker'
+import { TimeRangePicker } from '../_shared/TimeRangePicker'
+import { parseTimeRange } from '../_shared/timeRangeUtils'
 
 export const dynamic = 'force-dynamic'
 

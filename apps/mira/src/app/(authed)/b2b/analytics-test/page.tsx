@@ -27,7 +27,7 @@ export default async function AnalyticsTest() {
 
   // Marker hardcoded · cada commit que mexer aqui muda este string
   // Use isso pra confirmar qual commit esta servindo no Easypanel.
-  const DEPLOY_MARKER = 'analytics-test-v6-brand-no-chrome-2026-04-26'
+  const DEPLOY_MARKER = 'analytics-test-v7-parseTimeRange-fix-2026-04-26'
 
   return (
     <main className="flex-1 p-6 bg-[#0F0D0A] text-[#F5F0E8]">
