@@ -1,25 +1,26 @@
 /**
- * Partnership detail · full page (URL direta · share).
+ * Intercepting modal · /partnerships/(.)[id]
  *
- * Quando user clica numa parceria do /partnerships, Next intercepta a
- * navegacao e renderiza @modal/(.)[id]/page.tsx (overlay sobre lista).
- * ESTA pagina renderiza quando:
- *   - URL acessada direto (paste · bookmark · reload)
- *   - Hard navigation (browser back/forward · email link · external)
+ * Pedido Alden 2026-04-26: clicar no card abre OVERLAY (poupa click).
+ * Lista fica visivel atras do modal · ESC + click outside fecham
+ * (router.back · volta pra /partnerships preservando estado).
  *
- * Conteudo compartilhado em PartnershipDetailLayout · ambos contextos
- * usam o mesmo (zero duplicacao).
+ * Renderiza o mesmo PartnershipDetailLayout que /partnerships/[id]/page.tsx ·
+ * zero duplicacao. URL muda pra /partnerships/[id] mas Next NAO desmonta a
+ * lista (parallel routes + intercepting magic).
+ *
+ * Acesso direto a /partnerships/[id] (URL · reload) NAO ativa intercepting ·
+ * cai em [id]/page.tsx full screen.
  */
 
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
 import { loadMiraServerContext } from '@/lib/server-context'
 import {
   PartnershipDetailLayout,
   VALID_TABS,
   type DetailTabKey,
-} from './PartnershipDetailLayout'
+} from '../../[id]/PartnershipDetailLayout'
+import { PartnershipModalShell } from './PartnershipModalShell'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,10 @@ interface PageProps {
   searchParams: Promise<{ tab?: string }>
 }
 
-export default async function PartnershipDetailPage({ params, searchParams }: PageProps) {
+export default async function InterceptedPartnershipModal({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params
   const sp = await searchParams
   const { ctx, repos } = await loadMiraServerContext()
@@ -49,19 +53,14 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
       : []
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="max-w-[1080px] mx-auto px-7 pt-7">
-        <Link href="/partnerships" className="b2b-back-link mb-3">
-          <ArrowLeft className="w-3 h-3" />
-          Voltar
-        </Link>
-      </div>
+    <PartnershipModalShell partnershipId={id}>
       <PartnershipDetailLayout
         partnership={partnership}
         activeTab={activeTab}
         canManage={canManage}
         managers={managers.map((m) => m.name || m.email || 'sem-nome').filter(Boolean)}
+        inModal
       />
-    </main>
+    </PartnershipModalShell>
   )
 }
