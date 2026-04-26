@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { revalidateB2BCache } from '@/lib/cached-queries'
 
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin'].includes(role)) {
@@ -18,6 +19,7 @@ export async function approveApplicationAction(
   const r = await repos.b2bApplications.approve(id, note)
   revalidatePath('/b2b/candidaturas')
   revalidatePath('/partnerships')
+  revalidateB2BCache(ctx.clinic_id)
   return r
 }
 
@@ -32,5 +34,6 @@ export async function rejectApplicationAction(
   }
   const r = await repos.b2bApplications.reject(id, reason.trim())
   revalidatePath('/b2b/candidaturas')
+  revalidateB2BCache(ctx.clinic_id)
   return r
 }

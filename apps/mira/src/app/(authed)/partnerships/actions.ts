@@ -7,6 +7,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { revalidateB2BCache } from '@/lib/cached-queries'
 
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin'].includes(role)) {
@@ -33,6 +34,7 @@ export async function updatePartnershipBasicAction(formData: FormData) {
   if (!result.ok) throw new Error(result.error || 'Erro ao atualizar')
 
   revalidatePath(`/partnerships/${id}`)
+  revalidateB2BCache(ctx.clinic_id)
 }
 
 export async function approvePartnershipAction(formData: FormData) {
@@ -48,6 +50,7 @@ export async function approvePartnershipAction(formData: FormData) {
 
   revalidatePath(`/partnerships/${id}`)
   revalidatePath('/partnerships')
+  revalidateB2BCache(ctx.clinic_id)
 }
 
 export async function setPartnershipStatusAction(formData: FormData) {
@@ -65,4 +68,5 @@ export async function setPartnershipStatusAction(formData: FormData) {
 
   revalidatePath(`/partnerships/${id}`)
   revalidatePath('/partnerships')
+  revalidateB2BCache(ctx.clinic_id)
 }

@@ -16,7 +16,7 @@
  * Por enquanto so revalidate-by-time (30s) pra simplicidade.
  */
 
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, updateTag } from 'next/cache'
 import {
   B2BAnalyticsRepository,
   B2BInsightsRepository,
@@ -63,6 +63,22 @@ export function getCachedCriticalAlerts(
     [`critical-alerts:${clinicId}`],
     { revalidate: TTL, tags: [`critical-alerts:${clinicId}`] },
   )()
+}
+
+/**
+ * Invalida cache B2B do AppShell · chamar em mutations que afetam parcerias,
+ * vouchers, candidaturas ou insights. Atualiza imediatamente em vez de
+ * esperar TTL 30s.
+ *
+ * Uso: `await revalidateB2BCache(clinicId)` no fim de cada action de
+ * mutation B2B · antes ou depois do revalidatePath.
+ */
+export function revalidateB2BCache(clinicId: string): void {
+  // Next.js 16: updateTag (1-arg) substitui revalidateTag legado para
+  // server actions · garante read-your-own-writes semantics.
+  updateTag(`analytics:${clinicId}`)
+  updateTag(`critical-alerts:${clinicId}`)
+  updateTag(`insights:${clinicId}`)
 }
 
 /**
