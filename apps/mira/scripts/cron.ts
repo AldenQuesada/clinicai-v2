@@ -116,6 +116,11 @@ const JOBS: CronJob[] = [
     schedule: '0 * * * *',
     endpoints: ['lara-voucher-followup'],
   },
+  {
+    label: 'daily-top-insight · 08h SP diario (mig 800-20)',
+    schedule: '0 8 * * *',
+    endpoints: ['mira-daily-top-insight'],
+  },
 ]
 
 // ─── Disparador HTTP ───────────────────────────────────────────────
