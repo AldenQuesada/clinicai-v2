@@ -1065,6 +1065,8 @@ interface Kpi {
   pop?: PopDelta
   /** Tooltip do chip · ex "vs ultimos 30d (28/03 a 26/04)" */
   popTooltip?: string
+  /** Tooltip explicativo do KPI · threshold/criterio · aparece on hover do label */
+  tip?: string
 }
 
 function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {
