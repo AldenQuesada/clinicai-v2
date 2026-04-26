@@ -50,6 +50,13 @@ export interface BulkPreviewState {
   partnershipName: string
   combo: string
   scheduledAt: string
+  /** 'now' = dispatch imediato (worker no proximo tick) · 'schedule' = futuro */
+  dispatchWhen: 'now' | 'schedule'
+  /**
+   * True se o user pediu schedule mas a hora era passado/<5min · server
+   * floored em now+5min. UI mostra warning "ajustamos pra X".
+   */
+  scheduleWasFloored?: boolean
   listText: string
   items: BulkPreviewItem[]
   eligibleCount: number
@@ -99,19 +106,41 @@ export async function validateBulkAction(formData: FormData) {
   const partnershipId = String(formData.get('partnership_id') || '').trim()
   const combo = String(formData.get('combo') || '').trim()
   const listText = String(formData.get('list_text') || '')
+  const dispatchWhenRaw = String(formData.get('dispatch_when') || 'now').trim()
   const scheduledAtRaw = String(formData.get('scheduled_at') || '').trim()
 
-  // Converte datetime-local pra ISO · sem TZ assume local browser/server
+  // dispatch_when = 'now' | 'schedule' (radio) · default 'now' por seguranca
+  const dispatchWhen: 'now' | 'schedule' =
+    dispatchWhenRaw === 'schedule' ? 'schedule' : 'now'
+
+  // Resolve scheduled_at:
+  //   - 'now'      → ISO de agora · worker pega no proximo tick (1min)
+  //   - 'schedule' → parse datetime-local · floor em now+5min se passado/proximo
+  //
+  // Timezone: input datetime-local nao tem TZ · new Date() interpreta como
+  // hora LOCAL do servidor. Em prod, container Easypanel roda em UTC, mas
+  // browser BR envia "2026-04-26T15:30" pensando BRT. Pra evitar drift de 3h
+  // pra frente, reinterpretamos a string como BRT (UTC-3) na conversao.
   let scheduledAt = ''
-  if (scheduledAtRaw) {
-    try {
-      const d = new Date(scheduledAtRaw)
-      if (!isNaN(d.getTime())) scheduledAt = d.toISOString()
-    } catch {
-      // ignore · sera default = agora no enqueue
+  let scheduleWasFloored = false
+  if (dispatchWhen === 'schedule' && scheduledAtRaw) {
+    const isoFromBR = brtInputToIso(scheduledAtRaw)
+    if (isoFromBR) {
+      const t = new Date(isoFromBR).getTime()
+      const minMs = Date.now() + 5 * 60_000
+      if (t < minMs) {
+        // User digitou no passado ou nos proximos 5min · floor em min seguro
+        scheduledAt = new Date(minMs).toISOString()
+        scheduleWasFloored = true
+      } else {
+        scheduledAt = isoFromBR
+      }
     }
   }
-  if (!scheduledAt) scheduledAt = new Date().toISOString()
+  if (!scheduledAt) {
+    // 'now' OU schedule invalido · enfileira pra dispatch imediato
+    scheduledAt = new Date().toISOString()
+  }
 
   if (!partnershipId) {
     await persistPreview({
@@ -119,6 +148,8 @@ export async function validateBulkAction(formData: FormData) {
       partnershipName: '',
       combo,
       scheduledAt,
+      dispatchWhen,
+      scheduleWasFloored,
       listText,
       items: [],
       eligibleCount: 0,
@@ -136,6 +167,8 @@ export async function validateBulkAction(formData: FormData) {
       partnershipName: '',
       combo,
       scheduledAt,
+      dispatchWhen,
+      scheduleWasFloored,
       listText,
       items: [],
       eligibleCount: 0,
@@ -153,6 +186,8 @@ export async function validateBulkAction(formData: FormData) {
       partnershipName: partnership.name,
       combo: combo || partnership.voucherCombo || '',
       scheduledAt,
+      dispatchWhen,
+      scheduleWasFloored,
       listText,
       items: [],
       eligibleCount: 0,
@@ -198,6 +233,8 @@ export async function validateBulkAction(formData: FormData) {
     partnershipName: partnership.name,
     combo: combo || partnership.voucherCombo || '',
     scheduledAt,
+    dispatchWhen,
+    scheduleWasFloored,
     listText,
     items,
     eligibleCount,
@@ -277,6 +314,35 @@ export async function cancelBatchAction(formData: FormData) {
 }
 
 // ── Helpers internos ───────────────────────────────────────────────────────
+
+/**
+ * Converte string datetime-local "YYYY-MM-DDTHH:mm" assumindo fuso BRT
+ * (America/Sao_Paulo · UTC-3, sem DST atualmente) pra ISO UTC.
+ *
+ * Por que: input datetime-local HTML5 nao envia TZ · new Date(s) interpreta
+ * como hora LOCAL do server. Em prod, Easypanel container roda UTC mas
+ * admin BR digita pensando BRT. Sem essa conversao, "26/04 15:30 BRT" virava
+ * "26/04 15:30 UTC" = "26/04 12:30 BRT" · dispatch 3h antes do esperado.
+ *
+ * Se UTC-3 mudar (DST volta, mudanca de fuso), trocar por Intl.DateTimeFormat
+ * com timeZone='America/Sao_Paulo'. Por agora, BR esta fixo em UTC-3.
+ */
+function brtInputToIso(input: string): string | null {
+  const m = input.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!m) return null
+  const [, y, mo, d, h, mi, s] = m
+  // Constroi em UTC adicionando +3h ao instante BRT
+  const utc = Date.UTC(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    Number(h) + 3,
+    Number(mi),
+    Number(s ?? '0'),
+  )
+  if (isNaN(utc)) return null
+  return new Date(utc).toISOString()
+}
 
 async function persistPreview(state: BulkPreviewState) {
   const store = await cookies()

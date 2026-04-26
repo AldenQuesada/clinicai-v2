@@ -112,188 +112,186 @@ function ObjectivesView({ data }: { data: AnalyticsBlob }) {
   const m = data.mira ?? ({} as AnalyticsBlob['mira'])
   const nps = m.nps_summary ?? { responses: 0, nps_score: null }
 
+  // Snapshot · 6 KPIs micro do programa em 1 linha
+  const totalActive = Number(h.total ?? 0)
+  const totalGreen = Number(h.green ?? 0)
+  const totalYellow = Number(h.yellow ?? 0)
+  const totalRed = Number(h.red ?? 0)
+  const vouchersTotal = Number(v.total ?? 0)
+  const vouchersPaid = Number(v.purchased ?? 0)
+  const convPct =
+    vouchersTotal > 0 ? ((vouchersPaid / vouchersTotal) * 100).toFixed(1) : '0'
+  const npsLabel =
+    (nps.responses ?? 0) > 0 && nps.nps_score != null
+      ? String(nps.nps_score)
+      : '—'
+
   return (
     <>
-      {/* ─── OBJETIVO 1 · Crescimento de novas parcerias ──────────────── */}
-      <ObjectiveSection
-        emoji="🎯"
-        title="Crescimento de novas parcerias"
-        sub="Funil de candidaturas → aprovações no período. Fonte do crescimento do programa."
-      >
-        <KpiGrid
-          kpis={[
-            { lbl: 'Total candidaturas', val: a.total ?? 0 },
-            {
-              lbl: 'Pendentes',
-              val: a.pending ?? 0,
-              tone: (a.pending ?? 0) > 0 ? 'amber' : null,
-            },
-            { lbl: 'Aprovadas', val: a.approved ?? 0, tone: 'green' },
-            { lbl: 'Rejeitadas', val: a.rejected ?? 0 },
-            {
-              lbl: 'Taxa conversão',
-              val: `${a.conversion_rate ?? 0}%`,
-              sub: `${a.approved ?? 0}/${a.total ?? 0} viraram parceria`,
-            },
-          ]}
-        />
-      </ObjectiveSection>
+      {/* ═══ CAMADA 1 · SNAPSHOT (geral) ═══ */}
+      <SnapshotRow
+        kpis={[
+          { lbl: 'Ativas', val: String(totalActive), sub: 'parcerias' },
+          {
+            lbl: 'Candidaturas',
+            val: String(a.pending ?? 0),
+            sub: 'pendentes',
+            tone: (a.pending ?? 0) > 0 ? 'amber' : null,
+          },
+          { lbl: 'Vouchers', val: String(vouchersTotal), sub: 'no período' },
+          {
+            lbl: 'Conversão',
+            val: `${convPct}%`,
+            sub: `${vouchersPaid}/${vouchersTotal} pagaram`,
+            tone: Number(convPct) >= 30 ? 'green' : null,
+          },
+          {
+            lbl: 'NPS',
+            val: npsLabel,
+            sub: `${nps.responses ?? 0} respostas`,
+          },
+          {
+            lbl: 'Saúde',
+            val: `${totalGreen}/${totalActive}`,
+            sub: `${totalYellow}A · ${totalRed}V`,
+            tone: totalRed > 0 ? 'red' : totalYellow > 0 ? 'amber' : 'green',
+          },
+        ]}
+      />
 
-      {/* ─── OBJETIVO 2 · Atividade do voucher (volume) · 2 colunas ──── */}
-      <div className="b2bm2-row b2bm2-row-2col">
-        <ObjectiveSection
-          emoji="🎟"
-          title="Vouchers (volume bruto)"
-          sub="Total de vouchers movimentados no período (exclui demos)."
-        >
-          <KpiGrid
-            kpis={[
-              { lbl: 'Emitidos', val: v.total ?? 0 },
-              { lbl: 'Entregues', val: v.delivered ?? 0 },
-              { lbl: 'Abertos', val: v.opened ?? 0 },
-              {
-                lbl: 'Agendaram',
-                val: v.scheduled ?? 0,
-                tone: (v.scheduled ?? 0) > 0 ? 'amber' : null,
-              },
-              { lbl: 'Compareceram', val: v.redeemed ?? 0, tone: 'green' },
-              { lbl: 'Pagaram', val: v.purchased ?? 0, tone: 'green' },
-            ]}
-          />
-        </ObjectiveSection>
-
-        <ObjectiveSection
-          emoji="🌟"
-          title="Origem dos vouchers"
-          sub="Quantos vieram da Mira (automação) vs admin manual vs backfill histórico."
-        >
-          <VoucherSplit v={v} />
-        </ObjectiveSection>
-      </div>
-
-      {/* ─── OBJETIVO 3 · Conversão da convidada (funnel wide) ────────── */}
-      <ObjectiveSection
+      {/* ═══ CAMADA 2 · CONVERSÃO (foco principal) ═══ */}
+      <CompactSection
         emoji="💰"
-        title="Conversão da convidada (funil)"
-        sub="Voucher enviado → agendou → compareceu → virou paciente pagante."
+        title="Conversão da convidada"
+        sub="Voucher enviado → agendou → compareceu → virou paciente pagante"
       >
         <JourneyBar v={v} />
-      </ObjectiveSection>
+      </CompactSection>
 
-      {/* ─── OBJETIVO 4 · Velocity (2 colunas) ────────────────────────── */}
-      <div className="b2bm2-row b2bm2-row-2col">
-        <ObjectiveSection
+      {/* ═══ CAMADA 3 · ESPECÍFICAS · 2 colunas ═══ */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: 8,
+          marginTop: 8,
+        }}
+      >
+        <CompactSection emoji="🌟" title="Origem dos vouchers" sub="Mira / Manual / Backfill">
+          <VoucherSplit v={v} />
+        </CompactSection>
+
+        <CompactSection emoji="🩺" title="Saúde do programa" sub="Distribuição das ativas">
+          <HealthBar h={h} />
+        </CompactSection>
+
+        <CompactSection
+          emoji="🎯"
+          title="Crescimento"
+          sub="Candidaturas no período"
+        >
+          <CompactKpiGrid
+            kpis={[
+              { lbl: 'Total', val: a.total ?? 0 },
+              {
+                lbl: 'Pendentes',
+                val: a.pending ?? 0,
+                tone: (a.pending ?? 0) > 0 ? 'amber' : null,
+              },
+              { lbl: 'Aprovadas', val: a.approved ?? 0, tone: 'green' },
+              {
+                lbl: 'Taxa',
+                val: `${a.conversion_rate ?? 0}%`,
+              },
+            ]}
+          />
+        </CompactSection>
+
+        <CompactSection
           emoji="⏱"
           title="Velocity de aprovação"
-          sub="Tempo até a Mira/admin aprovar uma candidatura nova."
+          sub="Tempo até admin aprovar candidatura"
         >
-          <KpiGrid
+          <CompactKpiGrid
             kpis={[
               {
                 lbl: 'Média',
                 val: `${t.avg_approval_hours ?? 0}h`,
-                sub: `${t.resolved_count ?? 0} resolvidas`,
+                sub: `${t.resolved_count ?? 0} resolv.`,
               },
-              { lbl: 'Maior tempo', val: `${t.max_approval_hours ?? 0}h` },
+              { lbl: 'Maior', val: `${t.max_approval_hours ?? 0}h` },
             ]}
           />
-        </ObjectiveSection>
-
-        <ObjectiveSection
-          emoji="🤖"
-          title="Atividade Mira (background)"
-          sub="Estado dos sistemas que rodam atrás (telefones autorizados, NPS, insights)."
-        >
-          <KpiGrid
-            kpis={[
-              {
-                lbl: 'Telefones',
-                val: m.wa_senders_active ?? 0,
-                sub: `de ${m.wa_senders_total ?? 0} cadastrados`,
-              },
-              {
-                lbl: 'Respostas NPS',
-                val: m.nps_responses ?? 0,
-                sub:
-                  (nps.responses ?? 0) > 0
-                    ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
-                    : '',
-              },
-              {
-                lbl: 'Insights ativos',
-                val: m.insights_active ?? 0,
-                sub:
-                  (m.insights_active ?? 0) > 0 ? 'Olha na página' : 'Tudo em ordem',
-              },
-            ]}
-          />
-        </ObjectiveSection>
+        </CompactSection>
       </div>
 
-      {/* ─── OBJETIVO 5 · Saúde do programa ────────────────────────────── */}
-      <ObjectiveSection
-        emoji="🩺"
-        title="Saúde do programa"
-        sub="Distribuição das parcerias ativas por saúde · sinais de alerta agregados."
+      {/* ═══ CAMADA 4 · ATIVIDADE MIRA (slim) ═══ */}
+      <CompactSection
+        emoji="🤖"
+        title="Atividade Mira"
+        sub="Sistemas em background"
+        slim
       >
-        <HealthBar h={h} />
-      </ObjectiveSection>
+        <CompactKpiGrid
+          kpis={[
+            {
+              lbl: 'Telefones',
+              val: m.wa_senders_active ?? 0,
+              sub: `${m.wa_senders_total ?? 0} cadastrados`,
+            },
+            {
+              lbl: 'NPS respostas',
+              val: m.nps_responses ?? 0,
+              sub:
+                (nps.responses ?? 0) > 0
+                  ? `NPS ${nps.nps_score != null ? nps.nps_score : '—'}`
+                  : '—',
+            },
+            {
+              lbl: 'Insights',
+              val: m.insights_active ?? 0,
+              sub: (m.insights_active ?? 0) > 0 ? 'Veja /insights' : 'Tudo em ordem',
+            },
+          ]}
+        />
+      </CompactSection>
 
-      {/* Footer info */}
+      {/* Footer */}
       <div
         style={{
-          fontSize: 11,
-          color: 'var(--b2b-text-muted)',
+          fontSize: 10,
+          color: 'var(--b2b-text-muted, #7A7165)',
           textAlign: 'right',
           marginTop: 8,
         }}
       >
-        Gerado em {data.generated_at ? new Date(data.generated_at).toLocaleString('pt-BR') : '—'}
+        gerado em{' '}
+        {data.generated_at
+          ? new Date(data.generated_at).toLocaleString('pt-BR')
+          : '—'}
       </div>
     </>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Building blocks
+// Compact building blocks · redesign 2026-04-26
 // ═══════════════════════════════════════════════════════════════════════
 
-function ObjectiveSection({
-  emoji,
-  title,
-  sub,
-  children,
-}: {
-  emoji: string
-  title: string
-  sub?: string
-  children: React.ReactNode
-}) {
+function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
   return (
-    <div className="b2bm2-card">
-      <div className="b2bm2-card-hdr">
-        <h3>
-          <span style={{ marginRight: 8 }}>{emoji}</span>
-          {title}
-        </h3>
-        {sub ? <div className="b2bm2-card-sub">{sub}</div> : null}
-      </div>
-      <div className="b2bm2-card-body">{children}</div>
-    </div>
-  )
-}
-
-type Tone = 'green' | 'amber' | 'red' | null
-interface Kpi {
-  lbl: string
-  val: number | string
-  sub?: string
-  tone?: Tone
-}
-
-function KpiGrid({ kpis }: { kpis: Kpi[] }) {
-  return (
-    <div className="b2bm-kpi-grid">
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: 8,
+        padding: '12px 14px',
+        background: 'rgba(201, 169, 110, 0.04)',
+        border: '1px solid rgba(201, 169, 110, 0.2)',
+        borderRadius: 10,
+        marginBottom: 12,
+      }}
+    >
       {kpis.map((k) => {
         const color =
           k.tone === 'green'
@@ -302,22 +300,177 @@ function KpiGrid({ kpis }: { kpis: Kpi[] }) {
             ? '#F59E0B'
             : k.tone === 'red'
             ? '#EF4444'
-            : undefined
+            : '#F5F0E8'
         return (
-          <div key={k.lbl} className="b2bm-kpi">
+          <div key={k.lbl} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div
-              className="b2bm-kpi-val"
-              style={color ? { color } : undefined}
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 22,
+                fontWeight: 500,
+                color,
+                lineHeight: 1,
+              }}
             >
               {k.val}
             </div>
-            <div className="b2bm-kpi-lbl">{k.lbl}</div>
-            {k.sub ? <div className="b2bm-kpi-sub">{k.sub}</div> : null}
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                color: '#7A7165',
+                fontFamily: 'Inter, system-ui, sans-serif',
+              }}
+            >
+              {k.lbl}
+            </div>
+            {k.sub ? (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#9CA3AF',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
+              >
+                {k.sub}
+              </div>
+            ) : null}
           </div>
         )
       })}
     </div>
   )
+}
+
+function CompactSection({
+  emoji,
+  title,
+  sub,
+  slim,
+  children,
+}: {
+  emoji: string
+  title: string
+  sub?: string
+  slim?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        background: 'rgba(255, 255, 255, 0.02)',
+        border: '1px solid rgba(201, 169, 110, 0.15)',
+        borderRadius: 8,
+        padding: slim ? '10px 14px' : '12px 14px',
+      }}
+    >
+      <div style={{ marginBottom: slim ? 6 : 10 }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#F5F0E8',
+            letterSpacing: '0.3px',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}
+        >
+          <span style={{ marginRight: 6 }}>{emoji}</span>
+          {title}
+        </h3>
+        {sub ? (
+          <div
+            style={{
+              fontSize: 10.5,
+              color: '#9CA3AF',
+              marginTop: 2,
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            {sub}
+          </div>
+        ) : null}
+      </div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function CompactKpiGrid({ kpis }: { kpis: Kpi[] }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+        gap: 10,
+      }}
+    >
+      {kpis.map((k) => {
+        const color =
+          k.tone === 'green'
+            ? '#10B981'
+            : k.tone === 'amber'
+            ? '#F59E0B'
+            : k.tone === 'red'
+            ? '#EF4444'
+            : '#F5F0E8'
+        return (
+          <div key={k.lbl} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 20,
+                fontWeight: 500,
+                color,
+                lineHeight: 1,
+              }}
+            >
+              {k.val}
+            </div>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                color: '#7A7165',
+                fontFamily: 'Inter, system-ui, sans-serif',
+              }}
+            >
+              {k.lbl}
+            </div>
+            {k.sub ? (
+              <div
+                style={{
+                  fontSize: 9.5,
+                  color: '#9CA3AF',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
+              >
+                {k.sub}
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tipos compartilhados + remaining building blocks
+// (ObjectiveSection + KpiGrid antigos removidos · substituidos por
+//  SnapshotRow + CompactSection + CompactKpiGrid acima)
+// ═══════════════════════════════════════════════════════════════════════
+
+type Tone = 'green' | 'amber' | 'red' | null
+interface Kpi {
+  lbl: string
+  val: number | string
+  sub?: string
+  tone?: Tone
 }
 
 function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {

@@ -2,7 +2,7 @@
  * /vouchers/bulk · admin emit lote de vouchers.
  *
  * Server Component denso (mirror mira-config antigo) · fluxo:
- *   1. Form: parceria + combo + lista textarea + scheduled_at → "Validar lote"
+ *   1. Form: parceria + combo + lista textarea + dispatch_when → "Validar lote"
  *   2. Server Action validateBulkAction parseia + dedup paralelo · grava
  *      preview em cookie · revalida pagina.
  *   3. Page renderiza preview com cards eligible/blocked.
@@ -11,6 +11,14 @@
  * Sem client components · forms via Server Actions.
  *
  * UI: gold #C9A96E, slate #9CA3AF, max-w-[860px], rounded-lg.
+ *
+ * SCHEDULING (mig 800-23 · 2026-04-26):
+ *   Radio "Quando enviar": [Agora] | [Agendar pra DD/MM HH:MM]
+ *   - Agora: scheduled_at = now() · worker pega no proximo tick (1min)
+ *   - Agendar: datetime-local · min +5min no futuro · worker pega quando vencer
+ *   Native datetime-local renderiza no fuso do browser · server converte pra
+ *   ISO em validateBulkAction (Date(value) usa offset local · em prod o
+ *   container roda UTC mas BR digita BRT · ver actions.ts pra conversao).
  */
 
 import Link from 'next/link'
@@ -32,6 +40,27 @@ function localNowInput(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Minimo permitido pra agendamento · agora + 5min · evita race com worker
+// que ja pode estar rodando no minuto atual.
+function localPlusMinutesInput(minutes: number): string {
+  const d = new Date(Date.now() + minutes * 60_000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Heuristica: scheduled_at e "agora-ish" se diferenca pra now <= 90s.
+// Usado pra decidir qual radio vem checked quando carregamos preview do cookie.
+function isNowIsh(iso: string): boolean {
+  if (!iso) return true
+  try {
+    const t = new Date(iso).getTime()
+    if (isNaN(t)) return true
+    return Math.abs(t - Date.now()) <= 90_000
+  } catch {
+    return true
+  }
 }
 
 function fmtDateTime(iso: string): string {
@@ -95,9 +124,21 @@ export default async function VoucherBulkPage() {
   ])
 
   const partnershipNameById = new Map(partnerships.map((p) => [p.id, p.name]))
-  const defaultScheduled = preview?.scheduledAt
-    ? toLocalInput(preview.scheduledAt)
-    : localNowInput()
+  // Se preview existe e scheduled_at e ~now, mantem radio "Agora"
+  // (eligibleCount>0 e usuario tinha clicado Agora no formulario anterior).
+  // Senao "Agendar" e o defaultScheduled = horario que ele escolheu.
+  const previewIsNow = preview ? isNowIsh(preview.scheduledAt) : true
+  const defaultDispatchWhen: 'now' | 'schedule' = preview
+    ? previewIsNow
+      ? 'now'
+      : 'schedule'
+    : 'now'
+  const defaultScheduled =
+    preview?.scheduledAt && !previewIsNow
+      ? toLocalInput(preview.scheduledAt)
+      : localPlusMinutesInput(15) // sugestao "+15min" quando user escolhe Agendar
+  // min do datetime-local = +5min no futuro · evita race com worker atual
+  const minScheduled = localPlusMinutesInput(5)
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
@@ -201,39 +242,69 @@ export default async function VoucherBulkPage() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 items-end">
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="bulk-scheduled"
-                className="text-[10px] uppercase tracking-[1px] font-bold text-[#9CA3AF]"
-              >
-                Agendar dispatch
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] uppercase tracking-[1px] font-bold text-[#9CA3AF]">
+              Quando enviar
+            </label>
+            <div className="grid grid-cols-[auto_auto_1fr] gap-3 items-center">
+              {/*
+                Radio "Agora" · scheduled_at vai como now() no server
+                (peer pattern do Tailwind faz o datetime-local ao lado ficar
+                disabled quando "Agora" esta checado · sem precisar JS).
+              */}
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer has-[:checked]:border-[#C9A96E]/50 has-[:checked]:bg-[#C9A96E]/[0.06] transition-colors">
+                <input
+                  type="radio"
+                  name="dispatch_when"
+                  value="now"
+                  defaultChecked={defaultDispatchWhen === 'now'}
+                  className="peer accent-[#C9A96E]"
+                />
+                <span className="text-xs text-[#F5F0E8]">Agora</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer has-[:checked]:border-[#C9A96E]/50 has-[:checked]:bg-[#C9A96E]/[0.06] transition-colors">
+                <input
+                  type="radio"
+                  name="dispatch_when"
+                  value="schedule"
+                  defaultChecked={defaultDispatchWhen === 'schedule'}
+                  className="peer accent-[#C9A96E]"
+                />
+                <span className="text-xs text-[#F5F0E8]">Agendar</span>
               </label>
               <input
                 id="bulk-scheduled"
                 name="scheduled_at"
                 type="datetime-local"
                 defaultValue={defaultScheduled}
+                min={minScheduled}
+                step={60}
+                aria-label="Data e hora do dispatch"
                 className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
               />
             </div>
-            <div className="flex justify-end gap-2">
-              {preview && (
-                <button
-                  type="submit"
-                  formAction={clearBulkPreviewAction}
-                  className="px-3 py-2 rounded text-[10px] font-bold uppercase tracking-[1px] border border-white/10 text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-white/14 transition-colors"
-                >
-                  Limpar
-                </button>
-              )}
+            <span className="text-[10px] text-[#6B7280]">
+              <span className="text-[#9CA3AF]">Agora</span> = worker dispara no proximo minuto ·{' '}
+              <span className="text-[#9CA3AF]">Agendar</span> = minimo +5min no futuro · fuso BR
+            </span>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            {preview && (
               <button
                 type="submit"
-                className="px-4 py-2 rounded font-semibold text-xs uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity"
+                formAction={clearBulkPreviewAction}
+                className="px-3 py-2 rounded text-[10px] font-bold uppercase tracking-[1px] border border-white/10 text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-white/14 transition-colors"
               >
-                Validar lote
+                Limpar
               </button>
-            </div>
+            )}
+            <button
+              type="submit"
+              className="px-4 py-2 rounded font-semibold text-xs uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity"
+            >
+              Validar lote
+            </button>
           </div>
         </form>
 
@@ -330,8 +401,15 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
             {preview.partnershipName}
           </span>
           <span className="text-[10px] text-[#6B7280]">
-            agendado {fmtDateTime(preview.scheduledAt)}
+            {preview.dispatchWhen === 'now' || isNowIsh(preview.scheduledAt)
+              ? 'dispara agora'
+              : `agendado ${fmtDateTime(preview.scheduledAt)}`}
           </span>
+          {preview.scheduleWasFloored && (
+            <span className="text-[10px] text-[#FCA5A5]">
+              ajustado pra +5min (passado/proximo demais)
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-[10px] font-mono">
           <span className="text-[#10B981]">{preview.eligibleCount} OK</span>
@@ -363,7 +441,9 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
             disabled={preview.eligibleCount === 0}
             className="px-4 py-2 rounded font-semibold text-xs uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Confirmar e enfileirar {preview.eligibleCount}
+            {preview.dispatchWhen === 'schedule' && !isNowIsh(preview.scheduledAt)
+              ? `Agendar ${preview.eligibleCount}`
+              : `Disparar ${preview.eligibleCount} agora`}
           </button>
         </form>
       </div>

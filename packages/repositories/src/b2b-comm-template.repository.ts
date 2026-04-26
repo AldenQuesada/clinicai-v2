@@ -34,6 +34,10 @@ export interface B2BCommTemplateDTO {
   isActive: boolean
   priority: number
   notes: string | null
+  /** Mig 800-24 · nome da sequencia organizacional (null = template solto) */
+  sequenceName: string | null
+  /** Mig 800-24 · posicao 0-based dentro da sequencia */
+  sequenceOrder: number
   createdAt: string
   updatedAt: string
 }
@@ -57,6 +61,8 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
     isActive: row.is_active !== false,
     priority: Number(row.priority ?? 100),
     notes: row.notes ?? null,
+    sequenceName: row.sequence_name ?? null,
+    sequenceOrder: Number(row.sequence_order ?? 0),
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
   }
@@ -237,6 +243,94 @@ export class B2BCommTemplateRepository {
   }
 
   /**
+   * Mig 800-24 · move template pra nova posicao dentro da mesma sequencia.
+   * RPC: b2b_comm_template_reorder(p_id, p_new_order).
+   */
+  async reorder(
+    id: string,
+    newOrder: number,
+  ): Promise<{ ok: boolean; sequence_name?: string | null; new_order?: number; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_template_reorder', {
+      p_id: id,
+      p_new_order: newOrder,
+    })
+    if (error) return { ok: false, error: error.message }
+    const r = data as { ok?: boolean; sequence_name?: string | null; new_order?: number; error?: string }
+    return {
+      ok: r?.ok === true,
+      sequence_name: r?.sequence_name ?? null,
+      new_order: r?.new_order,
+      error: r?.error,
+    }
+  }
+
+  /**
+   * Mig 800-24 · atribui template a uma sequencia (vai pro fim da fila)
+   * ou desatribui passando sequenceName=null.
+   * RPC: b2b_comm_template_assign_sequence(p_id, p_sequence_name).
+   */
+  async assignToSequence(
+    id: string,
+    sequenceName: string | null,
+  ): Promise<{ ok: boolean; sequence_name?: string | null; sequence_order?: number; error?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_comm_template_assign_sequence', {
+      p_id: id,
+      p_sequence_name: sequenceName,
+    })
+    if (error) return { ok: false, error: error.message }
+    const r = data as {
+      ok?: boolean
+      sequence_name?: string | null
+      sequence_order?: number
+      error?: string
+    }
+    return {
+      ok: r?.ok === true,
+      sequence_name: r?.sequence_name ?? null,
+      sequence_order: r?.sequence_order,
+      error: r?.error,
+    }
+  }
+
+  /**
+   * Mig 800-24 · lista todas sequencias agrupadas + grupo "Sem sequencia" no
+   * fim. Usa direct query (select *) pra garantir leitura das colunas novas
+   * mesmo que o RPC legacy `b2b_comm_templates_list` nao as exponha ainda.
+   */
+  async listSequences(clinicId: string): Promise<B2BCommTemplateSequenceGroup[]> {
+    const { data } = await this.supabase
+      .from('b2b_comm_templates')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('sequence_name', { ascending: true, nullsFirst: false })
+      .order('sequence_order', { ascending: true })
+      .order('priority', { ascending: true })
+
+    const rows = (data ?? []).map(mapTemplateRow)
+    const map = new Map<string | null, B2BCommTemplateDTO[]>()
+    for (const t of rows) {
+      const key = t.sequenceName ?? null
+      const arr = map.get(key) ?? []
+      arr.push(t)
+      map.set(key, arr)
+    }
+
+    const named: B2BCommTemplateSequenceGroup[] = []
+    let unassigned: B2BCommTemplateSequenceGroup | null = null
+    for (const [name, templates] of map.entries()) {
+      if (name === null) {
+        unassigned = { name: null, templates }
+      } else {
+        templates.sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+        named.push({ name, templates })
+      }
+    }
+    named.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+    if (unassigned) named.push(unassigned)
+    return named
+  }
+
+  /**
    * Remove template via RPC · soft delete.
    * RPC: b2b_comm_template_delete(p_id).
    */
@@ -313,8 +407,19 @@ export interface B2BCommTemplateRaw {
   is_active: boolean
   priority: number
   notes: string | null
+  /** Mig 800-24 · pode ser undefined se o RPC legacy ainda nao expor */
+  sequence_name?: string | null
+  /** Mig 800-24 · pode ser undefined se o RPC legacy ainda nao expor */
+  sequence_order?: number
   created_at: string
   updated_at: string
+}
+
+/** Mig 800-24 · agrupamento usado pelo painel de Sequencias da UI Comm. */
+export interface B2BCommTemplateSequenceGroup {
+  /** null = grupo "Sem sequencia" (templates soltos) */
+  name: string | null
+  templates: B2BCommTemplateDTO[]
 }
 
 export interface B2BCommEventDef {

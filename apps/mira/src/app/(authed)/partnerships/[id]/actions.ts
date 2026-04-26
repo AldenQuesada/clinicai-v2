@@ -9,7 +9,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { loadMiraServerContext } from '@/lib/server-context'
-import type { IssueVoucherInput } from '@clinicai/repositories'
+import type { IssueVoucherInput, PlaybookKind } from '@clinicai/repositories'
 
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin'].includes(role)) {
@@ -149,6 +149,32 @@ export async function removeCommentAction(
   const { ctx, repos } = await loadMiraServerContext()
   assertCanManage(ctx.role)
   const r = await repos.b2bComments.remove(commentId)
+  revalidatePath(`/partnerships/${partnershipId}`)
+  return r
+}
+
+// ─── Playbook ─────────────────────────────────────────────────────────
+
+const VALID_PLAYBOOK_KINDS = ['prospect_to_active', 'retention', 'renewal'] as const
+
+export async function applyPlaybookAction(
+  partnershipId: string,
+  kind: string,
+): Promise<{
+  ok: boolean
+  applied_tasks?: number
+  applied_contents?: number
+  applied_metas?: number
+  template_name?: string
+  template_kind?: PlaybookKind
+  error?: string
+}> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  if (!(VALID_PLAYBOOK_KINDS as readonly string[]).includes(kind)) {
+    return { ok: false, error: `Tipo de playbook invalido: ${kind}` }
+  }
+  const r = await repos.b2bPlaybook.apply(partnershipId, kind as PlaybookKind)
   revalidatePath(`/partnerships/${partnershipId}`)
   return r
 }

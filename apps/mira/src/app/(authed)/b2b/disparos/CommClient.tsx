@@ -26,19 +26,26 @@ import {
   deleteCommTemplateAction,
   reloadCommStatsAction,
   reloadCommHistoryAction,
+  listSequencesAction,
+  reorderTemplateAction,
+  assignToSequenceAction,
+  renameSequenceAction,
 } from './actions'
 import type {
   B2BCommTemplateRaw,
+  B2BCommTemplateDTO,
+  B2BCommTemplateSequenceGroup,
   B2BCommEventCatalog,
   B2BCommStats,
   B2BCommHistoryEntry,
 } from '@clinicai/repositories'
 
-type TabId = 'events' | 'templates' | 'history' | 'config'
+type TabId = 'events' | 'templates' | 'sequences' | 'history' | 'config'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'events', label: 'Eventos' },
   { id: 'templates', label: 'Templates' },
+  { id: 'sequences', label: 'Sequências' },
   { id: 'history', label: 'Histórico' },
   { id: 'config', label: 'Config' },
 ]
@@ -267,16 +274,20 @@ export function CommClient({
   catalog,
   stats: initialStats,
   initialHistory,
+  initialSequences,
 }: {
   initialTemplates: B2BCommTemplateRaw[]
   catalog: B2BCommEventCatalog
   stats: B2BCommStats | null
   initialHistory: B2BCommHistoryEntry[]
+  initialSequences: B2BCommTemplateSequenceGroup[]
 }) {
   const [templates, setTemplates] = useState<B2BCommTemplateRaw[]>(initialTemplates)
   const [stats, setStats] = useState<B2BCommStats | null>(initialStats)
   const [history, setHistory] = useState<B2BCommHistoryEntry[]>(initialHistory)
   const [historyLoaded, setHistoryLoaded] = useState<boolean>(initialHistory.length > 0)
+  const [sequences, setSequences] = useState<B2BCommTemplateSequenceGroup[]>(initialSequences)
+  const [sequencesLoaded, setSequencesLoaded] = useState<boolean>(initialSequences.length > 0)
 
   const [activeTab, setActiveTab] = useState<TabId>('events')
   const [filterEventKey, setFilterEventKey] = useState<string | null>(null)
@@ -333,6 +344,17 @@ export function CommClient({
     setEditing(null)
   }, [])
 
+  const reloadSequences = useCallback(async () => {
+    try {
+      const s = await listSequencesAction()
+      setSequences(s)
+      setSequencesLoaded(true)
+    } catch {
+      setSequences([])
+      setSequencesLoaded(true)
+    }
+  }, [])
+
   const handleTabChange = useCallback(
     (tab: TabId) => {
       if (editing) setEditing(null)
@@ -349,8 +371,11 @@ export function CommClient({
             setHistoryLoaded(true)
           })
       }
+      if (tab === 'sequences' && !sequencesLoaded) {
+        void reloadSequences()
+      }
     },
-    [editing, historyLoaded],
+    [editing, historyLoaded, sequencesLoaded, reloadSequences],
   )
 
   const refreshStats = useCallback(async () => {
@@ -376,8 +401,9 @@ export function CommClient({
       setSelectedId(saved.id)
       setEditing(null)
       void refreshStats()
+      if (sequencesLoaded) void reloadSequences()
     },
-    [refreshStats],
+    [refreshStats, sequencesLoaded, reloadSequences],
   )
 
   const handleDeleted = useCallback(
@@ -386,8 +412,9 @@ export function CommClient({
       setSelectedId((cur) => (cur === id ? null : cur))
       setEditing(null)
       void refreshStats()
+      if (sequencesLoaded) void reloadSequences()
     },
-    [refreshStats],
+    [refreshStats, sequencesLoaded, reloadSequences],
   )
 
   // Source pra preview central: history override > editing > selected
@@ -513,6 +540,17 @@ export function CommClient({
               onSelect={handleSelect}
               onEdit={handleEdit}
               onNew={() => handleNew()}
+            />
+          ) : activeTab === 'sequences' ? (
+            <SequencesTab
+              sequences={sequences}
+              loaded={sequencesLoaded}
+              templates={templates}
+              catalog={catalog}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              onEdit={handleEdit}
+              onReload={reloadSequences}
             />
           ) : activeTab === 'history' ? (
             <HistoryTab
@@ -1910,5 +1948,455 @@ function FormatBar({ onAction }: { onAction: (action: string) => void }) {
       {btn('newline', 'Quebra de linha', '↵')}
       {btn('bullet', 'Lista com marcadores', '•')}
     </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Aba Sequências · Mig 800-24 · agrupamento + drag-drop manual
+// ═══════════════════════════════════════════════════════════════════════
+function SequencesTab({
+  sequences,
+  loaded,
+  templates,
+  catalog,
+  selectedId,
+  onSelect,
+  onEdit,
+  onReload,
+}: {
+  sequences: B2BCommTemplateSequenceGroup[]
+  loaded: boolean
+  templates: B2BCommTemplateRaw[]
+  catalog: B2BCommEventCatalog
+  selectedId: string | null
+  onSelect: (id: string) => void
+  onEdit: (id: string) => void
+  onReload: () => Promise<void>
+}) {
+  const [busyMsg, setBusyMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [localDrafts, setLocalDrafts] = useState<string[]>([])
+
+  // Templates "soltos" no estado local (templates sem sequence_name no
+  // listAll · podem nao estar em `sequences` se page.tsx nao re-fetched).
+  // Preferimos `sequences` (server-fresh) quando carregado.
+  const groups: B2BCommTemplateSequenceGroup[] = useMemo(() => {
+    if (loaded) return sequences
+    // Fallback: agrupa pelo `templates` (raw · sem sequence_name vs com)
+    const named = new Map<string, B2BCommTemplateRaw[]>()
+    const loose: B2BCommTemplateRaw[] = []
+    for (const t of templates) {
+      if (t.partnership_id) continue // sequencias so global · skip overrides
+      const seq = (t.sequence_name ?? '').trim()
+      if (seq) {
+        const arr = named.get(seq) ?? []
+        arr.push(t)
+        named.set(seq, arr)
+      } else {
+        loose.push(t)
+      }
+    }
+    const out: B2BCommTemplateSequenceGroup[] = []
+    for (const [name, arr] of named.entries()) {
+      arr.sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0))
+      out.push({ name, templates: arr.map(rawToDtoLite) })
+    }
+    out.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+    if (loose.length) out.push({ name: null, templates: loose.map(rawToDtoLite) })
+    return out
+  }, [loaded, sequences, templates])
+
+  async function handleCreateSequence() {
+    const name = prompt('Nome da nova sequência (ex.: "Onboarding · 5 mensagens"):')
+    if (!name || !name.trim()) return
+    const trimmed = name.trim()
+    if (groups.some((g) => g.name === trimmed)) {
+      setErrorMsg('Já existe uma sequência com esse nome.')
+      return
+    }
+    // Sequência sem template ainda · pra "materializar" no backend, o
+    // usuario precisa atribuir pelo menos 1 template. Mostramos como grupo
+    // virtual local na UI.
+    setBusyMsg(`Sequência "${trimmed}" criada · arraste templates pra cá pra ativá-la.`)
+    setTimeout(() => setBusyMsg(null), 4000)
+    // Adiciona placeholder visual local
+    setLocalDrafts((prev) => prev.includes(trimmed) ? prev : prev.concat([trimmed]))
+  }
+
+  async function handleAssign(templateId: string, target: string | null) {
+    setErrorMsg(null)
+    const r = await assignToSequenceAction(templateId, target)
+    if (!r.ok) {
+      setErrorMsg(r.error || 'Falha ao atribuir')
+      return
+    }
+    if (target) {
+      setLocalDrafts((prev) => prev.filter((n) => n !== target))
+    }
+    await onReload()
+  }
+
+  async function handleReorder(templateId: string, newOrder: number) {
+    setErrorMsg(null)
+    const r = await reorderTemplateAction(templateId, newOrder)
+    if (!r.ok) {
+      setErrorMsg(r.error || 'Falha ao reordenar')
+      return
+    }
+    await onReload()
+  }
+
+  async function handleRename(oldName: string) {
+    const newName = prompt(`Renomear sequência "${oldName}" para:`, oldName)
+    if (!newName || !newName.trim()) return
+    setErrorMsg(null)
+    const r = await renameSequenceAction(oldName, newName)
+    if (!r.ok) {
+      setErrorMsg(r.error === 'name_already_exists'
+        ? 'Já existe uma sequência com esse nome.'
+        : r.error || 'Falha ao renomear')
+      return
+    }
+    await onReload()
+  }
+
+  const namedGroups = groups.filter((g) => g.name !== null)
+  const looseGroup = groups.find((g) => g.name === null) ?? { name: null, templates: [] as B2BCommTemplateDTO[] }
+
+  // Combina drafts locais (sem templates ainda) com namedGroups
+  const draftGroups: B2BCommTemplateSequenceGroup[] = localDrafts
+    .filter((n) => !namedGroups.some((g) => g.name === n))
+    .map((n) => ({ name: n, templates: [] }))
+  const allNamed = namedGroups.concat(draftGroups)
+
+  return (
+    <>
+      <div className="bcomm-toolbar">
+        <button
+          type="button"
+          className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
+          onClick={handleCreateSequence}
+        >
+          + Nova sequência
+        </button>
+        <button
+          type="button"
+          className="bcomm-btn bcomm-btn-ghost bcomm-btn-xs"
+          title="Recarregar"
+          onClick={() => void onReload()}
+        >
+          ⟳
+        </button>
+      </div>
+
+      {busyMsg ? <div className="bcomm-inline-err" style={{ background: '#10B98115', color: '#065F46' }}>{busyMsg}</div> : null}
+      {errorMsg ? <div className="bcomm-inline-err">{errorMsg}</div> : null}
+
+      <div className="bcomm-list">
+        {!loaded ? (
+          <div className="bcomm-empty">Carregando sequências…</div>
+        ) : allNamed.length === 0 && looseGroup.templates.length === 0 ? (
+          <div className="bcomm-empty-lg">
+            <strong>Nenhum template ainda</strong>
+            <span>Crie templates na aba <em>Templates</em> e depois atribua a uma sequência.</span>
+          </div>
+        ) : (
+          <>
+            {allNamed.map((g) => (
+              <SequenceBlock
+                key={g.name ?? '__null__'}
+                group={g}
+                catalog={catalog}
+                selectedId={selectedId}
+                otherSequences={allNamed
+                  .map((x) => x.name)
+                  .filter((n): n is string => !!n && n !== g.name)}
+                onSelect={onSelect}
+                onEdit={onEdit}
+                onAssign={handleAssign}
+                onReorder={handleReorder}
+                onRename={() => g.name && handleRename(g.name)}
+              />
+            ))}
+
+            {looseGroup.templates.length ? (
+              <SequenceBlock
+                key="__loose__"
+                group={looseGroup}
+                catalog={catalog}
+                selectedId={selectedId}
+                otherSequences={allNamed
+                  .map((x) => x.name)
+                  .filter((n): n is string => !!n)}
+                onSelect={onSelect}
+                onEdit={onEdit}
+                onAssign={handleAssign}
+                onReorder={handleReorder}
+                onRename={null}
+              />
+            ) : null}
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
+// Converte raw → DTO-lite mínimo só pros campos usados no rendering local
+function rawToDtoLite(t: B2BCommTemplateRaw): B2BCommTemplateDTO {
+  return {
+    id: t.id,
+    clinicId: t.clinic_id,
+    partnershipId: t.partnership_id,
+    eventKey: t.event_key,
+    channel: t.channel,
+    recipientRole: t.recipient_role,
+    senderInstance: t.sender_instance,
+    delayMinutes: t.delay_minutes,
+    cronExpr: t.cron_expr,
+    textTemplate: t.text_template,
+    audioScript: t.audio_script,
+    ttsVoice: t.tts_voice,
+    ttsInstructions: t.tts_instructions,
+    isActive: t.is_active,
+    priority: t.priority,
+    notes: t.notes,
+    sequenceName: t.sequence_name ?? null,
+    sequenceOrder: t.sequence_order ?? 0,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  }
+}
+
+function SequenceBlock({
+  group,
+  catalog,
+  selectedId,
+  otherSequences,
+  onSelect,
+  onEdit,
+  onAssign,
+  onReorder,
+  onRename,
+}: {
+  group: B2BCommTemplateSequenceGroup
+  catalog: B2BCommEventCatalog
+  selectedId: string | null
+  otherSequences: string[]
+  onSelect: (id: string) => void
+  onEdit: (id: string) => void
+  onAssign: (id: string, target: string | null) => Promise<void>
+  onReorder: (id: string, newOrder: number) => Promise<void>
+  onRename: (() => void) | null
+}) {
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overIdx, setOverIdx] = useState<number | null>(null)
+  const isLoose = group.name === null
+
+  function onDragStart(e: React.DragEvent<HTMLDivElement>, id: string) {
+    setDragId(id)
+    try {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', id)
+    } catch {
+      // noop
+    }
+  }
+
+  function onDragOverItem(e: React.DragEvent<HTMLDivElement>, idx: number) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overIdx !== idx) setOverIdx(idx)
+  }
+
+  async function onDropItem(e: React.DragEvent<HTMLDivElement>, idx: number) {
+    e.preventDefault()
+    const droppedId = dragId || e.dataTransfer.getData('text/plain')
+    setDragId(null)
+    setOverIdx(null)
+    if (!droppedId) return
+
+    // Se item arrastado eh externo a este grupo, vira atribuição
+    const inGroup = group.templates.some((t: B2BCommTemplateDTO) => t.id === droppedId)
+    if (!inGroup) {
+      if (!isLoose && group.name) await onAssign(droppedId, group.name)
+      return
+    }
+    // Reorder dentro do mesmo grupo (so faz sentido se nomeado)
+    if (isLoose) return
+    await onReorder(droppedId, idx)
+  }
+
+  async function onDropOnHeader(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    const droppedId = dragId || e.dataTransfer.getData('text/plain')
+    setDragId(null)
+    setOverIdx(null)
+    if (!droppedId) return
+    const inGroup = group.templates.some((t: B2BCommTemplateDTO) => t.id === droppedId)
+    if (inGroup) return
+    if (isLoose) {
+      // Drop no header do grupo "Sem sequencia" = desatribuir
+      await onAssign(droppedId, null)
+    } else if (group.name) {
+      await onAssign(droppedId, group.name)
+    }
+  }
+
+  return (
+    <div
+      className="bcomm-cat-group"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDropOnHeader}
+    >
+      <div className="bcomm-cat-group-hdr" style={{ alignItems: 'center' }}>
+        <span className="bcomm-cat-group-name">
+          {isLoose ? '— Sem sequência —' : group.name}
+        </span>
+        <span className="bcomm-cat-group-count">
+          {group.templates.length} template{group.templates.length === 1 ? '' : 's'}
+        </span>
+        {onRename ? (
+          <button
+            type="button"
+            className="bcomm-btn bcomm-btn-ghost bcomm-btn-xs"
+            title="Renomear sequência"
+            onClick={onRename}
+            style={{ marginLeft: 8 }}
+          >
+            ✎
+          </button>
+        ) : null}
+      </div>
+
+      {group.templates.length === 0 ? (
+        <div className="bcomm-item-empty">
+          {isLoose
+            ? 'Todos os templates estão atribuídos a alguma sequência.'
+            : 'Arraste templates aqui pra incluir nesta sequência.'}
+        </div>
+      ) : (
+        group.templates.map((t: B2BCommTemplateDTO, idx: number) => (
+          <div
+            key={t.id}
+            draggable
+            onDragStart={(e) => onDragStart(e, t.id)}
+            onDragOver={(e) => onDragOverItem(e, idx)}
+            onDrop={(e) => onDropItem(e, idx)}
+            onDragEnd={() => {
+              setDragId(null)
+              setOverIdx(null)
+            }}
+            style={{
+              opacity: dragId === t.id ? 0.4 : 1,
+              borderTop: overIdx === idx && dragId !== t.id
+                ? '2px solid var(--bcomm-accent, #C9A96E)'
+                : '2px solid transparent',
+              cursor: 'grab',
+            }}
+          >
+            <SequenceItemRow
+              t={t}
+              idx={idx}
+              isLoose={isLoose}
+              active={selectedId === t.id}
+              catalog={catalog}
+              otherSequences={otherSequences}
+              onSelect={() => onSelect(t.id)}
+              onEdit={() => onEdit(t.id)}
+              onAssign={(target) => onAssign(t.id, target)}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function SequenceItemRow({
+  t,
+  idx,
+  isLoose,
+  active,
+  catalog,
+  otherSequences,
+  onSelect,
+  onEdit,
+  onAssign,
+}: {
+  t: B2BCommTemplateDTO
+  idx: number
+  isLoose: boolean
+  active: boolean
+  catalog: B2BCommEventCatalog
+  otherSequences: string[]
+  onSelect: () => void
+  onEdit: () => void
+  onAssign: (target: string | null) => void | Promise<void>
+}) {
+  const m = metaFor(t.eventKey)
+  const evLbl = eventLabel(catalog, t.eventKey) || m.short
+  const raw = (t.textTemplate || t.audioScript || '').toString()
+  const snippet = raw.slice(0, 80)
+  const hasMore = raw.length > 80
+
+  return (
+    <button
+      type="button"
+      className={'bcomm-item' + (active ? ' bcomm-item-active' : '')}
+      onClick={onSelect}
+    >
+      <span
+        className="bcomm-item-dot"
+        style={{ background: m.color }}
+        title="Arraste pra reordenar"
+      >
+        {!isLoose ? <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{idx + 1}</span> : null}
+      </span>
+      <span className="bcomm-item-body">
+        <span className="bcomm-item-top">
+          ⠿ {evLbl} · {senderShort(t.senderInstance)} · {delayLabel(t.delayMinutes)}
+          {t.isActive ? null : <em> · pausado</em>}
+        </span>
+        <span className="bcomm-item-sub">
+          {snippet}
+          {hasMore ? '…' : ''}
+        </span>
+      </span>
+      <select
+        className="bcomm-input"
+        style={{ maxWidth: 130, fontSize: 11, padding: '4px 6px' }}
+        value={t.sequenceName ?? ''}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation()
+          const v = e.target.value
+          void onAssign(v ? v : null)
+        }}
+        title="Mover pra outra sequência"
+      >
+        <option value="">— sem sequência —</option>
+        {t.sequenceName ? (
+          <option value={t.sequenceName}>{t.sequenceName}</option>
+        ) : null}
+        {otherSequences.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+      <span
+        className="bcomm-item-edit"
+        title="Editar"
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation()
+          onEdit()
+        }}
+      >
+        ✎
+      </span>
+    </button>
   )
 }

@@ -154,6 +154,16 @@ export {
   type UndoDismissResult,
 } from './b2b-insights.repository'
 export {
+  B2BPlaybookRepository,
+  type PlaybookKind,
+  type PlaybookTemplate,
+  type PlaybookTaskTemplate,
+  type PlaybookContentTemplate,
+  type PlaybookMetaTemplate,
+  type PlaybookApplication,
+  type ApplyPlaybookResult,
+} from './b2b-playbook.repository'
+export {
   MiraCronRegistryRepository,
   type CronJobCategory,
   type CronRunStatus,
@@ -197,6 +207,7 @@ export {
   B2BCommTemplateRepository,
   type B2BCommTemplateDTO,
   type B2BCommTemplateRaw,
+  type B2BCommTemplateSequenceGroup,
   type B2BCommEventDef,
   type B2BCommEventCatalog,
   type B2BCommStats,

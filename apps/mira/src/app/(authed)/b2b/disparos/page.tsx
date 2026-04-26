@@ -14,13 +14,15 @@ export const dynamic = 'force-dynamic'
 
 export default async function DisparosPage() {
   const { ctx, repos } = await loadMiraServerContext()
-  void ctx
 
-  const [templates, catalog, stats, history] = await Promise.all([
+  const [templates, catalog, stats, history, sequences] = await Promise.all([
     repos.b2bTemplates.list({}).catch(() => []),
     repos.b2bTemplates.eventsCatalog().catch(() => []),
     repos.b2bTemplates.stats().catch(() => null),
     repos.b2bTemplates.history({ limit: 50 }).catch(() => []),
+    ctx.clinic_id
+      ? repos.b2bTemplates.listSequences(ctx.clinic_id).catch(() => [])
+      : Promise.resolve([]),
   ])
 
   return (
@@ -31,6 +33,7 @@ export default async function DisparosPage() {
           catalog={catalog}
           stats={stats}
           initialHistory={history}
+          initialSequences={sequences}
         />
       </div>
     </main>

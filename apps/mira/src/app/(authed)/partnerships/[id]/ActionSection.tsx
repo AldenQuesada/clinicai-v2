@@ -7,8 +7,8 @@
  * de qualidade (= mais conversao no funnel).
  *
  * Acoes nesta versao (P1):
- *   📋 Aplicar Playbook · cria tasks/contents/metas iniciais (TODO server action)
- *   📄 Dossie PDF       · gera HTML imprimivel pra apresentar interno (TODO)
+ *   📋 Aplicar Playbook · cria tasks/contents/metas iniciais (mig 800-22 · b2b_apply_playbook RPC)
+ *   📄 Dossie PDF       · gera HTML imprimivel pra apresentar interno
  *   🔗 Link painel      · copia URL publico do painel da parceira
  *   🎟 Emitir voucher    · navega pra tab Vouchers
  *
@@ -18,8 +18,9 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { FileText, Link2, Lightbulb, Ticket, Check } from 'lucide-react'
+import { FileText, Link2, Ticket, Check } from 'lucide-react'
 import type { GrowthPanel, B2BPartnershipDTO } from '@clinicai/repositories'
+import { ApplyPlaybookButton } from './ApplyPlaybookButton'
 
 const PAINEL_BASE =
   process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
@@ -103,13 +104,9 @@ export function ActionSection({
 
       {/* Acoes 1-click · grid 2x2 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ActionCard
-          icon={<Lightbulb className="w-5 h-5" />}
-          title="Aplicar Playbook"
-          description="Cria tasks iniciais + content padrão + metas operacionais pra esse tipo de parceria. Idempotente — não duplica."
-          tone="primary"
-          disabled
-          tooltip="Em breve · vamos integrar com b2b_apply_playbook RPC"
+        <ApplyPlaybookButton
+          partnership={partnership}
+          onResult={(msg) => setFeedback(msg)}
         />
 
         <Link
@@ -234,43 +231,3 @@ export function ActionSection({
   )
 }
 
-function ActionCard({
-  icon,
-  title,
-  description,
-  tone,
-  disabled,
-  tooltip,
-  onClick,
-}: {
-  icon: React.ReactNode
-  title: string
-  description: string
-  tone?: 'primary'
-  disabled?: boolean
-  tooltip?: string
-  onClick?: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={'b2b-action-card' + (tone === 'primary' ? ' b2b-action-card-primary' : '')}
-      disabled={disabled}
-      title={tooltip}
-      onClick={onClick}
-    >
-      {icon}
-      <div className="flex flex-col gap-0.5 text-left">
-        <div className="text-[12px] font-bold text-[#F5F0E8]">
-          {title}
-          {disabled ? (
-            <span className="ml-1.5 text-[8px] uppercase tracking-[1px] px-1 py-px rounded bg-white/5 text-[#6B7280]">
-              em breve
-            </span>
-          ) : null}
-        </div>
-        <div className="text-[10.5px] text-[#9CA3AF]">{description}</div>
-      </div>
-    </button>
-  )
-}
