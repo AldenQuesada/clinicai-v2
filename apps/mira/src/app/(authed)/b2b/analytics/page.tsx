@@ -32,6 +32,7 @@ import {
 } from './_shared/popUtils'
 import { PopChip } from './_shared/PopChip'
 import { FinancialCard } from './_shared/FinancialCard'
+import { Tooltip } from '@/components/Tooltip'
 import type {
   AnalyticsBlob,
   B2BFunnelBenchmarkDTO,
@@ -323,12 +324,18 @@ function ObjectivesView({
        */}
       <SnapshotRow
         kpis={[
-          { lbl: 'Ativas', val: String(totalActive), sub: 'parcerias · agora' },
+          {
+            lbl: 'Ativas',
+            val: String(totalActive),
+            sub: 'parcerias · agora',
+            tip: 'Parcerias com status active no momento. Contagem absoluta · não reage ao período.',
+          },
           {
             lbl: 'Candidaturas',
             val: String(a.pending ?? 0),
             sub: 'pendentes · agora',
             tone: (a.pending ?? 0) > 0 ? 'amber' : null,
+            tip: 'Aplicações de candidatas aguardando aprovação. Cada dia parado = candidata desistindo.',
           },
           {
             lbl: 'Vouchers',
@@ -336,6 +343,7 @@ function ObjectivesView({
             sub: rangeLabel,
             pop: voucherPop.total.delta,
             popTooltip: popTooltip + ` · anterior: ${voucherPop.total.previous}`,
+            tip: 'Vouchers emitidos no período. PoP compara com mesma janela anterior (ex: últimos 30d vs 30d antes).',
           },
           {
             lbl: 'Conversão',
@@ -353,17 +361,20 @@ function ObjectivesView({
             popTooltip:
               popTooltip +
               ` · anterior: ${voucherPop.conversion_pct.previous.toFixed(1)}%`,
+            tip: 'Vouchers que viraram paciente pagante / total emitido. Benchmark: ≥25% verde · 12-24% âmbar · <12% vermelho. Mín 20 vouchers para ter sinal.',
           },
           {
             lbl: 'NPS',
             val: npsLabel,
             sub: `${nps.responses ?? 0} respostas · lifetime`,
+            tip: 'Net Promoter Score das convidadas (0-10). Promotoras (9-10) menos detratoras (0-6) / total. >70 excelente · 30-70 bom · <30 ruim.',
           },
           {
             lbl: 'Saúde',
             val: `${totalGreen}/${totalActive}`,
             sub: `${totalYellow}A · ${totalRed}V · agora`,
             tone: totalRed > 0 ? 'red' : totalYellow > 0 ? 'amber' : 'green',
+            tip: 'Parcerias verdes / total ativas. A=âmbar (atenção) · V=vermelha (crítica). Vermelha = risco de churn imediato.',
           },
         ]}
       />
@@ -422,11 +433,13 @@ function ObjectivesView({
                 pop: popApplications,
                 popTooltip:
                   popTooltip + ` · anterior: ${prevApplications}`,
+                tip: 'Total de candidaturas (b2b_applications) recebidas no período · pendentes + aprovadas + rejeitadas.',
               },
               {
                 lbl: 'Pendentes',
                 val: a.pending ?? 0,
                 tone: (a.pending ?? 0) > 0 ? 'amber' : null,
+                tip: 'Candidaturas aguardando aprovação. Revisar em /b2b/candidaturas. Cada dia parado = candidata desistindo.',
               },
               {
                 lbl: 'Aprovadas',
@@ -435,10 +448,12 @@ function ObjectivesView({
                 pop: popApprovals,
                 popTooltip:
                   popTooltip + ` · anterior: ${prevApplicationsApproved}`,
+                tip: 'Candidaturas aprovadas no período · viram parcerias prospect/contract.',
               },
               {
                 lbl: 'Taxa',
                 val: `${a.conversion_rate ?? 0}%`,
+                tip: 'Aprovadas / Total · taxa de aceitação das candidaturas.',
               },
             ]}
           />
@@ -456,8 +471,13 @@ function ObjectivesView({
                 lbl: 'Média',
                 val: `${t.avg_approval_hours ?? 0}h`,
                 sub: `${t.resolved_count ?? 0} resolv.`,
+                tip: 'Tempo médio entre criação da candidatura e aprovação/rejeição. <4h = rápido · 4-24h = OK · >24h = candidata esfriando.',
               },
-              { lbl: 'Maior', val: `${t.max_approval_hours ?? 0}h` },
+              {
+                lbl: 'Maior',
+                val: `${t.max_approval_hours ?? 0}h`,
+                tip: 'Pior caso · maior tempo entre candidatura criada e resolvida no período. Se >48h, há candidaturas pra investigar.',
+              },
             ]}
           />
           <SectionInterpretation signal={sig('velocity')} />
@@ -477,6 +497,7 @@ function ObjectivesView({
                 lbl: 'Telefones',
                 val: m.wa_senders_active ?? 0,
                 sub: `${m.wa_senders_total ?? 0} cadastrados`,
+                tip: 'Profissionais com WhatsApp ativo na Mira (wa_numbers professional_private). Editar em /configuracoes?tab=pessoas.',
               },
               {
                 lbl: 'NPS respostas',
@@ -485,11 +506,13 @@ function ObjectivesView({
                   (nps.responses ?? 0) > 0 && nps.nps_score != null
                     ? `NPS ${nps.nps_score}`
                     : '—',
+                tip: 'Convidadas que responderam à pesquisa NPS após virar paciente. Cron mira-nps-request dispara X dias depois da conversão.',
               },
               {
                 lbl: 'Insights',
                 val: m.insights_active ?? 0,
                 sub: '—',
+                tip: 'Insights operacionais cross-partnership abertos (over_cap, low_conversion, health_red, etc). Detalhes no sino do header.',
               },
             ]}
           />
@@ -868,9 +891,34 @@ function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
                 textTransform: 'uppercase',
                 color: '#7A7165',
                 fontFamily: 'Inter, system-ui, sans-serif',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
               }}
             >
               {k.lbl}
+              {k.tip ? (
+                <Tooltip content={k.tip} side="top" maxWidth={260}>
+                  <span
+                    style={{
+                      cursor: 'help',
+                      color: '#7A7165',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      borderRadius: '50%',
+                      width: 12,
+                      height: 12,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(201, 169, 110, 0.3)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ?
+                  </span>
+                </Tooltip>
+              ) : null}
             </div>
             {k.sub ? (
               <div
@@ -1027,9 +1075,34 @@ function CompactKpiGrid({ kpis }: { kpis: Kpi[] }) {
                 textTransform: 'uppercase',
                 color: '#7A7165',
                 fontFamily: 'Inter, system-ui, sans-serif',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
               }}
             >
               {k.lbl}
+              {k.tip ? (
+                <Tooltip content={k.tip} side="top" maxWidth={260}>
+                  <span
+                    style={{
+                      cursor: 'help',
+                      color: '#7A7165',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      borderRadius: '50%',
+                      width: 12,
+                      height: 12,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(201, 169, 110, 0.3)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ?
+                  </span>
+                </Tooltip>
+              ) : null}
             </div>
             {k.sub ? (
               <div
