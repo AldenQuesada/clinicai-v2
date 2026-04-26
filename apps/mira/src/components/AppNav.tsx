@@ -11,7 +11,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LogOut, ExternalLink } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { SearchHint } from './SearchHint'
 import { NotificationsBell } from './NotificationsBell'
@@ -266,9 +266,11 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
 
       {/* ──────────────────────────────────────────────────────────────
          ROW 2 · SECTIONS · 4 tags principais (Geral/Disparos/Analytics/Config)
+         Mirror legacy: proper case, sem box, gold underline ativo, sem CTA
+         externo na direita.
          ────────────────────────────────────────────────────────────── */}
       <div className="h-11 flex items-center px-5 border-b border-white/5">
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-2">
           {SECTIONS.map((s) => (
             <FatherLink
               key={s.key}
@@ -279,32 +281,13 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
             </FatherLink>
           ))}
         </nav>
-
-        {/* Painel CRM externa · escondida em telas pequenas */}
-        <div className="ml-auto">
-          <Link
-            href={user.panelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-white/10 text-[10px] uppercase font-semibold text-[#9CA3AF] hover:text-[#C9A96E] hover:border-[#C9A96E]/40 transition-colors"
-            style={{ letterSpacing: '1.5px' }}
-          >
-            Painel CRM
-            <ExternalLink className="w-3 h-3" />
-          </Link>
-        </div>
       </div>
 
       {/* ──────────────────────────────────────────────────────────────
          ROW 3 · SUB-TABS · contextual da section ativa
+         Mirror legacy: gold underline ativo, sem prefix label.
          ────────────────────────────────────────────────────────────── */}
       <div className="h-9 flex items-center px-5 overflow-x-auto custom-scrollbar">
-        <span
-          className="text-[10px] uppercase font-semibold text-[#C9A96E] mr-4 shrink-0"
-          style={{ letterSpacing: '2px' }}
-        >
-          {activeSection.label}
-        </span>
         <nav className="flex items-center gap-1">
           {activeSection.subtabs.map((t) => (
             <SubLink
@@ -328,14 +311,16 @@ function FatherLink({
   active: boolean
   children: React.ReactNode
 }) {
+  // Mirror legacy 1:1 · proper case, sem box, sem uppercase, gold underline ativo
   return (
     <Link
       href={href}
-      className={`px-4 py-1.5 rounded-md text-[12px] font-semibold uppercase tracking-[1.5px] transition-colors ${
+      className={`px-3 py-2 text-[14px] font-medium transition-colors border-b-2 ${
         active
-          ? 'bg-[#C9A96E]/15 text-[#C9A96E] border border-[#C9A96E]/30'
-          : 'text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 border border-transparent'
+          ? 'text-[#C9A96E] border-[#C9A96E]'
+          : 'text-[#9CA3AF] hover:text-[#F5F0E8] border-transparent'
       }`}
+      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
     >
       {children}
     </Link>
