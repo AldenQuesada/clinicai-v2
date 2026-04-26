@@ -42,9 +42,11 @@ import {
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppSidebar } from './AppSidebar'
 import { AppSubtabs } from './AppSubtabs'
-import { AppHeaderThin } from './AppHeaderThin'
-import { MobileNavDrawer } from './MobileNavDrawer'
+import { MobileNavDrawer, MobileMenuButton } from './MobileNavDrawer'
 import { B2BHero } from './B2BHero'
+import { SearchHint } from './SearchHint'
+import { NotificationsBell } from './NotificationsBell'
+import { NewMenu } from './NewMenu'
 import type { SubtabCounts } from './nav/sections'
 import { buildSystemInsights } from '@/lib/system-insights'
 
@@ -197,12 +199,16 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           urgentInsights={urgentInsights}
         />
 
-        {/* Coluna direita · header thin + B2B hero brand + subtabs + content */}
+        {/* Coluna direita · B2BHero (esquerda) + actions (direita) numa
+            linha so · subtabs · content. AppHeaderThin removido (pedido
+            Alden 2026-04-26 · ganha 1 linha de altura). */}
         <div className="flex flex-col flex-1 min-w-0">
-          <AppHeaderThin insights={insights} />
-          {/* B2B Hero · brand global "Circulo Mirian de Paula" sempre visivel
-              (pedido Alden 2026-04-26 · mirror exato do painel.miriandpaula). */}
-          <B2BHero />
+          <B2BHero>
+            <MobileMenuButton />
+            <SearchHint />
+            <NotificationsBell insights={insights} />
+            <NewMenu />
+          </B2BHero>
           <Suspense fallback={<SubtabsSkeleton />}>
             <AppSubtabs counts={counts} />
           </Suspense>

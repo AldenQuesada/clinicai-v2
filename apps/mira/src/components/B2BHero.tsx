@@ -1,28 +1,26 @@
 /**
- * B2BHero · brand banner global "Círculo Mirian de Paula".
+ * B2BHero · brand banner global "Círculo Mirian de Paula" + slot pra actions.
  *
- * Replica EXATAMENTE o header do painel.miriandpaula.com.br/b2b-partners.html
- * (clinic-dashboard css/b2b.css linhas 37-52). Pedido Alden 2026-04-26: sempre
- * visivel, global · aparece abaixo do AppHeaderThin em todas as paginas Mira.
+ * Versao 2 (2026-04-26 ajuste Alden): hero fica no topo a esquerda · search/
+ * bell/+novo/avatar viram children no b2b-header-ctrl (direita) na MESMA
+ * linha · sem linha separadora · sem container.
  *
- * HTML mirror 1:1 do b2b-shell.ui.js linhas 106-111:
+ * Padrao 1:1 do `b2b-shell.ui.js` linhas 106-115:
  *   <header class="b2b-header">
  *     <div class="b2b-header-top">
  *       <div class="b2b-header-left">
  *         <div class="b2b-eyebrow">Círculo Mirian de Paula</div>
  *         <h1 class="b2b-title">Programa de <em>parcerias B2B</em></h1>
  *       </div>
+ *       <div class="b2b-header-ctrl">{children}</div>
  *     </div>
  *   </header>
- *
- * CSS vive em apps/mira/src/app/b2b-hero.css (importado pelo globals.css).
- * Wrap b2b-hero-wrap aplica padding match com b2b-page-container do original.
  */
 
-export function B2BHero() {
+export function B2BHero({ children }: { children?: React.ReactNode }) {
   return (
     <div className="b2b-hero-wrap">
-      <header className="b2b-header">
+      <header className="b2b-header b2b-header-no-line">
         <div className="b2b-header-top">
           <div className="b2b-header-left">
             <div className="b2b-eyebrow">Círculo Mirian de Paula</div>
@@ -30,6 +28,9 @@ export function B2BHero() {
               Programa de <em>parcerias B2B</em>
             </h1>
           </div>
+          {children ? (
+            <div className="b2b-header-ctrl">{children}</div>
+          ) : null}
         </div>
       </header>
     </div>

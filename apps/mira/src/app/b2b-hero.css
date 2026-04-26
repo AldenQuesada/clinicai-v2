@@ -30,17 +30,23 @@
 
 /* ── Header (b2b-partners.html original · linhas 37-52 + 215-216) ── */
 .b2b-header {
-  margin-bottom: 28px;
-  padding-bottom: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 0;
   border-bottom: 1px solid var(--b2b-border);
+}
+/* Modifier · sem linha separadora (pedido Alden 2026-04-26) */
+.b2b-header.b2b-header-no-line {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
 }
 .b2b-header-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 24px;
   flex-wrap: wrap;
-  margin-bottom: 28px;
+  margin-bottom: 0;
 }
 .b2b-header-left { min-width: 0; }
 .b2b-header-ctrl {
@@ -71,16 +77,27 @@
   font-weight: 400;
 }
 
-/* ── Wrapper do hero global (Mira-specific · padding match com b2b-page-container) ── */
+/* ── Wrapper do hero global · ALINHADO A ESQUERDA (sem max-width centering)
+   Pedido Alden 2026-04-26: hero deve colar a esquerda (apos sidebar) e
+   actions ficam a direita na mesma linha · zero buffer central. */
 .b2b-hero-wrap {
-  max-width: 1640px;
-  margin: 0 auto;
-  padding: 24px 40px 0; /* sem padding-bottom · header tem proprio margin */
+  width: 100%;
+  padding: 14px 24px;
+  background: var(--b2b-bg-0);
+  border-bottom: 1px solid var(--b2b-border);
+  z-index: 20;
 }
 
-/* ── Mobile (≤900px · alinha com clinic-dashboard) ── */
+/* Em wrap, b2b-header-ctrl agrupa search + bell + +novo + avatar.
+   Sem container box · cada acao se vira por estilo proprio. */
+.b2b-hero-wrap .b2b-header-ctrl {
+  gap: 10px;
+}
+
+/* ── Mobile (≤900px) ── */
 @media (max-width: 900px) {
-  .b2b-hero-wrap { padding: 20px 16px 0; }
+  .b2b-hero-wrap { padding: 12px 16px; }
   .b2b-title { font-size: 28px; }
-  .b2b-header-top { flex-direction: column; align-items: flex-start; }
+  .b2b-header-top { flex-direction: column; align-items: stretch; gap: 12px; }
+  .b2b-hero-wrap .b2b-header-ctrl { justify-content: flex-end; }
 }
