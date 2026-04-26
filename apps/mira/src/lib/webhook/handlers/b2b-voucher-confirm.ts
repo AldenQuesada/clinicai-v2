@@ -142,15 +142,16 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
 
   const partnership = await repos.b2bPartnerships.getById(stateRow.value.partnership_id)
   const partnerName = partnership?.contactName ?? 'sua parceira'
-  // Voucher URL · pagina publica da beneficiaria (visualizar/agendar).
-  // Mantida no painel legacy por enquanto.
   const voucherUrl = `https://painel.miriandpaula.com.br/voucher/${result.token}`
   // Painel da parceira · /parceiro/[token] (Onda 2). Backfill mig 800-38
-  // garante public_token != null. Sem este link, parceira nao descobre
-  // que tem dashboard · bug Alden 2026-04-26.
+  // garante public_token != null. Tom formal alinhado com onboarding
+  // da Mira · "momento-chave da parceria · merece presenca" (Alden 2026-04-24
+  // · port 1:1 do legacy b2b-mira-router/index.ts linhas 508-516).
   const partnerPanelUrl = partnership?.publicToken
     ? `https://mira.miriandpaula.com.br/parceiro/${partnership.publicToken}`
     : null
+  const partnerFirst = firstName(partnership?.contactName ?? null)
+  const partnerGreeting = partnerFirst && partnerFirst !== 'parceira' ? `${partnerFirst}, ` : ''
 
   // Action: dispara voucher pra recipient via Mih (Lara/recipient_voucher channel)
   const recipientGreeting =
@@ -159,24 +160,27 @@ export const b2bVoucherConfirmHandler: Handler = async (ctx): Promise<HandlerRes
     `Dá uma olhada: ${voucherUrl}\n\n` +
     `Quando quiser marcar é só me chamar por aqui!`
 
+  // Mensagem OFICIAL pra parceira (port literal do legacy b2b-mira-router).
+  // Alden 2026-04-26: nao improvisar · este texto e a fonte canonica.
   const replyLines = [
-    `Voucher emitido! 🎁`,
-    `Token: \`${result.token}\``,
-    `Mandei pra *${stateRow.value.recipient_name}* agora mesmo 💛`,
+    `✨ *Voucher enviado para ${stateRow.value.recipient_name}*`,
     ``,
-    `Combo: ${stateRow.value.combo}`,
+    `Acabei de entregar o presente direto no WhatsApp dela, com o link, as orientações e o prazo de validade. Já pode descansar — o fio agora corre com a gente.`,
     ``,
-    `Acompanha o voucher dela em: ${voucherUrl}`,
+    `Assim que ela abrir ou agendar, te aviso por aqui.`,
   ]
   if (partnerPanelUrl) {
     replyLines.push(
       ``,
-      `Seu painel completo (vouchers + conversoes + agenda):`,
+      `📊 *Acompanhe em tempo real no seu painel:*`,
       partnerPanelUrl,
-      ``,
-      `Pode salvar nos favoritos · valido por 90 dias 💎`,
     )
   }
+  replyLines.push(
+    ``,
+    `${partnerGreeting}obrigada pela confiança de sempre 💜`,
+    `— *Mira*, da Clínica Mirian de Paula`,
+  )
   return {
     replyText: replyLines.join('\n'),
     actions: [
