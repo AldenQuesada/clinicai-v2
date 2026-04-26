@@ -22,6 +22,7 @@ import {
   isNegative,
   type BulkVoucherReviewState,
 } from '../state-machine'
+import { renderTemplate } from '@clinicai/utils'
 import type { Handler, HandlerResult } from './types'
 
 const SIM_RX = /\b(sim|s|claro|pode|emite|emitir|ok|aprovo|aprovado|confirma(do)?|confirmo|vai|manda|bora)\b/i
@@ -243,30 +244,30 @@ export const b2bBulkVoucherConfirmHandler: Handler = async (ctx): Promise<Handle
       ? 'agora · você recebe confirmação de cada um conforme rola'
       : `agendados pra *${scheduleHuman}*`
 
-  // Painel da parceira · /parceiro/[token] (Onda 2). Sem este link
-  // a parceira nao descobre que tem dashboard · bug Alden 2026-04-26.
+  // Template DB-driven (mig 800-43 · bulk_voucher_enqueued).
+  // Vars: parceira_first, count, schedule_msg, painel_parceira.
   // (partnership ja foi fetched no inicio do handler · linha ~113)
   const panelUrl = partnership?.publicToken
     ? `https://mira.miriandpaula.com.br/parceiro/${partnership.publicToken}`
-    : null
+    : ''
 
-  const replyLines = [
-    `Confirmado, *${partnerFirst}*! 🎁`,
-    ``,
-    `Vou disparar os *${enqueueResult.count} vouchers* ${scheduleMsg}.`,
-    ``,
-    `Obrigada pela confiança 💛`,
-  ]
-  if (panelUrl) {
-    replyLines.push(
-      ``,
-      `Acompanha tudo no seu painel:`,
-      panelUrl,
-    )
-  }
+  const tpl = await repos.b2bTemplates.getByEventKey(
+    clinicId,
+    'bulk_voucher_enqueued',
+    state.partnership_id,
+  )
+  const replyText = tpl?.textTemplate
+    ? renderTemplate(tpl.textTemplate, {
+        parceira_first: partnerFirst,
+        count: enqueueResult.count,
+        schedule_msg: scheduleMsg,
+        painel_parceira: panelUrl,
+      })
+    : // Fallback defensivo
+      `Confirmado, *${partnerFirst}*! 🎁\n\nVou disparar os *${enqueueResult.count} vouchers* ${scheduleMsg}.\n\nObrigada pela confiança 💛`
 
   return {
-    replyText: replyLines.join('\n'),
+    replyText,
     actions: [],
     stateTransitions: [{ op: 'clear', key: STATE_KEY.BULK_VOUCHER_REVIEW }],
     meta: {
