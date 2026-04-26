@@ -128,6 +128,13 @@ export {
   type PartnershipComment,
 } from './b2b-comments.repository'
 export {
+  MiraCronRegistryRepository,
+  type CronJobCategory,
+  type CronRunStatus,
+  type MiraCronJob,
+  type MiraCronRun,
+} from './mira-cron-registry.repository'
+export {
   B2BMetricsV2Repository,
   type GrowthWeek,
   type GrowthWeekly,

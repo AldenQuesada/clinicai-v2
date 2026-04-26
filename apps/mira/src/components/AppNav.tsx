@@ -100,6 +100,7 @@ const SECTIONS: Section[] = [
       { href: '/b2b/config/padroes', label: 'Padrões', available: true },
       // (3) configura-uma-vez · setup inicial
       { href: '/b2b/config/admins', label: 'Admins', available: true },
+      { href: '/b2b/config/rotinas', label: 'Rotinas', available: true },
       { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
       { href: '/configuracoes?tab=professionals', label: 'Profissionais', available: true },
       { href: '/estudio/lgpd', label: 'LGPD', available: true },

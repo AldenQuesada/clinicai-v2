@@ -55,6 +55,13 @@ export async function getCronContext(cronName: string): Promise<CronContext> {
 /**
  * Wrapper canonico pra crons. Lida com auth + try/catch + telemetria + audit.
  * Caller passa um handler que recebe ctx e retorna o payload customizado.
+ *
+ * Mig 800-15: integra com mira_cron_jobs/runs. Antes de executar, checa se
+ * o job esta enabled pra clinica (runStart retorna NULL se desligado · cron
+ * faz noop). Apos executar, registra finish (success/failed/items).
+ *
+ * Handler pode retornar { itemsProcessed?: number, ... } pra alimentar
+ * mira_cron_runs.items_processed (UI mostra "5 admins notificados").
  */
 export async function runCron(
   req: NextRequest,
@@ -65,23 +72,85 @@ export async function runCron(
   if (reject) return reject
 
   const startedAt = Date.now()
+
+  // Setup ctx ANTES do tracking (precisa clinicId)
+  let ctx: CronContext
   try {
-    const ctx = await getCronContext(cronName)
-    const result = await handler(ctx)
-    const ms = Date.now() - startedAt
-    return NextResponse.json({
-      ok: true,
-      cron: cronName,
-      duration_ms: ms,
-      ...result,
-    })
+    ctx = await getCronContext(cronName)
   } catch (err) {
-    log.error({ err, cron: cronName }, 'mira.cron.failed')
+    log.error({ err, cron: cronName }, 'mira.cron.ctx_failed')
     return NextResponse.json(
       {
         ok: false,
         cron: cronName,
         error: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    )
+  }
+
+  // Tenta start no registry · se NULL, job desligado · noop ack
+  let runId: string | null = null
+  try {
+    runId = await ctx.repos.miraCronRegistry.runStart(cronName, ctx.clinicId)
+  } catch (err) {
+    // Registry indisponivel (mig nao aplicada · tabelas nao existem etc) · loga
+    // warn e continua sem tracking · cron NAO bloqueia se registry quebra
+    log.warn(
+      { err, cron: cronName },
+      'mira.cron.registry_unavailable_continuing',
+    )
+  }
+
+  if (runId === null && process.env.MIRA_CRON_REGISTRY_ENFORCED === 'true') {
+    // Modo "estrito": registry obrigatorio. Default OFF · liga depois que
+    // mig 800-15 estiver aplicada em todos ambientes.
+    return NextResponse.json({
+      ok: true,
+      cron: cronName,
+      skipped: true,
+      reason: 'job_disabled_or_registry_unavailable',
+    })
+  }
+
+  try {
+    const result = (await handler(ctx)) as Record<string, unknown>
+    const ms = Date.now() - startedAt
+    const items = Number(result?.itemsProcessed ?? result?.items ?? 0) || 0
+
+    if (runId) {
+      await ctx.repos.miraCronRegistry
+        .runFinish(runId, 'success', items, null, { duration_ms: ms })
+        .catch((e) => {
+          log.warn({ err: e, cron: cronName, runId }, 'mira.cron.run_finish_failed')
+        })
+    }
+
+    return NextResponse.json({
+      ok: true,
+      cron: cronName,
+      duration_ms: ms,
+      run_id: runId,
+      ...result,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.error({ err, cron: cronName }, 'mira.cron.failed')
+
+    if (runId) {
+      await ctx.repos.miraCronRegistry
+        .runFinish(runId, 'failed', 0, msg)
+        .catch(() => {
+          // best-effort
+        })
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        cron: cronName,
+        error: msg,
+        run_id: runId,
       },
       { status: 500 },
     )
