@@ -80,13 +80,25 @@ const SECTIONS: Section[] = [
   {
     key: 'config',
     label: 'Configurações',
-    defaultHref: '/b2b/config/admins',
+    defaultHref: '/configuracoes?tab=overview',
     match: ['/b2b/config', '/configuracoes', '/estudio'],
+    // Ordem ESQ→DIR · uso diario → setup raro
+    // (1) day-1 / operacional · (2) recorrente · (3) configura-uma-vez · (4) meta
     subtabs: [
-      { href: '/b2b/config/admins', label: 'Admins', available: true },
-      { href: '/b2b/config/padroes', label: 'Padrões', available: true },
+      // (1) day-1 · entra todo dia
+      { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
       { href: '/b2b/config/saude', label: 'Saúde', available: true },
       { href: '/b2b/config/auditoria', label: 'Auditoria', available: true },
+      { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
+      // (2) recorrente · vai usar de vez em quando
+      { href: '/estudio/cadastrar', label: 'Cadastrar', available: true },
+      { href: '/b2b/config/padroes', label: 'Padrões', available: true },
+      // (3) configura-uma-vez · setup inicial
+      { href: '/b2b/config/admins', label: 'Admins', available: true },
+      { href: '/configuracoes?tab=channels', label: 'Canais', available: true },
+      { href: '/configuracoes?tab=professionals', label: 'Profissionais', available: true },
+      { href: '/estudio/lgpd', label: 'LGPD', available: true },
+      // (4) meta
       { href: '/b2b/config/sobre', label: 'Sobre', available: true },
     ],
   },
