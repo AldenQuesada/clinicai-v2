@@ -15,6 +15,7 @@ import { LogOut, ExternalLink, Plus } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { SearchHint } from './SearchHint'
 import { NotificationsBell } from './NotificationsBell'
+import { NewMenu } from './NewMenu'
 import type { Insight } from '@clinicai/repositories'
 
 type SubTab = {
@@ -180,24 +181,10 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
 
   return (
     <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
-      {/* Father row · brand + busca larga + sections + quick actions + alertas + user */}
+      {/* Father row · busca larga + sections centradas + sino + + Novo dropdown + user
+         (Brand foi pra LuxuryHeader acima · esta row foca em navegacao) */}
       <div className="h-13 flex items-center gap-4 px-5 border-b border-white/5">
-        <Link
-          href={activeSection.defaultHref}
-          className="flex items-center gap-3 group shrink-0"
-        >
-          <div className="w-8 h-8 rounded-md bg-[#C9A96E]/15 border border-[#C9A96E]/35 flex items-center justify-center">
-            <span className="font-display text-[#C9A96E] text-base leading-none">M</span>
-          </div>
-          <div className="hidden xl:flex flex-col leading-tight">
-            <span className="font-display text-[15px] text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors">
-              Mira
-            </span>
-            <span className="eyebrow text-[#9CA3AF]">Parcerias B2B</span>
-          </div>
-        </Link>
-
-        {/* Busca · LARGA, ocupa espaco visual confortavel */}
+        {/* Busca · LARGA, ocupa espaco visual confortavel a esquerda */}
         <SearchHint />
 
         {/* Sections · centradas no espaco disponivel */}
@@ -216,8 +203,8 @@ export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: I
         <div className="flex items-center gap-2 shrink-0">
           <NotificationsBell insights={insights} />
 
-          <QuickAction href="/vouchers/novo" label="Voucher" />
-          <QuickAction href="/estudio/cadastrar" label="Parceria" />
+          {/* + Novo dropdown · mirror pattern do dashboard #newDropdown */}
+          <NewMenu />
 
           <Link
             href={user.panelUrl}
