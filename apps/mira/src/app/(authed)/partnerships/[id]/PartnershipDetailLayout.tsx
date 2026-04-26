@@ -12,7 +12,17 @@
  */
 
 import Link from 'next/link'
-import { Info, Ticket, BarChart3, FileSignature, TrendingUp, Activity, MessageSquare, Users } from 'lucide-react'
+import {
+  Info,
+  Ticket,
+  BarChart3,
+  FileSignature,
+  TrendingUp,
+  Activity,
+  MessageSquare,
+  Users,
+  ScrollText,
+} from 'lucide-react'
 import type { B2BPartnershipDTO } from '@clinicai/repositories'
 import { DetailTab } from './DetailTab'
 import { VouchersTab } from './VouchersTab'
@@ -21,12 +31,14 @@ import { HealthTab } from './HealthTab'
 import { CommentsTab } from './CommentsTab'
 import { GrowthTab } from './GrowthTab'
 import { ContratoTab } from './ContratoTab'
+import { DocumentosTab } from './DocumentosTab'
 
 const TABS = [
   { key: 'detail', label: 'Detalhe', icon: Info },
   { key: 'vouchers', label: 'Vouchers', icon: Ticket },
   { key: 'performance', label: 'Performance', icon: BarChart3 },
   { key: 'contrato', label: 'Contrato', icon: FileSignature },
+  { key: 'documentos', label: 'Documentos', icon: ScrollText },
   { key: 'crescer', label: 'Crescer', icon: TrendingUp },
   { key: 'comments', label: 'Comentários', icon: MessageSquare },
   { key: 'health', label: 'Health', icon: Activity },
@@ -204,6 +216,14 @@ export function PartnershipDetailLayout({
       )}
       {activeTab === 'contrato' && (
         <ContratoTab partnershipId={partnership.id} canManage={canManage} />
+      )}
+      {activeTab === 'documentos' && (
+        <DocumentosTab
+          partnershipId={partnership.id}
+          partnershipName={partnership.name}
+          partnershipPhone={partnership.contactPhone || ''}
+          canManage={canManage}
+        />
       )}
       {activeTab === 'crescer' && (
         <GrowthTab partnership={partnership} />
