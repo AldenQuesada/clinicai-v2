@@ -133,6 +133,18 @@ export {
   type PartnershipComment,
 } from './b2b-comments.repository'
 export {
+  B2BGrowthRepository,
+  type GrowthPanel,
+  type GrowthPartnership,
+  type GrowthConversionLifetime,
+  type GrowthCost,
+  type GrowthNPS,
+  type GrowthHealthHistoryEntry,
+  type GrowthTrend,
+  type GrowthImpact,
+  type GrowthPitchStats,
+} from './b2b-growth.repository'
+export {
   MiraCronRegistryRepository,
   type CronJobCategory,
   type CronRunStatus,

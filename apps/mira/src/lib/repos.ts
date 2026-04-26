@@ -40,6 +40,7 @@ import {
   B2BMetricsV2Repository,
   B2BPerformanceRepository,
   B2BCommentsRepository,
+  B2BGrowthRepository,
   MiraCronRegistryRepository,
   B2BNpsRepository,
   B2BAdminPhonesRepository,
@@ -84,6 +85,7 @@ export interface MiraRepos {
   b2bMetricsV2: B2BMetricsV2Repository
   b2bPerformance: B2BPerformanceRepository
   b2bComments: B2BCommentsRepository
+  b2bGrowth: B2BGrowthRepository
   miraCronRegistry: MiraCronRegistryRepository
   b2bNps: B2BNpsRepository
   b2bAdminPhones: B2BAdminPhonesRepository
@@ -128,6 +130,7 @@ export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
     b2bMetricsV2: new B2BMetricsV2Repository(supabase),
     b2bPerformance: new B2BPerformanceRepository(supabase),
     b2bComments: new B2BCommentsRepository(supabase),
+    b2bGrowth: new B2BGrowthRepository(supabase),
     miraCronRegistry: new MiraCronRegistryRepository(supabase),
     b2bNps: new B2BNpsRepository(supabase),
     b2bAdminPhones: new B2BAdminPhonesRepository(supabase),
