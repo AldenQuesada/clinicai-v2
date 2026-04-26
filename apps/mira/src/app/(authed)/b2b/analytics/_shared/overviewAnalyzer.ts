@@ -174,15 +174,25 @@ export function analyzeOverview(
       message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · esperado 12-25% · espaço pra otimizar.`,
     })
   } else {
-    // Detecta onde o drop principal acontece
-    let dropStage = 'desconhecido'
-    if (vouchersScheduled === 0 && vouchersOpened > 0) dropStage = 'Aberto → Agendou'
-    else if (vouchersRedeemed === 0 && vouchersScheduled > 0) dropStage = 'Agendou → Compareceu'
-    else if (vouchersPaid === 0 && vouchersRedeemed > 0) dropStage = 'Compareceu → Pagou'
+    // Detecta drop usando step-rates · pega a etapa com pior delta vs meta
+    const stepRates = [
+      { stage: 'Entrega', rate: vouchersTotal > 0 ? (Number(v.delivered ?? 0) / vouchersTotal) * 100 : 0, target: 90 },
+      { stage: 'Abertura', rate: Number(v.delivered ?? 0) > 0 ? (vouchersOpened / Number(v.delivered ?? 0)) * 100 : 0, target: 60 },
+      { stage: 'Agendamento', rate: vouchersOpened > 0 ? (vouchersScheduled / vouchersOpened) * 100 : 0, target: 50 },
+      { stage: 'Comparecimento', rate: vouchersScheduled > 0 ? (vouchersRedeemed / vouchersScheduled) * 100 : 0, target: 80 },
+      { stage: 'Fechamento', rate: vouchersRedeemed > 0 ? (vouchersPaid / vouchersRedeemed) * 100 : 0, target: 35 },
+    ]
+    // Acha a etapa com maior delta negativo vs target (gargalo)
+    const worst = stepRates.reduce((acc, s) =>
+      (s.rate - s.target) < (acc.rate - acc.target) ? s : acc,
+    )
+    const dropStage = worst.rate < worst.target * 0.5
+      ? `${worst.stage} (${Math.round(worst.rate)}% vs meta ${worst.target}%)`
+      : 'distribuído entre as etapas'
     signals.push({
       section: 'conversion',
       status: 'red',
-      message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · abaixo do mínimo de 12% · drop em ${dropStage}.`,
+      message: `Conversão ${convPct}% (${vouchersPaid}/${vouchersTotal}) · abaixo do mínimo de 12% · gargalo em ${dropStage}.`,
     })
     actions.push({
       priority: 1,

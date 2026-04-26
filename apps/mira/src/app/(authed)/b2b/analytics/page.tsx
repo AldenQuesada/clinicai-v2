@@ -981,6 +981,37 @@ function VoucherSplit({ v }: { v: AnalyticsBlob['vouchers'] }) {
   )
 }
 
+/**
+ * Benchmarks de step-rate · % esperado de cada etapa em relacao a anterior
+ * (decididos com BI specialist · 2026-04-26).
+ *
+ * Verde · acima do benchmark
+ * Amarelo · 50-100% do benchmark (zona de atenção)
+ * Vermelho · abaixo de 50% do benchmark (problema)
+ *
+ * TODO · tornar editavel em /b2b/config/funnel similar a tier configs.
+ */
+const FUNNEL_BENCHMARKS = {
+  delivered: { target: 90, label: 'Taxa de entrega · WhatsApp aceito' },
+  opened: { target: 60, label: 'Taxa de abertura · convidada engajou' },
+  scheduled: { target: 50, label: 'Taxa de agendamento · CTA do voucher funcionou' },
+  redeemed: { target: 80, label: 'Taxa de comparecimento · no-show < 20%' },
+  purchased: { target: 35, label: 'Taxa de fechamento · combo case, scripts ok' },
+} as const
+
+function stepStatus(rate: number, target: number): SignalStatus {
+  if (rate >= target) return 'green'
+  if (rate >= target * 0.5) return 'amber'
+  return 'red'
+}
+
+function STEP_COLOR(s: SignalStatus): string {
+  if (s === 'green') return '#10B981'
+  if (s === 'amber') return '#F59E0B'
+  if (s === 'red') return '#EF4444'
+  return '#64748B'
+}
+
 function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
   const total = Number(v.total || 0)
   if (!total) {
@@ -991,42 +1022,228 @@ function JourneyBar({ v }: { v: AnalyticsBlob['vouchers'] }) {
   const scheduled = Number(v.scheduled || 0)
   const redeemed = Number(v.redeemed || 0)
   const purchased = Number(v.purchased || 0)
-  const pct = (n: number) => Math.round((n / total) * 100)
+
+  // Step-rate (% sobre etapa anterior) · BI standard pra detectar gargalo
+  const sr = (n: number, prev: number) =>
+    prev > 0 ? Math.round((n / prev) * 100) : 0
+  const totalPct = (n: number) => Math.round((n / total) * 100)
 
   const steps = [
-    { lbl: 'Enviados', n: total, pct: 100, color: '#64748B' },
-    { lbl: 'Entregues', n: delivered, pct: pct(delivered), color: '#60A5FA' },
-    { lbl: 'Abertos', n: opened, pct: pct(opened), color: '#A78BFA' },
-    { lbl: 'Agendaram', n: scheduled, pct: pct(scheduled), color: '#F59E0B' },
-    { lbl: 'Compareceram', n: redeemed, pct: pct(redeemed), color: '#10B981' },
+    {
+      lbl: 'Enviados',
+      n: total,
+      stepRate: 100,
+      totalPct: 100,
+      status: 'neutral' as SignalStatus,
+      bench: null as { target: number; label: string } | null,
+      prev: null as string | null,
+    },
+    {
+      lbl: 'Entregues',
+      n: delivered,
+      stepRate: sr(delivered, total),
+      totalPct: totalPct(delivered),
+      status: stepStatus(sr(delivered, total), FUNNEL_BENCHMARKS.delivered.target),
+      bench: FUNNEL_BENCHMARKS.delivered,
+      prev: 'Enviados',
+    },
+    {
+      lbl: 'Abertos',
+      n: opened,
+      stepRate: sr(opened, delivered),
+      totalPct: totalPct(opened),
+      status: stepStatus(sr(opened, delivered), FUNNEL_BENCHMARKS.opened.target),
+      bench: FUNNEL_BENCHMARKS.opened,
+      prev: 'Entregues',
+    },
+    {
+      lbl: 'Agendaram',
+      n: scheduled,
+      stepRate: sr(scheduled, opened),
+      totalPct: totalPct(scheduled),
+      status: stepStatus(sr(scheduled, opened), FUNNEL_BENCHMARKS.scheduled.target),
+      bench: FUNNEL_BENCHMARKS.scheduled,
+      prev: 'Abertos',
+    },
+    {
+      lbl: 'Compareceram',
+      n: redeemed,
+      stepRate: sr(redeemed, scheduled),
+      totalPct: totalPct(redeemed),
+      status: stepStatus(sr(redeemed, scheduled), FUNNEL_BENCHMARKS.redeemed.target),
+      bench: FUNNEL_BENCHMARKS.redeemed,
+      prev: 'Agendaram',
+    },
     {
       lbl: 'Pagaram',
       n: purchased,
-      pct: pct(purchased),
-      color: 'var(--m2-gold, #C9A96E)',
+      stepRate: sr(purchased, redeemed),
+      totalPct: totalPct(purchased),
+      status: stepStatus(sr(purchased, redeemed), FUNNEL_BENCHMARKS.purchased.target),
+      bench: FUNNEL_BENCHMARKS.purchased,
+      prev: 'Compareceram',
     },
   ]
 
-  const ariaLabel = `Funil de conversão: ${steps.map((s) => `${s.lbl} ${s.n}`).join(', ')}`
+  const ariaLabel = `Funil: ${steps
+    .map((s) => `${s.lbl} ${s.n} (${s.stepRate}% vs ${s.prev ?? 'inicio'})`)
+    .join(', ')}`
 
   return (
-    <div
-      className="b2b-journey"
-      role="img"
-      aria-label={ariaLabel}
-    >
-      {steps.map((s) => (
-        <div key={s.lbl} className="b2b-journey-step">
-          <div className="b2b-journey-lbl">{s.lbl}</div>
-          <div className="b2b-journey-n" style={{ color: s.color }}>
-            {s.n}
-          </div>
-          <div className="b2b-journey-pct">{s.pct}%</div>
-          <div className="b2b-journey-bar">
-            <div style={{ width: `${s.pct}%`, background: s.color }} />
-          </div>
-        </div>
-      ))}
+    <div role="img" aria-label={ariaLabel}>
+      <div className="b2b-journey">
+        {steps.map((s, idx) => {
+          const color = idx === 0 ? '#9CA3AF' : STEP_COLOR(s.status)
+          return (
+            <div key={s.lbl} className="b2b-journey-step">
+              <div className="b2b-journey-lbl">{s.lbl}</div>
+              <div className="b2b-journey-n" style={{ color }}>
+                {s.n}
+              </div>
+              <div
+                className="b2b-journey-pct"
+                style={{ color: idx === 0 ? '#9CA3AF' : color, fontWeight: 600 }}
+                title={
+                  idx === 0
+                    ? 'Etapa inicial · 100%'
+                    : `${s.stepRate}% vs ${s.prev} · meta ≥${s.bench?.target}%`
+                }
+              >
+                {idx === 0 ? '100%' : `${s.stepRate}%`}
+              </div>
+              {idx > 0 && (
+                <div
+                  style={{
+                    fontSize: 9.5,
+                    color: '#7A7165',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    marginTop: 2,
+                    textAlign: 'center',
+                  }}
+                >
+                  {s.totalPct}% total
+                </div>
+              )}
+              <div className="b2b-journey-bar" style={{ marginTop: 6 }}>
+                <div
+                  style={{
+                    width: `${idx === 0 ? 100 : s.stepRate}%`,
+                    background: color,
+                  }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legenda · cores + benchmarks visíveis */}
+      <FunnelLegend />
     </div>
+  )
+}
+
+function FunnelLegend() {
+  const benches = [
+    { lbl: 'Entrega', ...FUNNEL_BENCHMARKS.delivered },
+    { lbl: 'Abertura', ...FUNNEL_BENCHMARKS.opened },
+    { lbl: 'Agendamento', ...FUNNEL_BENCHMARKS.scheduled },
+    { lbl: 'Comparecimento', ...FUNNEL_BENCHMARKS.redeemed },
+    { lbl: 'Fechamento', ...FUNNEL_BENCHMARKS.purchased },
+  ]
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: '10px 12px',
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px dashed rgba(201, 169, 110, 0.2)',
+        borderRadius: 8,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            color: '#C9A96E',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}
+        >
+          Como ler · cor por step-rate
+        </span>
+        <div style={{ display: 'flex', gap: 12, fontSize: 10.5, color: '#B5A894' }}>
+          <LegendDot color="#10B981" label="≥ meta · saudável" />
+          <LegendDot color="#F59E0B" label="50-100% da meta · atenção" />
+          <LegendDot color="#EF4444" label="< 50% da meta · crítico" />
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 6,
+          paddingTop: 6,
+          borderTop: '1px dashed rgba(255,255,255,0.05)',
+        }}
+      >
+        {benches.map((b) => (
+          <div
+            key={b.lbl}
+            style={{
+              fontSize: 10.5,
+              color: '#B5A894',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              lineHeight: 1.4,
+            }}
+          >
+            <span style={{ color: '#C9A96E', fontWeight: 600 }}>{b.lbl}:</span>{' '}
+            meta ≥{b.target}% ·{' '}
+            <span style={{ color: '#7A7165', fontStyle: 'italic' }}>{b.label}</span>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 6,
+          borderTop: '1px dashed rgba(255,255,255,0.05)',
+          fontSize: 10,
+          color: '#7A7165',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontStyle: 'italic',
+        }}
+      >
+        💡 Step-rate revela onde o funil sangra · ex: Agendaram 0% vs Abertos = problema no CTA do voucher.
+      </div>
+    </div>
+  )
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <span
+        style={{
+          display: 'inline-block',
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: color,
+        }}
+      />
+      {label}
+    </span>
   )
 }
