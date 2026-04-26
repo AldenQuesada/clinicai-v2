@@ -12,6 +12,7 @@
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import { updateChannelAction } from './actions'
+import { WaNumbersPanel } from './WaNumbersPanel'
 
 interface FunctionMeta {
   title: string
@@ -175,73 +176,8 @@ export async function ChannelsTab() {
           )}
         </section>
 
-        {/* DIREITA · Numeros WhatsApp cadastrados */}
-        <section className="bg-white/[0.02] border border-white/10 rounded-lg p-3.5 flex flex-col gap-2.5 min-w-0">
-          <header className="flex items-center justify-between gap-2">
-            <h3 className="text-[12px] font-bold uppercase tracking-[1.4px] text-[#C9A96E]">
-              Numeros WhatsApp cadastrados
-            </h3>
-            <span className="text-[10px] text-[#6B7280] font-mono">
-              {waNumbers.length} total · {activeWaNumbers.length} ativos
-            </span>
-          </header>
-          {waNumbers.length === 0 ? (
-            <div className="text-[11px] text-[#9CA3AF] py-4 text-center italic">
-              Nenhum numero cadastrado.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {waNumbers.map((n) => (
-                <WaNumberRow key={n.id} n={n} />
-              ))}
-            </div>
-          )}
-          <div className="text-[9.5px] text-[#6B7280] italic mt-1 pt-2 border-t border-white/5">
-            Cadastro/edicao de numeros vive em /configuracoes?tab=pessoas (numeros profissionais)
-            ou via SQL direto pros oficiais.
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-}
-
-function WaNumberRow({
-  n,
-}: {
-  n: {
-    id: string
-    phone: string
-    phoneNumberId: string | null
-    label: string | null
-    isActive: boolean
-  }
-}) {
-  const hasInstance = !!n.phoneNumberId
-  return (
-    <div className="bg-black/15 border border-white/5 rounded-md px-3 py-2 flex flex-col gap-0.5">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-[12px] font-mono font-bold text-[#F5F0E8]">
-          {n.phone}
-        </span>
-        <span
-          className={`text-[8.5px] font-bold uppercase tracking-[1.1px] px-1.5 py-0.5 rounded ${
-            n.isActive
-              ? 'bg-[#10B981]/15 text-[#10B981]'
-              : 'bg-white/10 text-[#9CA3AF]'
-          }`}
-        >
-          {n.isActive ? 'ATIVO' : 'INATIVO'}
-        </span>
-      </div>
-      <div className="text-[10.5px] text-[#9CA3AF]">
-        {n.label || <em className="text-[#6B7280]">sem label</em>}
-      </div>
-      <div className="text-[9.5px] text-[#6B7280] font-mono">
-        inst: {n.phoneNumberId ?? '—'}
-        {!hasInstance && (
-          <span className="text-[#F59E0B] ml-2">· sem instance (nao envia)</span>
-        )}
+        {/* DIREITA · CRUD de wa_numbers via mig 800-31 RPCs */}
+        <WaNumbersPanel rows={waNumbers} />
       </div>
     </div>
   )

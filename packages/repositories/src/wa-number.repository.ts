@@ -18,6 +18,8 @@ export interface WaNumberDTO {
   label: string | null
   isActive: boolean
   createdAt: string
+  /** Mig 800-31 · expor pra UI Channels diferenciar oficial/professional/outros */
+  numberType: string | null
 }
 
 export interface WaNumberFullDTO extends WaNumberDTO {
@@ -60,6 +62,7 @@ function mapRow(row: any): WaNumberDTO {
     label: row.label ?? null,
     isActive: row.is_active !== false,
     createdAt: row.created_at ?? new Date().toISOString(),
+    numberType: (row.number_type as string) ?? null,
   }
 }
 
@@ -170,6 +173,64 @@ export class WaNumberRepository {
       return { ok: false, error: obj.error || 'rpc_failed' }
     }
     return { ok: true, data: obj }
+  }
+
+  /**
+   * Cadastra/atualiza wa_number tipo oficial via RPC `wa_register_oficial`
+   * (mig 800-31 · SECURITY DEFINER). Upsert por (clinic_id, phone, oficial).
+   */
+  async registerOficial(payload: {
+    phone: string
+    label?: string | null
+    phone_number_id?: string | null
+  }): Promise<{ ok: boolean; id?: string; error?: string }> {
+    const { data, error } = await this.supabase.rpc('wa_register_oficial', {
+      p_phone: payload.phone,
+      p_label: payload.label ?? null,
+      p_phone_number_id: payload.phone_number_id ?? null,
+    })
+    if (error) return { ok: false, error: error.message }
+    const obj = (data ?? {}) as { ok?: boolean; id?: string; error?: string }
+    if (obj.ok === false) return { ok: false, error: obj.error || 'rpc_failed' }
+    return { ok: true, id: obj.id }
+  }
+
+  /**
+   * Patch parcial wa_number (qualquer number_type) · label / phone_number_id
+   * / is_active. Mig 800-31. Backend valida ownership via clinic_id.
+   *
+   * `phone_number_id: ''` (string vazia) → seta NULL na coluna.
+   * `phone_number_id: undefined` → mantem valor atual.
+   */
+  async updateMeta(
+    id: string,
+    patch: { label?: string | null; phone_number_id?: string | null; is_active?: boolean },
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('wa_update_meta', {
+      p_id: id,
+      p_label: patch.label ?? null,
+      p_phone_number_id:
+        patch.phone_number_id === undefined ? null : (patch.phone_number_id ?? ''),
+      p_is_active: patch.is_active ?? null,
+    })
+    if (error) return { ok: false, error: error.message }
+    const obj = (data ?? {}) as { ok?: boolean; error?: string }
+    if (obj.ok === false) return { ok: false, error: obj.error || 'rpc_failed' }
+    return { ok: true }
+  }
+
+  /**
+   * Soft-delete generico (qualquer number_type) via RPC `wa_deactivate_any`
+   * (mig 800-31). Diferente do `deactivate(id)` que so cobre professional_private.
+   */
+  async deactivateAny(id: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('wa_deactivate_any', {
+      p_id: id,
+    })
+    if (error) return { ok: false, error: error.message }
+    const obj = (data ?? {}) as { ok?: boolean; error?: string }
+    if (obj.ok === false) return { ok: false, error: obj.error || 'rpc_failed' }
+    return { ok: true }
   }
 
   /**

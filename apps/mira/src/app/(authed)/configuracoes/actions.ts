@@ -128,3 +128,50 @@ export async function resetProfessionalQuotaAction(
   revalidatePath('/configuracoes')
   return r
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// WA Numbers oficial · CRUD via mig 800-31 RPCs
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function registerOficialWaNumberAction(payload: {
+  phone: string
+  label?: string | null
+  phone_number_id?: string | null
+}): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  const digits = payload.phone.replace(/\D/g, '')
+  if (digits.length < 10 || digits.length > 13) {
+    return { ok: false, error: 'Telefone invalido (10-13 digitos)' }
+  }
+  const r = await repos.waNumbers.registerOficial({
+    phone: digits,
+    label: payload.label ?? null,
+    phone_number_id: payload.phone_number_id ?? null,
+  })
+  revalidatePath('/configuracoes')
+  return r
+}
+
+export async function updateWaNumberMetaAction(
+  id: string,
+  patch: { label?: string | null; phone_number_id?: string | null; is_active?: boolean },
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  if (!id) return { ok: false, error: 'id obrigatorio' }
+  const r = await repos.waNumbers.updateMeta(id, patch)
+  revalidatePath('/configuracoes')
+  return r
+}
+
+export async function deactivateWaNumberAction(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadMiraServerContext()
+  assertCanManage(ctx.role)
+  if (!id) return { ok: false, error: 'id obrigatorio' }
+  const r = await repos.waNumbers.deactivateAny(id)
+  revalidatePath('/configuracoes')
+  return r
+}
