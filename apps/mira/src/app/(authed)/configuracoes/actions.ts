@@ -7,6 +7,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { clearMiraInstanceCache } from '@/lib/mira-instance'
 
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin'].includes(role)) {
@@ -46,6 +47,8 @@ export async function updateChannelAction(formData: FormData) {
   const r = await repos.miraChannels.update(id, patch)
   if (!r.ok) throw new Error(r.error || 'Erro ao atualizar canal')
 
+  // Invalida cache do resolver in-process · crons puxam novo sender no proximo tick
+  clearMiraInstanceCache(ctx.clinic_id)
   revalidatePath('/configuracoes')
 }
 

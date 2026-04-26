@@ -30,6 +30,7 @@ import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { createLogger, hashPhone } from '@clinicai/logger'
 import { getEvolutionService } from '@/services/evolution.service'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 import type { LaraFollowupBucket, LaraFollowupCandidateDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -125,6 +126,11 @@ function sleep(ms: number): Promise<void> {
 
 export async function GET(req: NextRequest) {
   return runCron(req, 'lara-voucher-followup', async ({ repos, clinicId }) => {
+    // Source-of-truth UI · resolve sender 1x antes do loop (cache 60s)
+    const SENDER_INSTANCE_MIRA_RESOLVED = await resolveMiraInstance(
+      clinicId,
+      'partner_response',
+    )
     // Step 0 · libera vouchers stuck (cron crashou no meio de pick anterior).
     // Roda SEMPRE antes de pickar pra evitar starvation eterna de voucher
     // que ficou marcado picking_at mas nunca foi processado.
@@ -245,7 +251,7 @@ export async function GET(req: NextRequest) {
                 channel: 'text',
                 recipientRole: 'partner',
                 recipientPhone: c.partnerContactPhone,
-                senderInstance: SENDER_INSTANCE_MIRA,
+                senderInstance: SENDER_INSTANCE_MIRA_RESOLVED,
                 textContent: partnerText,
                 waMessageId: partnerResult.messageId ?? null,
                 status: partnerResult.ok ? 'sent' : 'failed',

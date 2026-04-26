@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { getEvolutionService } from '@/services/evolution.service'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 import type { MonthlyConversionRow } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -87,7 +88,8 @@ export async function GET(req: NextRequest) {
     }
 
     const wa = getEvolutionService('mira')
-    const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
+    // Source-of-truth UI · mira_channels resolve sender por function_key
+    const senderInstance = await resolveMiraInstance(clinicId, 'partner_response')
 
     let sent = 0
     let failed = 0

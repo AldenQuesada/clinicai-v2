@@ -17,6 +17,7 @@ import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { getEvolutionService } from '@/services/evolution.service'
 import { filterSubscribers } from '@/lib/msg-subscriptions'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 import { createLogger } from '@clinicai/logger'
 import type { Insight, InsightSeverity } from '@clinicai/repositories'
 
@@ -130,7 +131,8 @@ export async function GET(req: NextRequest) {
     // 4. Monta texto e despacha pra cada profissional inscrito em B2B
     const text = renderInsightText(top, alerts.length)
     const wa = getEvolutionService('mira')
-    const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
+    // Source-of-truth: mira_channels (UI editavel) com fallback env (mig 800-?? helper)
+    const senderInstance = await resolveMiraInstance(clinicId, 'mira_admin_outbound')
 
     let sent = 0
     let failed = 0

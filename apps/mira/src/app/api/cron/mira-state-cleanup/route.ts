@@ -20,6 +20,7 @@ import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
 import { alertSlack } from '@/lib/alerts'
 import { renderReminder } from '@/lib/webhook/reminder-templates'
 import { getEvolutionService } from '@/services/evolution.service'
+import { resolveMiraInstance } from '@/lib/mira-instance'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,8 @@ export async function GET(req: NextRequest) {
 
     let sent = 0
     let failed = 0
+    // Source-of-truth UI · resolve sender 1x antes do loop (cache)
+    const senderInstance = await resolveMiraInstance(clinicId, 'partner_response')
     if (reminders.length > 0) {
       const wa = getEvolutionService('mira')
       for (const r of reminders) {
@@ -98,7 +101,7 @@ export async function GET(req: NextRequest) {
             channel: 'text',
             recipientRole: 'partner',
             recipientPhone: r.phone,
-            senderInstance: process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian',
+            senderInstance,
             textContent: text,
             waMessageId: result.messageId ?? null,
             status: result.ok ? 'sent' : 'failed',
