@@ -6,6 +6,8 @@
  * `.bcfg-about-row` (metadata grid), `.bcfg-form-actions`.
  */
 
+import Link from 'next/link'
+import { Pencil } from 'lucide-react'
 import {
   updatePartnershipBasicAction,
   approvePartnershipAction,
@@ -36,8 +38,26 @@ export function DetailTab({
         />
       </Section>
 
-      {/* Dados gerais · gold tinted form */}
-      <Section title="Dados gerais">
+      {/* CTA edicao completa (40+ campos) */}
+      {canManage && (
+        <div className="flex items-center justify-between rounded-lg border border-[#C9A96E]/30 bg-[#C9A96E]/[0.06] px-3.5 py-2.5">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-bold text-[#F5F0E8]">Edição completa da parceria</span>
+            <span className="text-[10.5px] text-[#9CA3AF]">
+              DNA, voucher, contrato, profissionais, narrativa — abre o wizard 3-step.
+            </span>
+          </div>
+          <Link
+            href={`/partnerships/${partnership.id}/editar`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors"
+          >
+            <Pencil className="w-3 h-3" /> Abrir editor
+          </Link>
+        </div>
+      )}
+
+      {/* Dados gerais · edicao rapida */}
+      <Section title="Dados gerais (edição rápida)">
         <form
           action={updatePartnershipBasicAction}
           className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3"

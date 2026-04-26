@@ -104,6 +104,19 @@ export class B2BPartnershipRepository {
     return data ? mapPartnershipRow(data) : null
   }
 
+  /**
+   * Retorna o row cru (snake_case) pra preencher form de edicao.
+   * Retorna null se parceria nao existe ou RLS bloqueia.
+   */
+  async getRawById(id: string): Promise<Record<string, unknown> | null> {
+    const { data } = await this.supabase
+      .from('b2b_partnerships')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    return (data as Record<string, unknown>) ?? null
+  }
+
   async getBySlug(clinicId: string, slug: string): Promise<B2BPartnershipDTO | null> {
     const { data } = await this.supabase
       .from('b2b_partnerships')
@@ -490,6 +503,54 @@ export class B2BPartnershipRepository {
     return {
       ok: (data as { ok?: boolean })?.ok === true,
       id: (data as { id?: string })?.id,
+    }
+  }
+
+  /**
+   * Dedup check de slug · usado pelo wizard antes do submit.
+   * RPC b2b_partnership_slug_check (mig 800-18).
+   */
+  async slugCheck(
+    slug: string,
+    excludeId?: string,
+  ): Promise<{ exists: boolean; partnership?: { id: string; name: string; status: string }; suggested?: string }> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_slug_check', {
+      p_slug: slug,
+      p_exclude_id: excludeId ?? null,
+    })
+    if (error) return { exists: false }
+    const r = data as {
+      exists?: boolean
+      partnership?: { id: string; name: string; status: string }
+      suggested?: string
+    }
+    return {
+      exists: r?.exists === true,
+      partnership: r?.partnership,
+      suggested: r?.suggested,
+    }
+  }
+
+  /**
+   * Dedup check de telefone · warning (nao bloqueia) — contato compartilhado
+   * pode ser legitimo. RPC b2b_partnership_phone_check (mig 800-18).
+   */
+  async phoneCheck(
+    phone: string,
+    excludeId?: string,
+  ): Promise<{ exists: boolean; matches: Array<{ id: string; name: string; status: string; phone: string }> }> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_phone_check', {
+      p_phone: phone,
+      p_exclude_id: excludeId ?? null,
+    })
+    if (error) return { exists: false, matches: [] }
+    const r = data as {
+      exists?: boolean
+      matches?: Array<{ id: string; name: string; status: string; phone: string }>
+    }
+    return {
+      exists: r?.exists === true,
+      matches: Array.isArray(r?.matches) ? r.matches : [],
     }
   }
 }
