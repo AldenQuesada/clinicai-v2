@@ -14,6 +14,8 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { LogOut, ExternalLink, Plus } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { SearchHint } from './SearchHint'
+import { NotificationsBell } from './NotificationsBell'
+import type { Insight } from '@clinicai/repositories'
 
 type SubTab = {
   href: string
@@ -168,7 +170,7 @@ export type AppNavUser = {
   panelUrl: string
 }
 
-export function AppNav({ user }: { user: AppNavUser }) {
+export function AppNav({ user, insights = [] }: { user: AppNavUser; insights?: Insight[] }) {
   const pathname = usePathname() || '/dashboard'
   const searchParams = useSearchParams()
   const searchString = searchParams ? searchParams.toString() : ''
@@ -178,8 +180,8 @@ export function AppNav({ user }: { user: AppNavUser }) {
 
   return (
     <header className="shrink-0 border-b border-[#C9A96E]/15 bg-[#0F0D0A] z-20 sticky top-0">
-      {/* Father row · brand + 4 sections + quick actions + user */}
-      <div className="h-13 flex items-center justify-between px-5 border-b border-white/5">
+      {/* Father row · brand + busca larga + sections + quick actions + alertas + user */}
+      <div className="h-13 flex items-center gap-4 px-5 border-b border-white/5">
         <Link
           href={activeSection.defaultHref}
           className="flex items-center gap-3 group shrink-0"
@@ -187,7 +189,7 @@ export function AppNav({ user }: { user: AppNavUser }) {
           <div className="w-8 h-8 rounded-md bg-[#C9A96E]/15 border border-[#C9A96E]/35 flex items-center justify-center">
             <span className="font-display text-[#C9A96E] text-base leading-none">M</span>
           </div>
-          <div className="flex flex-col leading-tight">
+          <div className="hidden xl:flex flex-col leading-tight">
             <span className="font-display text-[15px] text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors">
               Mira
             </span>
@@ -195,7 +197,11 @@ export function AppNav({ user }: { user: AppNavUser }) {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        {/* Busca · LARGA, ocupa espaco visual confortavel */}
+        <SearchHint />
+
+        {/* Sections · centradas no espaco disponivel */}
+        <nav className="flex items-center gap-1 flex-1 justify-center">
           {SECTIONS.map((s) => (
             <FatherLink
               key={s.key}
@@ -207,8 +213,8 @@ export function AppNav({ user }: { user: AppNavUser }) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <SearchHint />
+        <div className="flex items-center gap-2 shrink-0">
+          <NotificationsBell insights={insights} />
 
           <QuickAction href="/vouchers/novo" label="Voucher" />
           <QuickAction href="/estudio/cadastrar" label="Parceria" />

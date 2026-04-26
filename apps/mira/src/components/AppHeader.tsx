@@ -13,7 +13,12 @@
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { createServerClient, resolveClinicContext } from '@clinicai/supabase'
-import { ProfileRepository, B2BPartnershipRepository } from '@clinicai/repositories'
+import {
+  ProfileRepository,
+  B2BPartnershipRepository,
+  B2BInsightsRepository,
+  type Insight,
+} from '@clinicai/repositories'
 import { QuickSearch, type QuickPartner } from './QuickSearch'
 import { AppNav } from './AppNav'
 
@@ -48,22 +53,29 @@ export async function AppHeader() {
   }
 
   // Pre-fetch parcerias compactas pra Quick Search · zero N+1, 1 query
+  // + insights pra NotificationsBell · ambos defensivos.
   let quickPartners: QuickPartner[] = []
+  let insights: Insight[] = []
   try {
     const ctx = await resolveClinicContext(supabase)
     if (ctx) {
       const partnerRepo = new B2BPartnershipRepository(supabase)
-      const all = await partnerRepo.list(ctx.clinic_id, {})
-      quickPartners = all.map((p) => ({
+      const insightsRepo = new B2BInsightsRepository(supabase)
+      const [partners, insightsRes] = await Promise.all([
+        partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
+        insightsRepo.global().catch(() => null),
+      ])
+      quickPartners = partners.map((p) => ({
         id: p.id,
         name: p.name,
         slug: p.slug ?? null,
         status: p.status ?? null,
         pillar: p.pillar ?? null,
       }))
+      insights = insightsRes?.insights ?? []
     }
   } catch {
-    // Quick search degradado pra apenas acoes · ok
+    // Header degradado · ok, render mesmo assim
   }
 
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
@@ -81,6 +93,7 @@ export async function AppHeader() {
             role,
             panelUrl: PAINEL_URL,
           }}
+          insights={insights}
         />
       </Suspense>
     </>

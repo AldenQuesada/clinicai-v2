@@ -37,8 +37,20 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
     ),
   )
 
-  const { repos } = await loadMiraServerContext()
-  const data = await repos.b2bAnalytics.get(days).catch(() => null)
+  // Defensive: loadMiraServerContext throw se ctx auth invalido. Antes
+  // escapava do .catch da chamada b2bAnalytics e crashava o segmento.
+  let data: AnalyticsBlob | null = null
+  let fetchError: string | null = null
+  try {
+    const { repos } = await loadMiraServerContext()
+    data = await repos.b2bAnalytics.get(days).catch((e) => {
+      fetchError = e instanceof Error ? e.message : String(e)
+      return null
+    })
+  } catch (e) {
+    fetchError = e instanceof Error ? e.message : String(e)
+    data = null
+  }
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
@@ -67,6 +79,21 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
               Tente outra janela temporal ou verifique se há vouchers/parcerias
               registradas no banco.
             </p>
+            {fetchError && (
+              <pre style={{
+                marginTop: 12,
+                padding: 8,
+                background: 'rgba(239,68,68,0.05)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: 'ui-monospace, monospace',
+                color: '#FCA5A5',
+                whiteSpace: 'pre-wrap',
+              }}>
+                fetchError: {fetchError}
+              </pre>
+            )}
           </div>
         ) : (
           <ObjectivesView data={data} />
