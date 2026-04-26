@@ -16,6 +16,7 @@ import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { getEvolutionService } from '@/services/evolution.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { renderTemplate } from '@clinicai/utils'
 import type { MonthlyConversionRow } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -44,25 +45,37 @@ function fmtDeltaPct(pct: number | null): string {
   return 'estável'
 }
 
-function renderMonthlyText(row: MonthlyConversionRow, yearMonth: string): string {
-  const label = fmtYearMonthPt(yearMonth)
-  const lines: string[] = []
-  lines.push(`Olá! Resumo da parceria em *${label}* 📊`)
-  lines.push('')
-  lines.push(`*${row.partnership_name}*${row.is_image_partner ? ' 💎' : ''}`)
-  lines.push('')
-  lines.push(`🎟 Vouchers emitidos: *${row.vouchers_issued}*`)
-  if (row.vouchers_issued_prev > 0) {
-    lines.push(`   vs mês anterior: ${fmtDeltaPct(row.delta_issued_pct)} (${row.vouchers_issued_prev})`)
+/**
+ * Mapeia MonthlyConversionRow + yearMonth → vars do template DB monthly_report
+ * (mig 800-44). Vars derivadas com formato amigavel (deltas com "(N)" inline).
+ */
+function rowToTemplateVars(
+  row: MonthlyConversionRow,
+  yearMonth: string,
+  partnerFirst: string,
+): Record<string, string | number> {
+  const period = fmtYearMonthPt(yearMonth)
+  const deltaIssued =
+    row.vouchers_issued_prev > 0
+      ? `${fmtDeltaPct(row.delta_issued_pct)} (${row.vouchers_issued_prev})`
+      : 'mês 1'
+  const deltaConv =
+    row.vouchers_issued_prev > 0
+      ? `${fmtDeltaPp(row.delta_conv_pp)} (era ${row.conv_total_pct_prev.toFixed(1)}%)`
+      : 'mês 1'
+  return {
+    parceira_name: row.partnership_name,
+    parceira_first: partnerFirst,
+    period_label: period,
+    is_image_partner_emoji: row.is_image_partner ? ' 💎' : '',
+    issued: row.vouchers_issued,
+    purchased: row.vouchers_purchased,
+    conv_pct: row.conv_total_pct.toFixed(1),
+    issued_prev: row.vouchers_issued_prev,
+    conv_pct_prev: row.conv_total_pct_prev.toFixed(1),
+    delta_issued_label: deltaIssued,
+    delta_conv_label: deltaConv,
   }
-  lines.push(`💰 Conversão total: *${row.conv_total_pct.toFixed(1)}%*`)
-  lines.push(`   ${row.vouchers_purchased} virou compra de ${row.vouchers_issued} emitidos`)
-  if (row.vouchers_issued_prev > 0) {
-    lines.push(`   vs mês anterior: ${fmtDeltaPp(row.delta_conv_pp)} (era ${row.conv_total_pct_prev.toFixed(1)}%)`)
-  }
-  lines.push('')
-  lines.push('Obrigada pela parceria 💛')
-  return lines.join('\n')
 }
 
 export async function GET(req: NextRequest) {
@@ -96,17 +109,25 @@ export async function GET(req: NextRequest) {
     let skippedNoPhone = 0
 
     for (const row of eligible) {
-      // Resolve phone (precisa hit no DB porque RPC nao retorna phone)
-      const partnership = await repos.b2bPartnerships
-        .getById(row.partnership_id)
-        .catch(() => null)
+      // Resolve phone + template per partnership (override > global)
+      const [partnership, tpl] = await Promise.all([
+        repos.b2bPartnerships.getById(row.partnership_id).catch(() => null),
+        repos.b2bTemplates.getByEventKey(clinicId, 'monthly_report', row.partnership_id),
+      ])
       const phone = partnership?.contactPhone?.trim() || ''
       if (!phone || phone.replace(/\D/g, '').length < 10) {
         skippedNoPhone++
         continue
       }
 
-      const text = renderMonthlyText(row, yearMonth)
+      const partnerFirst = (partnership?.contactName || row.partnership_name || '')
+        .trim()
+        .split(/\s+/)[0] || 'parceira'
+      const vars = rowToTemplateVars(row, yearMonth, partnerFirst)
+      const text = tpl?.textTemplate
+        ? renderTemplate(tpl.textTemplate, vars)
+        : // Fallback se template apagado · texto minimo
+          `Resumo de ${vars.period_label} · ${row.partnership_name} · ${row.vouchers_issued} vouchers · ${row.conv_total_pct.toFixed(1)}% conversão.`
 
       try {
         const result = await wa.sendText(phone, text)
