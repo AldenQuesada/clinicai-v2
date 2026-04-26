@@ -8,14 +8,23 @@
 
 import { loadMiraServerContext } from '@/lib/server-context'
 import { AlertsBanner } from './AlertsBanner'
+import type { CriticalAlert } from '@clinicai/repositories'
 
 export default async function AnalyticsLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { repos } = await loadMiraServerContext()
-  const alerts = await repos.b2bMetricsV2.criticalAlerts().catch(() => [])
+  // Defensive: nunca crashar o segmento inteiro por causa de RPC opcional.
+  // Se loadMiraServerContext throw (auth race) ou criticalAlerts throw com
+  // shape estranho, ainda renderiza children sem o banner.
+  let alerts: CriticalAlert[] = []
+  try {
+    const { repos } = await loadMiraServerContext()
+    alerts = await repos.b2bMetricsV2.criticalAlerts().catch(() => [])
+  } catch {
+    alerts = []
+  }
 
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
