@@ -92,6 +92,61 @@ export interface PerformanceFull {
   error?: string
 }
 
+// ─── Conversion mensal (mig 800-16) ───────────────────────────────────
+
+export interface MonthlyConversionCurrent {
+  vouchers_issued: number
+  vouchers_delivered: number
+  vouchers_opened: number
+  vouchers_scheduled: number
+  vouchers_redeemed: number
+  vouchers_purchased: number
+  conv_issued_to_scheduled_pct: number
+  conv_scheduled_to_redeemed_pct: number
+  conv_redeemed_to_purchased_pct: number
+  conv_total_pct: number
+}
+
+export interface MonthlyConversionPrevious {
+  vouchers_issued: number
+  vouchers_purchased: number
+  conv_total_pct: number
+}
+
+export interface MonthlyConversionDelta {
+  issued_pct: number | null
+  conv_pp: number
+}
+
+export interface MonthlyConversion {
+  ok: boolean
+  partnership_id: string
+  partnership_name: string
+  is_image_partner: boolean
+  pillar: string | null
+  year_month: string
+  prev_year_month: string
+  current: MonthlyConversionCurrent
+  previous: MonthlyConversionPrevious
+  delta: MonthlyConversionDelta
+  error?: string
+}
+
+export interface MonthlyConversionRow {
+  partnership_id: string
+  partnership_name: string
+  is_image_partner: boolean
+  pillar: string | null
+  status: string
+  vouchers_issued: number
+  vouchers_purchased: number
+  conv_total_pct: number
+  vouchers_issued_prev: number
+  conv_total_pct_prev: number
+  delta_issued_pct: number | null
+  delta_conv_pp: number
+}
+
 export class B2BPerformanceRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
@@ -102,5 +157,37 @@ export class B2BPerformanceRepository {
     })
     if (error) throw new Error(`[b2b_partner_performance_full] ${error.message}`)
     return data as PerformanceFull | null
+  }
+
+  /**
+   * Conversao detalhada de UMA parceria num mes especifico · com comparacao
+   * vs mes anterior (delta_issued_pct + delta_conv_pp).
+   * yearMonth: 'YYYY-MM' · ex: '2026-04'
+   * RPC: b2b_partner_conversion_monthly (mig 800-16)
+   */
+  async monthlyConversion(
+    yearMonth: string,
+    partnershipId: string,
+  ): Promise<MonthlyConversion | null> {
+    const { data, error } = await this.supabase.rpc('b2b_partner_conversion_monthly', {
+      p_year_month: yearMonth,
+      p_partnership_id: partnershipId,
+    })
+    if (error) throw new Error(`[b2b_partner_conversion_monthly] ${error.message}`)
+    return data as MonthlyConversion | null
+  }
+
+  /**
+   * Lista TODAS parcerias com stats do mes · usado em UI ranking + cron mensal.
+   * Inclui apenas parcerias com >= 1 voucher no mes OU mes anterior.
+   * RPC: b2b_partner_conversion_monthly_all (mig 800-16)
+   */
+  async monthlyConversionAll(yearMonth: string): Promise<MonthlyConversionRow[]> {
+    const { data, error } = await this.supabase.rpc(
+      'b2b_partner_conversion_monthly_all',
+      { p_year_month: yearMonth },
+    )
+    if (error) throw new Error(`[b2b_partner_conversion_monthly_all] ${error.message}`)
+    return Array.isArray(data) ? (data as MonthlyConversionRow[]) : []
   }
 }

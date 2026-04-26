@@ -122,6 +122,11 @@ export {
   type PerformanceVelocity,
   type PerformanceChurnRisk,
   type PerformanceFull,
+  type MonthlyConversion,
+  type MonthlyConversionCurrent,
+  type MonthlyConversionPrevious,
+  type MonthlyConversionDelta,
+  type MonthlyConversionRow,
 } from './b2b-performance.repository'
 export {
   B2BCommentsRepository,

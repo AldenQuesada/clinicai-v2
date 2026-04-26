@@ -34,6 +34,7 @@ on:
     - cron: '0 12 * * *'          # followup suggestions 12h
     - cron: '0 21 * * 5'          # inactivity radar sex 21h
     - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07 + 800-09 batch limit)
+    - cron: '0 12 1 * *'          # monthly partner feedback dia 1 09h SP (mig 800-16)
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
@@ -53,6 +54,7 @@ on:
           - mira-task-reminders
           - mira-followup-suggestions
           - mira-inactivity-radar
+          - mira-monthly-partner-feedback
           - b2b-voucher-dispatch-worker
           - lara-voucher-followup
           - webhook-processing-worker
@@ -81,6 +83,7 @@ jobs:
               "0 12 * * *")           ENDPOINTS="mira-followup-suggestions" ;;
               "0 21 * * 5")           ENDPOINTS="mira-inactivity-radar" ;;
               "0 * * * *")            ENDPOINTS="lara-voucher-followup" ;;
+              "0 12 1 * *")           ENDPOINTS="mira-monthly-partner-feedback" ;;
               *)                      echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
           fi
