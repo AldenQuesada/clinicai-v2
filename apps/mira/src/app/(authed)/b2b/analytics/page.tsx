@@ -72,32 +72,48 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
           </div>
         </header>
 
+        {/* DEBUG MODE temporario · 2026-04-26 · cravar bug do server crash.
+            DELETAR e restaurar <ObjectivesView data={data} /> apos. */}
+        <div style={{
+          padding: 16,
+          background: 'rgba(201,169,110,0.05)',
+          border: '1px solid rgba(201,169,110,0.3)',
+          borderRadius: 8,
+          marginBottom: 12,
+          color: '#F5F0E8',
+        }}>
+          <strong style={{ color: '#C9A96E', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.4 }}>
+            🔧 Debug · Visão Geral em modo diagnostico
+          </strong>
+          <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+            ObjectivesView temporariamente desativada · vendo shape do data direto do RPC.
+          </p>
+          <pre style={{
+            marginTop: 12,
+            padding: 10,
+            background: 'rgba(0,0,0,0.4)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 4,
+            fontSize: 11,
+            fontFamily: 'ui-monospace, monospace',
+            color: '#F5F0E8',
+            whiteSpace: 'pre-wrap',
+            maxHeight: 600,
+            overflow: 'auto',
+          }}>
+{`fetchError : ${fetchError ?? '— (nada · fetch ok)'}
+data       : ${data ? JSON.stringify(data, null, 2) : 'null'}`}
+          </pre>
+        </div>
+
         {!data || !data.ok ? (
           <div className="b2bm2-card b2bm2-empty">
-            <strong>Sem dados no período selecionado.</strong>
+            <strong>data.ok = false · empty card</strong>
             <p>
-              Tente outra janela temporal ou verifique se há vouchers/parcerias
-              registradas no banco.
+              Veja o dump acima · campo `ok` veio false ou data null.
             </p>
-            {fetchError && (
-              <pre style={{
-                marginTop: 12,
-                padding: 8,
-                background: 'rgba(239,68,68,0.05)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: 4,
-                fontSize: 11,
-                fontFamily: 'ui-monospace, monospace',
-                color: '#FCA5A5',
-                whiteSpace: 'pre-wrap',
-              }}>
-                fetchError: {fetchError}
-              </pre>
-            )}
           </div>
-        ) : (
-          <ObjectivesView data={data} />
-        )}
+        ) : null}
       </div>
     </main>
   )
