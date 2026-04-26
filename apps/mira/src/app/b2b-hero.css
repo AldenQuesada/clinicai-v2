@@ -1,0 +1,86 @@
+/*
+ * B2B Hero · header brand "Círculo Mirian de Paula" exatamente igual ao
+ * painel.miriandpaula.com.br/b2b-partners.html (clinic-dashboard css/b2b.css).
+ *
+ * Pedido Alden 2026-04-26: sempre visivel, global · aparece abaixo do
+ * AppHeaderThin em todas as paginas do Mira.
+ *
+ * As variaveis --b2b-* podem ja estar definidas em b2b-metrics-v2.css ·
+ * redeclaro aqui pra garantir disponibilidade independente da ordem de
+ * import (CSS cascade · ultima declaracao vence se igual).
+ */
+
+:root {
+  --b2b-bg-0: #0F0D0A;
+  --b2b-bg-1: #1A1713;
+  --b2b-bg-2: #211D17;
+  --b2b-bg-3: #2A2520;
+  --b2b-champagne: #C9A96E;
+  --b2b-champagne-light: #DFC5A0;
+  --b2b-champagne-dark: #A8895E;
+  --b2b-ivory: #F5F0E8;
+  --b2b-text: #F5F0E8;
+  --b2b-text-muted: #7A7165;
+  --b2b-text-dim: #B5A894;
+  --b2b-border: rgba(201, 169, 110, 0.15);
+  --b2b-border-strong: rgba(201, 169, 110, 0.35);
+  --b2b-sage: #8A9E88;
+  --b2b-red: #D97A7A;
+}
+
+/* ── Header (b2b-partners.html original · linhas 37-52 + 215-216) ── */
+.b2b-header {
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.b2b-header-left { min-width: 0; }
+.b2b-header-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.b2b-eyebrow {
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--b2b-champagne);
+  font-weight: 500;
+}
+.b2b-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 40px;
+  font-weight: 300;
+  margin: 8px 0 0;
+  color: var(--b2b-ivory);
+  line-height: 1.1;
+}
+.b2b-title em {
+  font-style: italic;
+  color: var(--b2b-champagne);
+  font-weight: 400;
+}
+
+/* ── Wrapper do hero global (Mira-specific · padding match com b2b-page-container) ── */
+.b2b-hero-wrap {
+  max-width: 1640px;
+  margin: 0 auto;
+  padding: 24px 40px 0; /* sem padding-bottom · header tem proprio margin */
+}
+
+/* ── Mobile (≤900px · alinha com clinic-dashboard) ── */
+@media (max-width: 900px) {
+  .b2b-hero-wrap { padding: 20px 16px 0; }
+  .b2b-title { font-size: 28px; }
+  .b2b-header-top { flex-direction: column; align-items: flex-start; }
+}

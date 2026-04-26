@@ -44,6 +44,7 @@ import { AppSidebar } from './AppSidebar'
 import { AppSubtabs } from './AppSubtabs'
 import { AppHeaderThin } from './AppHeaderThin'
 import { MobileNavDrawer } from './MobileNavDrawer'
+import { B2BHero } from './B2BHero'
 import type { SubtabCounts } from './nav/sections'
 import { buildSystemInsights } from '@/lib/system-insights'
 
@@ -196,9 +197,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           urgentInsights={urgentInsights}
         />
 
-        {/* Coluna direita · header thin + subtabs + content */}
+        {/* Coluna direita · header thin + B2B hero brand + subtabs + content */}
         <div className="flex flex-col flex-1 min-w-0">
           <AppHeaderThin insights={insights} />
+          {/* B2B Hero · brand global "Circulo Mirian de Paula" sempre visivel
+              (pedido Alden 2026-04-26 · mirror exato do painel.miriandpaula). */}
+          <B2BHero />
           <Suspense fallback={<SubtabsSkeleton />}>
             <AppSubtabs counts={counts} />
           </Suspense>

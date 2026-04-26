@@ -21,6 +21,7 @@
 @import "./b2b-comm.css";
 @import "./b2b-config.css";
 @import "./b2b-metrics-v2.css";
+@import "./b2b-hero.css";
 
 @layer base {
   :root {

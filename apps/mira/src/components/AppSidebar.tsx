@@ -33,7 +33,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { Activity, LogOut } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import {
   SECTIONS,
@@ -66,22 +66,19 @@ export function AppSidebar({
       className="hidden md:flex flex-col items-stretch w-[56px] shrink-0 bg-[#0F0D0A] border-r border-[#C9A96E]/15 z-30"
       aria-label="Navegação principal"
     >
-      {/* ── Logo · monograma "M" Cormorant ────────────────────────── */}
+      {/* ── Logo · icone Activity (mirror feather "activity" do Dash) ───
+          Pedido Alden 2026-04-26: usar mesmo icone do clinic-dashboard
+          sidebar (i data-feather="activity"). Lucide React tem equivalente. */}
       <Link
         href="/dashboard"
         title="Mira · Programa de parcerias B2B"
         className="flex items-center justify-center h-[60px] border-b border-white/5 group"
       >
-        <span
-          className="text-[#C9A96E] group-hover:text-[#DFC5A0] transition-colors leading-none"
-          style={{
-            fontFamily: '"Cormorant Garamond", Georgia, serif',
-            fontWeight: 300,
-            fontSize: 28,
-          }}
-        >
-          M
-        </span>
+        <Activity
+          className="text-[#C9A96E] group-hover:text-[#DFC5A0] transition-colors"
+          strokeWidth={1.75}
+          size={22}
+        />
       </Link>
 
       {/* ── Fathers · 4 icones com active border-left gold ────────── */}
