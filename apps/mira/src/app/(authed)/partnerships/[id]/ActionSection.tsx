@@ -143,13 +143,22 @@ export function ActionSection({
           </div>
         </button>
 
-        <ActionCard
-          icon={<FileText className="w-5 h-5" />}
-          title="Dossiê PDF"
-          description="HTML imprimível com KPIs + ROI + history. Pra anexar em proposta de renovação ou apresentar pra parceira."
-          disabled
-          tooltip="Em breve · b2b-detail-dossier service"
-        />
+        <Link
+          href={`/partnerships/${partnership.id}/dossie`}
+          target="_blank"
+          rel="noopener"
+          className="b2b-action-card"
+        >
+          <FileText className="w-5 h-5" />
+          <div className="flex flex-col gap-0.5 text-left">
+            <div className="text-[12px] font-bold text-[#F5F0E8]">
+              Dossiê PDF
+            </div>
+            <div className="text-[10.5px] text-[#9CA3AF]">
+              Abre os 6 slides em nova aba e dispara o diálogo de impressão · salve como PDF
+            </div>
+          </div>
+        </Link>
       </div>
 
       {feedback ? (
