@@ -77,12 +77,15 @@ export default async function AnalyticsOverviewPage({ searchParams }: PageProps)
 }
 
 function ObjectivesView({ data }: { data: AnalyticsBlob }) {
-  const a = data.applications
-  const v = data.vouchers
-  const t = data.timing
-  const h = data.health
-  const m = data.mira
-  const nps = m.nps_summary
+  // Defensive defaults · RPC pode retornar shape parcial (ex.: legado sem
+  // mira.insights_active ou sem mira.nps_summary). Crash em destructuring
+  // bota o Server Component em erro genérico inutil em prod.
+  const a = data.applications ?? ({} as AnalyticsBlob['applications'])
+  const v = data.vouchers ?? ({} as AnalyticsBlob['vouchers'])
+  const t = data.timing ?? ({} as AnalyticsBlob['timing'])
+  const h = data.health ?? ({} as AnalyticsBlob['health'])
+  const m = data.mira ?? ({} as AnalyticsBlob['mira'])
+  const nps = m.nps_summary ?? { responses: 0, nps_score: null }
 
   return (
     <>
