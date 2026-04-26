@@ -4,6 +4,10 @@
  * Wrapper bcfg-wrap · header com descricao da subtab + body. As 5 sub-tabs
  * (Admins, Padroes, Saude, Auditoria, Sobre) ja sao renderizadas pela
  * AppHeader · este layout so adiciona a moldura comum.
+ *
+ * 2026-04-26 · paths em FULL_WIDTH_PATHS (regras, meta) ignoram bcfg-wrap
+ * (860px max) porque renderizam 2 blocos lado a lado e precisam de
+ * 1200px de wrap proprio.
  */
 
 import { headers } from 'next/headers'
@@ -27,14 +31,32 @@ const TAB_DESCS: Record<string, string> = {
     'Links úteis + metadata do sistema',
 }
 
+/** Paths que renderizam fusoes 2-col · saem do bcfg-wrap pra ter wrap maior. */
+const FULL_WIDTH_PATHS = new Set<string>([
+  '/b2b/config/regras',
+  '/b2b/config/meta',
+])
+
 export default async function B2BConfigLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const h = await headers()
-  const raw = h.get('x-invoke-path') ?? h.get('x-pathname') ?? ''
-  const path = new URL(raw, 'http://x').pathname
+  // x-pathname é injetado pelo middleware (req headers); x-invoke-path é
+  // legado de versoes anteriores do Next que nao funciona em Next 16.
+  const raw = h.get('x-pathname') ?? h.get('x-invoke-path') ?? ''
+  const path = raw.split('?')[0] || ''
+
+  // Paths 2-col renderizam direto sem bcfg-wrap (cada page tem wrap proprio)
+  if (FULL_WIDTH_PATHS.has(path)) {
+    return (
+      <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+        <div className="px-6 py-6">{children}</div>
+      </main>
+    )
+  }
+
   const desc = TAB_DESCS[path] || ''
 
   return (

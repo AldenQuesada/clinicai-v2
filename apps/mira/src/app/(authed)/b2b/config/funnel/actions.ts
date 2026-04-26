@@ -62,7 +62,7 @@ export async function saveFunnelBenchmarkAction(
     sortOrder: payload.sortOrder == null ? null : Number(payload.sortOrder),
   })
 
-  revalidatePath('/b2b/config/funnel')
+  revalidatePath('/b2b/config/regras')
   revalidatePath('/b2b/analytics')
   return { ok: r.ok, error: r.error }
 }

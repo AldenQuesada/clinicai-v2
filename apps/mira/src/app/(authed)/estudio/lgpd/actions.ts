@@ -26,6 +26,6 @@ export async function anonymizePartnershipAction(formData: FormData) {
   const result = await repos.b2bPartnerships.anonymize(id, reason)
   if (!result.ok) throw new Error(result.error || 'Erro ao anonimizar')
 
-  revalidatePath('/estudio/lgpd')
+  revalidatePath('/b2b/config/meta')
   revalidatePath('/partnerships')
 }

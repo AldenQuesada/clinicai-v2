@@ -50,7 +50,7 @@ import type {
  * Amarelo · 50-100% do benchmark (zona de atenção)
  * Vermelho · abaixo de 50% do benchmark (problema)
  *
- * Editar em /b2b/config/funnel.
+ * Editar em /b2b/config/regras (bloco Funnel).
  */
 type FunnelBenchmarks = Record<B2BFunnelStage, { target: number; label: string }>
 
@@ -1204,7 +1204,7 @@ function VoucherSplit({ v }: { v: AnalyticsBlob['vouchers'] }) {
 /**
  * Benchmarks de step-rate vem como prop (server fetch via
  * repos.b2bFunnelBenchmarks.list() · mig 800-26 · editavel em
- * /b2b/config/funnel). Fallback acima trata clinicas sem rows.
+ * /b2b/config/regras). Fallback acima trata clinicas sem rows.
  */
 
 function stepStatus(rate: number, target: number): SignalStatus {

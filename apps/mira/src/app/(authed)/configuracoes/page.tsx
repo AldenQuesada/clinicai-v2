@@ -1,8 +1,9 @@
 /**
- * /configuracoes · 5 abas: overview | pessoas | channels | logs | (legacy: professionals).
+ * /configuracoes · 6 abas: overview | pessoas | channels | logs | automacao | (legacy: professionals).
  *
- * 2026-04-26: tab "pessoas" novo · 2 blocos lado a lado (Admins + Profissionais).
- * Antigos /b2b/config/admins e ?tab=professionals redirecionam pra ca.
+ * 2026-04-26: tab "pessoas" 2-col (Admins + Profissionais) + tab "automacao"
+ * 2-col (Padroes + Rotinas). Antigos /b2b/config/admins, /estudio/padroes,
+ * /b2b/config/rotinas e ?tab=professionals redirecionam pra ca.
  *
  * Restrito a owner/admin. Cada tab e Server Component dedicado.
  * Tabs via search param ?tab= (sem JS client).
@@ -14,10 +15,11 @@ import { OverviewTab } from './OverviewTab'
 import { PessoasTab } from './PessoasTab'
 import { ChannelsTab } from './ChannelsTab'
 import { LogsTab } from './LogsTab'
+import { AutomacaoTab } from './AutomacaoTab'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_TABS = ['overview', 'pessoas', 'channels', 'logs'] as const
+const VALID_TABS = ['overview', 'pessoas', 'channels', 'logs', 'automacao'] as const
 type Tab = (typeof VALID_TABS)[number]
 
 interface PageProps {
@@ -50,12 +52,13 @@ export default async function ConfigPage({ searchParams }: PageProps) {
   const activeTab: Tab =
     sp.tab && (VALID_TABS as readonly string[]).includes(sp.tab) ? (sp.tab as Tab) : 'overview'
 
-  // Tabs com 2 blocos lado a lado (overview/pessoas/logs/channels) usam wrap maior.
+  // Tabs com 2 blocos lado a lado (overview/pessoas/logs/channels/automacao) usam wrap maior.
   const wrapMax =
     activeTab === 'overview' ||
     activeTab === 'pessoas' ||
     activeTab === 'logs' ||
-    activeTab === 'channels'
+    activeTab === 'channels' ||
+    activeTab === 'automacao'
       ? 'max-w-[1200px]'
       : 'max-w-[960px]'
 
@@ -76,6 +79,7 @@ export default async function ConfigPage({ searchParams }: PageProps) {
             auditAction={sp.audit_action || ''}
           />
         )}
+        {activeTab === 'automacao' && <AutomacaoTab />}
       </div>
     </main>
   )

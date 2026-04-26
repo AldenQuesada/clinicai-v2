@@ -162,29 +162,28 @@ const SECTIONS: Section[] = [
     defaultHref: '/configuracoes?tab=overview',
     match: ['/b2b/config', '/configuracoes', '/estudio'],
     // Sub-tabs agrupados por frequencia de uso (decidido com Alden 2026-04-26):
-    //   DIA-A-DIA · uso diario (overview, saude, auditoria, logs)
-    //   OPERAR    · ajustes recorrentes (padroes, rotinas, admins)
-    //   SETUP     · configurado uma vez (canais, profissionais)
-    //   META      · governanca + about (LGPD, sobre)
+    //   DIA-A-DIA · uso diario (overview, regras, playbooks, automacao, logs)
+    //   SETUP     · configurado uma vez (canais, pessoas)
+    //   META      · governanca + about (fundidos em /b2b/config/meta)
     // Cadastrar parceria (acao) vive no Quick Action "+ Parceria" no topo
+    //
+    // Fusoes 2026-04-26 (commit unico):
+    //   - Tiers + Funnel    -> /b2b/config/regras
+    //   - LGPD + Sobre      -> /b2b/config/meta
+    //   - Padroes + Rotinas -> /configuracoes?tab=automacao
+    // Automacao foi para Dia-a-dia (e nao Operar/Setup) porque rotinas Mira
+    // e padroes voucher sao verificados/ajustados quase semanalmente.
+    // Grupo "Operar" deixou de existir (so tinha Padroes+Rotinas).
     subtabGroups: [
       {
         groupLabel: 'Dia-a-dia',
         subtabs: [
           // 2026-04-26 · Saude absorvida na Visao geral · Auditoria fundida em Logs
           { href: '/configuracoes?tab=overview', label: 'Visão geral', available: true },
-          { href: '/b2b/config/tiers', label: 'Tiers', available: true },
-          { href: '/b2b/config/funnel', label: 'Funnel', available: true },
+          { href: '/b2b/config/regras', label: 'Regras', available: true },
           { href: '/b2b/config/playbooks', label: 'Playbooks', available: true },
+          { href: '/configuracoes?tab=automacao', label: 'Automação', available: true },
           { href: '/configuracoes?tab=logs', label: 'Logs', available: true },
-        ],
-      },
-      {
-        groupLabel: 'Operar',
-        subtabs: [
-          // 2026-04-26 · Admins fundido em "Pessoas" do grupo Setup
-          { href: '/b2b/config/padroes', label: 'Padrões', available: true },
-          { href: '/b2b/config/rotinas', label: 'Rotinas', available: true },
         ],
       },
       {
@@ -198,8 +197,8 @@ const SECTIONS: Section[] = [
       {
         groupLabel: 'Meta',
         subtabs: [
-          { href: '/estudio/lgpd', label: 'LGPD', available: true },
-          { href: '/b2b/config/sobre', label: 'Sobre', available: true },
+          // 2026-04-26 · LGPD + Sobre fundidos em /b2b/config/meta (2-col)
+          { href: '/b2b/config/meta', label: 'Meta', available: true },
         ],
       },
     ],

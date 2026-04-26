@@ -54,5 +54,5 @@ export async function saveVoucherDefaultsAction(formData: FormData) {
   }
 
   await repos.clinicData.upsertSetting(ctx.clinic_id, VOUCHER_DEFAULTS_KEY, next)
-  revalidatePath('/estudio/padroes')
+  revalidatePath('/configuracoes')
 }

@@ -232,8 +232,8 @@ function emptyDiagnostic(totals: NpsDiagnostic['totals'] & { perPartnership?: Np
         priority: 1,
         title: 'Verificar cron mira-nps-quarterly-dispatch',
         rationale:
-          'Sem cron ativo, nenhuma pesquisa sai. Confirme em /b2b/config/rotinas que o job esta ON.',
-        href: '/b2b/config/rotinas',
+          'Sem cron ativo, nenhuma pesquisa sai. Confirme em Configurações > Automação que o job esta ON.',
+        href: '/configuracoes?tab=automacao',
       },
       {
         priority: 2,

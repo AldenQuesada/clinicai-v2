@@ -38,7 +38,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const res = NextResponse.next()
+  // Injeta x-pathname no REQUEST header pra Server Components/Layouts
+  // que precisam do path (Next.js 16 nao da via headers() nativo).
+  // Usado por b2b/config/layout pra detectar paths "full width" fora do
+  // bcfg-wrap (Regras, Meta).
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-pathname', pathname)
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } })
   const supabase = createMiddlewareClient(req, res)
 
   // getUser() valida JWT · refresh automatico se expirado

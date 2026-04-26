@@ -18,7 +18,7 @@ export async function setCronEnabledAction(
   const { ctx, repos } = await loadMiraServerContext()
   assertOwnerAdmin(ctx.role)
   const r = await repos.miraCronRegistry.setEnabled(jobName, enabled, notes)
-  revalidatePath('/b2b/config/rotinas')
+  revalidatePath('/configuracoes')
   return r
 }
 

@@ -65,7 +65,7 @@ export async function saveTierConfigAction(
     sortOrder: payload.sortOrder == null ? null : Number(payload.sortOrder),
   })
 
-  revalidatePath('/b2b/config/tiers')
+  revalidatePath('/b2b/config/regras')
   revalidatePath('/estudio/cadastrar')
   return { ok: r.ok, error: r.error }
 }
