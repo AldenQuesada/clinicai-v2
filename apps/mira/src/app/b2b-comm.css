@@ -379,6 +379,63 @@
 
 /* ─── Event chips ────────────────────────────────────────────────────────── */
 
+/* Chips agrupados por categoria do catálogo (1 row por grupo · jornada parc /
+ * voucher / conversão / recorrente) */
+.bcomm-chips-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  margin-bottom: 10px;
+}
+.bcomm-chips-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bcomm-chips-group-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+  padding-left: 2px;
+}
+
+/* Grupo de eventos no body da aba (header com nome do grupo + count) */
+.bcomm-cat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bcomm-border, rgba(255,255,255,0.06));
+  margin-bottom: 12px;
+}
+.bcomm-cat-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.bcomm-cat-group-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0 2px;
+}
+.bcomm-cat-group-name {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--bcomm-gold, #C9A96E);
+  letter-spacing: 0.3px;
+}
+.bcomm-cat-group-count {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+}
+
 .bcomm-chips-row { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 4px; }
 .bcomm-chip {
   --chip-color: var(--bcomm-gold);

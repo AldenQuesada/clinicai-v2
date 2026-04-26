@@ -508,6 +508,7 @@ export function CommClient({
           ) : activeTab === 'templates' ? (
             <TemplatesTab
               templates={templates}
+              catalog={catalog}
               selectedId={selectedId}
               onSelect={handleSelect}
               onEdit={handleEdit}
@@ -765,7 +766,7 @@ function EventsTab({
   onEdit: (id: string) => void
   onNew: (eventKey?: string) => void
 }) {
-  const events = flatEvents(catalog)
+  // Counts por event_key (templates globais · sem partnership_id)
   const counts: Record<string, number> = {}
   templates.forEach((t) => {
     if (!t.partnership_id) counts[t.event_key] = (counts[t.event_key] || 0) + 1
@@ -774,38 +775,49 @@ function EventsTab({
 
   return (
     <>
-      <div className="bcomm-chips-row">
-        <button
-          type="button"
-          className={'bcomm-chip' + (!filterEventKey ? ' bcomm-chip-active' : '')}
-          onClick={() => onChipClick(null)}
-        >
-          Todos <span className="bcomm-chip-count">{total}</span>
-        </button>
-        {events.map((ev) => {
-          const m = metaFor(ev.key)
-          const on = filterEventKey === ev.key
-          return (
-            <button
-              key={ev.key}
-              type="button"
-              className={'bcomm-chip' + (on ? ' bcomm-chip-active' : '')}
-              style={{ ['--chip-color' as never]: m.color } as React.CSSProperties}
-              onClick={() => onChipClick(ev.key)}
-            >
-              <span className="bcomm-chip-icon">{m.icon}</span>
-              <span>{ev.label || m.short}</span>
-              <span className="bcomm-chip-count">{counts[ev.key] || 0}</span>
-            </button>
-          )
-        })}
+      {/* Chips agrupados por categoria do catalogo · 1 row por grupo */}
+      <div className="bcomm-chips-grouped">
+        <div className="bcomm-chips-row">
+          <button
+            type="button"
+            className={'bcomm-chip' + (!filterEventKey ? ' bcomm-chip-active' : '')}
+            onClick={() => onChipClick(null)}
+          >
+            Todos <span className="bcomm-chip-count">{total}</span>
+          </button>
+        </div>
+
+        {catalog.map((g) => (
+          <div key={g.group} className="bcomm-chips-group">
+            <div className="bcomm-chips-group-lbl">{g.group}</div>
+            <div className="bcomm-chips-row">
+              {g.events.map((ev) => {
+                const m = metaFor(ev.key)
+                const on = filterEventKey === ev.key
+                return (
+                  <button
+                    key={ev.key}
+                    type="button"
+                    className={'bcomm-chip' + (on ? ' bcomm-chip-active' : '')}
+                    style={{ ['--chip-color' as never]: m.color } as React.CSSProperties}
+                    onClick={() => onChipClick(ev.key)}
+                  >
+                    <span className="bcomm-chip-icon">{m.icon}</span>
+                    <span>{ev.label || m.short}</span>
+                    <span className="bcomm-chip-count">{counts[ev.key] || 0}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="bcomm-list">
         {filterEventKey ? (
           <FilteredList
             evKey={filterEventKey}
-            events={events}
+            events={flatEvents(catalog)}
             templates={templates}
             selectedId={selectedId}
             onSelect={onSelect}
@@ -813,8 +825,8 @@ function EventsTab({
             onNew={onNew}
           />
         ) : (
-          <GroupedList
-            events={events}
+          <CatalogGroupedList
+            catalog={catalog}
             templates={templates}
             selectedId={selectedId}
             onSelect={onSelect}
@@ -827,15 +839,20 @@ function EventsTab({
   )
 }
 
-function GroupedList({
-  events,
+/**
+ * Lista agrupada por GRUPO do catalogo (jornada parceria / voucher /
+ * conversao / recorrente). Substitui o GroupedList antigo (que agrupava
+ * so por event_key, sem hierarquia visual).
+ */
+function CatalogGroupedList({
+  catalog,
   templates,
   selectedId,
   onSelect,
   onEdit,
   onNew,
 }: {
-  events: { key: string; label: string }[]
+  catalog: B2BCommEventCatalog
   templates: B2BCommTemplateRaw[]
   selectedId: string | null
   onSelect: (id: string) => void
@@ -844,43 +861,60 @@ function GroupedList({
 }) {
   return (
     <>
-      {events.map((ev) => {
-        const m = metaFor(ev.key)
-        const tpls = templates
-          .filter((t) => t.event_key === ev.key && !t.partnership_id)
-          .sort((a, b) => (a.priority || 100) - (b.priority || 100))
+      {catalog.map((g) => {
+        // Conta total no grupo (todos eventos somados)
+        const groupTotal = g.events.reduce((sum, ev) => {
+          return sum + templates.filter((t) => t.event_key === ev.key && !t.partnership_id).length
+        }, 0)
         return (
-          <div key={ev.key} className="bcomm-group">
-            <div className="bcomm-group-hdr">
-              <span className="bcomm-group-ico">{m.icon}</span>
-              <span className="bcomm-group-lbl">{ev.label}</span>
-              <button
-                type="button"
-                className="bcomm-btn bcomm-btn-ghost bcomm-btn-xs"
-                onClick={() => onNew(ev.key)}
-              >
-                + Novo
-              </button>
+          <div key={g.group} className="bcomm-cat-group">
+            <div className="bcomm-cat-group-hdr">
+              <span className="bcomm-cat-group-name">{g.group}</span>
+              <span className="bcomm-cat-group-count">
+                {groupTotal} template{groupTotal === 1 ? '' : 's'}
+              </span>
             </div>
-            {tpls.length ? (
-              tpls.map((t) => (
-                <ItemRow
-                  key={t.id}
-                  t={t}
-                  active={selectedId === t.id}
-                  onSelect={() => onSelect(t.id)}
-                  onEdit={() => onEdit(t.id)}
-                />
-              ))
-            ) : (
-              <div className="bcomm-item-empty">Sem template configurado</div>
-            )}
+            {g.events.map((ev) => {
+              const m = metaFor(ev.key)
+              const tpls = templates
+                .filter((t) => t.event_key === ev.key && !t.partnership_id)
+                .sort((a, b) => (a.priority || 100) - (b.priority || 100))
+              return (
+                <div key={ev.key} className="bcomm-group">
+                  <div className="bcomm-group-hdr">
+                    <span className="bcomm-group-ico">{m.icon}</span>
+                    <span className="bcomm-group-lbl">{ev.label}</span>
+                    <button
+                      type="button"
+                      className="bcomm-btn bcomm-btn-ghost bcomm-btn-xs"
+                      onClick={() => onNew(ev.key)}
+                    >
+                      + Novo
+                    </button>
+                  </div>
+                  {tpls.length ? (
+                    tpls.map((t) => (
+                      <ItemRow
+                        key={t.id}
+                        t={t}
+                        active={selectedId === t.id}
+                        onSelect={() => onSelect(t.id)}
+                        onEdit={() => onEdit(t.id)}
+                      />
+                    ))
+                  ) : (
+                    <div className="bcomm-item-empty">Sem template configurado</div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )
       })}
     </>
   )
 }
+
 
 function FilteredList({
   evKey,
@@ -992,16 +1026,18 @@ function ItemRow({
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Aba Templates · lista plana com filtros (texto, canal, escopo)
+// Aba Templates · lista plana com filtros (texto, canal, escopo, GRUPO)
 // ═══════════════════════════════════════════════════════════════════════
 function TemplatesTab({
   templates,
+  catalog,
   selectedId,
   onSelect,
   onEdit,
   onNew,
 }: {
   templates: B2BCommTemplateRaw[]
+  catalog: B2BCommEventCatalog
   selectedId: string | null
   onSelect: (id: string) => void
   onEdit: (id: string) => void
@@ -1010,6 +1046,14 @@ function TemplatesTab({
   const [q, setQ] = useState('')
   const [channel, setChannel] = useState<'all' | 'text' | 'audio' | 'both'>('all')
   const [scope, setScope] = useState<'all' | 'global' | 'override'>('all')
+  const [group, setGroup] = useState<string>('all')
+
+  // Mapa event_key → group (pra filtrar por grupo)
+  const eventToGroup = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const g of catalog) for (const ev of g.events) m.set(ev.key, g.group)
+    return m
+  }, [catalog])
 
   const rows = useMemo(() => {
     const ql = q.trim().toLowerCase()
@@ -1018,6 +1062,7 @@ function TemplatesTab({
         if (channel !== 'all' && t.channel !== channel) return false
         if (scope === 'global' && t.partnership_id) return false
         if (scope === 'override' && !t.partnership_id) return false
+        if (group !== 'all' && eventToGroup.get(t.event_key) !== group) return false
         if (!ql) return true
         const hay = (
           (t.text_template || '') +
@@ -1033,7 +1078,7 @@ function TemplatesTab({
         const bKey = (b.event_key || '') + ' ' + (b.priority || 100)
         return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
       })
-  }, [templates, q, channel, scope])
+  }, [templates, q, channel, scope, group, eventToGroup])
 
   return (
     <>
@@ -1045,6 +1090,19 @@ function TemplatesTab({
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <select
+          className="bcomm-input"
+          value={group}
+          onChange={(e) => setGroup(e.target.value)}
+          title="Grupo do catálogo"
+        >
+          <option value="all">Qualquer grupo</option>
+          {catalog.map((g) => (
+            <option key={g.group} value={g.group}>
+              {g.group}
+            </option>
+          ))}
+        </select>
         <select
           className="bcomm-input"
           value={channel}
