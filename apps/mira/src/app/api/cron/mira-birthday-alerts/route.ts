@@ -40,12 +40,16 @@ export async function GET(req: NextRequest) {
       ].join('\n')
     }
 
+    // Subscription · pacientes/leads aniversariantes mapeia em pacientes.followup_due
+    // (e o "lembre-se de mandar mensagem" mais analogo na lista atual de keys)
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.birthday_alerts',
       text,
+      category: 'pacientes',
+      msgKey: 'pacientes.followup_due',
     })
 
     return { birthdays: 1, dispatched: dispatch }

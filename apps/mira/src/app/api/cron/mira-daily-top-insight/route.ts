@@ -16,9 +16,13 @@
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { getEvolutionService } from '@/services/evolution.service'
+import { filterSubscribers } from '@/lib/msg-subscriptions'
+import { createLogger } from '@clinicai/logger'
 import type { Insight, InsightSeverity } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
+
+const log = createLogger({ app: 'mira' }).child({ cron: 'mira-daily-top-insight' })
 
 // ─── Mapeamento severity → emoji (alinha com InsightsBanner.tsx) ────
 const SEVERITY_EMOJI: Record<InsightSeverity, string> = {
@@ -93,15 +97,24 @@ export async function GET(req: NextRequest) {
     // RPC ja sort por score DESC · defesa em profundidade
     const top = alerts.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
 
-    // 3. Lista profissionais com permissions.b2b=true (wa_numbers professional_private)
-    //    Mig 800-27 · cada permission liga acesso UI + recebimento de mensagens
-    const professionals = (await repos.waNumbers.listProfessionalPrivate(clinicId).catch(() => []))
-      .filter(
-        (p) =>
-          p.isActive &&
-          p.permissions?.b2b !== false &&
-          (p.phone ?? '').replace(/\D/g, '').length >= 10,
+    // 3. Lista profissionais inscritos · categoria b2b + key b2b.daily_top_insight
+    //    (mig 800-27 · 800-30+) · respeita permissions.msg pra opt-out individual
+    const allProfessionals = await repos.waNumbers
+      .listProfessionalPrivate(clinicId)
+      .catch(() => [])
+    const professionals = filterSubscribers(
+      allProfessionals,
+      'b2b',
+      'b2b.daily_top_insight',
+    )
+    const muted =
+      allProfessionals.filter((p) => p.isActive).length - professionals.length
+    if (muted > 0) {
+      log.info(
+        { event_key: 'mira.cron.daily_top_insight', muted },
+        'admin_dispatch.muted_by_subscription',
       )
+    }
 
     if (professionals.length === 0) {
       return {
@@ -110,6 +123,7 @@ export async function GET(req: NextRequest) {
         reason: 'no_b2b_recipients',
         insight_kind: top.kind,
         partnership_id: top.partnership_id,
+        muted_by_subscription: muted,
       }
     }
 
@@ -153,6 +167,7 @@ export async function GET(req: NextRequest) {
       itemsProcessed: sent,
       eligible_alerts: alerts.length,
       recipients: professionals.length,
+      muted_by_subscription: muted,
       sent,
       failed,
       insight_kind: top.kind,

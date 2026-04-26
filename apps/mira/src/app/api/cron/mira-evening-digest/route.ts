@@ -44,12 +44,17 @@ export async function GET(req: NextRequest) {
       ].join('\n')
     }
 
+    // Subscription · evening digest tambem cai em agenda.daily_summary
+    // (mesma intent: resumo do dia + agenda amanha · usuario que opta por nao
+    // ter o matinal em geral nao quer o noturno tambem)
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.evening_digest',
       text,
+      category: 'agenda',
+      msgKey: 'agenda.daily_summary',
     })
 
     return dispatch

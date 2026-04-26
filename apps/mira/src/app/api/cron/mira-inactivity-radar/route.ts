@@ -35,12 +35,15 @@ export async function GET(req: NextRequest) {
       ].join('\n')
     }
 
+    // Subscription · leads/pacientes inativos = pacientes.silent (parou de responder)
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.inactivity_radar',
       text,
+      category: 'pacientes',
+      msgKey: 'pacientes.silent',
     })
 
     return { inactive: 1, dispatched: dispatch }

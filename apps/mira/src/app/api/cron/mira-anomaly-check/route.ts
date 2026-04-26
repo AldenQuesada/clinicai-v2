@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
       return { anomalies: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
     }
 
+    // SISTEMICO · anomalia operacional (zero agenda, NaN financeiro) eh sinal
+    // critico que admin precisa ver mesmo com subscriptions individuais
+    // desligadas. Decisao: NAO filtrar por permissions.msg · mantem broadcast.
     const dispatch = await dispatchAdminText({
       supabase,
       repos,

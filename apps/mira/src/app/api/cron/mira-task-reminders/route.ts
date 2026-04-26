@@ -24,12 +24,15 @@ export async function GET(req: NextRequest) {
       return { tasks: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
     }
 
+    // Subscription · tarefas vencidas tipicamente sao followups → pacientes.followup_due
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.task_reminders',
       text,
+      category: 'pacientes',
+      msgKey: 'pacientes.followup_due',
     })
 
     return { tasks: 1, dispatched: dispatch }

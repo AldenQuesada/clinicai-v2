@@ -24,12 +24,15 @@ export async function GET(req: NextRequest) {
       return { suggestions: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
     }
 
+    // Subscription · sugestoes de followup pra leads esquecidos = pacientes.followup_due
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.followup_suggestions',
       text,
+      category: 'pacientes',
+      msgKey: 'pacientes.followup_due',
     })
 
     return { suggestions: 1, dispatched: dispatch }

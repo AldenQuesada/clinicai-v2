@@ -40,12 +40,17 @@ export async function GET(req: NextRequest) {
       ].join('\n')
     }
 
+    // Subscription · roundup semanal de leads + agenda = agenda.gaps_weekly
+    // (mistura financeiro/agenda · agenda eh a categoria mais analoga ao
+    // "resumo da semana" na UI atual)
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.weekly_roundup',
       text,
+      category: 'agenda',
+      msgKey: 'agenda.gaps_weekly',
     })
 
     return dispatch

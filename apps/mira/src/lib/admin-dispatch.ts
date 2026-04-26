@@ -6,12 +6,24 @@
  * ativas via Evolution Mira instance. Audit em b2b_comm_dispatch_log com
  * recipient_role='admin'.
  *
+ * Subscriptions individuais (mig 800-30+): caller pode passar `category` +
+ * `msgKey` pra honrar permissions.msg[<key>] dos wa_numbers professional_private.
+ * Cron sistemico (anomaly_check etc.) que afeta todos admins NAO passa esses
+ * params · entrega broadcast garantido.
+ *
  * Best-effort: erros nao param o cron, sao reportados no payload final.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEvolutionService } from '@/services/evolution.service'
 import type { MiraRepos } from '@/lib/repos'
+import { createLogger } from '@clinicai/logger'
+import {
+  filterSubscribers,
+  type PermissionCategory,
+} from '@/lib/msg-subscriptions'
+
+const log = createLogger({ app: 'mira' }).child({ helper: 'admin-dispatch' })
 
 export interface AdminPhone {
   id: string
@@ -31,6 +43,8 @@ export interface DispatchAdminResult {
   recipients: number
   sent: number
   failed: number
+  /** Quantos wa_numbers foram silenciados pela subscription individual. */
+  mutedBySubscription?: number
 }
 
 export async function dispatchAdminText(opts: {
@@ -40,7 +54,67 @@ export async function dispatchAdminText(opts: {
   clinicId: string
   eventKey: string
   text: string
+  /** Categoria pra filtro subscription · omitido = sistemico, broadcast. */
+  category?: PermissionCategory
+  /** Key da mensagem · ex: 'agenda.daily_summary'. Obrigatorio se category. */
+  msgKey?: string
 }): Promise<DispatchAdminResult> {
+  // Caminho com subscription · usa wa_numbers professional_private (com
+  // permissions.msg) pra filtrar quem optou por nao receber esta msg.
+  if (opts.category && opts.msgKey) {
+    const all = await opts.repos.waNumbers
+      .listProfessionalPrivate(opts.clinicId)
+      .catch(() => [])
+    const recipients = filterSubscribers(all, opts.category, opts.msgKey)
+    const muted = all.filter((n) => n.isActive).length - recipients.length
+    if (muted > 0) {
+      log.info(
+        {
+          event_key: opts.eventKey,
+          category: opts.category,
+          msg_key: opts.msgKey,
+          muted,
+        },
+        'admin_dispatch.muted_by_subscription',
+      )
+    }
+    if (recipients.length === 0) {
+      return { recipients: 0, sent: 0, failed: 0, mutedBySubscription: muted }
+    }
+    const wa = getEvolutionService('mira')
+    const senderInstance = process.env.EVOLUTION_INSTANCE_MIRA ?? 'mira-mirian'
+    let sent = 0
+    let failed = 0
+    for (const r of recipients) {
+      try {
+        const result = await wa.sendText(r.phone, opts.text)
+        await opts.repos.waProAudit.logDispatch({
+          clinicId: opts.clinicId,
+          eventKey: opts.eventKey,
+          channel: 'text',
+          recipientRole: 'admin',
+          recipientPhone: r.phone,
+          senderInstance,
+          textContent: opts.text,
+          waMessageId: result.messageId ?? null,
+          status: result.ok ? 'sent' : 'failed',
+          errorMessage: result.error ?? null,
+        })
+        if (result.ok) sent++
+        else failed++
+      } catch {
+        failed++
+      }
+    }
+    return {
+      recipients: recipients.length,
+      sent,
+      failed,
+      mutedBySubscription: muted,
+    }
+  }
+
+  // Caminho sistemico · broadcast pra todo admin ativo (sem permissions check).
   const phones = await listActiveAdminPhones(opts.repos, opts.clinicId)
   if (phones.length === 0) return { recipients: 0, sent: 0, failed: 0 }
 

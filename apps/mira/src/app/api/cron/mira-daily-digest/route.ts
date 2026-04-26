@@ -43,12 +43,15 @@ export async function GET(req: NextRequest) {
       ].join('\n')
     }
 
+    // Subscription · agenda.daily_summary cobre o digest matinal de agenda+leads
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.daily_digest',
       text,
+      category: 'agenda',
+      msgKey: 'agenda.daily_summary',
     })
 
     return { source: text ? 'composed' : 'empty', ...dispatch }

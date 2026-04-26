@@ -137,6 +137,7 @@ export class WaNumberRepository {
             pacientes?: boolean
             financeiro?: boolean
             b2b?: boolean
+            msg?: { [key: string]: boolean }
           }) ?? {},
       }))
       .filter((n) => n.numberType === 'professional_private')

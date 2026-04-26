@@ -26,12 +26,15 @@ export async function GET(req: NextRequest) {
       return { alerts: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
     }
 
+    // Subscription · alerta 30min antes da consulta = agenda.appointment_reminder
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.preconsult_alert',
       text,
+      category: 'agenda',
+      msgKey: 'agenda.appointment_reminder',
     })
 
     return { alerts: 1, dispatched: dispatch }
