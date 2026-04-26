@@ -384,7 +384,7 @@ export function WizardClient({ mode, combos, tierConfigs = [], partnership }: Wi
   )
 
   return (
-    <div className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-5 flex flex-col gap-5">
+    <div className="luxury-card-gold p-7 md:p-9 flex flex-col gap-7 shadow-[0_2px_24px_-12px_rgba(201,169,110,0.18)]">
       <StepIndicator step={step} />
 
       {step === 1 && (
@@ -456,31 +456,29 @@ export function WizardClient({ mode, combos, tierConfigs = [], partnership }: Wi
       )}
 
       {error && (
-        <div className="rounded-md border border-[#FCA5A5]/30 bg-[#FCA5A5]/10 px-3 py-2 text-[11px] text-[#FCA5A5]">
-          {error}
+        <div className="rounded-md border border-[#D97A7A]/35 bg-[#D97A7A]/10 px-3.5 py-2.5 text-[12px] text-[#D97A7A] flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-3 border-t border-white/10">
+      <div className="flex items-center gap-3 pt-5 border-t border-[var(--b2b-border)]">
         {step > 1 && (
-          <button type="button" onClick={back} disabled={pending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-[10px] uppercase tracking-[1px] text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 transition-colors disabled:opacity-40">
-            <ArrowLeft className="w-3 h-3" /> Voltar
+          <button type="button" onClick={back} disabled={pending} className="b2b-btn inline-flex items-center gap-1.5 disabled:opacity-40">
+            <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
         )}
         <button type="button" onClick={() => router.back()} disabled={pending}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] uppercase tracking-[1px] text-[#6B7280] hover:text-[#9CA3AF] transition-colors disabled:opacity-40">
+          className="text-[11px] uppercase tracking-[1.5px] text-[var(--b2b-text-muted)] hover:text-[var(--b2b-text-dim)] transition-colors disabled:opacity-40 px-2 py-1">
           Cancelar
         </button>
         {step < 3 ? (
-          <button type="button" onClick={next} disabled={pending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors ml-auto disabled:opacity-40">
-            Avançar <ArrowRight className="w-3 h-3" />
+          <button type="button" onClick={next} disabled={pending} className="b2b-btn b2b-btn-primary inline-flex items-center gap-1.5 ml-auto disabled:opacity-40">
+            Avançar <ArrowRight className="w-3.5 h-3.5" />
           </button>
         ) : (
-          <button type="button" onClick={submit} disabled={pending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors ml-auto disabled:opacity-40">
-            {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+          <button type="button" onClick={submit} disabled={pending} className="b2b-btn b2b-btn-primary inline-flex items-center gap-1.5 ml-auto disabled:opacity-40">
+            {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             {pending ? 'Salvando…' : mode === 'edit' ? 'Salvar alterações' : 'Criar parceria'}
           </button>
         )}
@@ -519,33 +517,36 @@ interface Step1Props {
 
 function Step1(props: Step1Props) {
   return (
-    <div className="flex flex-col gap-3">
-      <SectionTitle>Parceria</SectionTitle>
+    <div className="flex flex-col gap-6">
+      <SectionTitle
+        accent={<>Identidade da <em>parceria</em></>}
+        hint="Dados básicos pra identificar a parceira no sistema. Slug é gerado do nome — pode editar abaixo se precisar.">
+        Parceria
+      </SectionTitle>
+
       <Field label="Nome do negócio / parceria" required>
         <input value={props.name} onChange={(e) => props.setName(e.target.value)}
           placeholder="Ex.: Moinho Buffet"
           className="b2b-input" />
+        <div className="wiz-slug-line mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span>URL: /partner.html?slug=</span>
+          <code>{props.slugPreview || '—'}</code>
+          {props.slugConflict && (
+            <span className="ml-2 inline-flex items-center gap-1.5 text-[var(--b2b-red)] bg-[rgba(217,122,122,0.10)] border border-[rgba(217,122,122,0.30)] px-2.5 py-0.5 rounded">
+              <AlertTriangle className="w-3 h-3" />
+              já existe ({props.slugConflict.name})
+              {props.slugConflict.suggested && (
+                <button type="button" onClick={() => props.onApplySuggestedSlug(props.slugConflict!.suggested!)}
+                  className="ml-1 underline hover:no-underline font-semibold">
+                  usar &ldquo;{props.slugConflict.suggested}&rdquo;
+                </button>
+              )}
+            </span>
+          )}
+        </div>
       </Field>
 
-      {/* Slug preview / conflict */}
-      <div className="text-[11px] text-[#9CA3AF] flex flex-wrap items-center gap-1.5">
-        <span>URL: /partner.html?slug=</span>
-        <span className="font-mono text-[#C9A96E]">{props.slugPreview || '—'}</span>
-        {props.slugConflict && (
-          <span className="ml-2 inline-flex items-center gap-1.5 text-[#FCA5A5] bg-[#EF4444]/10 px-2 py-0.5 rounded">
-            <AlertTriangle className="w-3 h-3" />
-            já existe ({props.slugConflict.name})
-            {props.slugConflict.suggested && (
-              <button type="button" onClick={() => props.onApplySuggestedSlug(props.slugConflict!.suggested!)}
-                className="ml-1 underline hover:no-underline">
-                usar &ldquo;{props.slugConflict.suggested}&rdquo;
-              </button>
-            )}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Field label="Pilar" required>
           <select value={props.pillar} onChange={(e) => props.onPillarChange(e.target.value)}
             className="b2b-input">
@@ -556,8 +557,8 @@ function Step1(props: Step1Props) {
           </select>
           {props.pillarHint && props.pillarHint !== props.pillar && props.mode === 'new' && (
             <button type="button" onClick={() => props.onApplyPillarHint(props.pillarHint!)}
-              className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#C9A96E] border border-dashed border-[#C9A96E]/50 rounded px-2 py-0.5 hover:bg-[#C9A96E]/10">
-              <Sparkles className="w-3 h-3" /> Sugerido: <b>{props.pillarHint}</b> · clique pra aplicar
+              className="wiz-hint-chip mt-2">
+              <Sparkles className="w-3 h-3" /> sugerido: <b>{props.pillarHint}</b> · clique pra aplicar
             </button>
           )}
         </Field>
@@ -586,21 +587,21 @@ function Step1(props: Step1Props) {
             })}
           </select>
           {props.tierInheritedFlash && props.tierInheritedFlash.tier === Number(props.tier) && (
-            <div className="mt-1 inline-flex items-start gap-1 text-[10.5px] text-[#C9A96E]/85 bg-[#C9A96E]/8 border border-dashed border-[#C9A96E]/35 rounded px-2 py-1 leading-relaxed">
-              <Sparkles className="w-3 h-3 mt-px shrink-0" />
-              <span>
+            <div className="wiz-hint-chip mt-2 items-start" style={{ cursor: 'default' }}>
+              <Sparkles className="w-3 h-3 mt-0.5 shrink-0" />
+              <span className="leading-relaxed">
                 valores herdados de Tier {props.tierInheritedFlash.tier} · {props.tierInheritedFlash.label}
                 {props.tierInheritedFlash.fields.length > 0 && (
-                  <span className="text-[#9CA3AF]"> ({props.tierInheritedFlash.fields.join(', ')})</span>
+                  <span className="text-[var(--b2b-text-muted)]"> ({props.tierInheritedFlash.fields.join(', ')})</span>
                 )}
-                <span className="text-[#9CA3AF]"> · pode editar</span>
+                <span className="text-[var(--b2b-text-muted)]"> · pode editar</span>
               </span>
             </div>
           )}
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Field label="Tipo" required>
           <select value={props.type} onChange={(e) => props.setType(e.target.value)}
             className="b2b-input">
@@ -620,17 +621,19 @@ function Step1(props: Step1Props) {
         </Field>
       </div>
 
-      <SectionTitle hint="A Mira vai enviar mensagens pra esse WhatsApp. Pode cadastrar mais de um responsável.">
-        Contato principal
+      <SectionTitle
+        accent={<>Contato <em>principal</em></>}
+        hint="A Mira vai enviar mensagens pra esse WhatsApp. Pode cadastrar mais de um responsável se a parceria tiver vários decisores.">
+        Contato
       </SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="Responsáveis da parceria" required>
           <ChipsInput
             values={props.contactNames}
             onChange={props.setContactNames}
             placeholder="Digite o nome e pressione Enter ou vírgula"
           />
-          <div className="text-[10px] text-[#6B7280] mt-1">
+          <div className="text-[11px] text-[var(--b2b-text-muted)] mt-1.5 italic">
             Ex.: Marci Reich, Carla Duarte · adicionar vários se a parceria tiver mais de 1 contato
           </div>
         </Field>
@@ -641,20 +644,20 @@ function Step1(props: Step1Props) {
             inputMode="tel"
             className="b2b-input font-mono" />
           {props.phoneWarning.length > 0 && (
-            <div className="mt-1 rounded border border-[#F59E0B]/30 bg-[#F59E0B]/5 px-2 py-1.5 text-[10.5px] text-[#FCD34D]">
-              <div className="font-bold mb-0.5 inline-flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Telefone já em outras parcerias:
+            <div className="mt-2 rounded-md border border-[var(--b2b-amber)]/35 bg-[rgba(245,158,11,0.06)] px-3 py-2 text-[11.5px] text-[var(--b2b-amber)]">
+              <div className="font-semibold mb-1 inline-flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Telefone já em outras parcerias:
               </div>
-              <ul className="list-disc list-inside">
+              <ul className="list-disc list-inside text-[var(--b2b-text-dim)]">
                 {props.phoneWarning.map((m) => (
-                  <li key={m.id}>{m.name} <span className="text-[#9CA3AF]">({m.status})</span></li>
+                  <li key={m.id}><span className="text-[var(--b2b-ivory)]">{m.name}</span> <span className="text-[var(--b2b-text-muted)]">({m.status})</span></li>
                 ))}
               </ul>
             </div>
           )}
         </Field>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="E-mail">
           <input type="email" value={props.contactEmail} onChange={(e) => props.setContactEmail(e.target.value)}
             placeholder="contato@..." className="b2b-input" />
@@ -693,18 +696,22 @@ interface Step2Props {
 
 function Step2(props: Step2Props) {
   return (
-    <div className="flex flex-col gap-3">
-      <SectionTitle hint="Notas que determinam se a parceria pode virar contrato. Mínimo 7 em cada pra aprovar. Se não sabe na hora do cadastro, deixa no meio — dá pra editar depois.">
-        DNA · gate de entrada (0-10)
+    <div className="flex flex-col gap-6">
+      <SectionTitle
+        accent={<>DNA · gate de <em>entrada</em></>}
+        hint="Notas que determinam se a parceria pode virar contrato. Mínimo 7 em cada pra aprovar. Se não sabe na hora do cadastro, deixa no meio — dá pra editar depois.">
+        DNA (0-10)
       </SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
         <DnaSlider label="Excelência" value={props.dnaExc} onChange={props.setDnaExc} />
         <DnaSlider label="Estética" value={props.dnaEst} onChange={props.setDnaEst} />
         <DnaSlider label="Propósito" value={props.dnaPro} onChange={props.setDnaPro} />
       </div>
 
-      <SectionTitle hint="Como a parceria vai presentear convidadas pela clínica.">
-        Voucher presente
+      <SectionTitle
+        accent={<>Voucher <em>presente</em></>}
+        hint="Como a parceria vai presentear convidadas pela clínica. Combo é o que vai no voucher; cap mensal limita disparos por mês.">
+        Voucher
       </SectionTitle>
       <Field label="Combo do voucher">
         <input value={props.voucherCombo} onChange={(e) => props.setVoucherCombo(e.target.value)}
@@ -719,7 +726,7 @@ function Step2(props: Step2Props) {
           ))}
         </datalist>
       </Field>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Field label="Validade (dias)">
           <input type="number" min={1} value={props.voucherValidityDays}
             onChange={(e) => props.setVoucherValidityDays(Number(e.target.value || 0))}
@@ -736,7 +743,7 @@ function Step2(props: Step2Props) {
             className="b2b-input font-mono" />
         </Field>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="Custo por voucher (R$)">
           <input type="number" min={0} step="0.01" value={props.voucherUnitCostBrl}
             onChange={(e) => props.setVoucherUnitCostBrl(Number(e.target.value || 0))}
@@ -786,9 +793,13 @@ interface Step3Props {
 
 function Step3(props: Step3Props) {
   return (
-    <div className="flex flex-col gap-3">
-      <SectionTitle hint="Aparece no mapa vivo da rede.">Localização</SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="flex flex-col gap-6">
+      <SectionTitle
+        accent={<>Localização <em>geográfica</em></>}
+        hint="Aparece no mapa vivo da rede da clínica. Se não souber lat/lng, pode deixar em branco — atualizar depois.">
+        Geo
+      </SectionTitle>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="Latitude (decimal)">
           <input type="number" step="any" value={props.lat} onChange={(e) => props.setLat(e.target.value)}
             placeholder="-23.55052" className="b2b-input font-mono" />
@@ -799,8 +810,10 @@ function Step3(props: Step3Props) {
         </Field>
       </div>
 
-      <SectionTitle hint="O que a parceira entrega em troca — texto livre, separar por vírgula.">
-        Contrapartida do parceiro
+      <SectionTitle
+        accent={<>Contrapartida do <em>parceiro</em></>}
+        hint="O que a parceira entrega em troca — texto livre. Cadence define a frequência da entrega.">
+        Permuta
       </SectionTitle>
       <Field label="Contrapartidas">
         <ArrayInput values={props.contrapartida} onChange={props.setContrapartida}
@@ -815,10 +828,12 @@ function Step3(props: Step3Props) {
         </select>
       </Field>
 
-      <SectionTitle hint="Datas do contrato (opcionais — boca-a-boca pode deixar em branco). Trigger renewal_sweep cria task automática quando vencimento chega.">
+      <SectionTitle
+        accent={<>Contrato &amp; <em>renovação</em></>}
+        hint="Datas do contrato (opcionais — boca-a-boca pode deixar em branco). Trigger renewal_sweep cria task automática quando vencimento chega.">
         Contrato
       </SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Field label="Assinado em">
           <input type="date" value={props.contractSignedDate}
             onChange={(e) => props.setContractSignedDate(e.target.value)}
@@ -836,8 +851,12 @@ function Step3(props: Step3Props) {
         </Field>
       </div>
 
-      <SectionTitle>Vigência & valuation</SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <SectionTitle
+        accent={<>Vigência &amp; <em>valuation</em></>}
+        hint="Teto financeiro da permuta (sanity check) + duração total e cadência de revisão. Sazonais marcam datas que merecem ativação especial.">
+        Valuation
+      </SectionTitle>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Field label="Teto mensal (R$)">
           <input type="number" min={0} value={props.monthlyValueCapBrl}
             onChange={(e) => props.setMonthlyValueCapBrl(e.target.value)}
@@ -859,18 +878,22 @@ function Step3(props: Step3Props) {
           placeholder="dia_das_maes, natal, bf" />
       </Field>
 
-      <SectionTitle hint="Quando saúde virar vermelha, sistema aplica playbook automaticamente (cooldown 7d).">
-        Auto-playbook
+      <SectionTitle
+        accent={<>Auto-<em>playbook</em></>}
+        hint="Quando saúde virar vermelha, sistema aplica playbook automaticamente (cooldown 7d). Desliga se quiser que rode só manual.">
+        Playbook
       </SectionTitle>
-      <label className="inline-flex items-center gap-2 text-[12px] text-[#F5F0E8] cursor-pointer">
+      <label className="inline-flex items-center gap-2.5 text-[13px] text-[var(--b2b-ivory)] cursor-pointer">
         <input type="checkbox" checked={props.autoPlaybook}
           onChange={(e) => props.setAutoPlaybook(e.target.checked)}
-          className="accent-[#C9A96E]" />
-        Sim — aplicar playbook automaticamente quando health=red
+          className="accent-[var(--b2b-champagne)] w-4 h-4" />
+        <span>Sim — aplicar playbook automaticamente quando health=red</span>
       </label>
 
-      <SectionTitle hint="Usado em materiais internos e storytelling.">
-        Narrativa (opcional)
+      <SectionTitle
+        accent={<>Narrativa &amp; <em>storytelling</em></>}
+        hint="Usado em materiais internos, brief para a parceria e copy. Tudo opcional.">
+        Narrativa
       </SectionTitle>
       <Field label="Slogans">
         <ArrayInput values={props.slogans} onChange={props.setSlogans}
@@ -880,7 +903,7 @@ function Step3(props: Step3Props) {
         <textarea value={props.narrativeQuote} onChange={(e) => props.setNarrativeQuote(e.target.value)}
           rows={3} className="b2b-input resize-y" />
       </Field>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="Autor da citação">
           <input value={props.narrativeAuthor} onChange={(e) => props.setNarrativeAuthor(e.target.value)}
             className="b2b-input" />
@@ -892,8 +915,10 @@ function Step3(props: Step3Props) {
         </Field>
       </div>
 
-      <SectionTitle hint="Quem do lado clínica vai atuar com essa parceria. Pode marcar mais de um — todos recebem notificação quando houver movimentação.">
-        Profissionais envolvidos
+      <SectionTitle
+        accent={<>Profissionais <em>envolvidos</em></>}
+        hint="Quem do lado clínica vai atuar com essa parceria. Pode marcar mais de um — todos recebem notificação quando houver movimentação.">
+        Time
       </SectionTitle>
       <ProfessionalsCheckboxes
         all={props.allProfs}
@@ -909,16 +934,18 @@ function Step3(props: Step3Props) {
         </select>
       </Field>
 
-      <SectionTitle hint="Se a parceria é com um grupo coletivo (ex.: ACIM, Confraria).">
-        Grupo / Confraria
+      <SectionTitle
+        accent={<>Grupo / <em>Confraria</em></>}
+        hint="Se a parceria é com um grupo coletivo (ex.: ACIM, Confraria), marca aqui pra ativar fluxos de membras.">
+        Grupo
       </SectionTitle>
-      <label className="inline-flex items-center gap-2 text-[12px] text-[#F5F0E8] cursor-pointer">
+      <label className="inline-flex items-center gap-2.5 text-[13px] text-[var(--b2b-ivory)] cursor-pointer">
         <input type="checkbox" checked={props.isCollective}
           onChange={(e) => props.setIsCollective(e.target.checked)}
-          className="accent-[#C9A96E]" />
-        Sim — é com um grupo coletivo
+          className="accent-[var(--b2b-champagne)] w-4 h-4" />
+        <span>Sim — é com um grupo coletivo</span>
       </label>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field label="Membras cadastradas">
           <input type="number" min={0} value={props.memberCount}
             onChange={(e) => props.setMemberCount(e.target.value)}
@@ -931,15 +958,22 @@ function Step3(props: Step3Props) {
         </Field>
       </div>
 
-      <SectionTitle>Notas internas</SectionTitle>
+      <SectionTitle
+        accent={<>Notas <em>internas</em></>}
+        hint="Como conheceu, observações, próximos passos. Texto livre · só pra equipe.">
+        Notas
+      </SectionTitle>
       <Field label="Observações livres">
         <textarea value={props.notes} onChange={(e) => props.setNotes(e.target.value)}
           rows={4} placeholder="Como conheceu, observações, próximos passos…"
           className="b2b-input resize-y" />
       </Field>
 
-      <div className="rounded-md border border-[#C9A96E]/30 bg-[#C9A96E]/[0.04] p-3 flex flex-col gap-1">
-        <span className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#C9A96E]">Resumo</span>
+      <div className="rounded-md border border-[var(--b2b-border-strong)] bg-[rgba(201,169,110,0.05)] p-5 flex flex-col gap-2.5 mt-2">
+        <div className="flex items-baseline gap-3 pb-2 border-b border-[var(--b2b-border)]">
+          <span className="eyebrow">Resumo</span>
+          <span className="text-[11px] text-[var(--b2b-text-muted)] italic">confirme antes de salvar</span>
+        </div>
         <KV k="Nome" v={props.summary.name || '—'} />
         <KV k="Slug" v={props.summary.slugPreview || '—'} mono />
         <KV k="Pilar" v={props.summary.pillarLabel || '—'} />
@@ -958,26 +992,37 @@ function Step3(props: Step3Props) {
 // ────────────────────────────────────────────────────────────────
 
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
-  const labels = ['Identidade', 'Operação', 'Detalhes']
+  const steps: Array<{ label: string; sub: string }> = [
+    { label: 'Identidade', sub: 'Parceria + contato' },
+    { label: 'Operação',   sub: 'DNA + voucher'      },
+    { label: 'Detalhes',   sub: 'Finalização'        },
+  ]
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {labels.map((label, i) => {
+    <div className="rounded-[10px] border border-[var(--b2b-border)] bg-[rgba(255,255,255,0.02)] px-5 py-4 flex items-center gap-2">
+      {steps.map((s, i) => {
         const idx = (i + 1) as 1 | 2 | 3
         const done = step > idx
         const current = step === idx
         return (
-          <div key={label} className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-semibold transition-colors ${
-              current ? 'border-[#C9A96E] bg-[#C9A96E]/15 text-[#C9A96E]'
-                : done ? 'border-[#C9A96E]/50 bg-[#C9A96E]/8 text-[#C9A96E]'
-                : 'border-white/15 text-[#6B7280]'}`}>
-              {done ? <Check className="w-3.5 h-3.5" /> : idx}
+          <div key={s.label} className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold border-[1.5px] transition-all duration-200 ${
+                current ? 'bg-[var(--b2b-champagne)] border-[var(--b2b-champagne)] text-[var(--b2b-bg-0)] shadow-[0_0_0_4px_rgba(201,169,110,0.15)]'
+                  : done ? 'bg-[rgba(201,169,110,0.18)] border-[var(--b2b-champagne)] text-[var(--b2b-champagne)]'
+                  : 'bg-[rgba(255,255,255,0.04)] border-[var(--b2b-border)] text-[var(--b2b-text-muted)]'}`}>
+                {done ? <Check className="w-3.5 h-3.5" /> : idx}
+              </div>
+              <div className="hidden md:flex flex-col min-w-0 leading-tight">
+                <span className={`text-[12.5px] font-bold whitespace-nowrap ${
+                  current ? 'text-[var(--b2b-ivory)]'
+                    : done ? 'text-[var(--b2b-champagne)]'
+                    : 'text-[var(--b2b-text-muted)]'}`}>
+                  {s.label}
+                </span>
+                <span className="text-[10.5px] text-[var(--b2b-text-muted)] whitespace-nowrap">{s.sub}</span>
+              </div>
             </div>
-            <span className={`text-[11px] uppercase tracking-[1px] ${
-              current ? 'text-[#F5F0E8]' : done ? 'text-[#C9A96E]' : 'text-[#6B7280]'}`}>
-              {label}
-            </span>
-            {idx < 3 && <div className="w-6 h-px bg-white/10 mx-1" />}
+            {idx < 3 && <div className="flex-1 h-px bg-[var(--b2b-border)] mx-2" />}
           </div>
         )
       })}
@@ -985,20 +1030,25 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   )
 }
 
-function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
+function SectionTitle({ children, hint, accent }: { children: React.ReactNode; hint?: string; accent?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 pt-2 mt-1 border-t border-white/5 first:border-t-0 first:pt-0 first:mt-0">
-      <div className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#C9A96E]">{children}</div>
-      {hint && <div className="text-[11px] text-[#9CA3AF]">{hint}</div>}
+    <div className="flex flex-col gap-1 pt-5 mt-1 border-t border-[var(--b2b-border)] first:border-t-0 first:pt-1 first:mt-0">
+      <span className="eyebrow">{children}</span>
+      {accent && (
+        <h3 className="font-display text-[22px] md:text-[24px] text-[var(--b2b-ivory)] leading-[1.2]">
+          {accent}
+        </h3>
+      )}
+      {hint && <div className="text-[12px] text-[var(--b2b-text-dim)] mt-0.5 italic leading-relaxed">{hint}</div>}
     </div>
   )
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#9CA3AF]">
-        {label} {required && <span className="text-[#FCA5A5]">*</span>}
+    <div className="flex flex-col gap-2">
+      <label className="text-[10px] uppercase tracking-[1.6px] font-semibold text-[var(--b2b-text-dim)]">
+        {label} {required && <span className="text-[var(--b2b-red)] not-italic">*</span>}
       </label>
       {children}
     </div>
@@ -1007,17 +1057,17 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 function DnaSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[1.4px] font-bold text-[#9CA3AF]">{label}</span>
-        <span className="text-[12px] font-mono text-[#C9A96E] font-bold bg-[#7a1f2b] text-white px-2 py-0.5 rounded">
-          {value}
-        </span>
+    <div className="flex flex-col gap-2.5">
+      <span className="text-[10px] uppercase tracking-[1.6px] font-semibold text-[var(--b2b-text-dim)]">
+        {label}
+      </span>
+      <div className="flex items-center gap-3">
+        <input type="range" min={0} max={10} step={1} value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="wiz-dna-track" />
+        <span className="wiz-dna-badge">{value}</span>
       </div>
-      <input type="range" min={0} max={10} step={1} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[#C9A96E]" />
-      <div className="flex justify-between text-[10px] text-[#6B7280]">
+      <div className="flex justify-between text-[10px] text-[var(--b2b-text-muted)] px-1">
         <span>0</span><span>5</span><span>10</span>
       </div>
     </div>
@@ -1048,19 +1098,19 @@ function ChipsInput({
   }
 
   return (
-    <div className="b2b-chips-wrap flex flex-wrap items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+    <div className="wiz-chips-wrap">
       {values.map((v, i) => (
-        <span key={`${v}-${i}`} className="inline-flex items-center gap-1 text-[11px] bg-[#C9A96E]/15 text-[#D4B785] border border-[#C9A96E]/35 rounded-full px-2 py-0.5">
+        <span key={`${v}-${i}`} className="wiz-chip">
           {v}
           <button type="button" onClick={() => onChange(values.filter((_, j) => j !== i))}
-            className="opacity-60 hover:opacity-100">
+            className="wiz-chip-rm" aria-label="Remover">
             <X className="w-3 h-3" />
           </button>
         </span>
       ))}
       <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onBlur={() => commit(text)}
         placeholder={values.length ? '' : placeholder}
-        className="flex-1 min-w-[120px] bg-transparent border-0 outline-none text-[12px] text-[#F5F0E8] placeholder:text-white/30 px-1 py-0.5" />
+        className="wiz-chips-input" />
     </div>
   )
 }
@@ -1097,31 +1147,26 @@ function ProfessionalsCheckboxes({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
         {all.map((n) => {
           const checked = selected.map(lower).indexOf(lower(n)) !== -1
           return (
-            <label key={n}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded border text-[12px] cursor-pointer transition-colors ${
-                checked ? 'border-[#C9A96E] bg-[#C9A96E]/10 text-[#C9A96E] font-bold'
-                  : 'border-white/10 bg-white/[0.02] text-[#F5F0E8] hover:border-[#C9A96E]/40'
-              }`}>
+            <label key={n} className={`wiz-prof-chk ${checked ? 'wiz-prof-chk-checked' : ''}`}>
               <input type="checkbox" checked={checked} onChange={() => toggle(n)}
-                className="accent-[#C9A96E]" />
+                className="accent-[var(--b2b-champagne)]" />
               <span>{capitalize(n)}</span>
             </label>
           )
         })}
       </div>
-      <div className="flex items-center gap-2 pt-1.5 border-t border-dashed border-white/10">
+      <div className="flex items-center gap-2 pt-3 border-t border-dashed border-[var(--b2b-border)]">
         <input value={newName} onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNew() } }}
           placeholder="+ adicionar outro nome (ex.: rafael)"
           className="b2b-input flex-1" />
-        <button type="button" onClick={addNew}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-white/10 bg-white/[0.02] text-[11px] text-[#F5F0E8] hover:border-[#C9A96E] hover:text-[#C9A96E] transition-colors">
-          <Plus className="w-3 h-3" /> Adicionar
+        <button type="button" onClick={addNew} className="b2b-btn inline-flex items-center gap-1.5">
+          <Plus className="w-3.5 h-3.5" /> Adicionar
         </button>
       </div>
     </div>
@@ -1130,9 +1175,9 @@ function ProfessionalsCheckboxes({
 
 function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-2 text-[11px]">
-      <span className="text-[#6B7280] w-16 shrink-0">{k}</span>
-      <span className={`text-[#F5F0E8] ${mono ? 'font-mono' : ''}`}>{v}</span>
+    <div className="flex items-baseline gap-3 text-[12px]">
+      <span className="text-[var(--b2b-text-muted)] w-20 shrink-0 uppercase tracking-[1.4px] text-[10px] font-semibold">{k}</span>
+      <span className={`text-[var(--b2b-ivory)] ${mono ? 'font-mono' : ''}`}>{v}</span>
     </div>
   )
 }
@@ -1142,26 +1187,118 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+/**
+ * FormStyles · estilos suplementares somente do wizard (chips, sliders DNA,
+ * hint chips). O `.b2b-input` base vem de globals.css (b2b-* replica).
+ */
 function FormStyles() {
   return (
     <style jsx global>{`
-      .b2b-input {
-        width: 100%;
-        padding: 6px 10px;
-        background: rgba(255,255,255,0.02);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 6px;
-        color: #F5F0E8;
-        font-size: 12px;
-        outline: none;
+      /* --- Chips de input (responsaveis, contrapartida, sazonais, etc) --- */
+      .wiz-chips-wrap {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+        min-height: 40px;
+        padding: 6px 8px;
+        background: var(--b2b-bg-2);
+        border: 1px solid var(--b2b-border);
+        border-radius: 5px;
         transition: border-color 200ms ease;
       }
-      .b2b-input:focus {
-        border-color: rgba(201,169,110,0.5);
+      .wiz-chips-wrap:focus-within {
+        border-color: var(--b2b-champagne);
       }
-      .b2b-input::placeholder {
-        color: rgba(245,240,232,0.3);
+      .wiz-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        background: rgba(201,169,110,0.15);
+        color: var(--b2b-champagne-light);
+        border: 1px solid rgba(201,169,110,0.35);
+        font-size: 12px; font-weight: 500;
+        padding: 3px 4px 3px 11px;
+        border-radius: 12px;
+        line-height: 1.2;
       }
+      .wiz-chip-rm {
+        border: 0; background: transparent; color: var(--b2b-champagne-light);
+        cursor: pointer; padding: 0 4px; opacity: 0.6;
+        display: inline-flex; align-items: center;
+      }
+      .wiz-chip-rm:hover { opacity: 1; color: var(--b2b-ivory); }
+      .wiz-chips-input {
+        flex: 1; min-width: 140px;
+        background: transparent; border: 0; outline: none;
+        color: var(--b2b-ivory);
+        font-size: 13px;
+        padding: 4px 4px;
+      }
+      .wiz-chips-input::placeholder { color: rgba(245,240,232,0.30); }
+
+      /* --- DNA slider (gold gradient + champagne thumb) --- */
+      .wiz-dna-track {
+        flex: 1; height: 6px; -webkit-appearance: none; appearance: none;
+        background: linear-gradient(to right, rgba(201,169,110,0.20) 0%, var(--b2b-champagne) 50%, var(--b2b-red) 100%);
+        border-radius: 3px; outline: none; cursor: pointer;
+      }
+      .wiz-dna-track::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--b2b-champagne); border: 2px solid var(--b2b-bg-0);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+        cursor: pointer;
+      }
+      .wiz-dna-track::-moz-range-thumb {
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--b2b-champagne); border: 2px solid var(--b2b-bg-0);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+        cursor: pointer;
+      }
+      .wiz-dna-badge {
+        min-width: 38px; text-align: center;
+        padding: 5px 10px;
+        background: var(--b2b-champagne); color: var(--b2b-bg-0);
+        border-radius: 4px;
+        font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      /* --- Hint chip "✨ sugerido" --- */
+      .wiz-hint-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11.5px; color: var(--b2b-champagne);
+        padding: 4px 10px;
+        background: rgba(201,169,110,0.10);
+        border: 1px dashed rgba(201,169,110,0.45);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+      .wiz-hint-chip:hover {
+        background: rgba(201,169,110,0.18);
+        border-style: solid;
+        border-color: var(--b2b-champagne);
+      }
+
+      /* --- Slug preview line (gold mono accent) --- */
+      .wiz-slug-line { font-size: 11.5px; color: var(--b2b-text-muted); }
+      .wiz-slug-line code { font-family: ui-monospace, monospace; color: var(--b2b-champagne); }
+
+      /* --- Profissionais checkboxes --- */
+      .wiz-prof-chk {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 7px 14px;
+        border: 1px solid var(--b2b-border);
+        background: var(--b2b-bg-2);
+        border-radius: 5px;
+        color: var(--b2b-ivory);
+        font-size: 13px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 150ms ease;
+      }
+      .wiz-prof-chk:hover { border-color: var(--b2b-champagne); }
+      .wiz-prof-chk-checked {
+        border-color: var(--b2b-champagne);
+        background: rgba(201,169,110,0.10);
+      }
+      .wiz-prof-chk-checked span { color: var(--b2b-champagne); font-weight: 600; }
     `}</style>
   )
 }

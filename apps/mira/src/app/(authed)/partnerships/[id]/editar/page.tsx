@@ -48,25 +48,23 @@ export default async function EditarPartnershipPage({ params }: PageProps) {
   const name = String(partnership.name ?? '—')
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-[860px] mx-auto px-6 py-6 flex flex-col gap-4">
-        <div className="flex items-center justify-between pb-2 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/partnerships/${id}`}
-              className="p-1 rounded text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-white/5 transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </Link>
-            <div>
-              <span className="text-[10px] uppercase tracking-[2px] font-bold text-[#C9A96E]">
-                Parceria · Edição
-              </span>
-              <h1 className="font-display text-xl text-[#F5F0E8] mt-0.5">{name}</h1>
-              <p className="text-[11px] text-[#9CA3AF] mt-0.5">
-                3 passos · Identidade · Operação · Detalhes. Slug e histórico preservados.
-              </p>
-            </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+      <div className="max-w-[840px] mx-auto px-6 md:px-8 py-8 md:py-10 flex flex-col gap-6">
+        <div className="flex items-start gap-4 pb-5 border-b border-[var(--b2b-border)]">
+          <Link
+            href={`/partnerships/${id}`}
+            className="mt-1.5 p-1.5 rounded text-[var(--b2b-text-muted)] hover:text-[var(--b2b-ivory)] hover:bg-[rgba(201,169,110,0.08)] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <span className="eyebrow">Parceria · Edição</span>
+            <h1 className="font-display text-[28px] md:text-[32px] text-[var(--b2b-ivory)] mt-1 leading-[1.15] truncate">
+              {name}
+            </h1>
+            <p className="text-[13px] text-[var(--b2b-text-dim)] mt-1.5 italic">
+              3 passos · Identidade · Operação · Detalhes — slug e histórico <span className="not-italic text-[var(--b2b-champagne)]">preservados</span>.
+            </p>
           </div>
         </div>
 
