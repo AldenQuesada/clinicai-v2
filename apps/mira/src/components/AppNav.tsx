@@ -24,12 +24,32 @@ type SubTab = {
   available: boolean
 }
 
+/**
+ * Cluster de sub-tabs com label de grupo (eyebrow champagne).
+ * Ex: section "Geral" tem 3 grupos · OPERAR / ATRAIR / ENCERRAR.
+ */
+type SubTabGroup = {
+  groupLabel: string
+  subtabs: SubTab[]
+}
+
 type Section = {
   key: 'geral' | 'disparos' | 'analytics' | 'config'
   label: string
   defaultHref: string
-  subtabs: SubTab[]
   match: string[]
+  /** Sub-tabs flat · usado por sections que NAO tem grupos. */
+  subtabs?: SubTab[]
+  /** Sub-tabs agrupados por estrategia · render com eyebrow + separator. */
+  subtabGroups?: SubTabGroup[]
+}
+
+/** Helper · achata todos os sub-tabs de uma section em uma lista. */
+function flattenSubtabs(section: Section): SubTab[] {
+  if (section.subtabGroups) {
+    return section.subtabGroups.flatMap((g) => g.subtabs)
+  }
+  return section.subtabs ?? []
 }
 
 const SECTIONS: Section[] = [
@@ -49,17 +69,36 @@ const SECTIONS: Section[] = [
       '/b2b/mapa',
       '/b2b/saude',
     ],
-    subtabs: [
-      { href: '/insights', label: 'Insights', available: true },
-      { href: '/partnerships?filter=active', label: 'Ativas', available: true },
-      { href: '/partnerships?filter=prospects', label: 'Prospects', available: true },
-      { href: '/b2b/candidatos', label: 'Candidatos', available: true },
-      { href: '/b2b/candidaturas', label: 'Candidaturas', available: true },
-      { href: '/partnerships?filter=inactive', label: 'Inativas', available: true },
-      { href: '/b2b/mapa', label: 'Mapa', available: true },
-      { href: '/b2b/saude', label: 'Saúde', available: true },
-      { href: '/semana/gaps', label: 'Gaps do plano', available: true },
-      { href: '/semana/encerramentos', label: 'Encerramentos', available: true },
+    // Sub-tabs agrupados por estrategia (decidido com Alden 2026-04-26):
+    //   OPERAR · carteira viva (uso diario)
+    //   ATRAIR · pipeline de entrada (semanal)
+    //   ENCERRAR · saida e historico (mensal)
+    subtabGroups: [
+      {
+        groupLabel: 'Operar',
+        subtabs: [
+          { href: '/insights', label: 'Insights', available: true },
+          { href: '/partnerships?filter=active', label: 'Ativas', available: true },
+          { href: '/b2b/saude', label: 'Saúde', available: true },
+          { href: '/b2b/mapa', label: 'Mapa', available: true },
+          { href: '/semana/gaps', label: 'Gaps do plano', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Atrair',
+        subtabs: [
+          { href: '/b2b/candidatos', label: 'Candidatos', available: true },
+          { href: '/b2b/candidaturas', label: 'Candidaturas', available: true },
+          { href: '/partnerships?filter=prospects', label: 'Prospects', available: true },
+        ],
+      },
+      {
+        groupLabel: 'Encerrar',
+        subtabs: [
+          { href: '/semana/encerramentos', label: 'Encerramentos', available: true },
+          { href: '/partnerships?filter=inactive', label: 'Inativas', available: true },
+        ],
+      },
     ],
   },
   {
@@ -149,11 +188,12 @@ function detectActiveSubtab(
   section: Section,
 ): SubTab | null {
   const fullPath = searchParams ? `${pathname}?${searchParams}` : pathname
+  const all = flattenSubtabs(section)
 
-  const exact = section.subtabs.find((t) => t.href === fullPath)
+  const exact = all.find((t) => t.href === fullPath)
   if (exact) return exact
 
-  const byPath = section.subtabs.find((t) => {
+  const byPath = all.find((t) => {
     const tabPath = t.href.split('?')[0]
     return pathname === tabPath || pathname.startsWith(tabPath + '/')
   })
@@ -320,19 +360,50 @@ export function AppNav({
 
       {/* ──────────────────────────────────────────────────────────────
          ROW 3 · SUB-TABS · contextual da section ativa
-         Mirror legacy: gold underline ativo, sem prefix label, count "· N".
+         Sections com subtabGroups renderizam com eyebrow champagne por
+         grupo + separador vertical. Sections com subtabs flat caem no
+         mesmo render anterior (compat com Disparos/Analytics/Config).
          ────────────────────────────────────────────────────────────── */}
       <div className="h-9 flex items-center px-5 overflow-x-auto custom-scrollbar">
-        <nav className="flex items-center gap-1">
-          {activeSection.subtabs.map((t) => (
-            <SubLink
-              key={t.href}
-              tab={t}
-              active={activeSubtab?.href === t.href}
-              count={countForHref(t.href, counts)}
-            />
-          ))}
-        </nav>
+        {activeSection.subtabGroups ? (
+          <nav className="flex items-center gap-3">
+            {activeSection.subtabGroups.map((group, gi) => (
+              <span key={group.groupLabel} className="flex items-center gap-1">
+                {gi > 0 && (
+                  <span
+                    className="mx-2 h-4 w-px bg-[#C9A96E]/20 shrink-0"
+                    aria-hidden="true"
+                  />
+                )}
+                <span
+                  className="text-[9px] uppercase font-semibold text-[#C9A96E]/70 mr-2 shrink-0"
+                  style={{ letterSpacing: '2px' }}
+                >
+                  {group.groupLabel}
+                </span>
+                {group.subtabs.map((t) => (
+                  <SubLink
+                    key={t.href}
+                    tab={t}
+                    active={activeSubtab?.href === t.href}
+                    count={countForHref(t.href, counts)}
+                  />
+                ))}
+              </span>
+            ))}
+          </nav>
+        ) : (
+          <nav className="flex items-center gap-1">
+            {(activeSection.subtabs ?? []).map((t) => (
+              <SubLink
+                key={t.href}
+                tab={t}
+                active={activeSubtab?.href === t.href}
+                count={countForHref(t.href, counts)}
+              />
+            ))}
+          </nav>
+        )}
       </div>
     </header>
   )
