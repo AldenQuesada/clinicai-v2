@@ -25,24 +25,72 @@ export interface B2BPartnershipDTO {
   contactPhone: string | null
   contactEmail: string | null
   contactInstagram: string | null
+  /** Site/website do parceiro · ex: "https://institucionalbarbara.com.br". */
+  contactWebsite: string | null
   voucherCombo: string | null
   voucherValidityDays: number
+  /** Antecedencia minima em dias pra agendar via voucher (default 15). */
+  voucherMinNoticeDays: number
   voucherMonthlyCap: number | null
+  /** Modos de entrega do voucher · ex: ['digital','impresso']. */
+  voucherDelivery: string[]
+  /** Custo unitario estimado (R$) por voucher resgatado · base do calculo de custo total. */
+  voucherUnitCostBrl: number | null
   /** Duracao do contrato em meses · usado pra calcular renovacoes (default 12 quando null). */
   contractDurationMonths: number | null
-  /** Score DNA · 0-10 · null se nao avaliado */
+  /** Cadencia de revisao em meses · default 3. */
+  reviewCadenceMonths: number | null
+  /** Teto mensal de valor (R$) da parceria · cost-cap warning. */
+  monthlyValueCapBrl: number | null
+  /** Sazonais (datas/eventos importantes) · ex: ['mes-mae','black-friday']. */
+  sazonais: string[]
+  /** DNA dimensoes · 3 notas 0-10 · null se nao avaliado. */
+  dnaExcelencia: number | null
+  dnaEstetica: number | null
+  dnaProposito: number | null
+  /** Score DNA · 0-10 (media das 3 dimensoes) · null se nao avaliado. */
   dnaScore: number | null
+  /** Slogans curtos · pitch da parceria (1-3 frases). */
+  slogans: string[]
+  /** Quote narrativa principal · usado em dossie/painel publico. */
+  narrativeQuote: string | null
+  narrativeAuthor: string | null
+  /** Gatilho emocional curto · usado em copy de Mira. */
+  emotionalTrigger: string | null
+  /** O que a parceira entrega em troca · array text. */
+  contrapartida: string[]
+  /** Cadencia da contrapartida · ex: 'mensal','trimestral'. */
+  contrapartidaCadence: string | null
+  /** Profissionais da clinica envolvidos · ex: ['mirian','marci']. */
+  involvedProfessionals: string[]
+  /** Coletivo (clube, grupo, igreja, etc) · habilita "Alcance do grupo". */
+  isCollective: boolean
+  /** Membros estimados se coletivo. */
+  memberCount: number | null
+  /** Alcance mensal estimado (people-month) se coletivo. */
+  estimatedMonthlyReach: number | null
+  /** Notas internas livres · so admin ve. */
+  notes: string | null
   healthColor: 'unknown' | 'green' | 'yellow' | 'red'
   /** Account manager atribuido (label) · usado em handoff (mig 0xx). */
   accountManager: string | null
   /** Quando o accountManager atual foi atribuido. */
   assignedAt: string | null
+  /** Token publico do painel da parceira (URL: /parceiro.html?t=). */
+  publicToken: string | null
   createdAt: string
   updatedAt: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPartnershipRow(row: any): B2BPartnershipDTO {
+  // dnaScore = media das 3 notas (se ao menos uma existe)
+  const dnaParts = [row.dna_excelencia, row.dna_estetica, row.dna_proposito]
+    .map((v) => (v != null ? Number(v) : null))
+    .filter((v): v is number => v != null)
+  const dnaScore = dnaParts.length > 0
+    ? dnaParts.reduce((a, b) => a + b, 0) / dnaParts.length
+    : null
   return {
     id: String(row.id),
     clinicId: String(row.clinic_id),
@@ -57,15 +105,43 @@ function mapPartnershipRow(row: any): B2BPartnershipDTO {
     contactPhone: row.contact_phone ?? null,
     contactEmail: row.contact_email ?? null,
     contactInstagram: row.contact_instagram ?? null,
+    contactWebsite: row.contact_website ?? null,
     voucherCombo: row.voucher_combo ?? null,
     voucherValidityDays: Number(row.voucher_validity_days ?? 30),
+    voucherMinNoticeDays: Number(row.voucher_min_notice_days ?? 15),
     voucherMonthlyCap: row.voucher_monthly_cap != null ? Number(row.voucher_monthly_cap) : null,
+    voucherDelivery: Array.isArray(row.voucher_delivery) ? row.voucher_delivery : [],
+    voucherUnitCostBrl:
+      row.voucher_unit_cost_brl != null ? Number(row.voucher_unit_cost_brl) : null,
     contractDurationMonths:
       row.contract_duration_months != null ? Number(row.contract_duration_months) : null,
-    dnaScore: row.dna_score != null ? Number(row.dna_score) : null,
+    reviewCadenceMonths:
+      row.review_cadence_months != null ? Number(row.review_cadence_months) : null,
+    monthlyValueCapBrl:
+      row.monthly_value_cap_brl != null ? Number(row.monthly_value_cap_brl) : null,
+    sazonais: Array.isArray(row.sazonais) ? row.sazonais : [],
+    dnaExcelencia: row.dna_excelencia != null ? Number(row.dna_excelencia) : null,
+    dnaEstetica: row.dna_estetica != null ? Number(row.dna_estetica) : null,
+    dnaProposito: row.dna_proposito != null ? Number(row.dna_proposito) : null,
+    dnaScore,
+    slogans: Array.isArray(row.slogans) ? row.slogans : [],
+    narrativeQuote: row.narrative_quote ?? null,
+    narrativeAuthor: row.narrative_author ?? null,
+    emotionalTrigger: row.emotional_trigger ?? null,
+    contrapartida: Array.isArray(row.contrapartida) ? row.contrapartida : [],
+    contrapartidaCadence: row.contrapartida_cadence ?? null,
+    involvedProfessionals: Array.isArray(row.involved_professionals)
+      ? row.involved_professionals
+      : [],
+    isCollective: row.is_collective === true,
+    memberCount: row.member_count != null ? Number(row.member_count) : null,
+    estimatedMonthlyReach:
+      row.estimated_monthly_reach != null ? Number(row.estimated_monthly_reach) : null,
+    notes: row.notes ?? null,
     healthColor: (row.health_color ?? 'unknown') as B2BPartnershipDTO['healthColor'],
     accountManager: row.account_manager ?? null,
     assignedAt: row.assigned_at ?? null,
+    publicToken: row.public_token ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
   }
@@ -492,6 +568,78 @@ export class B2BPartnershipRepository {
     })
     if (error) return null
     return data
+  }
+
+  /**
+   * Lista metas/targets operacionais da parceria (b2b_partnership_metas).
+   * RPC: b2b_partnership_targets_list (mig 800-35).
+   */
+  async listTargets(partnershipId: string): Promise<Array<{
+    id: string
+    kind: string
+    target: number
+    source: string | null
+    created_at: string
+  }>> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_targets_list', {
+      p_partnership_id: partnershipId,
+    })
+    if (error) return []
+    const r = data as { ok?: boolean; items?: Array<{
+      id: string; kind: string; target: number; source: string | null; created_at: string
+    }> } | null
+    return Array.isArray(r?.items) ? r.items : []
+  }
+
+  /**
+   * Lista eventos/exposicoes da parceria (b2b_group_exposures).
+   * RPC: b2b_partnership_events_list (mig 800-35).
+   */
+  async listEvents(partnershipId: string): Promise<Array<{
+    id: string
+    event_type: string
+    title: string
+    date: string
+    reach: number
+    leads: number
+    conversions: number | null
+    cost: number | null
+    notes: string | null
+  }>> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_events_list', {
+      p_partnership_id: partnershipId,
+    })
+    if (error) return []
+    const r = data as { ok?: boolean; items?: Array<{
+      id: string; event_type: string; title: string; date: string;
+      reach: number; leads: number; conversions: number | null;
+      cost: number | null; notes: string | null;
+    }> } | null
+    return Array.isArray(r?.items) ? r.items : []
+  }
+
+  /**
+   * Lista posts/conteudos planejados (b2b_partnership_contents).
+   * RPC: b2b_partnership_content_list (mig 800-35).
+   */
+  async listContent(partnershipId: string): Promise<Array<{
+    id: string
+    kind: string
+    title: string
+    schedule: string | null
+    status: string
+    source: string | null
+    created_at: string
+  }>> {
+    const { data, error } = await this.supabase.rpc('b2b_partnership_content_list', {
+      p_partnership_id: partnershipId,
+    })
+    if (error) return []
+    const r = data as { ok?: boolean; items?: Array<{
+      id: string; kind: string; title: string; schedule: string | null;
+      status: string; source: string | null; created_at: string;
+    }> } | null
+    return Array.isArray(r?.items) ? r.items : []
   }
 
   async upsert(slug: string, payload: Record<string, unknown>): Promise<{ id?: string; ok: boolean; error?: string }> {

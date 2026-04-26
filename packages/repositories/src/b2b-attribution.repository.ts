@@ -57,6 +57,59 @@ export class B2BAttributionRepository {
     return (data ?? []).map(mapAttributionRow)
   }
 
+  /**
+   * ROI agregado da parceria · RPC b2b_attribution_roi (mig 800-35).
+   * Defensive: se b2b_attributions nao existe, retorna zeros.
+   */
+  async roi(partnershipId: string): Promise<{
+    ok: boolean
+    referred: number
+    matched: number
+    converted: number
+    revenue_brl: number
+    cost_brl: number
+    net_brl: number
+    roi_pct: number | null
+    conversion_rate: number | null
+    error?: string
+  } | null> {
+    const { data, error } = await this.supabase.rpc('b2b_attribution_roi', {
+      p_partnership_id: partnershipId,
+    })
+    if (error) return null
+    return data as {
+      ok: boolean; referred: number; matched: number; converted: number;
+      revenue_brl: number; cost_brl: number; net_brl: number;
+      roi_pct: number | null; conversion_rate: number | null;
+    } | null
+  }
+
+  /**
+   * Histórico de leads atribuídos · RPC b2b_attribution_leads (mig 800-35).
+   */
+  async leads(partnershipId: string, limit = 50): Promise<Array<{
+    id: string
+    lead_name: string | null
+    lead_phone: string | null
+    source: string | null
+    status: string
+    revenue_brl: number | null
+    created_at: string
+    converted_at: string | null
+  }>> {
+    const { data, error } = await this.supabase.rpc('b2b_attribution_leads', {
+      p_partnership_id: partnershipId,
+      p_limit: limit,
+    })
+    if (error) return []
+    const r = data as { ok?: boolean; items?: Array<{
+      id: string; lead_name: string | null; lead_phone: string | null;
+      source: string | null; status: string; revenue_brl: number | null;
+      created_at: string; converted_at: string | null;
+    }> } | null
+    return Array.isArray(r?.items) ? r.items : []
+  }
+
   async create(input: {
     clinicId: string
     partnershipId: string

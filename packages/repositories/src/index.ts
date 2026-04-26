@@ -152,6 +152,36 @@ export {
   type PartnershipComment,
 } from './b2b-comments.repository'
 export {
+  B2BImpactRepository,
+  type ImpactScore,
+} from './b2b-impact.repository'
+export {
+  B2BCostRepository,
+  type CostBreakdown,
+} from './b2b-cost.repository'
+export {
+  B2BHealthTrendRepository,
+  type HealthTrend,
+  type HealthTrendHistoryEntry,
+} from './b2b-health-trend.repository'
+export {
+  B2BPartnershipHealthSnapshotRepository,
+  type PartnershipHealthSnapshot,
+  type PartnershipHealthSnapshotMetrics,
+} from './b2b-health-snapshot.repository'
+export {
+  B2BLgpdRepository,
+  type ConsentType,
+  type ConsentEntry,
+  type ConsentState,
+  type AnonymizeResult,
+  type ExportData,
+} from './b2b-lgpd.repository'
+export {
+  B2BAuditRepository,
+  type AuditTimelineEntry,
+} from './b2b-audit.repository'
+export {
   B2BGrowthRepository,
   type GrowthPanel,
   type GrowthPartnership,
