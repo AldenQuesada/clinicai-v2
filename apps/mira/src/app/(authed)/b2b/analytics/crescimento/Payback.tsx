@@ -6,6 +6,7 @@
  */
 
 import type { PaybackData } from '@clinicai/repositories'
+import { CountUp } from '@clinicai/ui'
 
 function num(v: unknown): number {
   const n = Number(v)
@@ -71,26 +72,36 @@ export function Payback({ days, data }: { days: number; data: PaybackData | null
                       : 'var(--ink-muted, #9ca3af)',
                 }}
               >
-                {(roi > 0 ? '+' : '') + fmtPct(roi)}%
+                <CountUp
+                  value={roi}
+                  format={(v) => (v > 0 ? '+' : '') + fmtPct(v) + '%'}
+                />
               </div>
               <div className="b2bm-kpi-sub">retorno sobre custo</div>
             </div>
             <div className="b2bm-kpi">
               <div className="b2bm-kpi-lbl">Payback médio</div>
               <div className="b2bm-kpi-val">
-                {fmtDays(payback)}
                 {!isNaN(Number(payback)) ? (
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--ink-muted)',
-                      fontWeight: 400,
-                    }}
-                  >
-                    {' '}
-                    dias
-                  </span>
-                ) : null}
+                  <>
+                    <CountUp
+                      value={Number(payback)}
+                      format={(v) => fmtDays(v)}
+                    />
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: 'var(--ink-muted)',
+                        fontWeight: 400,
+                      }}
+                    >
+                      {' '}
+                      dias
+                    </span>
+                  </>
+                ) : (
+                  <span>—</span>
+                )}
               </div>
               <div className="b2bm-kpi-sub">até recuperar investimento</div>
             </div>

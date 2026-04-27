@@ -6,6 +6,7 @@
  */
 
 import type { ForecastData, ForecastStatus } from '@clinicai/repositories'
+import { CountUp } from '@clinicai/ui'
 
 const STATUS_LABEL: Record<ForecastStatus, string> = {
   acima: 'Acima da meta',
@@ -117,12 +118,14 @@ function Block({
       <div className="b2bm-forecast-block-title">{label}</div>
       <div className="b2bm-kpi-grid">
         <div className="b2bm-kpi">
-          <div className="b2bm-kpi-val">{safeRealized}</div>
+          <div className="b2bm-kpi-val">
+            <CountUp value={safeRealized} />
+          </div>
           <div className="b2bm-kpi-lbl">Realizado</div>
         </div>
         <div className="b2bm-kpi">
           <div className="b2bm-kpi-val" style={{ fontSize: 22 }}>
-            {safeProjection.toFixed(1)}
+            <CountUp value={safeProjection} format={(v) => v.toFixed(1)} />
           </div>
           <div className="b2bm-kpi-lbl">Projeção fim do mês</div>
         </div>

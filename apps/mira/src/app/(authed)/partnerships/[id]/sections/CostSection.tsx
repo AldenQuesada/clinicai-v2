@@ -10,6 +10,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { CountUp } from '@clinicai/ui'
 
 function fmtBRL(v: number | null | undefined): string {
   if (v == null) return '—'
@@ -98,7 +99,11 @@ export async function CostSection({ partnershipId }: { partnershipId: string }) 
             Total
           </span>
           <strong className="text-[20px] font-semibold" style={{ color: totalColor }}>
-            {fmtBRL(data.total_cost)}
+            {data.total_cost != null ? (
+              <CountUp value={Number(data.total_cost)} format={fmtBRL} />
+            ) : (
+              '—'
+            )}
           </strong>
           {data.monthly_cap_brl != null ? (
             <span className="text-[11px] text-[var(--b2b-text-muted)]">

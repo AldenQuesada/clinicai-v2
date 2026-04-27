@@ -6,6 +6,7 @@
  */
 
 import type { VelocityData } from '@clinicai/repositories'
+import { CountUp } from '@clinicai/ui'
 
 function fmt(n: number, d: number = 1): string {
   return Number(n || 0).toFixed(d)
@@ -41,7 +42,7 @@ export function Velocity({ data }: { data: VelocityData | null }) {
         <div className="b2bm-kpi-grid">
           <div className="b2bm-kpi">
             <div className="b2bm-kpi-val">
-              {fmt(avg, 1)}
+              <CountUp value={avg} format={(v) => v.toFixed(1)} />
               <span
                 style={{
                   fontSize: 14,

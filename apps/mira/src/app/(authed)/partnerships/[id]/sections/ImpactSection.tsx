@@ -8,6 +8,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { CountUp } from '@clinicai/ui'
 
 function scoreBand(score: number): { label: string; color: string; verdict: string } {
   if (score >= 75)
@@ -61,7 +62,9 @@ export async function ImpactSection({ partnershipId }: { partnershipId: string }
           }}
           title="Score de impacto 0-100, normalizado pelo topo da rede. Composto: vouchers resgatados + NPS médio + alcance de eventos − custo total."
         >
-          <strong style={{ fontSize: 56, fontWeight: 500, lineHeight: 1 }}>{score}</strong>
+          <strong style={{ fontSize: 56, fontWeight: 500, lineHeight: 1 }}>
+            <CountUp value={score} duration={1100} />
+          </strong>
           <span style={{ fontSize: 18, opacity: 0.6 }}>/100</span>
         </div>
         <div className="flex flex-col gap-1.5 flex-1" style={{ minWidth: 220 }}>
