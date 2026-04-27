@@ -892,3 +892,38 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: var(--b2b-champagne-dark);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Bell shake + badge pulse · NotificationsBell quando ha critical alerts
+ * Cor urgent #DC2626 (legacy clinic-dashboard · alinhado lead-card.js)
+ * ═══════════════════════════════════════════════════════════════════════ */
+@keyframes bell-shake {
+  0%, 50%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-12deg); }
+  20% { transform: rotate(10deg); }
+  30% { transform: rotate(-8deg); }
+  40% { transform: rotate(6deg); }
+}
+
+.bell-shake {
+  animation: bell-shake 1.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+  transform-origin: 50% 30%;
+}
+
+/* Reduce motion respect · acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+  .bell-shake { animation: none; }
+}
+
+@keyframes badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+
+.badge-pulse {
+  animation: badge-pulse 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-pulse { animation: none; }
+}

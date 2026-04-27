@@ -78,6 +78,11 @@ export function NotificationsBell({ insights }: { insights: Insight[] }) {
     ;(grouped[ins.severity] ??= []).push(ins)
   }
 
+  // Verifica critical especificamente · usa cor urgent #DC2626 (legacy padrao)
+  // + bell-shake animation. Warning sozinho usa #EF4444 + sem shake.
+  const criticalCount = insights.filter((i) => i.severity === 'critical').length
+  const hasCritical = criticalCount > 0
+
   return (
     <div className="relative" ref={dropRef}>
       <button
@@ -88,11 +93,20 @@ export function NotificationsBell({ insights }: { insights: Insight[] }) {
             ? `${urgentCount} alerta${urgentCount > 1 ? 's' : ''} urgente${urgentCount > 1 ? 's' : ''}`
             : 'Sem alertas'
         }
-        className="relative inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/[0.02] text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-[#C9A96E]/40 transition-colors"
+        className={
+          'relative inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/[0.02] text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-[#C9A96E]/40 transition-colors' +
+          (hasCritical ? ' bell-shake' : '')
+        }
       >
         <Bell className="w-4 h-4" />
         {urgentCount > 0 ? (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#EF4444] text-white text-[10px] font-bold flex items-center justify-center border border-[#0F0D0A]">
+          <span
+            className={
+              'absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center border border-[#0F0D0A]' +
+              (hasCritical ? ' badge-pulse' : '')
+            }
+            style={{ background: hasCritical ? '#DC2626' : '#EF4444' }}
+          >
             {urgentCount > 9 ? '9+' : urgentCount}
           </span>
         ) : totalCount > 0 ? (

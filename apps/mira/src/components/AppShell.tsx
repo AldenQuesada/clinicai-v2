@@ -31,6 +31,7 @@ import {
   ProfileRepository,
   B2BPartnershipRepository,
   B2BApplicationRepository,
+  B2BCommTemplateRepository,
   type Insight,
   type InsightKind,
   type InsightSeverity,
@@ -101,6 +102,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     if (ctx) {
       const partnerRepo = new B2BPartnershipRepository(supabase)
       const applicationsRepo = new B2BApplicationRepository(supabase)
+      const templatesRepo = new B2BCommTemplateRepository(supabase)
       // Mig #11 monitor consumo: 3 RPCs pesadas agora cacheadas 30s no Next.js
       // (unstable_cache · TTL 30s + tags). Reduz pressao Supabase em ~90% nas
       // navegacoes authed. Mutations precisam revalidateTag(...) (TODO).
@@ -136,10 +138,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       })()
       // Merge: insights por parceria (RPC) + system insights sinteticos +
       // critical_alerts (antes ficavam no banner sticky em /b2b/analytics).
-      const sysInsights = buildSystemInsights({
+      // Mig 800-45: titulo+mensagem dos bell_* alerts vem do DB (editavel
+      // via /b2b/disparos · admin bucket). Fallback hardcoded se template
+      // apagado.
+      const sysInsights = await buildSystemInsights({
         data: analyticsBlob,
         pendingApplications,
         oldestActivePartnershipDays,
+        repos: { b2bTemplates: templatesRepo },
+        clinicId: ctx.clinic_id,
       })
       const alertInsights: Insight[] = criticalAlerts.map((a) => {
         const sev: InsightSeverity =
