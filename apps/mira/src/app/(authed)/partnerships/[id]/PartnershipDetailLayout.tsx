@@ -178,11 +178,12 @@ export function PartnershipDetailLayout({
       </header>
 
       {/* Tabs sub-internas · client component pra evitar bug de Link
-          em intercepting route (modal nao re-renderizava ao mudar tab) */}
+          em intercepting route (modal nao re-renderizava ao mudar tab).
+          TABS array vive DENTRO do DetailTabBar (icones lucide sao
+          funcoes · nao podem cruzar boundary RSC). */}
       <DetailTabBar
         partnershipId={id}
         activeTab={activeTab}
-        tabs={TABS}
       />
 
       {/* Tab content */}

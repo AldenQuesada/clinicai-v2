@@ -7,26 +7,36 @@
  * quando so o search param muda · tabs paravam de responder no modal.
  * Solução: router.push() forca navegacao client-side · funciona em ambos
  * contextos (modal interceptado + page full).
+ *
+ * IMPORTANTE: TABS array vive AQUI (client) e nao no parent (server)
+ * porque icones lucide-react sao funcoes e funcoes nao cruzam boundary
+ * RSC/client (digest opaco crash · vide system-component-debug memory).
  */
 
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
-import type { ComponentType } from 'react'
+import {
+  Info, Ticket, BarChart3, FileSignature, TrendingUp,
+  Activity, MessageSquare, ScrollText,
+} from 'lucide-react'
 
-export interface DetailTab {
-  key: string
-  label: string
-  icon: ComponentType<{ className?: string }>
-}
+const TABS = [
+  { key: 'detail', label: 'Detalhe', icon: Info },
+  { key: 'vouchers', label: 'Vouchers', icon: Ticket },
+  { key: 'performance', label: 'Performance', icon: BarChart3 },
+  { key: 'contrato', label: 'Contrato', icon: FileSignature },
+  { key: 'documentos', label: 'Documentos', icon: ScrollText },
+  { key: 'crescer', label: 'Crescer', icon: TrendingUp },
+  { key: 'comments', label: 'Comentários', icon: MessageSquare },
+  { key: 'health', label: 'Health', icon: Activity },
+] as const
 
 export function DetailTabBar({
   partnershipId,
   activeTab,
-  tabs,
 }: {
   partnershipId: string
   activeTab: string
-  tabs: ReadonlyArray<DetailTab>
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -41,7 +51,7 @@ export function DetailTabBar({
 
   return (
     <nav className="b2b-tab-bar" aria-label="Tabs do detalhe">
-      {tabs.map((t) => {
+      {TABS.map((t) => {
         const Icon = t.icon
         const isActive = activeTab === t.key
         return (
