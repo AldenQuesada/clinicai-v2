@@ -42,7 +42,7 @@ export function Velocity({ data }: { data: VelocityData | null }) {
         <div className="b2bm-kpi-grid">
           <div className="b2bm-kpi">
             <div className="b2bm-kpi-val">
-              <CountUp value={avg} format={(v) => v.toFixed(1)} />
+              <CountUp value={avg} formatType="decimal-1" />
               <span
                 style={{
                   fontSize: 14,

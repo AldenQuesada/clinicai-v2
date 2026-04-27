@@ -125,7 +125,7 @@ function Block({
         </div>
         <div className="b2bm-kpi">
           <div className="b2bm-kpi-val" style={{ fontSize: 22 }}>
-            <CountUp value={safeProjection} format={(v) => v.toFixed(1)} />
+            <CountUp value={safeProjection} formatType="decimal-1" />
           </div>
           <div className="b2bm-kpi-lbl">Projeção fim do mês</div>
         </div>

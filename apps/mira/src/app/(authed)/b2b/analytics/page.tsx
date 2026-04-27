@@ -1174,7 +1174,7 @@ function KpiVal({ val, color }: { val: number | string; color: string }) {
     const num = Number(pct[1])
     return (
       <span style={baseStyle}>
-        <CountUp value={num} format={(n) => `${n.toFixed(1)}%`} />
+        <CountUp value={num} formatType="percent-1d" />
       </span>
     )
   }

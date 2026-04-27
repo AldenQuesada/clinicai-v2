@@ -20,13 +20,36 @@
 
 import * as React from 'react'
 
+/**
+ * Format types · server-safe (string identifier · serializavel).
+ * Use isso em Server Components em vez de `format` (function), que crasha
+ * no boundary RSC/client com digest opaco.
+ */
+export type CountUpFormatType =
+  | 'integer'         // 1234
+  | 'decimal-1'       // 12.3
+  | 'decimal-2'       // 12.34
+  | 'percent-int'     // 12%
+  | 'percent-1d'      // 12.5%
+  | 'percent-signed'  // +12.5% / -12.5%
+  | 'currency-brl'    // R$ 1.234
+  | 'currency-brl-cents' // R$ 1.234,56
+
 export interface CountUpProps {
   /** Valor alvo · numerico */
   value: number
   /** Duracao da animacao em ms · default 800 */
   duration?: number
-  /** Funcao de formatacao · default toLocaleString('pt-BR') */
+  /**
+   * Funcao de formatacao customizada (CLIENT-SIDE only · funcoes nao
+   * cruzam boundary RSC). Use em componentes 'use client'.
+   */
   format?: (n: number) => string
+  /**
+   * String identifier do formatter · server-safe. Use em Server Components
+   * em vez de `format` function. Mig 2026-04-26 (digest opaco fix).
+   */
+  formatType?: CountUpFormatType
   /** Override CSS */
   className?: string
 }
@@ -38,6 +61,39 @@ function defaultFormat(n: number): string {
   // pra inteiros razoavelmente. Caller pode override via `format`.
   if (Number.isInteger(n)) return n.toLocaleString('pt-BR')
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+}
+
+/** Resolve formatType identifier → formatter function (client-side). */
+function resolveFormatType(t: CountUpFormatType): (n: number) => string {
+  switch (t) {
+    case 'integer':
+      return (n) => Math.round(n).toLocaleString('pt-BR')
+    case 'decimal-1':
+      return (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    case 'decimal-2':
+      return (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    case 'percent-int':
+      return (n) => `${Math.round(n)}%`
+    case 'percent-1d':
+      return (n) => `${n.toFixed(1)}%`
+    case 'percent-signed':
+      return (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`
+    case 'currency-brl':
+      return (n) =>
+        Math.round(n).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          maximumFractionDigits: 0,
+        })
+    case 'currency-brl-cents':
+      return (n) =>
+        n.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+  }
 }
 
 // easeOutExpo · 0→1 com decay exponencial. Sensacao "snap" no inicio,
@@ -58,9 +114,12 @@ function prefersReducedMotion(): boolean {
 export function CountUp({
   value,
   duration = DEFAULT_DURATION,
-  format = defaultFormat,
+  format,
+  formatType,
   className,
 }: CountUpProps) {
+  // Resolve formatter · prioridade: format function > formatType string > default
+  const fmt = format ?? (formatType ? resolveFormatType(formatType) : defaultFormat)
   // Estado interno renderizado · SSR usa o `value` final (sem flicker).
   const [display, setDisplay] = React.useState<number>(value)
   const fromRef = React.useRef<number>(value)
@@ -117,5 +176,5 @@ export function CountUp({
     }
   }, [value, duration])
 
-  return <span className={className}>{format(display)}</span>
+  return <span className={className}>{fmt(display)}</span>
 }

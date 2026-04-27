@@ -297,7 +297,7 @@ function KpiBlock({
 }) {
   const valueNode =
     typeof numeric === 'number' && Number.isFinite(numeric) ? (
-      <CountUp value={numeric} format={(n) => formatBRL(n)} />
+      <CountUp value={numeric} formatType="currency-brl" />
     ) : (
       val
     )

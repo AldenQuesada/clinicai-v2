@@ -157,7 +157,7 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
             lbl="Taxa conversao"
             val={roi.conversion_rate != null ? `${roi.conversion_rate}%` : '—'}
             numeric={roi.conversion_rate != null ? Number(roi.conversion_rate) : null}
-            valueFormat={(n) => `${n.toFixed(0)}%`}
+            formatType="percent-int"
             tip="Conversão = Converteram / Indicados (lifetime)."
           />
         </div>
@@ -292,7 +292,7 @@ function Kpi({
   series,
   color,
   tip,
-  valueFormat,
+  formatType,
 }: {
   lbl: string
   /** Fallback string quando `numeric` ausente · ex: '—' ou '12%'. */
@@ -303,8 +303,8 @@ function Kpi({
   series?: number[]
   color?: string
   tip?: string
-  /** Formatter custom · default toLocaleString('pt-BR') (inteiros). */
-  valueFormat?: (n: number) => string
+  /** Formatter type string · server-safe (mig 2026-04-26 fix RSC boundary). */
+  formatType?: 'integer' | 'decimal-1' | 'percent-int' | 'percent-1d' | 'currency-brl'
 }) {
   const c = color ?? 'var(--b2b-ivory)'
   const sparkColor = color ?? '#C9A96E'
@@ -319,7 +319,7 @@ function Kpi({
           style={{ color: c, fontFamily: "'Cormorant Garamond', serif" }}
         >
           {typeof numeric === 'number' && Number.isFinite(numeric) ? (
-            <CountUp value={numeric} format={valueFormat} />
+            <CountUp value={numeric} formatType={formatType} />
           ) : (
             val ?? '—'
           )}
@@ -354,7 +354,7 @@ function MoneyLine({
         style={{ color: 'var(--b2b-ivory)', fontFamily: "'Cormorant Garamond', serif" }}
       >
         {typeof numeric === 'number' && Number.isFinite(numeric) ? (
-          <CountUp value={numeric} format={(n) => fmtBRL(n)} />
+          <CountUp value={numeric} formatType="currency-brl" />
         ) : (
           value
         )}

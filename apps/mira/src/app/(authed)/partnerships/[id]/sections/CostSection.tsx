@@ -100,7 +100,7 @@ export async function CostSection({ partnershipId }: { partnershipId: string }) 
           </span>
           <strong className="text-[20px] font-semibold" style={{ color: totalColor }}>
             {data.total_cost != null ? (
-              <CountUp value={Number(data.total_cost)} format={fmtBRL} />
+              <CountUp value={Number(data.total_cost)} formatType="currency-brl" />
             ) : (
               '—'
             )}

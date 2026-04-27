@@ -72,10 +72,7 @@ export function Payback({ days, data }: { days: number; data: PaybackData | null
                       : 'var(--ink-muted, #9ca3af)',
                 }}
               >
-                <CountUp
-                  value={roi}
-                  format={(v) => (v > 0 ? '+' : '') + fmtPct(v) + '%'}
-                />
+                <CountUp value={roi} formatType="percent-signed" />
               </div>
               <div className="b2bm-kpi-sub">retorno sobre custo</div>
             </div>
@@ -84,10 +81,7 @@ export function Payback({ days, data }: { days: number; data: PaybackData | null
               <div className="b2bm-kpi-val">
                 {!isNaN(Number(payback)) ? (
                   <>
-                    <CountUp
-                      value={Number(payback)}
-                      format={(v) => fmtDays(v)}
-                    />
+                    <CountUp value={Number(payback)} formatType="decimal-1" />
                     <span
                       style={{
                         fontSize: 13,
