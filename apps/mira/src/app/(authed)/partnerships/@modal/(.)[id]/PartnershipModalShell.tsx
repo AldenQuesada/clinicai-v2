@@ -23,18 +23,11 @@ export function PartnershipModalShell({
 }) {
   const router = useRouter()
 
-  // Fecha · tenta back (preserva lista) · fallback push pra /partnerships
-  // (evita ficar travado quando user landed direto sem history).
+  // Fecha · push direto pra /partnerships · evita ficar voltando tab
+  // por tab (Alden 2026-04-27). Tabs usam router.replace pra nao
+  // criar history · combina pra back/close serem instantaneos.
   function close() {
-    try {
-      if (window.history.length > 1) {
-        router.back()
-      } else {
-        router.push('/partnerships')
-      }
-    } catch {
-      router.push('/partnerships')
-    }
+    router.push('/partnerships')
   }
 
   // ESC fecha

@@ -45,7 +45,9 @@ export function DetailTabBar({
     if (key === activeTab) return
     const href = `/partnerships/${partnershipId}?tab=${key}`
     startTransition(() => {
-      router.push(href, { scroll: false })
+      // replace · nao adiciona entry de history · close volta direto
+      // pra /partnerships sem ter que voltar tab por tab (Alden 2026-04-27).
+      router.replace(href, { scroll: false })
     })
   }
 
