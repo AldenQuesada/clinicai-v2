@@ -194,7 +194,7 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
               style={{ color: roiBand.color, fontFamily: "'Cormorant Garamond', serif" }}
             >
               {typeof roi.net_brl === 'number' && Number.isFinite(roi.net_brl) ? (
-                <CountUp value={roi.net_brl} format={(n) => fmtBRL(n)} />
+                <CountUp value={roi.net_brl} formatType="currency-brl" />
               ) : (
                 fmtBRL(roi.net_brl)
               )}
