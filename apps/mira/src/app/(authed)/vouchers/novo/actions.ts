@@ -19,6 +19,30 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { normalizePhoneBR } from '@clinicai/utils'
 import { loadMiraServerContext } from '@/lib/server-context'
+import type { PartnershipOption } from './SingleVoucherForm'
+
+/**
+ * Lista parcerias ativas enriquecidas com cap+counts mensais.
+ * Usada pelo VoucherCreateModal (header NewMenu) que abre on-demand.
+ */
+export async function listEnrichedPartnershipsAction(): Promise<PartnershipOption[]> {
+  const { ctx, repos } = await loadMiraServerContext()
+  const partnerships = await repos.b2bPartnerships
+    .list(ctx.clinic_id, { status: 'active' })
+    .catch(() => [])
+  return Promise.all(
+    partnerships.slice(0, 30).map(async (p) => ({
+      id: p.id,
+      name: p.name,
+      voucherCombo: p.voucherCombo,
+      voucherValidityDays: p.voucherValidityDays,
+      voucherMonthlyCap: p.voucherMonthlyCap,
+      vouchersIssuedThisMonth: await repos.b2bVouchers
+        .countMonthlyByPartnership(p.id)
+        .catch(() => 0),
+    })),
+  )
+}
 
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin', 'therapist', 'receptionist'].includes(role)) {

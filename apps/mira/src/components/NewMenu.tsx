@@ -14,9 +14,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Plus, ChevronDown, Ticket, Handshake } from 'lucide-react'
+import { VoucherCreateModal } from './VoucherCreateModal'
+
+type NewItemAction =
+  | { kind: 'link'; href: string }
+  | { kind: 'modal'; modalKey: 'voucher' }
 
 interface NewItem {
-  href: string
+  action: NewItemAction
   label: string
   hint: string
   icon: React.ReactNode
@@ -26,7 +31,7 @@ interface NewItem {
 
 const ITEMS: NewItem[] = [
   {
-    href: '/vouchers/novo',
+    action: { kind: 'modal', modalKey: 'voucher' },
     label: 'Novo voucher',
     hint: 'Emitir presente pra convidada',
     icon: <Ticket className="w-3.5 h-3.5" />,
@@ -34,7 +39,7 @@ const ITEMS: NewItem[] = [
     bg: 'rgba(201,169,110,0.15)',
   },
   {
-    href: '/estudio/cadastrar',
+    action: { kind: 'link', href: '/estudio/cadastrar' },
     label: 'Nova parceria',
     hint: 'Cadastrar parceira no programa',
     icon: <Handshake className="w-3.5 h-3.5" />,
@@ -45,6 +50,7 @@ const ITEMS: NewItem[] = [
 
 export function NewMenu() {
   const [open, setOpen] = useState(false)
+  const [modal, setModal] = useState<'voucher' | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -82,29 +88,66 @@ export function NewMenu() {
           <div className="px-3.5 py-2 border-b border-white/10 text-[10px] uppercase tracking-[1.4px] font-bold text-[#9CA3AF]">
             Criar novo
           </div>
-          {ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3.5 py-2.5 border-b border-white/5 hover:bg-white/[0.04] transition-colors group"
-            >
-              <span
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0"
-                style={{ background: item.bg, color: item.color }}
+          {ITEMS.map((item) => {
+            if (item.action.kind === 'link') {
+              return (
+                <Link
+                  key={item.label}
+                  href={item.action.href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-3.5 py-2.5 border-b border-white/5 hover:bg-white/[0.04] transition-colors group"
+                >
+                  <ItemIcon item={item} />
+                  <ItemText item={item} />
+                </Link>
+              )
+            }
+            const modalKey = item.action.modalKey
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  setModal(modalKey)
+                }}
+                className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 border-b border-white/5 hover:bg-white/[0.04] transition-colors group"
+                style={{ background: 'transparent' }}
               >
-                {item.icon}
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[12.5px] font-bold text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors">
-                  {item.label}
-                </span>
-                <span className="text-[10.5px] text-[#9CA3AF]">{item.hint}</span>
-              </div>
-            </Link>
-          ))}
+                <ItemIcon item={item} />
+                <ItemText item={item} />
+              </button>
+            )
+          })}
         </div>
       )}
+
+      <VoucherCreateModal
+        open={modal === 'voucher'}
+        onClose={() => setModal(null)}
+      />
+    </div>
+  )
+}
+
+function ItemIcon({ item }: { item: NewItem }) {
+  return (
+    <span
+      className="inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0"
+      style={{ background: item.bg, color: item.color }}
+    >
+      {item.icon}
+    </span>
+  )
+}
+
+function ItemText({ item }: { item: NewItem }) {
+  return (
+    <div className="flex flex-col min-w-0">
+      <span className="text-[12.5px] font-bold text-[#F5F0E8] group-hover:text-[#C9A96E] transition-colors">
+        {item.label}
+      </span>
+      <span className="text-[10.5px] text-[#9CA3AF]">{item.hint}</span>
     </div>
   )
 }
