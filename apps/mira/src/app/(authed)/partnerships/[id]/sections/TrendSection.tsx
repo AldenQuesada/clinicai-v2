@@ -10,6 +10,16 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { CountUp, Sparkline } from '@clinicai/ui'
+
+// Mapeia cor de saude pra valor numerico · permite sparkline mostrar
+// trajetoria continua (red baixo, green alto). unknown vira null (gap).
+const COLOR_TO_SCORE: Record<string, number | null> = {
+  red: 0,
+  yellow: 50,
+  green: 100,
+  unknown: 50,
+}
 
 const COLORS: Record<string, string> = {
   green: '#10B981',
@@ -104,7 +114,7 @@ export async function TrendSection({ partnershipId }: { partnershipId: string })
             style={{ color: 'var(--b2b-ivory)' }}
             title={`${data.changes || 0} transições de cor de saúde na janela 90d.`}
           >
-            {data.changes || 0}
+            <CountUp value={data.changes || 0} />
           </strong>
           <span
             className="text-[11px] text-[var(--b2b-text-muted)] ml-2"
@@ -116,17 +126,30 @@ export async function TrendSection({ partnershipId }: { partnershipId: string })
       </div>
       {data.history.length > 0 ? (
         <div
-          className="flex flex-wrap gap-1.5 mt-3 p-2 rounded"
+          className="flex flex-col gap-2 mt-3 p-3 rounded"
           style={{ background: 'rgba(255,255,255,0.02)' }}
         >
-          {data.history.map((h, i) => (
-            <span
-              key={i}
-              className="inline-block w-3 h-3 rounded-full"
-              style={{ background: COLORS[h.color] || COLORS.unknown }}
-              title={`${LABELS[h.color] || h.color} · ${fmtDate(h.at)}`}
-            />
-          ))}
+          {/* Sparkline · trajetoria score 0-100 derivado das cores */}
+          <Sparkline
+            data={data.history
+              .map((h) => COLOR_TO_SCORE[h.color])
+              .filter((v): v is number => v != null)}
+            width={220}
+            height={32}
+            color={COLORS[data.current] || COLORS.unknown}
+            fill={true}
+          />
+          {/* Dots tradicionais · 1 por mudanca */}
+          <div className="flex flex-wrap gap-1.5">
+            {data.history.map((h, i) => (
+              <span
+                key={i}
+                className="inline-block w-3 h-3 rounded-full"
+                style={{ background: COLORS[h.color] || COLORS.unknown }}
+                title={`${LABELS[h.color] || h.color} · ${fmtDate(h.at)}`}
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-[11px] mt-2 italic text-[var(--b2b-text-muted)]">
