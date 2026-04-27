@@ -15,10 +15,12 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Plus, ChevronDown, Ticket, Handshake } from 'lucide-react'
 import { VoucherCreateModal } from './VoucherCreateModal'
+import { PartnerCreateModal } from './PartnerCreateModal'
 
+type ModalKey = 'voucher' | 'partner'
 type NewItemAction =
   | { kind: 'link'; href: string }
-  | { kind: 'modal'; modalKey: 'voucher' }
+  | { kind: 'modal'; modalKey: ModalKey }
 
 interface NewItem {
   action: NewItemAction
@@ -39,7 +41,7 @@ const ITEMS: NewItem[] = [
     bg: 'rgba(201,169,110,0.15)',
   },
   {
-    action: { kind: 'link', href: '/estudio/cadastrar' },
+    action: { kind: 'modal', modalKey: 'partner' },
     label: 'Nova parceria',
     hint: 'Cadastrar parceira no programa',
     icon: <Handshake className="w-3.5 h-3.5" />,
@@ -50,7 +52,7 @@ const ITEMS: NewItem[] = [
 
 export function NewMenu() {
   const [open, setOpen] = useState(false)
-  const [modal, setModal] = useState<'voucher' | null>(null)
+  const [modal, setModal] = useState<ModalKey | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -124,6 +126,10 @@ export function NewMenu() {
 
       <VoucherCreateModal
         open={modal === 'voucher'}
+        onClose={() => setModal(null)}
+      />
+      <PartnerCreateModal
+        open={modal === 'partner'}
         onClose={() => setModal(null)}
       />
     </div>

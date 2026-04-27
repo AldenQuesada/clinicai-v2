@@ -33,7 +33,7 @@ import {
 } from './actions'
 
 type Mode = 'new' | 'edit'
-type ComboLite = { label: string; isActive: boolean; isDefault: boolean }
+export type ComboLite = { label: string; isActive: boolean; isDefault: boolean }
 export type TierConfigLite = {
   tier: 1 | 2 | 3
   label: string
