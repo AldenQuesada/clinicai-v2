@@ -119,6 +119,11 @@ export default async function ReaderPage({ params }: Props) {
           flipbookId={book.id}
           pageCount={book.page_count}
           format={book.format}
+          title={book.title}
+          subtitle={book.subtitle}
+          author={book.author}
+          edition={book.edition}
+          coverUrl={book.cover_url}
         />
       </div>
     </main>
