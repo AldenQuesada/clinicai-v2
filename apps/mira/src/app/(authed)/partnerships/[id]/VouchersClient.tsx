@@ -68,15 +68,27 @@ function fmt(iso: string): string {
   }
 }
 
+interface PreviousRecipient {
+  name: string
+  phone: string
+}
+
 export function VouchersClient({
   partnershipId,
-  partnershipPhone,
+  partnershipCombo,
+  partnershipValidityDays,
+  previousRecipients,
   initialVouchers,
   funnel,
   canManage,
 }: {
   partnershipId: string
-  partnershipPhone: string
+  /** Combo padrao da parceria (ex: 'veu_noiva+anovator') · prefill do form. */
+  partnershipCombo: string | null
+  /** Validade default em dias · mostrado no preview do form. */
+  partnershipValidityDays: number
+  /** Convidadas anteriores · autocomplete via datalist HTML5. */
+  previousRecipients: PreviousRecipient[]
   initialVouchers: VoucherRow[]
   funnel: Funnel
   canManage: boolean
@@ -87,24 +99,50 @@ export function VouchersClient({
   const [feedback, setFeedback] = useState<string | null>(null)
 
   // Form state
+  // PHONE COMECA VAZIO · phone da convidada, NAO da parceira (bug Alden 2026-04-26)
   const [recipientName, setRecipientName] = useState('')
-  const [recipientPhone, setRecipientPhone] = useState(partnershipPhone || '')
+  const [recipientPhone, setRecipientPhone] = useState('')
   const [recipientCpf, setRecipientCpf] = useState('')
-  const [combo, setCombo] = useState('')
+  // COMBO default = combo da parceria (cadastrado no perfil)
+  const [combo, setCombo] = useState(partnershipCombo ?? '')
   const [notes, setNotes] = useState('')
+
+  // Phone validation visual · 10-13 digitos brasileiros
+  const phoneDigits = recipientPhone.replace(/\D/g, '')
+  const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 13
+  const phoneFilled = phoneDigits.length > 0
+
+  // Quando usuario digita nome que bate com convidada anterior, pre-fill phone
+  function handleNameChange(v: string) {
+    setRecipientName(v)
+    const match = previousRecipients.find(
+      (r) => r.name.toLowerCase() === v.trim().toLowerCase(),
+    )
+    if (match && !phoneFilled) {
+      setRecipientPhone(match.phone)
+    }
+  }
 
   function resetForm() {
     setRecipientName('')
-    setRecipientPhone(partnershipPhone || '')
+    setRecipientPhone('')
     setRecipientCpf('')
-    setCombo('')
+    setCombo(partnershipCombo ?? '')
     setNotes('')
   }
 
   function onIssue(e: React.FormEvent) {
     e.preventDefault()
     if (!recipientName.trim()) {
-      setFeedback('Nome do destinatário obrigatório')
+      setFeedback('Nome da convidada obrigatório')
+      return
+    }
+    if (phoneFilled && !phoneValid) {
+      setFeedback('Telefone deve ter 10-13 dígitos · ex: 5544991234567')
+      return
+    }
+    if (!phoneFilled) {
+      setFeedback('Telefone obrigatório · convidada recebe voucher por aí')
       return
     }
     setFeedback(null)
@@ -112,7 +150,7 @@ export function VouchersClient({
       const r = await issueVoucherAction({
         partnershipId,
         recipientName: recipientName.trim(),
-        recipientPhone: recipientPhone.replace(/\D/g, '') || undefined,
+        recipientPhone: phoneDigits || undefined,
         recipientCpf: recipientCpf.trim() || undefined,
         combo: combo.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -203,8 +241,31 @@ export function VouchersClient({
               resetForm()
             }
           }}
+          style={{
+            // Sanity belt-and-suspenders · forca dark backdrop mesmo
+            // se variavel CSS quebrar em algum contexto
+            background: 'rgba(0,0,0,0.78)',
+          }}
         >
-          <div className="b2b-modal" style={{ maxWidth: 720 }}>
+          {/* Datalist nativo HTML5 · autocomplete por nome de convidada anterior */}
+          {previousRecipients.length > 0 ? (
+            <datalist id="vch-prev-recipients">
+              {previousRecipients.map((r, i) => (
+                <option key={`${r.phone}-${i}`} value={r.name}>
+                  {r.phone}
+                </option>
+              ))}
+            </datalist>
+          ) : null}
+          <div
+            className="b2b-modal"
+            style={{
+              maxWidth: 720,
+              // Forca bg dark · evita white flash em contextos sem CSS var
+              background: 'var(--b2b-bg-1, #1A1713)',
+              color: 'var(--b2b-ivory, #F5F0E8)',
+            }}
+          >
             <header
               className="b2b-modal-hdr"
               style={{
@@ -263,21 +324,32 @@ export function VouchersClient({
                 </div>
                 <div className="b2b-grid-2" style={{ gap: 16 }}>
                   <Field
-                    label="Nome do destinatário *"
+                    label="Nome da convidada *"
                     value={recipientName}
-                    onChange={setRecipientName}
-                    placeholder="Mariana"
+                    onChange={handleNameChange}
+                    placeholder={
+                      previousRecipients.length > 0
+                        ? `Comece a digitar · ${previousRecipients.length} convidada${previousRecipients.length > 1 ? 's' : ''} já cadastrada${previousRecipients.length > 1 ? 's' : ''}`
+                        : 'Mariana'
+                    }
+                    listId={
+                      previousRecipients.length > 0 ? 'vch-prev-recipients' : undefined
+                    }
                   />
                   <Field
-                    label={
-                      partnershipPhone
-                        ? 'WhatsApp (preenchido do cadastro)'
-                        : 'WhatsApp da parceira'
-                    }
+                    label="WhatsApp da convidada *"
                     value={recipientPhone}
                     onChange={setRecipientPhone}
-                    placeholder="55 44 9..."
+                    placeholder="55 44 9 1234 5678"
                     mono
+                    valid={phoneFilled ? phoneValid : null}
+                    hint={
+                      phoneFilled
+                        ? phoneValid
+                          ? `${phoneDigits.length} dígitos ✓`
+                          : `${phoneDigits.length} dígitos · faltam ${10 - phoneDigits.length > 0 ? 10 - phoneDigits.length : 0} (mín 10, máx 13)`
+                        : 'DDD + número (10-13 dígitos)'
+                    }
                   />
                   <Field
                     label="CPF (opcional)"
@@ -285,10 +357,19 @@ export function VouchersClient({
                     onChange={setRecipientCpf}
                   />
                   <Field
-                    label="Combo (padrão se vazio)"
+                    label={
+                      partnershipCombo
+                        ? `Combo (padrão da parceria)`
+                        : 'Combo (padrão se vazio)'
+                    }
                     value={combo}
                     onChange={setCombo}
-                    placeholder="veu_noiva+anovator"
+                    placeholder={partnershipCombo ?? 'veu_noiva+anovator'}
+                    hint={
+                      partnershipCombo
+                        ? `Cadastrado: ${partnershipCombo} · valid ${partnershipValidityDays}d`
+                        : 'Sem combo padrão · usa o cadastrado na parceria'
+                    }
                   />
                 </div>
 
@@ -375,13 +456,34 @@ function Field({
   onChange,
   placeholder,
   mono,
+  valid,
+  hint,
+  listId,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   mono?: boolean
+  /** null = neutro · true = ✓ verde · false = ✗ vermelho */
+  valid?: boolean | null
+  /** Texto auxiliar abaixo do input */
+  hint?: string
+  /** ID do <datalist> pra autocomplete HTML5 */
+  listId?: string
 }) {
+  const borderColor =
+    valid === true
+      ? 'rgba(16, 185, 129, 0.6)' // green
+      : valid === false
+        ? 'rgba(220, 38, 38, 0.6)' // red urgent #DC2626
+        : undefined
+  const hintColor =
+    valid === true
+      ? '#10B981'
+      : valid === false
+        ? '#FCA5A5'
+        : 'var(--b2b-text-muted, #9CA3AF)'
   return (
     <div className="b2b-field" style={{ marginBottom: 0 }}>
       <label className="b2b-field-lbl">{label}</label>
@@ -390,9 +492,29 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        list={listId}
         className="b2b-input"
-        style={mono ? { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' } : undefined}
+        style={{
+          ...(mono
+            ? { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }
+            : {}),
+          ...(borderColor ? { borderColor } : {}),
+        }}
       />
+      {hint ? (
+        <div
+          style={{
+            fontSize: 10,
+            color: hintColor,
+            marginTop: 4,
+            fontFamily: mono
+              ? 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+              : undefined,
+          }}
+        >
+          {hint}
+        </div>
+      ) : null}
     </div>
   )
 }
