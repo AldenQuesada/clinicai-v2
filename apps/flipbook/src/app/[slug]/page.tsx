@@ -61,7 +61,13 @@ export default async function ReaderPage({ params }: Props) {
       </header>
 
       <div className="flex-1">
-        <Reader pdfUrl={signedUrl} pdfPath={book.pdf_url} flipbookId={book.id} pageCount={book.page_count} />
+        <Reader
+          pdfUrl={signedUrl}
+          pdfPath={book.pdf_url}
+          flipbookId={book.id}
+          pageCount={book.page_count}
+          format={book.format}
+        />
       </div>
     </main>
   )

@@ -16,7 +16,10 @@
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "clsx": "catalog:",
+    "dompurify": "^3.4.1",
+    "epubjs": "^0.3.93",
     "framer-motion": "^12.0.0",
+    "jszip": "^3.10.1",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "catalog:",
@@ -32,6 +35,7 @@
   "devDependencies": {
     "@clinicai/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
+    "@types/dompurify": "^3.2.0",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
