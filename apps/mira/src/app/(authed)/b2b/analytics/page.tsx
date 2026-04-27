@@ -16,6 +16,7 @@
 
 import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { AIDigestCard } from './AIDigestCard'
 import { TimeRangePicker } from './_shared/TimeRangePicker'
 import { parseTimeRange, timeRangeLabel } from './_shared/timeRangeUtils'
 import {
@@ -314,6 +315,9 @@ function ObjectivesView({
 
   return (
     <>
+      {/* ═══ CAMADA -1 · AI DIGEST (Claude Haiku) · prosa luxury ═══ */}
+      <AIDigestCard />
+
       {/* ═══ CAMADA 0 · DIAGNÓSTICO INTERPRETATIVO ═══ */}
       <DiagnosticBanner diag={diag} />
 
