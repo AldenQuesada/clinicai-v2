@@ -16,7 +16,8 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
 
-  if (path.startsWith('/admin')) {
+  const adminPaths = ['/admin', '/settings', '/stats']
+  if (adminPaths.some((p) => path === p || path.startsWith(p + '/'))) {
     if (!user) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('next', path)
