@@ -30,9 +30,24 @@ export async function GrowthTab({ partnership }: { partnership: B2BPartnershipDT
     )
   }
 
+  // Top conversoes pro Pitch Mode · vouchers redeemed (proxy de "convertida")
+  // pegamos os mais recentes pra ter nomes vivos · max 8 nomes nao-nulos.
+  // Nao quebra a tela se falhar · so omite o slide.
+  const recentVouchers = await repos.b2bVouchers
+    .listByPartnership(partnership.id, 30)
+    .catch(() => [])
+  const topConversions = recentVouchers
+    .filter((v) => v.status === 'redeemed' && v.recipientName)
+    .map((v) => v.recipientName as string)
+    .slice(0, 8)
+
   return (
     <div className="flex flex-col gap-6">
-      <GrowthClient data={data} partnership={partnership} />
+      <GrowthClient
+        data={data}
+        partnership={partnership}
+        topConversions={topConversions}
+      />
       {/* Sec 7 · Metas operacionais */}
       <TargetsSection partnershipId={partnership.id} />
       {/* Sec 8 · Eventos / exposicoes */}

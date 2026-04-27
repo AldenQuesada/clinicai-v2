@@ -18,9 +18,11 @@ import { WowActionsSection } from './sections/WowActionsSection'
 export function GrowthClient({
   data,
   partnership,
+  topConversions = [],
 }: {
   data: GrowthPanel
   partnership: B2BPartnershipDTO
+  topConversions?: string[]
 }) {
   const [pitchOpen, setPitchOpen] = useState(false)
 
@@ -67,6 +69,7 @@ export function GrowthClient({
         <PitchMode
           partnership={partnership}
           data={data}
+          topConversions={topConversions}
           onClose={() => setPitchOpen(false)}
         />
       ) : null}
