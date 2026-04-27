@@ -749,11 +749,24 @@ function MetricsTab({
   const totalEvents = Number(st.events_configured ?? 0)
   const gaps = Math.max(0, totalEvents - eventsWithTemplate.size)
 
+  // Grid responsivo · CSS inline override (bcomm-stats-grid e 1fr · era
+  // pra sidebar lateral · agora na MetricsTab wider precisa 2-3 colunas).
+  const gridCols2: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: 8,
+  }
+  const gridCols3: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: 8,
+  }
+
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Section · Programa */}
+      {/* Section · Programa · 2 cards lado a lado */}
       <Section title="Templates do programa">
-        <div className="bcomm-stats-grid">
+        <div style={gridCols2}>
           <StatCard
             value={String(st.active_templates || 0)}
             label="Templates ativos"
@@ -768,9 +781,9 @@ function MetricsTab({
         </div>
       </Section>
 
-      {/* Section · Volume */}
+      {/* Section · Volume · 3 cards lado a lado */}
       <Section title="Volume · 30 dias">
-        <div className="bcomm-stats-grid">
+        <div style={gridCols3}>
           <StatCard
             value={String(st.sent_30d || 0)}
             label="Enviados"
@@ -785,9 +798,9 @@ function MetricsTab({
         </div>
       </Section>
 
-      {/* Section · Por bucket */}
+      {/* Section · Por bucket · 3 cards lado a lado */}
       <Section title="Templates por bucket">
-        <div className="bcomm-stats-grid">
+        <div style={gridCols3}>
           <StatCard
             value={String(bucketCounts.parceiros ?? 0)}
             label="📦 Parceiros"
