@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Volume2, VolumeX, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Volume2, VolumeX, BookOpen, Link2, Check } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { setupPdfWorker } from '@/lib/pdf/worker'
 import { ReaderSkeleton } from '@/components/ui/Skeleton'
 import { UnsupportedFormat } from '@/components/reader/UnsupportedFormat'
 import { CinematicCover } from '@/components/reader/CinematicCover'
+import { ResumeBanner } from '@/components/reader/ResumeBanner'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
+import { useProgress } from '@/lib/utils/useProgress'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -36,6 +39,8 @@ interface Props {
   author: string
   edition: string | null
   coverUrl: string | null
+  slug: string
+  initialPage: number
 }
 
 const REFRESH_INTERVAL_MS = 50 * 60 * 1000
@@ -47,18 +52,56 @@ interface CanvasHandle {
 
 export function Reader({
   pdfUrl: initialUrl, pdfPath, flipbookId, pageCount, format,
-  title, subtitle, author, edition, coverUrl,
+  title, subtitle, author, edition, coverUrl, slug, initialPage,
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(initialPage)
   const [totalPages, setTotalPages] = useState(pageCount ?? 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [coverShown, setCoverShown] = useState(true)
+  // Skip cover se chegou via deep link (?p=N)
+  const [coverShown, setCoverShown] = useState(initialPage === 1)
   const [cursorHidden, setCursorHidden] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [showResumeBanner, setShowResumeBanner] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<CanvasHandle | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sound = useReadingSound()
+  const router = useRouter()
+  const progress = useProgress(flipbookId)
+
+  // Decide se mostra banner de resume · só quando tem progresso > 1 e
+  // user não chegou via deep link
+  useEffect(() => {
+    if (!progress.loaded || !progress.remote) return
+    if (initialPage > 1) return
+    if (progress.remote.last_page > 1) setShowResumeBanner(true)
+  }, [progress.loaded, progress.remote, initialPage])
+
+  // Save progress (debounced) a cada mudança de página
+  useEffect(() => {
+    if (currentPage <= 1) return
+    progress.save(currentPage, totalPages || null)
+  }, [currentPage, totalPages, progress])
+
+  // Flush no unload
+  useEffect(() => {
+    const onUnload = () => progress.flushOnUnload(currentPage, totalPages || null)
+    window.addEventListener('beforeunload', onUnload)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') onUnload()
+    })
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [currentPage, totalPages, progress])
+
+  async function copyDeepLink() {
+    const url = `${window.location.origin}/${slug}?p=${currentPage}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 1800)
+    } catch {}
+  }
 
   useEffect(() => { if (format === 'pdf') setupPdfWorker() }, [format])
 
@@ -179,6 +222,19 @@ export function Reader({
         />
       )}
 
+      {showResumeBanner && progress.remote && (
+        <ResumeBanner
+          page={progress.remote.last_page}
+          total={progress.remote.total_pages}
+          updatedAt={progress.remote.updated_at}
+          onResume={() => {
+            setShowResumeBanner(false)
+            router.push(`/${slug}?p=${progress.remote!.last_page}`)
+          }}
+          onDismiss={() => setShowResumeBanner(false)}
+        />
+      )}
+
       <div className="flex-1 flex items-center justify-center overflow-hidden">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -201,6 +257,14 @@ export function Reader({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={copyDeepLink}
+              aria-label="Compartilhar página"
+              title={`Copiar link desta página · /${slug}?p=${currentPage}`}
+              className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition"
+            >
+              {linkCopied ? <Check className="w-5 h-5 text-gold" /> : <Link2 className="w-5 h-5" />}
+            </button>
             <button
               onClick={sound.toggle}
               aria-label={sound.enabled ? 'Mutar som' : 'Ativar som'}

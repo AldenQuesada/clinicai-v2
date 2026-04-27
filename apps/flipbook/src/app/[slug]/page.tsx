@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ p?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -48,8 +49,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function ReaderPage({ params }: Props) {
+export default async function ReaderPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const { p } = await searchParams
+  const initialPage = p ? Math.max(1, parseInt(p, 10) || 1) : 1
   const supabase = await createServerClient()
 
   let book
@@ -124,6 +127,8 @@ export default async function ReaderPage({ params }: Props) {
           author={book.author}
           edition={book.edition}
           coverUrl={book.cover_url}
+          slug={book.slug}
+          initialPage={initialPage}
         />
       </div>
     </main>
