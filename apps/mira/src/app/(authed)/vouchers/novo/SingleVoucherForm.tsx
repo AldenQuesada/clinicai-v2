@@ -215,12 +215,13 @@ export function SingleVoucherForm({
           disabled={
             partnerships.length === 0 ||
             !partnershipId ||
-            (phoneFilled && !phoneValid) ||
-            capStatus?.tone === 'crit'
+            (phoneFilled && !phoneValid)
           }
           className="px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Enfileirar e disparar
+          {capStatus?.tone === 'crit'
+            ? 'Emitir mesmo acima do cap'
+            : 'Enfileirar e disparar'}
         </button>
         <span className="text-[10px] text-[#6B7280]">
           Voucher entra na queue · dispatch ~1min

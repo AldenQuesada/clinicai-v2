@@ -56,16 +56,14 @@ export const b2bEmitVoucherHandler: Handler = async (ctx): Promise<HandlerResult
     }
   }
 
-  // Verifica cap mensal · GOLD: respeitar limites configurados na parceria
+  // Verifica cap mensal · DECISAO Alden 2026-04-27: NAO bloquear, so alertar.
+  // Cap e guia, nao limite rigido. Se atingiu, emite normalmente mas adiciona
+  // aviso na mensagem de confirmacao + audit pra Mirian saber.
+  let capWarning: string | null = null
   if (partnership.voucherMonthlyCap != null) {
     const used = await repos.b2bVouchers.countMonthlyByPartnership(partnership.id)
     if (used >= partnership.voucherMonthlyCap) {
-      return {
-        replyText: `Você já usou seus ${partnership.voucherMonthlyCap} vouchers desse mês, ${firstName(partnership.contactName ?? pushName)}! No próximo mês liberamos mais 💛`,
-        actions: [],
-        stateTransitions: [],
-        meta: { handler: 'b2b-emit-voucher', cap_reached: true },
-      }
+      capWarning = `⚠️ Você já está em ${used}/${partnership.voucherMonthlyCap} vouchers este mês. Vou emitir mais um · só pra ficar registrado.`
     }
   }
 
@@ -143,6 +141,7 @@ export const b2bEmitVoucherHandler: Handler = async (ctx): Promise<HandlerResult
     `🎁 Voucher pra *${recipient.name}* (${recipient.phone})\n` +
     `📦 Combo: ${partnership.voucherCombo ?? 'cortesia'}\n` +
     `⏰ Validade: ${partnership.voucherValidityDays} dias\n\n` +
+    (capWarning ? `${capWarning}\n\n` : '') +
     `Manda *SIM* que eu emito agora · *NÃO* eu cancelo. ` +
     `Tem 30min pra confirmar (depois eu te lembro 😉)`
 
@@ -155,6 +154,7 @@ export const b2bEmitVoucherHandler: Handler = async (ctx): Promise<HandlerResult
       partnership_id: partnership.id,
       recipient,
       voucher_confirm_expires: expires.toISOString(),
+      cap_warning: capWarning != null,
     },
   }
 }

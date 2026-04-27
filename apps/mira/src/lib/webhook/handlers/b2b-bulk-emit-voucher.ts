@@ -151,35 +151,20 @@ export const b2bBulkEmitVoucherHandler: Handler = async (ctx): Promise<HandlerRe
     }
   }
 
-  // 3. Cap mensal · check (somando bulk inteiro contra cap)
+  // 3. Cap mensal · DECISAO Alden 2026-04-27: NAO bloquear, so alertar.
+  // Cap e guia · se atingir/passar, emite normalmente mas avisa parceira.
+  let capWarning: string | null = null
   if (partnership.voucherMonthlyCap != null) {
     const used = await repos.b2bVouchers.countMonthlyByPartnership(partnership.id)
     const wouldBe = used + parsed.items.length
     if (used >= partnership.voucherMonthlyCap) {
-      return {
-        replyText:
-          `${partnerFirst}, você já usou seus *${partnership.voucherMonthlyCap} vouchers* desse mês! ` +
-          `No próximo mês liberamos mais 💛`,
-        actions: [],
-        stateTransitions: [],
-        meta: { handler: 'b2b-bulk-emit-voucher', cap_reached: true, used, cap: partnership.voucherMonthlyCap },
-      }
-    }
-    if (wouldBe > partnership.voucherMonthlyCap) {
-      const remaining = partnership.voucherMonthlyCap - used
-      return {
-        replyText:
-          `${partnerFirst}, você tem *${remaining} voucher(s)* restantes esse mês mas mandou *${parsed.items.length}* na lista 😅 ` +
-          `Manda os ${remaining} primeiros e deixa o resto pro próximo mês?`,
-        actions: [],
-        stateTransitions: [],
-        meta: {
-          handler: 'b2b-bulk-emit-voucher',
-          cap_partial: true,
-          remaining,
-          requested: parsed.items.length,
-        },
-      }
+      capWarning =
+        `⚠️ Você ja esta em ${used}/${partnership.voucherMonthlyCap} vouchers este mes. ` +
+        `Vou enfileirar mais ${parsed.items.length} · so pra Mirian saber.`
+    } else if (wouldBe > partnership.voucherMonthlyCap) {
+      capWarning =
+        `⚠️ Esse lote (${parsed.items.length}) vai te deixar em ${wouldBe}/${partnership.voucherMonthlyCap} ` +
+        `· acima do cap mensal. Vou enfileirar mesmo assim · te aviso ao final.`
     }
   }
 
@@ -304,6 +289,7 @@ export const b2bBulkEmitVoucherHandler: Handler = async (ctx): Promise<HandlerRe
     eligibleList +
     eligibleMore +
     blockedList +
+    (capWarning ? `\n\n${capWarning}` : '') +
     `\n\n${scheduleMsg}\n\n` +
     `Posso emitir? *SIM* / *NÃO*`
 
