@@ -45,12 +45,12 @@ import type {
 import { EmptyState } from '@clinicai/ui'
 
 // Mig cleanup 2026-04-26: Eventos + Templates mergeados em "Catálogo".
-// Eram a mesma coisa renderizada de 2 jeitos (chips agrupados vs lista flat).
-// Bucket rail acima filtra · Catálogo mostra hierarquia plana 1 nivel.
-type TabId = 'catalog' | 'sequences' | 'history' | 'config'
+// Mig cleanup 2026-04-27: tab Metricas (KPIs antes na sidebar lateral).
+type TabId = 'catalog' | 'metrics' | 'sequences' | 'history' | 'config'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'catalog', label: 'Catálogo' },
+  { id: 'metrics', label: 'Métricas' },
   { id: 'sequences', label: 'Sequências' },
   { id: 'history', label: 'Histórico' },
   { id: 'config', label: 'Config' },
@@ -510,12 +510,13 @@ export function CommClient({
   }, [previewHistory, editing, selectedTemplate])
 
   return (
-    <div className="bcomm-wrap">
-      <aside className="bcomm-col bcomm-col-stats">
-        <StatsPane stats={stats} />
-      </aside>
-
-      <section className="bcomm-col bcomm-col-center">
+    <div className="bcomm-wrap" style={{ display: 'flex', gap: 0 }}>
+      {/* Stats sidebar removida (Alden 2026-04-27 · KPIs viraram tab Metricas).
+          Bucket rail desceu pra dentro do CatalogTab · top fica 1 linha so. */}
+      <section
+        className="bcomm-col bcomm-col-center"
+        style={{ flex: '1 1 50%', minWidth: 0 }}
+      >
         <PreviewPane
           source={previewSource}
           catalog={catalog}
@@ -527,41 +528,16 @@ export function CommClient({
         />
       </section>
 
-      <aside className="bcomm-col bcomm-col-panel">
-        {/* Mig 800-41 · bucket rail · filtra todas as tabs · botoes "+" no
-            mesmo nivel pra evitar colisao com as tabs */}
-        <BucketRail
-          value={bucketFilter}
-          counts={bucketCounts}
-          onChange={(b) => {
-            setBucketFilter(b)
-            setFilterEventKey(null) // limpa filtro de event ao trocar bucket
-          }}
-          actions={
-            editing ? null : (
-              <>
-                <button
-                  type="button"
-                  className="bcomm-btn bcomm-btn-xs"
-                  title="Criar novo evento (event_key) custom"
-                  onClick={() => setShowNewEvent(true)}
-                >
-                  + Evento
-                </button>
-                <button
-                  type="button"
-                  className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
-                  title="Criar novo template"
-                  onClick={() => handleNew()}
-                >
-                  + Template
-                </button>
-              </>
-            )
-          }
-        />
-        <div className="bcomm-tabs-bar">
-          <nav className="bcomm-tabs" role="tablist">
+      <aside
+        className="bcomm-col bcomm-col-panel"
+        style={{ flex: '1 1 50%', minWidth: 0 }}
+      >
+        {/* Top bar · 1 linha so · Tabs + botoes de acao */}
+        <div
+          className="bcomm-tabs-bar"
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <nav className="bcomm-tabs" role="tablist" style={{ flex: 1 }}>
             {TABS.map((t) => {
               const active = !editing && activeTab === t.id
               return (
@@ -583,7 +559,26 @@ export function CommClient({
           </nav>
           {editing ? (
             <span className="bcomm-tabs-editing">Editando…</span>
-          ) : null}
+          ) : (
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button
+                type="button"
+                className="bcomm-btn bcomm-btn-xs"
+                title="Criar novo evento (event_key) custom"
+                onClick={() => setShowNewEvent(true)}
+              >
+                + Evento
+              </button>
+              <button
+                type="button"
+                className="bcomm-btn bcomm-btn-primary bcomm-btn-xs"
+                title="Criar novo template"
+                onClick={() => handleNew()}
+              >
+                + Template
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bcomm-panel-body">
@@ -597,16 +592,29 @@ export function CommClient({
               onDeleted={handleDeleted}
             />
           ) : activeTab === 'catalog' ? (
-            <CatalogTab
-              catalog={filteredCatalog}
-              templates={filteredTemplates}
-              filterEventKey={filterEventKey}
-              selectedId={selectedId}
-              onSelectEvent={setFilterEventKey}
-              onSelect={handleSelect}
-              onEdit={handleEdit}
-              onNew={handleNew}
-            />
+            <>
+              {/* BucketRail dentro da tab Catalogo · vira sub-filtro local */}
+              <BucketRail
+                value={bucketFilter}
+                counts={bucketCounts}
+                onChange={(b) => {
+                  setBucketFilter(b)
+                  setFilterEventKey(null)
+                }}
+              />
+              <CatalogTab
+                catalog={filteredCatalog}
+                templates={filteredTemplates}
+                filterEventKey={filterEventKey}
+                selectedId={selectedId}
+                onSelectEvent={setFilterEventKey}
+                onSelect={handleSelect}
+                onEdit={handleEdit}
+                onNew={handleNew}
+              />
+            </>
+          ) : activeTab === 'metrics' ? (
+            <MetricsTab stats={stats} bucketCounts={bucketCounts} templates={templates} />
           ) : activeTab === 'sequences' ? (
             <SequencesTab
               sequences={sequences}
@@ -709,6 +717,114 @@ function StatCard({
       <div className="bcomm-stat-value">{value}</div>
       <div className="bcomm-stat-label">{label}</div>
       {sub ? <div className="bcomm-stat-sub">{sub}</div> : null}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MetricsTab · KPIs movidos da sidebar lateral (Alden 2026-04-27 · op A)
+// ═══════════════════════════════════════════════════════════════════════
+function MetricsTab({
+  stats,
+  bucketCounts,
+  templates,
+}: {
+  stats: B2BCommStats | null
+  bucketCounts: Record<string, number>
+  templates: B2BCommTemplateRaw[]
+}) {
+  const st = stats || ({} as B2BCommStats)
+  const rate = st.delivery_rate_30d
+  const rateLabel = rate == null ? '—' : Number(rate).toFixed(1) + '%'
+  const rateSub =
+    st.sent_30d == null
+      ? ''
+      : (st.sent_30d || 0) + ' envios · ' + (st.delivered_ok_30d || 0) + ' ok'
+
+  // Eventos sem template · gaps visiveis (calculo client-side)
+  const eventsWithTemplate = new Set<string>()
+  for (const t of templates) {
+    if (t.is_active) eventsWithTemplate.add(t.event_key)
+  }
+  const totalEvents = Number(st.events_configured ?? 0)
+  const gaps = Math.max(0, totalEvents - eventsWithTemplate.size)
+
+  return (
+    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Section · Programa */}
+      <Section title="Templates do programa">
+        <div className="bcomm-stats-grid">
+          <StatCard
+            value={String(st.active_templates || 0)}
+            label="Templates ativos"
+            sub={`${totalEvents} eventos cobertos${gaps > 0 ? ` · ⚠️ ${gaps} sem template` : ''}`}
+            accent
+          />
+          <StatCard
+            value={String(st.events_configured || 0)}
+            label="Eventos catalogados"
+            sub="b2b_comm_event_keys"
+          />
+        </div>
+      </Section>
+
+      {/* Section · Volume */}
+      <Section title="Volume · 30 dias">
+        <div className="bcomm-stats-grid">
+          <StatCard
+            value={String(st.sent_30d || 0)}
+            label="Enviados"
+            sub={`${st.attempted_30d ?? 0} tentativas · ${st.failed_30d ?? 0} falhas`}
+          />
+          <StatCard value={rateLabel} label="Taxa de envio" sub={rateSub} />
+          <StatCard
+            value={String(st.partners_with_send_30d || 0)}
+            label="Parceiras tocadas"
+            sub="ao menos 1 dispatch 30d"
+          />
+        </div>
+      </Section>
+
+      {/* Section · Por bucket */}
+      <Section title="Templates por bucket">
+        <div className="bcomm-stats-grid">
+          <StatCard
+            value={String(bucketCounts.parceiros ?? 0)}
+            label="📦 Parceiros"
+            sub="recipient_role partner"
+          />
+          <StatCard
+            value={String(bucketCounts.convidadas ?? 0)}
+            label="👥 Convidadas"
+            sub="recipient_role beneficiary"
+          />
+          <StatCard
+            value={String(bucketCounts.admin ?? 0)}
+            label="👨‍⚕️ Admin"
+            sub="Mira → Mirian"
+          />
+        </div>
+      </Section>
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: 1.2,
+          textTransform: 'uppercase',
+          color: 'var(--b2b-text-muted, #9CA3AF)',
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
+        {title}
+      </div>
+      {children}
     </div>
   )
 }
