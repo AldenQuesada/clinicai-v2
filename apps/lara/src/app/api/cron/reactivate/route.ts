@@ -7,19 +7,44 @@
  *
  * ADR-012: usa ConversationRepository.findReactivationCandidates +
  *          MessageRepository.saveOutbound + ConversationRepository.setReactivationSent.
+ *
+ * Audit fix N3 (2026-04-27): exige header `x-cron-secret` matching LARA_CRON_SECRET
+ * (timing-safe). Sem isso, qualquer ator com a URL dispara mass-messaging.
+ *
+ * Audit fix N7 (2026-04-27): WhatsApp service per-tenant via wa_numbers
+ * (não usa mais env global). wa_number_id resolvido pela conversation
+ * (em vez do env, que misturaria clínicas em multi-tenant futuro).
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { WhatsAppCloudService } from '@/services/whatsapp-cloud';
+import { createWhatsAppCloudFromWaNumber, WhatsAppCloudService } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
+import { validateCronSecret } from '@clinicai/utils';
+import { createLogger } from '@clinicai/logger';
+
+const log = createLogger({ app: 'lara' });
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Audit fix N3: valida cron secret · fail-CLOSED se env ausente
+  const reject = validateCronSecret(req, 'LARA_CRON_SECRET');
+  if (reject) {
+    return NextResponse.json(reject.body, { status: reject.status });
+  }
+
   const supabase = createServerClient();
   const repos = makeRepos(supabase);
-  const wa = new WhatsAppCloudService();
+
+  // Fallback service (env global) · usado quando conversation não tem wa_number_id
+  // associado · TODO remover quando todos wa_numbers populados (N23 audit)
+  const fallbackWa = new WhatsAppCloudService({
+    wa_number_id: 'fallback-env',
+    clinic_id: '00000000-0000-0000-0000-000000000001',
+    phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
+  });
 
   const olderThan = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
   const newerThan = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString();
@@ -40,12 +65,20 @@ export async function GET() {
       const reactivateMessage =
         'Oi! Você acabou se ocupando por aí? Entendo perfeitamente, a rotina esmaga a gente. Vou pausar meu contato por aqui pra não atrapalhar seu dia, mas seu cadastro (com os bônus) está salvo. Assim que tiver um respiro, me chama de volta pra continuarmos!';
 
-      const sendResult = await wa.sendText(conv.phone, reactivateMessage);
+      // Audit fix N7: tenta resolver WhatsApp service por wa_number_id da conv
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const waNumberId = (conv as any).waNumberId as string | null | undefined;
+      let wa: WhatsAppCloudService | null = null;
+      if (waNumberId) {
+        wa = await createWhatsAppCloudFromWaNumber(supabase, waNumberId);
+      }
+      const sender = wa ?? fallbackWa;
+
+      const sendResult = await sender.sendText(conv.phone, reactivateMessage);
 
       if (sendResult.ok) {
         await repos.conversations.setReactivationSent(conv.id, true);
 
-        // Grava mensagem · clinic_id da conv (resolvido no inbound original · ADR-028)
         await repos.messages.saveOutbound(conv.clinicId, {
           conversationId: conv.id,
           sender: 'lara',
@@ -58,9 +91,10 @@ export async function GET() {
       }
     }
 
+    log.info({ processed: processedCount, candidates: candidates.length }, 'cron.reactivate.done');
     return NextResponse.json({ success: true, processed: processedCount });
-  } catch (err: any) {
-    console.error('[CRON] Reactivation Error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error({ err: (err as Error)?.message }, 'cron.reactivate.failed');
+    return NextResponse.json({ success: false, error: (err as Error)?.message }, { status: 500 });
   }
 }

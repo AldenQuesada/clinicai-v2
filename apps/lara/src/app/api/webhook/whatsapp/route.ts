@@ -6,11 +6,20 @@
  *
  * Multi-tenant ADR-028 · clinic_id resolvido por request via wa_numbers.
  * ADR-012 · usa Repositories pra todo acesso a leads/conversations/messages.
+ *
+ * Audit fixes 2026-04-27 (branch audit/blindagem-lara-2026-04-27):
+ *  - N1: HMAC X-Hub-Signature-256 fail-CLOSED em prod (validateMetaSignature)
+ *  - N4: lock atômico via RPC wa_claim_conversation (FOR UPDATE SKIP LOCKED)
+ *  - N7: WhatsApp service per-tenant (createWhatsAppCloudFromWaNumber)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { WhatsAppCloudService } from '@/services/whatsapp-cloud';
+import {
+  createWhatsAppCloudFromWaNumber,
+  validateMetaSignature,
+  type WhatsAppCloudService,
+} from '@clinicai/whatsapp';
 import { checkGuard } from '@/lib/guard';
 import { generateResponse, getFixedResponse } from '@/services/ai.service';
 import { transcribeAudio } from '@/services/transcription.service';
@@ -57,7 +66,23 @@ export async function GET(request: NextRequest) {
 // ── POST: Inbound message processing ─────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // ── Audit fix N1: HMAC validation fail-CLOSED em prod ─────
+    // Lê raw body ANTES de JSON.parse (Next 16 requer text() primeiro).
+    // validateMetaSignature lança fail-closed se META_APP_SECRET ausente
+    // em produção · em dev/test, warn + bypass.
+    const rawBody = await request.text();
+    const signatureHeader = request.headers.get('x-hub-signature-256');
+    const sig = validateMetaSignature(rawBody, signatureHeader);
+
+    if (!sig.valid) {
+      log.warn({ reason: sig.reason }, 'webhook.signature.rejected');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (sig.bypass) {
+      log.warn({}, 'webhook.signature.bypassed_dev');
+    }
+
+    const body = JSON.parse(rawBody);
 
     if (body.object !== 'whatsapp_business_account') {
       return NextResponse.json({ success: true });
@@ -100,12 +125,33 @@ async function processInboundMessage(
 ) {
   const supabase = createServerClient();
   const repos = makeRepos(supabase);
-  const wa = new WhatsAppCloudService();
   const phone = message.from;
   const pushName = contacts?.[0]?.profile?.name || '';
 
   // ADR-028: clinic_id por request · NUNCA hardcoded
-  const { clinic_id } = await resolveTenantContext(supabase, phoneNumberId);
+  const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
+
+  // Audit fix N7: WhatsApp service per-tenant via wa_numbers (não env global)
+  // Fallback pra construtor sem args (env global) só quando wa_number_id não resolveu
+  // - mantém continuidade enquanto wa_numbers está sendo populado.
+  let wa: WhatsAppCloudService | null = null;
+  if (wa_number_id) {
+    wa = await createWhatsAppCloudFromWaNumber(supabase, wa_number_id);
+  }
+  if (!wa) {
+    log.warn(
+      { clinic_id, phone_hash: hashPhone(phone), wa_number_id },
+      'wa_service.fallback.env_global · wa_number_id missing or not active',
+    );
+    // Fallback: construtor com env vars globais (transição · TODO remover quando todos wa_numbers populados)
+    const { WhatsAppCloudService: WAC } = await import('@clinicai/whatsapp');
+    wa = new WAC({
+      wa_number_id: 'fallback-env',
+      clinic_id,
+      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    });
+  }
 
   // 1. Mark as read
   wa.markAsRead(message.id);
@@ -136,7 +182,6 @@ async function processInboundMessage(
   try {
     const voucher = await repos.b2bVouchers.findRecentByRecipientPhone(clinic_id, phone, 72);
     if (voucher) {
-      // Resolve dados da parceria pra contexto
       const { data: partnerRow } = await supabase
         .from('b2b_partnerships')
         .select('name, contact_name')
@@ -146,7 +191,6 @@ async function processInboundMessage(
       const partnershipName = (partnerRow as { name?: string } | null)?.name ?? null;
       const partnerContactName = (partnerRow as { contact_name?: string } | null)?.contact_name ?? null;
 
-      // first name fallback chain: contact_name -> partnership_name
       const partnerFirstName =
         (partnerContactName || partnershipName || '').split(' ')[0] || null;
 
@@ -161,7 +205,6 @@ async function processInboundMessage(
         audio_sent_at: voucher.audioSentAt ?? null,
       };
 
-      // Marca engaged · idempotente, RPC so atualiza se state em pending/cold_*
       try {
         await repos.b2bVouchers.markEngaged(voucher.id);
         log.info(
@@ -242,7 +285,6 @@ async function processInboundMessage(
             textContent = transcription;
             log.debug({ clinic_id, phone_hash: hashPhone(phone), chars: transcription.length }, 'transcription.done');
 
-            // Re-roda detecção sobre texto transcrito
             if (shouldOverrideFunnel(leadFunnel)) {
               const detected = detectFunnel(transcription);
               if (detected) {
@@ -292,165 +334,200 @@ async function processInboundMessage(
     return;
   }
 
-  // 7. Guard
-  const guard = await checkGuard(conv.id);
-  if (!guard.allowed) {
-    log.info({ clinic_id, phone_hash: hashPhone(phone), reason: guard.reason }, 'guard.blocked');
+  // 6.6 Audit fix N4: LOCK ATÔMICO via RPC wa_claim_conversation
+  // Diferente da impl do Ivan (clinicai-lara) que usava UPDATE com .or() do
+  // PostgREST · aqui o lock é GARANTIDAMENTE atômico (FOR UPDATE SKIP LOCKED
+  // dentro de UPDATE single-statement no RPC SQL).
+  // TTL 30s · libera no fim · stuck-lock cleanup cron pega zumbis.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lockId, error: lockErr } = await (supabase as any).rpc('wa_claim_conversation', {
+    p_conversation_id: conv.id,
+    p_ttl_sec: 30,
+  });
+
+  if (lockErr) {
+    log.error({ clinic_id, phone_hash: hashPhone(phone), err: lockErr.message }, 'lock.claim.error');
+    return;
+  }
+  if (!lockId) {
+    log.debug({ clinic_id, phone_hash: hashPhone(phone) }, 'lock.claim.skipped.already_held');
     return;
   }
 
-  // 8. Count inbound · selector de fixed responses
-  const currentMsgCount = await repos.messages.countInbound(conv.id);
-
-  // 9. Fixed responses · zero tokens
-  const firstName = (lead.name || pushName || '').split(' ')[0];
-  const fixedResponse = getFixedResponse(currentMsgCount - 1, firstName, leadFunnel ?? undefined);
-
-  let aiResponse: string;
-
-  if (fixedResponse) {
-    aiResponse = fixedResponse;
-  } else {
-    // 10. History + Claude
-    const messages = await repos.messages.getHistoryForAI(conv.id, 30);
-
-    // Fallback critico · se DB vazio (trigger broke?), forca user msg pra Anthropic nao 500
-    if (messages.length === 0 && textContent) {
-      messages.push({ role: 'user', content: textContent });
+  try {
+    // 7. Guard
+    const guard = await checkGuard(conv.id);
+    if (!guard.allowed) {
+      log.info({ clinic_id, phone_hash: hashPhone(phone), reason: guard.reason }, 'guard.blocked');
+      return;
     }
 
-    log.debug({
-      clinic_id,
-      phone_hash: hashPhone(phone),
-      lead_name: lead.name || pushName,
-      funnel: leadFunnel || null,
-      msg_count: currentMsgCount,
-    }, 'ai.call.start');
+    // 8. Count inbound · selector de fixed responses
+    const currentMsgCount = await repos.messages.countInbound(conv.id);
 
-    aiResponse = await generateResponse(
-      {
-        name: lead.name || pushName,
-        phone,
-        queixas_faciais: lead.queixasFaciais,
-        idade: lead.idade != null ? String(lead.idade) : undefined,
-        phase: lead.phase,
-        temperature: lead.temperature ?? undefined,
-        day_bucket: lead.dayBucket ?? undefined,
-        lead_score: lead.leadScore,
-        ai_persona: lead.aiPersona ?? undefined,
-        funnel: leadFunnel ?? undefined,
-        last_response_at: lead.lastResponseAt ?? undefined,
-        is_returning: false,
-        message_count: currentMsgCount,
-        conversation_count: 1,
-        is_audio_message: isAudioMessage,
+    // 9. Fixed responses · zero tokens
+    const firstName = (lead.name || pushName || '').split(' ')[0];
+    const fixedResponse = getFixedResponse(currentMsgCount - 1, firstName, leadFunnel ?? undefined);
+
+    let aiResponse: string;
+
+    if (fixedResponse) {
+      aiResponse = fixedResponse;
+    } else {
+      // 10. History + Claude
+      const messages = await repos.messages.getHistoryForAI(conv.id, 30);
+
+      if (messages.length === 0 && textContent) {
+        messages.push({ role: 'user', content: textContent });
+      }
+
+      log.debug({
         clinic_id,
-        is_voucher_recipient: voucherContext !== null,
-        voucher: voucherContext ?? undefined,
-      },
-      messages,
-      currentMsgCount
-    );
-    log.debug({
+        phone_hash: hashPhone(phone),
+        lead_name: lead.name || pushName,
+        funnel: leadFunnel || null,
+        msg_count: currentMsgCount,
+      }, 'ai.call.start');
+
+      aiResponse = await generateResponse(
+        {
+          name: lead.name || pushName,
+          phone,
+          queixas_faciais: lead.queixasFaciais,
+          idade: lead.idade != null ? String(lead.idade) : undefined,
+          phase: lead.phase,
+          temperature: lead.temperature ?? undefined,
+          day_bucket: lead.dayBucket ?? undefined,
+          lead_score: lead.leadScore,
+          ai_persona: lead.aiPersona ?? undefined,
+          funnel: leadFunnel ?? undefined,
+          last_response_at: lead.lastResponseAt ?? undefined,
+          is_returning: false,
+          message_count: currentMsgCount,
+          conversation_count: 1,
+          is_audio_message: isAudioMessage,
+          clinic_id,
+          is_voucher_recipient: voucherContext !== null,
+          voucher: voucherContext ?? undefined,
+        },
+        messages,
+        currentMsgCount
+      );
+      log.debug({
+        clinic_id,
+        phone_hash: hashPhone(phone),
+        response_chars: aiResponse?.length ?? 0,
+      }, 'ai.call.done');
+    }
+
+    // 10.5 Human handoff · pausa IA 24h
+    if (hasHandoffTag(aiResponse)) {
+      aiResponse = stripHandoffTag(aiResponse);
+
+      const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await repos.conversations.updateAiPause(conv.id, {
+        pausedUntil: pauseUntil,
+        aiEnabled: false,
+        pausedBy: 'human_handoff',
+      });
+
+      try {
+        await repos.inboxNotifications.create({
+          clinicId: clinic_id,
+          conversationId: conv.id,
+          source: 'lara',
+          reason: 'transbordo_humano',
+          payload: {
+            phone,
+            lead_name: lead.name,
+            lead_id: lead.id,
+            funnel: leadFunnel,
+            message_preview: textContent?.slice(0, 120) || '',
+          },
+        });
+      } catch (notifErr) {
+        log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message }, 'inbox_notification.failed');
+      }
+
+      log.info({ clinic_id, phone_hash: hashPhone(phone) }, 'handoff.activated');
+    }
+
+    // 10.5.5 Score / Tags / Funnel
+    const scoreParsed = parseScore(aiResponse);
+    if (scoreParsed.newScore !== null) {
+      aiResponse = scoreParsed.textCleaned;
+      await repos.leads.updateScore(lead.id, scoreParsed.newScore);
+      log.info({ clinic_id, phone_hash: hashPhone(phone), score: scoreParsed.newScore }, 'lead.score.updated');
+    }
+
+    const tagsParsed = parseTags(aiResponse);
+    if (tagsParsed.tags.length > 0) {
+      aiResponse = tagsParsed.textCleaned;
+      const finalTags = await repos.leads.addTags(lead.id, tagsParsed.tags);
+      const newlyAdded = tagsParsed.tags.filter((t) => finalTags.includes(t));
+      for (const tag of newlyAdded) {
+        log.info({ clinic_id, phone_hash: hashPhone(phone), tag }, 'lead.tag.added');
+      }
+    }
+
+    const funnelParsed = parseFunnel(aiResponse);
+    if (funnelParsed.newFunnel) {
+      aiResponse = funnelParsed.textCleaned;
+      await repos.leads.setFunnel(lead.id, funnelParsed.newFunnel);
+      leadFunnel = funnelParsed.newFunnel;
+      log.info({ clinic_id, phone_hash: hashPhone(phone), funnel: funnelParsed.newFunnel, source: 'ai' }, 'funnel.updated');
+    }
+
+    // 10.6 Auto-dispatch midias ricas
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sendResult: any = { ok: false };
+    let outboundContentType: 'text' | 'image' = 'text';
+    let outboundMediaUrl: string | null = null;
+
+    const media = await resolveMediaDispatch({
+      supabase,
       clinic_id,
-      phone_hash: hashPhone(phone),
-      response_chars: aiResponse?.length ?? 0,
-    }, 'ai.call.done');
-  }
-
-  // 10.5 Human handoff · pausa IA 24h
-  if (hasHandoffTag(aiResponse)) {
-    aiResponse = stripHandoffTag(aiResponse);
-
-    const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await repos.conversations.updateAiPause(conv.id, {
-      pausedUntil: pauseUntil,
-      aiEnabled: false,
-      pausedBy: 'human_handoff',
+      phone,
+      aiResponse,
+      leadFunnel,
     });
 
+    if (media.photoUrl) {
+      aiResponse = media.textCleaned;
+      sendResult = await wa.sendImage(phone, media.photoUrl, aiResponse);
+      outboundContentType = 'image';
+      outboundMediaUrl = media.photoUrl;
+    } else {
+      aiResponse = media.textCleaned;
+      sendResult = await wa.sendText(phone, aiResponse);
+    }
+
+    // 12. Save outbound
+    await repos.messages.saveOutbound(clinic_id, {
+      conversationId: conv.id,
+      sender: 'lara',
+      content: aiResponse,
+      contentType: outboundContentType,
+      mediaUrl: outboundMediaUrl,
+      status: sendResult.ok ? 'sent' : 'failed',
+    });
+
+    await repos.leads.updateLastResponseAt(lead.id);
+
+    log.info({ clinic_id, phone_hash: hashPhone(phone), chars: aiResponse.length, ok: sendResult.ok }, 'ai.response.sent');
+  } finally {
+    // Audit fix N4: SEMPRE libera o lock no fim · idempotente, só libera se for dele
     try {
-      await repos.inboxNotifications.create({
-        clinicId: clinic_id,
-        conversationId: conv.id,
-        source: 'lara',
-        reason: 'transbordo_humano',
-        payload: {
-          phone,
-          lead_name: lead.name,
-          lead_id: lead.id,
-          funnel: leadFunnel,
-          message_preview: textContent?.slice(0, 120) || '',
-        },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc('wa_release_conversation', {
+        p_conversation_id: conv.id,
+        p_lock_id: lockId,
       });
-    } catch (notifErr) {
-      log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message }, 'inbox_notification.failed');
-    }
-
-    log.info({ clinic_id, phone_hash: hashPhone(phone) }, 'handoff.activated');
-  }
-
-  // 10.5.5 Score / Tags / Funnel · parsers extraidos
-  const scoreParsed = parseScore(aiResponse);
-  if (scoreParsed.newScore !== null) {
-    aiResponse = scoreParsed.textCleaned;
-    await repos.leads.updateScore(lead.id, scoreParsed.newScore);
-    log.info({ clinic_id, phone_hash: hashPhone(phone), score: scoreParsed.newScore }, 'lead.score.updated');
-  }
-
-  const tagsParsed = parseTags(aiResponse);
-  if (tagsParsed.tags.length > 0) {
-    aiResponse = tagsParsed.textCleaned;
-    const finalTags = await repos.leads.addTags(lead.id, tagsParsed.tags);
-    const newlyAdded = tagsParsed.tags.filter((t) => finalTags.includes(t));
-    for (const tag of newlyAdded) {
-      log.info({ clinic_id, phone_hash: hashPhone(phone), tag }, 'lead.tag.added');
+    } catch (releaseErr) {
+      log.warn(
+        { clinic_id, phone_hash: hashPhone(phone), err: (releaseErr as Error)?.message },
+        'lock.release.failed',
+      );
     }
   }
-
-  const funnelParsed = parseFunnel(aiResponse);
-  if (funnelParsed.newFunnel) {
-    aiResponse = funnelParsed.textCleaned;
-    await repos.leads.setFunnel(lead.id, funnelParsed.newFunnel);
-    leadFunnel = funnelParsed.newFunnel;
-    log.info({ clinic_id, phone_hash: hashPhone(phone), funnel: funnelParsed.newFunnel, source: 'ai' }, 'funnel.updated');
-  }
-
-  // 10.6 Auto-dispatch midias ricas
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let sendResult: any = { ok: false };
-  let outboundContentType: 'text' | 'image' = 'text';
-  let outboundMediaUrl: string | null = null;
-
-  const media = await resolveMediaDispatch({
-    supabase,
-    clinic_id,
-    phone,
-    aiResponse,
-    leadFunnel,
-  });
-
-  if (media.photoUrl) {
-    aiResponse = media.textCleaned;
-    sendResult = await wa.sendImage(phone, media.photoUrl, aiResponse);
-    outboundContentType = 'image';
-    outboundMediaUrl = media.photoUrl;
-  } else {
-    aiResponse = media.textCleaned;
-    sendResult = await wa.sendText(phone, aiResponse);
-  }
-
-  // 12. Save outbound
-  await repos.messages.saveOutbound(clinic_id, {
-    conversationId: conv.id,
-    sender: 'lara',
-    content: aiResponse,
-    contentType: outboundContentType,
-    mediaUrl: outboundMediaUrl,
-    status: sendResult.ok ? 'sent' : 'failed',
-  });
-
-  await repos.leads.updateLastResponseAt(lead.id);
-
-  log.info({ clinic_id, phone_hash: hashPhone(phone), chars: aiResponse.length, ok: sendResult.ok }, 'ai.response.sent');
 }
