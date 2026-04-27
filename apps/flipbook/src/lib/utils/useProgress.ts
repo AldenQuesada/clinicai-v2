@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 
 interface RemoteProgress {
   last_page: number
@@ -64,5 +64,6 @@ export function useProgress(flipbookId: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current)
   }, [])
 
-  return { remote, loaded, save, flushOnUnload }
+  // Retorna objeto memoizado · referência estável evita useEffect loop em consumers
+  return useMemo(() => ({ remote, loaded, save, flushOnUnload }), [remote, loaded, save, flushOnUnload])
 }

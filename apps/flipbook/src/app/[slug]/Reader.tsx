@@ -78,21 +78,28 @@ export function Reader({
     if (progress.remote.last_page > 1) setShowResumeBanner(true)
   }, [progress.loaded, progress.remote, initialPage])
 
+  const saveFn = progress.save
+  const flushFn = progress.flushOnUnload
+
   // Save progress (debounced) a cada mudança de página
   useEffect(() => {
     if (currentPage <= 1) return
-    progress.save(currentPage, totalPages || null)
-  }, [currentPage, totalPages, progress])
+    saveFn(currentPage, totalPages || null)
+  }, [currentPage, totalPages, saveFn])
 
-  // Flush no unload
+  // Flush no unload · pega só funções estáveis (useCallback)
   useEffect(() => {
-    const onUnload = () => progress.flushOnUnload(currentPage, totalPages || null)
+    const onUnload = () => flushFn(currentPage, totalPages || null)
     window.addEventListener('beforeunload', onUnload)
-    document.addEventListener('visibilitychange', () => {
+    const onVis = () => {
       if (document.visibilityState === 'hidden') onUnload()
-    })
-    return () => window.removeEventListener('beforeunload', onUnload)
-  }, [currentPage, totalPages, progress])
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('beforeunload', onUnload)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [currentPage, totalPages, flushFn])
 
   async function copyDeepLink() {
     const url = `${window.location.origin}/${slug}?p=${currentPage}`
