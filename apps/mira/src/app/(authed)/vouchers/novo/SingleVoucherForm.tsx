@@ -29,8 +29,11 @@ function localNowInput(): string {
 
 export function SingleVoucherForm({
   partnerships,
+  combos = [],
 }: {
   partnerships: PartnershipOption[]
+  /** Lista de combos cadastrados na clinica · vem de b2b_voucher_combos */
+  combos?: string[]
 }) {
   const [partnershipId, setPartnershipId] = useState<string>('')
   const [phone, setPhone] = useState('')
@@ -48,17 +51,36 @@ export function SingleVoucherForm({
     if (p?.voucherCombo) setCombo(p.voucherCombo)
   }
 
-  // Lista unica de combos cadastrados em todas parcerias · datalist autocomplete
+  // Combos disponiveis · merge entre tabela b2b_voucher_combos + combos
+  // efetivamente em uso pelas parcerias (caso algum combo legacy nao esteja
+  // no catalog mas ainda esta nas parcerias).
   const allCombos = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>(combos)
     for (const p of partnerships) {
       if (p.voucherCombo) set.add(p.voucherCombo)
     }
     return Array.from(set).sort()
-  }, [partnerships])
+  }, [combos, partnerships])
 
-  // Phone validation visual · 10-13 digitos brasileiros
-  const phoneDigits = phone.replace(/\D/g, '')
+  // Phone · so digitos · UI mantem mascara visual mas state guarda raw
+  function handlePhoneChange(raw: string) {
+    // strip qualquer coisa que nao seja digito
+    const digits = raw.replace(/\D/g, '').slice(0, 13) // max 13 (BR longo)
+    setPhone(digits)
+  }
+  // Formata pra exibicao: (DDD) NNNNN-NNNN ou similar
+  function formatPhoneDisplay(d: string): string {
+    if (d.length === 0) return ''
+    if (d.length <= 2) return `(${d}`
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+    if (d.length === 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`
+    return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
+  }
+
+  // Phone validation · ja garantido so digitos pelo handlePhoneChange
+  const phoneDigits = phone
   const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 13
   const phoneFilled = phoneDigits.length > 0
 
@@ -85,14 +107,22 @@ export function SingleVoucherForm({
           required
           value={partnershipId}
           onChange={(e) => selectPartnership(e.target.value)}
-          className="w-full px-2.5 py-1.5 rounded-md bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
-          style={{ colorScheme: 'dark' }}
+          className="w-full px-2.5 py-1.5 rounded-md border border-white/10 text-xs focus:outline-none focus:border-[#C9A96E]/50"
+          style={{
+            colorScheme: 'dark',
+            background: '#1A1814',
+            color: '#F5F0E8',
+          }}
         >
-          <option value="" disabled>
+          <option value="" disabled style={{ background: '#1A1814', color: '#9CA3AF' }}>
             Selecionar parceria ativa…
           </option>
           {partnerships.map((p) => (
-            <option key={p.id} value={p.id}>
+            <option
+              key={p.id}
+              value={p.id}
+              style={{ background: '#1A1814', color: '#F5F0E8' }}
+            >
               {p.name}
               {p.voucherCombo ? ` · combo: ${p.voucherCombo}` : ' · sem combo'}
             </option>
@@ -152,9 +182,17 @@ export function SingleVoucherForm({
             id="v-phone"
             name="phone"
             type="tel"
+            inputMode="numeric"
             required
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            value={formatPhoneDisplay(phone)}
+            onChange={(e) => handlePhoneChange(e.target.value)}
+            onKeyDown={(e) => {
+              // Bloqueia letras · permite numeros, backspace, delete, setas, tab
+              const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End']
+              if (allowed.includes(e.key)) return
+              if (e.ctrlKey || e.metaKey) return // copy/paste
+              if (!/^[0-9]$/.test(e.key)) e.preventDefault()
+            }}
             placeholder="(44) 99876-5432"
             className="w-full px-2.5 py-1.5 rounded-md bg-white/[0.02] border text-xs text-[#F5F0E8] font-mono focus:outline-none"
             style={{
@@ -179,22 +217,37 @@ export function SingleVoucherForm({
       </div>
 
       <Field label="Combo (default = combo da parceria)" id="v-combo">
-        <input
+        <select
           id="v-combo"
           name="combo"
-          type="text"
           value={combo}
           onChange={(e) => setCombo(e.target.value)}
-          list="v-combo-options"
-          placeholder={selected?.voucherCombo ?? 'Selecione parceria primeiro'}
-          className="w-full px-2.5 py-1.5 rounded-md bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
-        />
-        {allCombos.length > 0 ? (
-          <datalist id="v-combo-options">
-            {allCombos.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          className="w-full px-2.5 py-1.5 rounded-md border border-white/10 text-xs focus:outline-none focus:border-[#C9A96E]/50"
+          style={{
+            colorScheme: 'dark',
+            background: '#1A1814',
+            color: '#F5F0E8',
+          }}
+        >
+          <option value="" style={{ background: '#1A1814', color: '#9CA3AF' }}>
+            {selected?.voucherCombo
+              ? `${selected.voucherCombo} (padrão da parceria)`
+              : 'Selecionar combo…'}
+          </option>
+          {allCombos.map((c) => (
+            <option
+              key={c}
+              value={c}
+              style={{ background: '#1A1814', color: '#F5F0E8' }}
+            >
+              {c}
+            </option>
+          ))}
+        </select>
+        {allCombos.length === 0 ? (
+          <span className="text-[10px] text-[#FCA5A5] mt-0.5">
+            Nenhum combo cadastrado · adicione em /b2b/config/combos
+          </span>
         ) : null}
       </Field>
 

@@ -44,6 +44,19 @@ export async function listEnrichedPartnershipsAction(): Promise<PartnershipOptio
   )
 }
 
+/**
+ * Lista todos combos cadastrados na clinica · alimenta dropdown.
+ * Mig 2026-04-27: combo virou select obrigatorio (era datalist · so trazia 1).
+ */
+export async function listAllCombosAction(): Promise<string[]> {
+  const { repos } = await loadMiraServerContext()
+  const combos = await repos.b2bVoucherCombos.list().catch(() => [])
+  return combos
+    .filter((c) => c.isActive)
+    .map((c) => c.label)
+    .sort()
+}
+
 function assertCanManage(role: string | null | undefined) {
   if (role && !['owner', 'admin', 'therapist', 'receptionist'].includes(role)) {
     throw new Error('Permissao insuficiente')

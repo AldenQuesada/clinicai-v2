@@ -14,7 +14,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function VoucherNovoPage() {
   const { ctx, repos } = await loadMiraServerContext()
-  const partnerships = await repos.b2bPartnerships.list(ctx.clinic_id, { status: 'active' })
+  const [partnerships, combosRaw] = await Promise.all([
+    repos.b2bPartnerships.list(ctx.clinic_id, { status: 'active' }),
+    repos.b2bVoucherCombos.list().catch(() => []),
+  ])
 
   // Enriquece com counts mensais · max 30 partnerships ativas (defensivo)
   const enriched: PartnershipOption[] = await Promise.all(
@@ -29,6 +32,10 @@ export default async function VoucherNovoPage() {
         .catch(() => 0),
     })),
   )
+  const combos = combosRaw
+    .filter((c) => c.isActive)
+    .map((c) => c.label)
+    .sort()
 
   return (
     <main
@@ -62,7 +69,7 @@ export default async function VoucherNovoPage() {
           </Link>
         </div>
 
-        <SingleVoucherForm partnerships={enriched} />
+        <SingleVoucherForm partnerships={enriched} combos={combos} />
       </div>
     </main>
   )

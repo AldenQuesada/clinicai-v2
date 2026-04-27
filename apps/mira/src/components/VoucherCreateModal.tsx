@@ -12,7 +12,10 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { X } from 'lucide-react'
-import { listEnrichedPartnershipsAction } from '@/app/(authed)/vouchers/novo/actions'
+import {
+  listEnrichedPartnershipsAction,
+  listAllCombosAction,
+} from '@/app/(authed)/vouchers/novo/actions'
 import { SingleVoucherForm, type PartnershipOption } from '@/app/(authed)/vouchers/novo/SingleVoucherForm'
 
 export function VoucherCreateModal({
@@ -23,19 +26,24 @@ export function VoucherCreateModal({
   onClose: () => void
 }) {
   const [partnerships, setPartnerships] = useState<PartnershipOption[]>([])
+  const [combos, setCombos] = useState<string[]>([])
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch lazy quando abre
+  // Fetch lazy quando abre · partnerships + combos em paralelo
   useEffect(() => {
     if (!open) return
     setError(null)
     startTransition(async () => {
       try {
-        const list = await listEnrichedPartnershipsAction()
+        const [list, comboList] = await Promise.all([
+          listEnrichedPartnershipsAction(),
+          listAllCombosAction(),
+        ])
         setPartnerships(list)
+        setCombos(comboList)
       } catch (e) {
-        setError((e as Error).message || 'Falha ao carregar parcerias')
+        setError((e as Error).message || 'Falha ao carregar dados')
       }
     })
   }, [open])
@@ -148,7 +156,7 @@ export function VoucherCreateModal({
               {error}
             </div>
           ) : (
-            <SingleVoucherForm partnerships={partnerships} />
+            <SingleVoucherForm partnerships={partnerships} combos={combos} />
           )}
         </div>
       </div>
