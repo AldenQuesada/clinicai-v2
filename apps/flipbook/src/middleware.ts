@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createMiddlewareClient } from '@clinicai/supabase/middleware'
 
 /**
- * Auth gate · /admin/** requer login.
+ * Auth gate · /admin/** requer:
+ *   1. usuario logado (sessao Supabase valida)
+ *   2. email do usuario na FLIPBOOK_ADMIN_EMAILS allowlist (csv)
+ *
+ * Se logado mas nao admin → redirect pra / com erro.
  */
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
@@ -12,10 +16,21 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
 
-  if (path.startsWith('/admin') && !user) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('next', path)
-    return NextResponse.redirect(loginUrl)
+  if (path.startsWith('/admin')) {
+    if (!user) {
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('next', path)
+      return NextResponse.redirect(loginUrl)
+    }
+    const allowlist = (process.env.FLIPBOOK_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+    if (allowlist.length > 0 && !allowlist.includes((user.email ?? '').toLowerCase())) {
+      const home = new URL('/', request.url)
+      home.searchParams.set('error', 'forbidden')
+      return NextResponse.redirect(home)
+    }
   }
 
   if (path === '/login' && user) {

@@ -1,10 +1,11 @@
 'use client'
 
-import { forwardRef, useEffect, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import HTMLFlipBook from 'react-pageflip'
 import { Document, Page } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
+import { trackPageView } from '@/lib/utils/trackView'
 
 interface Props {
   pdfUrl: string
@@ -71,9 +72,23 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
     onTotalPages(numPages)
   }
 
+  const lastPageEnter = useRef<{ page: number; t: number } | null>(null)
+
   const onFlip = (e: { data: number }) => {
-    onPageChange(e.data + 1)
-    // TODO v1.1: chamar /api/views pra registrar leitura
+    const newPage = e.data + 1
+    onPageChange(newPage)
+
+    // Registra duração da página anterior (debounce natural: só dispara ao virar)
+    const now = Date.now()
+    if (lastPageEnter.current) {
+      const prev = lastPageEnter.current
+      const durationMs = now - prev.t
+      // só conta se ficou >= 1.5s (filtra navegação rápida sem leitura)
+      if (durationMs >= 1500) {
+        trackPageView({ flipbookId, pageNumber: prev.page, durationMs })
+      }
+    }
+    lastPageEnter.current = { page: newPage, t: now }
   }
 
   return (

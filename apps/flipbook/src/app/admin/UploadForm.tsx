@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Upload, Loader2 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { createBrowserClient } from '@/lib/supabase/browser'
+import { extractPdfMetadata } from '@/lib/pdf/extractMetadata'
 
 const SLUGIFY = (s: string) =>
   s
@@ -41,7 +42,35 @@ export function UploadForm() {
     const slug = SLUGIFY(title) + '-' + Date.now().toString(36)
     const path = `${slug}/${uuidv4()}.${ext}`
 
-    // upload pro bucket via signed URL (mais robusto que upload direto)
+    // 1. Extrai page_count + capa client-side ANTES do upload (só PDF por ora)
+    let pageCount: number | null = null
+    let coverUrl: string | null = null
+    if (format === 'pdf') {
+      try {
+        setProgress(10)
+        const meta = await extractPdfMetadata(file, { coverWidth: 600 })
+        pageCount = meta.pageCount
+        setProgress(25)
+        if (meta.coverBlob) {
+          const coverPath = `${slug}/cover.jpg`
+          const coverUp = await supabase.storage.from('flipbook-covers').upload(coverPath, meta.coverBlob, {
+            cacheControl: '86400',
+            contentType: 'image/jpeg',
+            upsert: true,
+          })
+          if (!coverUp.error) {
+            const { data } = supabase.storage.from('flipbook-covers').getPublicUrl(coverPath)
+            coverUrl = data.publicUrl
+          }
+        }
+        setProgress(40)
+      } catch (e) {
+        // best-effort: se extração falhar, continua sem page_count/cover (admin pode editar depois)
+        console.warn('extractPdfMetadata falhou:', e)
+      }
+    }
+
+    // 2. Upload do PDF principal
     const upRes = await supabase.storage.from('flipbook-pdfs').upload(path, file, {
       cacheControl: '3600',
       contentType: file.type || 'application/pdf',
@@ -49,8 +78,9 @@ export function UploadForm() {
     if (upRes.error) {
       setError('Falha no upload: ' + upRes.error.message); setSubmitting(false); return
     }
-    setProgress(80)
+    setProgress(85)
 
+    // 3. Insert metadata no banco
     const insertRes = await supabase
       .from('flipbooks')
       .insert({
@@ -60,10 +90,10 @@ export function UploadForm() {
         author: 'Dr. Alden Quesada',
         language,
         edition: edition || null,
-        cover_url: null,
+        cover_url: coverUrl,
         pdf_url: path,
         format,
-        page_count: null,
+        page_count: pageCount,
         amazon_asin: amazonAsin || null,
         published_at: status === 'published' ? new Date().toISOString() : null,
         status,
