@@ -42,7 +42,7 @@ Source code copiado pra `clinicai-v2/supabase/functions/` (mesmo project, mesma 
 | 2 | Sidebar clinic-dashboard aponta pra Mira (1 link só) | ✅ done | — |
 | 3 | Pages legacy B2B viram redirect stubs | ✅ done | — |
 | 4 | Source code 12 edges copiado pra `clinicai-v2/supabase/functions/` | ✅ done | — |
-| 5 | Deploy edges via `clinicai-v2` (substituir versão hospedada · mesma URL) | ⏭️ pending | rodar `supabase functions deploy` no clinicai-v2 |
+| 5 | Deploy edges via `clinicai-v2` (substituir versão hospedada · mesma URL) | ✅ done | 12 edges deployadas 2026-04-27 (v+1 cada) · smoke N2 24/24 |
 | 6 | n8n/Evolution apontar webhook pra `apps/mira/api/webhook/evolution` | ⏭️ pending | configurar Evolution dashboard |
 | 7 | Remover `b2b-mira-inbound` + `b2b-mira-router` do Supabase (legacy router) | ⏭️ pending | requer #6 confirmado |
 | 8 | Pausar deploy clinic-dashboard no Easypanel | ⏭️ pending | requer #2-#5 estáveis em prod |
