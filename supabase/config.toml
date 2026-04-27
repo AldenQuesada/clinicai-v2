@@ -1,0 +1,38 @@
+project_id = "oqboitkpcvuaudouwvkl"
+
+# lara-dispatch roda por pg_cron (service-role), mas tambem agora
+# aceita header X-Lara-Secret quando chamada externamente.
+[functions.lara-dispatch]
+verify_jwt = false
+
+# wa-inbound e chamada pelo n8n/Evolution (sem JWT de Supabase); protegida
+# pelo header X-Inbound-Secret validado no codigo.
+[functions.wa-inbound]
+verify_jwt = false
+
+# wa-send-proxy exige JWT (anon ou usuario). Impede chamadas anonimas de
+# fora do dominio. EVOLUTION_KEY fica em secret server-side.
+[functions.wa-send-proxy]
+verify_jwt = true
+
+# m-og-preview serve HTML com OG tags pra crawlers (WhatsApp, Facebook, etc).
+# Crawlers NAO enviam JWT · precisa ser publica. Seguranca vem do token opaco
+# na URL (?x=<token>) que so a clinica conhece.
+[functions.m-og-preview]
+verify_jwt = false
+
+# b2b-mira-inbound recebe webhook da Evolution direto (bypass do n8n que
+# ficou instavel em 2026-04-22). Protegida por X-Inbound-Secret validado
+# no codigo.
+[functions.b2b-mira-inbound]
+verify_jwt = false
+
+# b2b-mira-router e chamada exclusivamente por b2b-mira-inbound (edge-to-edge
+# via HTTP). Autenticacao e feita via shared secret X-Mira-Router-Secret no
+# codigo. Sem verify_jwt=false aqui, o gateway Supabase rejeita a chamada da
+# inbound com "UNAUTHORIZED_INVALID_JWT_FORMAT" e NENHUMA mensagem real da
+# Mira e processada (so rastro do classifier aparece em wa_pro_messages).
+# Incidente recorrente 2026-04-23/24 (Leo Biaggi, Flavia Sobral, Aline
+# Tavares, Dani Mendes) — commit deste fix fecha o gap.
+[functions.b2b-mira-router]
+verify_jwt = false
