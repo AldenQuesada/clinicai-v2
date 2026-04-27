@@ -49,6 +49,11 @@ body { font-family: var(--font-body); }
 /* Hide PDF.js text layer warnings */
 .react-pdf__Page__textContent, .react-pdf__Page__annotations { display: none !important; }
 
+/* Shimmer animation pro Skeleton premium */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
 /* Page-flip premium shadow */
 .flipbook-page {
   background: var(--color-bg-elevated);

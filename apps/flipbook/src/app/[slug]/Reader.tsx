@@ -18,11 +18,15 @@ const FlipbookCanvas = dynamic(() => import('@/components/reader/FlipbookCanvas'
 
 interface Props {
   pdfUrl: string
+  pdfPath: string
   flipbookId: string
   pageCount: number | null
 }
 
-export function Reader({ pdfUrl, flipbookId, pageCount }: Props) {
+const REFRESH_INTERVAL_MS = 50 * 60 * 1000 // 50min · signed URL TTL é 60min
+
+export function Reader({ pdfUrl: initialUrl, pdfPath, flipbookId, pageCount }: Props) {
+  const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(pageCount ?? 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -32,6 +36,28 @@ export function Reader({ pdfUrl, flipbookId, pageCount }: Props) {
   useEffect(() => {
     setupPdfWorker()
   }, [])
+
+  // Refresh signed URL antes do TTL · evita PDF corromper mid-leitura
+  useEffect(() => {
+    if (!pdfPath) return
+    const refresh = async () => {
+      try {
+        const res = await fetch('/api/refresh-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: pdfPath }),
+        })
+        if (res.ok) {
+          const { signedUrl } = await res.json()
+          if (signedUrl) setPdfUrl(signedUrl)
+        }
+      } catch {
+        // best-effort · próxima tentativa em 50min
+      }
+    }
+    const id = setInterval(refresh, REFRESH_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [pdfPath])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

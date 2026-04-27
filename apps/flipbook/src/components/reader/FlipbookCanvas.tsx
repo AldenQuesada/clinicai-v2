@@ -6,6 +6,7 @@ import { Document, Page } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { trackPageView } from '@/lib/utils/trackView'
+import { ReaderSkeleton } from '@/components/ui/Skeleton'
 
 interface Props {
   pdfUrl: string
@@ -95,8 +96,8 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
     <Document
       file={pdfUrl}
       onLoadSuccess={onDocLoad}
-      loading={<div className="text-text-muted text-center p-8">Carregando livro…</div>}
-      error={<div className="text-red-400 text-center p-8">Falha ao carregar o PDF.</div>}
+      loading={<ReaderSkeleton />}
+      error={<div className="text-red-400 text-center p-8 font-display italic text-xl">Falha ao carregar o PDF.</div>}
       className="flex items-center justify-center w-full h-full"
     >
       {numPages > 0 && (
