@@ -31,10 +31,14 @@ on:
     - cron: '0 1 * * *'           # anomaly diario 01h
     - cron: '0 10 * * *'          # birthday diario 10h
     - cron: '*/5 * * * *'         # task reminders cada 5min
-    - cron: '0 12 * * *'          # followup suggestions 12h
+    - cron: '0 12 * * *'          # followup suggestions + activity reminders 12h UTC = 09h SP
     - cron: '0 21 * * 5'          # inactivity radar sex 21h
     - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07 + 800-09 batch limit)
     - cron: '0 12 1 * *'          # monthly partner feedback dia 1 09h SP (mig 800-16)
+    # Voucher lifecycle · mig 800-49 (Alden 2026-04-27 audit gap)
+    - cron: '0 13 * * *'          # voucher-validity-reminder 13h UTC = 10h SP (D-3 antes expirar)
+    - cron: '0 5 * * *'           # voucher-expired-sweep 05h UTC = 02h SP (mark expired + dispatch)
+    - cron: '0 17 * * *'          # voucher-post-purchase-upsell 17h UTC = 14h SP (D+7 pos atendimento)
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
@@ -55,6 +59,11 @@ on:
           - mira-followup-suggestions
           - mira-inactivity-radar
           - mira-monthly-partner-feedback
+          - mira-activity-reminders
+          - mira-daily-top-insight
+          - mira-voucher-validity-reminder
+          - mira-voucher-expired-sweep
+          - mira-voucher-post-purchase-upsell
           - b2b-voucher-dispatch-worker
           - lara-voucher-followup
           - webhook-processing-worker
@@ -80,10 +89,13 @@ jobs:
               "0 1 * * *")            ENDPOINTS="mira-anomaly-check" ;;
               "0 10 * * *")           ENDPOINTS="mira-birthday-alerts" ;;
               "*/5 * * * *")          ENDPOINTS="mira-task-reminders" ;;
-              "0 12 * * *")           ENDPOINTS="mira-followup-suggestions" ;;
+              "0 12 * * *")           ENDPOINTS="mira-followup-suggestions mira-activity-reminders" ;;
               "0 21 * * 5")           ENDPOINTS="mira-inactivity-radar" ;;
               "0 * * * *")            ENDPOINTS="lara-voucher-followup" ;;
               "0 12 1 * *")           ENDPOINTS="mira-monthly-partner-feedback" ;;
+              "0 13 * * *")           ENDPOINTS="mira-voucher-validity-reminder" ;;
+              "0 5 * * *")            ENDPOINTS="mira-voucher-expired-sweep" ;;
+              "0 17 * * *")           ENDPOINTS="mira-voucher-post-purchase-upsell" ;;
               *)                      echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
           fi

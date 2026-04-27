@@ -102,9 +102,9 @@ const JOBS: CronJob[] = [
     endpoints: ['mira-task-reminders'],
   },
   {
-    label: 'followup-suggestions · 12h SP diario',
+    label: 'followup-suggestions + activity-reminders · 12h SP diario',
     schedule: '0 12 * * *',
-    endpoints: ['mira-followup-suggestions'],
+    endpoints: ['mira-followup-suggestions', 'mira-activity-reminders'],
   },
   {
     label: 'inactivity-radar · sex 21h SP',
@@ -120,6 +120,27 @@ const JOBS: CronJob[] = [
     label: 'daily-top-insight · 08h SP diario (mig 800-20)',
     schedule: '0 8 * * *',
     endpoints: ['mira-daily-top-insight'],
+  },
+  {
+    label: 'monthly-partner-feedback · dia 1 09h SP (mig 800-16)',
+    schedule: '0 9 1 * *',
+    endpoints: ['mira-monthly-partner-feedback'],
+  },
+  // Voucher lifecycle crons · mig 800-49 (Alden 2026-04-27 audit gap)
+  {
+    label: 'voucher-validity-reminder · 10h SP diario (D-3 antes expirar)',
+    schedule: '0 10 * * *',
+    endpoints: ['mira-voucher-validity-reminder'],
+  },
+  {
+    label: 'voucher-expired-sweep · 02h SP diario (mark expired + dispatch)',
+    schedule: '0 2 * * *',
+    endpoints: ['mira-voucher-expired-sweep'],
+  },
+  {
+    label: 'voucher-post-purchase-upsell · 14h SP diario (D+7 pos atendimento)',
+    schedule: '0 14 * * *',
+    endpoints: ['mira-voucher-post-purchase-upsell'],
   },
 ]
 
