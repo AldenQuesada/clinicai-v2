@@ -24,11 +24,15 @@ const SEVERITY_LABELS: Record<InsightSeverity, string> = {
   info: 'Info',
 }
 
+// Cores de urgencia · padrao legacy (Alden 2026-04-26):
+//   critical/urgent #DC2626 · warning/alta #EF4444 · info/normal #F59E0B ·
+//   success/baixa #9CA3AF
+// Antes: critical=#EF4444 · warning=#F59E0B · success=#10B981 · info=#C9A96E.
 const SEVERITY_COLORS: Record<InsightSeverity, { border: string; bg: string; text: string; icon: typeof AlertTriangle }> = {
-  critical: { border: 'border-[#EF4444]/30', bg: 'bg-[#EF4444]/8', text: 'text-[#FCA5A5]', icon: AlertOctagon },
-  warning:  { border: 'border-[#F59E0B]/30', bg: 'bg-[#F59E0B]/8', text: 'text-[#FCD34D]', icon: AlertTriangle },
-  success:  { border: 'border-[#10B981]/30', bg: 'bg-[#10B981]/8', text: 'text-[#6EE7B7]', icon: Sparkles },
-  info:     { border: 'border-[#C9A96E]/30', bg: 'bg-[#C9A96E]/8', text: 'text-[#D4B785]', icon: Info },
+  critical: { border: 'border-[#DC2626]/30', bg: 'bg-[#DC2626]/10', text: 'text-[#FCA5A5]', icon: AlertOctagon },
+  warning:  { border: 'border-[#EF4444]/30', bg: 'bg-[#EF4444]/8',  text: 'text-[#FCA5A5]', icon: AlertTriangle },
+  info:     { border: 'border-[#F59E0B]/30', bg: 'bg-[#F59E0B]/8',  text: 'text-[#FCD34D]', icon: Info },
+  success:  { border: 'border-[#9CA3AF]/30', bg: 'bg-[#9CA3AF]/10', text: 'text-[#D1D5DB]', icon: Sparkles },
 }
 
 const KIND_LABELS: Record<InsightKind, string> = {
