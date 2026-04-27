@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import {
   Eye, EyeOff, Archive, MoreHorizontal, Pencil, Copy, Trash2, Loader2,
-  Settings, ExternalLink, Share2, Check,
+  Settings, ExternalLink, Share2, Check, Image as ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -28,6 +29,33 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+
+  useEffect(() => { setMounted(true) }, [])
+
+  function openMenu() {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect()
+      setMenuPos({
+        top: r.bottom + 4,
+        right: window.innerWidth - r.right,
+      })
+    }
+    setMenuOpen(true)
+  }
+
+  async function regenCover() {
+    setError(null); setMenuOpen(false)
+    const res = await fetch(`/api/flipbooks/${book.id}/regenerate-cover`, { method: 'POST' })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setError(j.error ?? 'Falha ao regenerar capa')
+      return
+    }
+    startTransition(() => router.refresh())
+  }
 
   async function deleteBook() {
     setError(null)
@@ -114,9 +142,10 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
             </div>
           </div>
 
-          <div className="relative shrink-0">
+          <div className="shrink-0">
             <button
-              onClick={() => setMenuOpen((v) => !v)}
+              ref={triggerRef}
+              onClick={() => menuOpen ? setMenuOpen(false) : openMenu()}
               aria-label="Ações"
               className={cn(
                 'p-1.5 -m-1 rounded hover:bg-bg-panel text-text-muted hover:text-gold transition',
@@ -126,27 +155,32 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
               <MoreHorizontal className="w-4 h-4" />
             </button>
 
-            {menuOpen && !confirmDelete && (
+            {mounted && menuOpen && !confirmDelete && createPortal(
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 bg-bg-elevated border border-border-strong rounded shadow-2xl z-20 py-1.5">
+                <div className="fixed inset-0 z-[9998]" onClick={() => setMenuOpen(false)} />
+                <div
+                  className="fixed w-52 bg-bg-elevated border border-border-strong rounded shadow-2xl z-[9999] py-1.5"
+                  style={{ top: menuPos.top, right: menuPos.right }}
+                >
                   <MenuItem Icon={Settings}     label="Editor"          onClick={() => router.push(`/admin/${book.slug}/edit`)} />
                   <MenuItem Icon={ExternalLink} label="Preview"         onClick={() => { window.open(`/${book.slug}`, '_blank'); setMenuOpen(false) }} />
                   <MenuItem Icon={Share2}       label="Compartilhar"    onClick={shareNative} />
                   <MenuItem Icon={copied ? Check : Copy} label={copied ? 'Copiado!' : 'Copiar link'} onClick={copyLink} />
                   <div className="border-t border-border my-1" />
+                  <MenuItem Icon={ImageIcon} label="Regenerar capa" onClick={regenCover} disabled={pending} />
                   <MenuItem Icon={Pencil} label="Editar metadata" onClick={() => router.push(`/admin/${book.slug}/edit#meta`)} />
                   <MenuItem Icon={Copy}   label="Duplicar" onClick={duplicateBook} disabled={pending} />
                   <div className="border-t border-border my-1" />
                   <MenuItem Icon={Trash2} label="Apagar" danger onClick={() => setConfirmDelete(true)} />
                 </div>
-              </>
+              </>,
+              document.body,
             )}
 
-            {confirmDelete && (
+            {confirmDelete && mounted && createPortal(
               <>
-                <div className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm" onClick={() => { setConfirmDelete(false); setMenuOpen(false) }} />
-                <div className="fixed inset-0 z-40 flex items-center justify-center p-4 pointer-events-none">
+                <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm" onClick={() => { setConfirmDelete(false); setMenuOpen(false) }} />
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
                   <div className="bg-bg-elevated border border-border-strong rounded-lg p-6 max-w-md w-full pointer-events-auto">
                     <h4 className="font-display italic text-text text-2xl mb-2">Apagar este livro?</h4>
                     <p className="text-text-muted text-sm mb-6">
@@ -172,7 +206,8 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
                     </div>
                   </div>
                 </div>
-              </>
+              </>,
+              document.body,
             )}
           </div>
         </div>
