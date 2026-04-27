@@ -28,8 +28,12 @@ const log = createLogger({ app: 'lara' });
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // Audit fix N3: valida cron secret · fail-CLOSED se env ausente
-  const reject = validateCronSecret(req, 'LARA_CRON_SECRET');
+  // Audit fix N3: valida cron secret · fail-CLOSED se env ausente.
+  // Aceita LARA_CRON_SECRET (preferido) OU CRON_SECRET (compat com prod
+  // existente em 2026-04-27). Defina UMA das duas no Easypanel.
+  const reject =
+    validateCronSecret(req, 'LARA_CRON_SECRET') &&
+    validateCronSecret(req, 'CRON_SECRET');
   if (reject) {
     return NextResponse.json(reject.body, { status: reject.status });
   }

@@ -1,0 +1,68 @@
+# GitHub Actions cron · jobs proativos da Lara.
+#
+# Mesmo padrão do mira-crons.yml: cron declarado aqui, dispatch via curl
+# com header x-cron-secret. Audit fix N3 (2026-04-27 · branch
+# audit/blindagem-lara-2026-04-27).
+#
+# Setup necessário:
+#   GitHub repo → Settings → Secrets and variables → Actions → New repo secret
+#     · LARA_CRON_SECRET = <mesmo valor da env LARA_CRON_SECRET no Easypanel>
+#
+# Gerar segredo: openssl rand -hex 32
+
+name: Lara proactive crons
+
+on:
+  schedule:
+    # /api/cron/reactivate · D1 reactivation 23h-26h window · de hora em hora
+    - cron: '15 * * * *'  # offset 15min pra não esbarrar com mira-voucher-followup
+  # Permite trigger manual via UI
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Qual cron disparar manualmente'
+        required: true
+        type: choice
+        options:
+          - reactivate
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve which cron to fire
+        id: route
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENDPOINTS="${{ github.event.inputs.job }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "15 * * * *") ENDPOINTS="reactivate" ;;
+              *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
+            esac
+          fi
+          echo "endpoints=$ENDPOINTS" >> "$GITHUB_OUTPUT"
+          echo "Disparando: $ENDPOINTS"
+
+      - name: Fire crons
+        env:
+          LARA_CRON_SECRET: ${{ secrets.LARA_CRON_SECRET }}
+        run: |
+          set -e
+          BASE="https://lara.miriandpaula.com.br"
+          for ep in ${{ steps.route.outputs.endpoints }}; do
+            echo "→ $ep"
+            HTTP_CODE=$(curl -fsS -o /tmp/resp.json -w "%{http_code}" \
+              -H "x-cron-secret: $LARA_CRON_SECRET" \
+              -m 60 \
+              "$BASE/api/cron/$ep" || echo "000")
+            echo "  status=$HTTP_CODE"
+            if [ -f /tmp/resp.json ]; then
+              echo "  resp=$(cat /tmp/resp.json | head -c 300)"
+            fi
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::warning::$ep retornou $HTTP_CODE"
+            fi
+          done
