@@ -141,10 +141,12 @@ export async function getPauseStatus(conversationId: string) {
     const pauseEnd = new Date(conv.aiPausedUntil)
     if (pauseEnd > now) {
       const remainingMs = pauseEnd.getTime() - now.getTime()
+      // Audit fix N27 (2026-04-27): usa pausedBy real do DTO, não hardcoded.
+      // Antes mostrava 'dashboard' mesmo quando veio de human_handoff/auto_limit.
       return {
         isPaused: true,
         remainingTime: remainingMs / 60000,
-        pausedBy: 'dashboard',
+        pausedBy: conv.pausedBy || 'dashboard',
         pausedAt: conv.aiPausedUntil,
       }
     }

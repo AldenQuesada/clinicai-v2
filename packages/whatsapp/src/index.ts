@@ -9,3 +9,7 @@ export type { WaNumberConfig } from './cloud'
 // Evolution (Baileys self-hosted) · usado pela Mira
 export { EvolutionService, createEvolutionService } from './evolution'
 export type { EvolutionConfig } from './evolution'
+
+// HMAC signature validation (Meta webhook) · fail-closed em produção
+export { validateMetaSignature } from './signature'
+export type { SignatureValidationResult } from './signature'

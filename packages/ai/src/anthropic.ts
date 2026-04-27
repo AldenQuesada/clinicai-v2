@@ -71,6 +71,45 @@ interface CallOptions {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
   max_tokens?: number
   temperature?: number
+  /**
+   * Número máximo de tentativas em caso de erro transitório (5xx, 429, network).
+   * Default 3 · primeira tentativa + 2 retries com backoff exponencial.
+   */
+  max_retries?: number
+  /**
+   * Modelo de fallback quando o principal falha em todas as tentativas.
+   * Tenta 1× com este modelo antes de propagar a exceção.
+   * Default: MODELS.HAIKU (mais barato + menos sujeito a rate-limit).
+   */
+  fallback_model?: ModelId
+  /**
+   * Se true, NÃO tenta fallback model · só retorna erro do principal.
+   * Use em fluxos críticos onde resposta degradada é pior que ausência.
+   */
+  no_fallback?: boolean
+}
+
+/** Erros transitórios que valem retry · 5xx, 429 (rate-limit), network */
+function isTransientError(err: unknown): boolean {
+  if (!err) return false
+  const e = err as { status?: number; message?: string; name?: string }
+  if (typeof e.status === 'number') {
+    if (e.status >= 500 && e.status < 600) return true
+    if (e.status === 429) return true
+  }
+  const msg = (e.message ?? '').toLowerCase()
+  if (msg.includes('econnreset') || msg.includes('timeout') || msg.includes('network')) {
+    return true
+  }
+  if (e.name === 'AbortError') return true
+  return false
+}
+
+/** Sleep com jitter pra evitar thundering herd em retries simultâneos */
+function backoffDelay(attempt: number): number {
+  const base = Math.pow(2, attempt - 1) * 1000 // 1s, 2s, 4s, ...
+  const jitter = Math.random() * 250 // ±250ms
+  return base + jitter
 }
 
 /**
@@ -90,6 +129,9 @@ interface CallOptions {
  */
 export async function callAnthropic(opts: CallOptions): Promise<string> {
   const model = opts.model ?? getDefaultModel()
+  const maxRetries = opts.max_retries ?? 3
+  const fallbackModel = opts.fallback_model ?? MODELS.HAIKU
+
   const budget = await checkBudget(opts.clinic_id, opts.source)
   if (!budget.allowed) {
     log.warn(
@@ -99,50 +141,133 @@ export async function callAnthropic(opts: CallOptions): Promise<string> {
     throw new Error(`BUDGET_EXCEEDED · ${budget.reason}`)
   }
 
-  const start = Date.now()
   const anthropic = getAnthropicClient()
 
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: opts.max_tokens ?? 600,
-    temperature: opts.temperature ?? 0.2,
-    system: opts.system,
-    messages: opts.messages,
-  })
+  // Tentativas com modelo principal + 1 fallback opcional
+  let lastErr: unknown = null
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const start = Date.now()
+    try {
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: opts.max_tokens ?? 600,
+        temperature: opts.temperature ?? 0.2,
+        system: opts.system,
+        messages: opts.messages,
+      })
 
-  const elapsed_ms = Date.now() - start
-  const inputTokens = response.usage?.input_tokens ?? 0
-  const outputTokens = response.usage?.output_tokens ?? 0
-  const costUsd = calcCostUsd(model, inputTokens, outputTokens)
+      const elapsed_ms = Date.now() - start
+      const inputTokens = response.usage?.input_tokens ?? 0
+      const outputTokens = response.usage?.output_tokens ?? 0
+      const costUsd = calcCostUsd(model, inputTokens, outputTokens)
 
-  // Record usage (fire-and-forget · log error se falhar mas nao bloqueia resposta)
-  recordUsage({
-    clinic_id: opts.clinic_id,
-    user_id: opts.user_id,
-    source: opts.source,
-    model,
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
-    cost_usd: costUsd,
-  }).catch((err) => {
-    log.error({ err, clinic_id: opts.clinic_id, source: opts.source }, 'Falha ao registrar usage')
-  })
+      recordUsage({
+        clinic_id: opts.clinic_id,
+        user_id: opts.user_id,
+        source: opts.source,
+        model,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: costUsd,
+      }).catch((err) => {
+        log.error({ err, clinic_id: opts.clinic_id, source: opts.source }, 'Falha ao registrar usage')
+      })
 
-  log.info(
-    {
-      clinic_id: opts.clinic_id,
-      user_id: opts.user_id,
-      request_id: opts.request_id,
-      source: opts.source,
-      model,
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      cost_usd: costUsd,
-      elapsed_ms,
-    },
-    'Anthropic call concluida',
-  )
+      log.info(
+        {
+          clinic_id: opts.clinic_id,
+          user_id: opts.user_id,
+          request_id: opts.request_id,
+          source: opts.source,
+          model,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_usd: costUsd,
+          elapsed_ms,
+          attempt,
+        },
+        attempt > 1 ? 'Anthropic call ok apos retry' : 'Anthropic call concluida',
+      )
 
-  const textBlock = response.content.find((b) => b.type === 'text')
-  return textBlock?.type === 'text' ? textBlock.text : ''
+      const textBlock = response.content.find((b) => b.type === 'text')
+      return textBlock?.type === 'text' ? textBlock.text : ''
+    } catch (err) {
+      lastErr = err
+      if (!isTransientError(err) || attempt === maxRetries) {
+        // Erro permanente OU última tentativa do principal · sai do loop
+        break
+      }
+      const delay = backoffDelay(attempt)
+      log.warn(
+        {
+          clinic_id: opts.clinic_id,
+          source: opts.source,
+          attempt,
+          delay_ms: Math.round(delay),
+          err: (err as Error)?.message,
+        },
+        'Anthropic call transient · retry',
+      )
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
+
+  // Principal exauriu · tenta fallback model 1× se permitido
+  if (!opts.no_fallback && fallbackModel !== model) {
+    const start = Date.now()
+    try {
+      const response = await anthropic.messages.create({
+        model: fallbackModel,
+        max_tokens: opts.max_tokens ?? 600,
+        temperature: opts.temperature ?? 0.2,
+        system: opts.system,
+        messages: opts.messages,
+      })
+      const elapsed_ms = Date.now() - start
+      const inputTokens = response.usage?.input_tokens ?? 0
+      const outputTokens = response.usage?.output_tokens ?? 0
+      const costUsd = calcCostUsd(fallbackModel, inputTokens, outputTokens)
+
+      recordUsage({
+        clinic_id: opts.clinic_id,
+        user_id: opts.user_id,
+        source: opts.source + '.fallback',
+        model: fallbackModel,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: costUsd,
+      }).catch(() => {
+        /* swallow */
+      })
+
+      log.warn(
+        {
+          clinic_id: opts.clinic_id,
+          source: opts.source,
+          original_model: model,
+          fallback_model: fallbackModel,
+          elapsed_ms,
+          original_err: (lastErr as Error)?.message,
+        },
+        'Anthropic fallback usado · principal falhou apos retries',
+      )
+
+      const textBlock = response.content.find((b) => b.type === 'text')
+      return textBlock?.type === 'text' ? textBlock.text : ''
+    } catch (fallbackErr) {
+      log.error(
+        {
+          clinic_id: opts.clinic_id,
+          source: opts.source,
+          original_err: (lastErr as Error)?.message,
+          fallback_err: (fallbackErr as Error)?.message,
+        },
+        'Anthropic principal + fallback falharam',
+      )
+      throw fallbackErr
+    }
+  }
+
+  // Sem fallback ou fallback igual ao principal · propaga
+  throw lastErr instanceof Error ? lastErr : new Error('Anthropic call failed')
 }
