@@ -7,7 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { loadServerContext } from '@clinicai/supabase';
-import { WhatsAppCloudService } from '@/services/whatsapp-cloud';
+import {
+  WhatsAppCloudService,
+  createWhatsAppCloudFromWaNumber,
+} from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -55,11 +58,28 @@ export async function POST(
 
   const { supabase } = await loadServerContext();
   const repos = makeRepos(supabase);
-  const wa = new WhatsAppCloudService();
 
   const conv = await repos.conversations.getById(id);
   if (!conv) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  // Audit fix N7 (2026-04-27): WhatsApp service per-tenant.
+  // Tenta resolver pelo wa_number_id da conversation; fallback pra env global
+  // enquanto wa_numbers está sendo populado pra todas clínicas.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const waNumberId = (conv as any).waNumberId as string | null | undefined;
+  let wa: WhatsAppCloudService | null = null;
+  if (waNumberId) {
+    wa = await createWhatsAppCloudFromWaNumber(supabase, waNumberId);
+  }
+  if (!wa) {
+    wa = new WhatsAppCloudService({
+      wa_number_id: 'fallback-env',
+      clinic_id: conv.clinicId,
+      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    });
   }
 
   // clinic_id vem da conversation (resolvido no inbound · ADR-028)

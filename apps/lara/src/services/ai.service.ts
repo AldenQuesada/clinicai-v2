@@ -265,15 +265,16 @@ ${leadContext.is_audio_message ? '- MENSAGEM DE ÁUDIO: O lead enviou um áudio 
     content: m.role === 'user' ? wrapPatientInput(m.content) : m.content,
   }));
 
-  // Audit fix N2 + N5: callAnthropic do package canônico (cost control + retry/fallback)
-  // · clinic_id obrigatório · source identifica budget tracking
-  // · MODELS centralizado · override via env ANTHROPIC_MODEL no callAnthropic
+  // Audit fix N2 + N5: callAnthropic do package canônico (cost control + retry/fallback).
+  // Não passamos `model` · callAnthropic usa getDefaultModel() que lê
+  // ANTHROPIC_MODEL env ou cai em MODELS.SONNET. Centralização do modelo
+  // mora no package · MODELS importado só pra documentar a referência.
+  void MODELS;
   let responseText = '';
   try {
     responseText = await callAnthropic({
       clinic_id: leadContext.clinic_id || '00000000-0000-0000-0000-000000000001',
       source: 'lara.webhook',
-      model: (process.env.ANTHROPIC_MODEL as typeof MODELS.SONNET | undefined) ?? MODELS.SONNET,
       max_tokens: 600,
       temperature: 0.2,
       system: systemPrompt,
