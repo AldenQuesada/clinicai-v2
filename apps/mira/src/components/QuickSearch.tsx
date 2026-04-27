@@ -24,7 +24,19 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ArrowRight, Plus, Users, FileText, Activity, Settings } from 'lucide-react'
+import {
+  Search,
+  ArrowRight,
+  Plus,
+  Users,
+  FileText,
+  Activity,
+  Settings,
+  AlertTriangle,
+  Clock,
+  Hourglass,
+  Star,
+} from 'lucide-react'
 
 export interface QuickPartner {
   id: string
@@ -43,6 +55,15 @@ interface ActionItem {
   icon: React.ReactNode
 }
 
+interface FilterItem {
+  kind: 'filter'
+  key: string
+  label: string
+  hint?: string
+  href: string
+  icon: React.ReactNode
+}
+
 interface PartnerItem {
   kind: 'partner'
   key: string
@@ -52,7 +73,7 @@ interface PartnerItem {
   status?: string | null
 }
 
-type Item = ActionItem | PartnerItem
+type Item = ActionItem | FilterItem | PartnerItem
 
 const ACTIONS: Omit<ActionItem, 'kind'>[] = [
   { key: 'new-voucher', label: 'Emitir voucher', hint: 'rapido', href: '/vouchers/novo', icon: <Plus className="w-3.5 h-3.5" /> },
@@ -62,6 +83,46 @@ const ACTIONS: Omit<ActionItem, 'kind'>[] = [
   { key: 'templates', label: 'Templates WA', hint: 'Estudio', href: '/templates', icon: <FileText className="w-3.5 h-3.5" /> },
   { key: 'health', label: 'Saúde do sistema', hint: 'Hoje', href: '/configuracoes?tab=overview', icon: <Activity className="w-3.5 h-3.5" /> },
   { key: 'config', label: 'Configurações', hint: 'Estudio', href: '/configuracoes?tab=overview', icon: <Settings className="w-3.5 h-3.5" /> },
+]
+
+/**
+ * Smart filters · linhas no QuickSearch que navegam pra
+ * /partnerships?filter=<slug>. A filtragem real acontece server-side em
+ * partnerships/page.tsx. Cada filtro tem aliases pra match no normalize().
+ */
+const SMART_FILTERS: Array<Omit<FilterItem, 'kind'> & { aliases: string[] }> = [
+  {
+    key: 'filter-risk',
+    label: 'Parcerias em risco',
+    hint: 'health red/yellow',
+    href: '/partnerships?filter=risk',
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    aliases: ['risco', 'risk', 'saude', 'red', 'yellow', 'amarelo', 'vermelho', 'critico'],
+  },
+  {
+    key: 'filter-vouchers-expiring',
+    label: 'Vouchers expirando 7d',
+    hint: 'até 7 dias',
+    href: '/partnerships?filter=vouchers-expiring',
+    icon: <Hourglass className="w-3.5 h-3.5" />,
+    aliases: ['expirando', 'expira', 'voucher', 'vencendo', '7d', '7 dias', 'venc'],
+  },
+  {
+    key: 'filter-no-voucher-60d',
+    label: 'Sem voucher 60d',
+    hint: 'parado há 60 dias',
+    href: '/partnerships?filter=no-voucher-60d',
+    icon: <Clock className="w-3.5 h-3.5" />,
+    aliases: ['sem voucher', 'parado', '60d', '60 dias', 'inativa', 'silencio'],
+  },
+  {
+    key: 'filter-nps-pending',
+    label: 'NPS pendente',
+    hint: 'sem resposta 90d',
+    href: '/partnerships?filter=nps-pending',
+    icon: <Star className="w-3.5 h-3.5" />,
+    aliases: ['nps', 'pendente', 'avaliacao', 'feedback', 'sem resposta'],
+  },
 ]
 
 function normalize(s: string): string {
@@ -110,6 +171,9 @@ export function QuickSearch({ partners }: { partners: QuickPartner[] }) {
   const items = useMemo<Item[]>(() => {
     const q = normalize(query)
     const actionItems: Item[] = ACTIONS.map((a) => ({ kind: 'action' as const, ...a }))
+    const filterItemsAll: Array<Item & { aliases: string[] }> = SMART_FILTERS.map(
+      ({ aliases, ...rest }) => ({ kind: 'filter' as const, ...rest, aliases }),
+    )
     const partnerItems: Item[] = partners.map((p) => ({
       kind: 'partner' as const,
       key: `p-${p.id}`,
@@ -119,12 +183,28 @@ export function QuickSearch({ partners }: { partners: QuickPartner[] }) {
       status: p.status,
     }))
 
-    const all = [...actionItems, ...partnerItems]
-    if (!q) return all.slice(0, 30)
+    if (!q) {
+      // Sem query · mostra ACTIONS + FILTERS + parcerias top 30
+      const filterItems: Item[] = filterItemsAll.map(({ aliases: _aliases, ...rest }) => rest)
+      return [...actionItems, ...filterItems, ...partnerItems].slice(0, 30)
+    }
 
-    return all
-      .filter((i) => normalize(i.label).includes(q) || (i.hint && normalize(i.hint).includes(q)))
-      .slice(0, 30)
+    // Com query · filtra cada bucket separado e prioriza filters quando match
+    const filteredActions = actionItems.filter(
+      (i) => normalize(i.label).includes(q) || (i.hint && normalize(i.hint).includes(q)),
+    )
+    const filteredFilters: Item[] = filterItemsAll
+      .filter(({ label, hint, aliases }) => {
+        if (normalize(label).includes(q)) return true
+        if (hint && normalize(hint).includes(q)) return true
+        return aliases.some((a) => normalize(a).includes(q))
+      })
+      .map(({ aliases: _aliases, ...rest }) => rest)
+    const filteredPartners = partnerItems.filter(
+      (i) => normalize(i.label).includes(q) || (i.hint && normalize(i.hint).includes(q)),
+    )
+
+    return [...filteredFilters, ...filteredActions, ...filteredPartners].slice(0, 30)
   }, [query, partners])
 
   // Garante cursor dentro do range quando items muda
@@ -234,6 +314,7 @@ export function QuickSearch({ partners }: { partners: QuickPartner[] }) {
 
 function ItemIcon({ item }: { item: Item }) {
   if (item.kind === 'action') return <span className="text-[#C9A96E]">{item.icon}</span>
+  if (item.kind === 'filter') return <span className="text-[#F59E0B]">{item.icon}</span>
   return (
     <span className="w-4 h-4 rounded-full border border-[#C9A96E]/30 bg-[#C9A96E]/10 shrink-0" />
   )
