@@ -25,6 +25,7 @@ import type {
   FinancialKpisBlob,
   FinancialSignal,
 } from '@clinicai/repositories'
+import { CountUp } from '@clinicai/ui'
 import { PopChip } from './PopChip'
 import { computePop, formatBRL, formatPopTooltip } from './popUtils'
 
@@ -165,6 +166,7 @@ export function FinancialCard({
         <KpiBlock
           lbl="Revenue"
           val={formatBRL(cur.revenue)}
+          numeric={cur.revenue ?? null}
           sub={`${cur.conversions} conversões`}
           chip={
             <PopChip
@@ -176,6 +178,7 @@ export function FinancialCard({
         <KpiBlock
           lbl="Ticket médio"
           val={formatBRL(cur.ticket_medio)}
+          numeric={cur.ticket_medio}
           sub={
             cur.conversions > 0
               ? 'revenue / conversões'
@@ -194,6 +197,7 @@ export function FinancialCard({
         <KpiBlock
           lbl="CAC"
           val={formatBRL(cur.cac)}
+          numeric={cur.cac}
           sub={`R$ ${cur.cost_total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ÷ ${cur.conversions || 0}`}
           chip={
             <PopChip
@@ -280,14 +284,23 @@ export function FinancialCard({
 function KpiBlock({
   lbl,
   val,
+  numeric,
   sub,
   chip,
 }: {
   lbl: string
   val: string
+  /** Quando presente · usa CountUp animado e formata via formatBRL. null = '—' */
+  numeric?: number | null
   sub: string
   chip: React.ReactNode
 }) {
+  const valueNode =
+    typeof numeric === 'number' && Number.isFinite(numeric) ? (
+      <CountUp value={numeric} format={(n) => formatBRL(n)} />
+    ) : (
+      val
+    )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap' }}>
@@ -300,7 +313,7 @@ function KpiBlock({
             lineHeight: 1,
           }}
         >
-          {val}
+          {valueNode}
         </span>
         {chip}
       </div>

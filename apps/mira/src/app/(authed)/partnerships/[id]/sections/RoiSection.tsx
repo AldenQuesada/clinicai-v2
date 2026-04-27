@@ -10,6 +10,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { CountUp, Sparkline, EmptyState } from '@clinicai/ui'
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   referred: { label: 'Indicado', color: '#64748B' },
@@ -47,6 +48,29 @@ function fmtDate(iso: string | null | undefined): string {
   }
 }
 
+/**
+ * Agrupa timestamps ISO em 7 buckets de 1 dia · ultimo bucket = hoje.
+ * Retorna [d-6, d-5, ..., d-1, d-0] · serie pronta pra Sparkline.
+ *
+ * Defensive: timestamp invalido ou fora do range cai fora silenciosamente.
+ */
+function bucket7d(timestamps: Array<string | null | undefined>): number[] {
+  const buckets = [0, 0, 0, 0, 0, 0, 0]
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const dayMs = 86400000
+  const start = todayStart - 6 * dayMs
+  for (const ts of timestamps) {
+    if (!ts) continue
+    const t = new Date(ts).getTime()
+    if (Number.isNaN(t)) continue
+    if (t < start || t > todayStart + dayMs) continue
+    const idx = Math.min(6, Math.max(0, Math.floor((t - start) / dayMs)))
+    buckets[idx] += 1
+  }
+  return buckets
+}
+
 function fmtPhone(p: string | null): string {
   if (!p) return '—'
   const d = String(p).replace(/\D/g, '')
@@ -68,9 +92,11 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
         <div className="b2b-perf-section-hdr">
           <h3>Retorno real (registro + conversao)</h3>
         </div>
-        <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
-          Sem dados de ROI ainda. Emita vouchers + cruze com agendamentos.
-        </div>
+        <EmptyState
+          variant="vouchers"
+          title="Sem dados de ROI"
+          message="Emita vouchers e cruze com agendamentos pra começar a medir retorno."
+        />
       </section>
     )
   }
@@ -83,6 +109,15 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
       : roi.roi_pct >= 0
       ? { lbl: `Empate (${roi.roi_pct}%)`, color: '#60A5FA' }
       : { lbl: `Prejuizo (${roi.roi_pct}%)`, color: '#EF4444' }
+
+  // Sparklines (7 dias) · derivadas in-memory dos leads ja fetchados.
+  // Nao fazemos query nova · so agrupa o array existente por dia.
+  const referredSeries = bucket7d(leads.map((l) => l.created_at))
+  const convertedSeries = bucket7d(
+    leads
+      .filter((l) => l.status === 'converted' && l.converted_at)
+      .map((l) => l.converted_at as string),
+  )
 
   return (
     <section className="b2b-perf-section">
@@ -102,23 +137,27 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
         >
           <Kpi
             lbl="Indicados"
-            val={String(roi.referred || 0)}
-            tip="Total de leads indicados pela parceira (atribuição via voucher emitido ou indicação manual)."
+            numeric={Number(roi.referred || 0)}
+            series={referredSeries}
+            tip="Total de leads indicados pela parceira (atribuição via voucher emitido ou indicação manual). Sparkline = últimos 7 dias."
           />
           <Kpi
             lbl="Foram a clinica"
-            val={String(roi.matched || 0)}
+            numeric={Number(roi.matched || 0)}
             tip="Indicados que cruzaram com agendamento confirmado na clínica (matched no funil)."
           />
           <Kpi
             lbl="Converteram"
-            val={String(roi.converted || 0)}
+            numeric={Number(roi.converted || 0)}
+            series={convertedSeries}
             color="#10B981"
-            tip="Indicados que viraram pacientes pagantes (status converted · gerou faturamento)."
+            tip="Indicados que viraram pacientes pagantes (status converted · gerou faturamento). Sparkline = conversões nos últimos 7 dias."
           />
           <Kpi
             lbl="Taxa conversao"
             val={roi.conversion_rate != null ? `${roi.conversion_rate}%` : '—'}
+            numeric={roi.conversion_rate != null ? Number(roi.conversion_rate) : null}
+            valueFormat={(n) => `${n.toFixed(0)}%`}
             tip="Conversão = Converteram / Indicados (lifetime)."
           />
         </div>
@@ -133,11 +172,13 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
           <MoneyLine
             label="Faturamento"
             value={fmtBRL(roi.revenue_brl)}
+            numeric={roi.revenue_brl ?? null}
             tip="Soma do faturamento dos leads convertidos atribuídos a essa parceria (lifetime)."
           />
           <MoneyLine
             label="Custo"
             value={fmtBRL(roi.cost_brl)}
+            numeric={roi.cost_brl ?? null}
             tip="Custo total acumulado: vouchers resgatados × custo unitário + custo dos eventos."
           />
           <div
@@ -152,7 +193,11 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
               className="text-[20px] font-semibold"
               style={{ color: roiBand.color, fontFamily: "'Cormorant Garamond', serif" }}
             >
-              {fmtBRL(roi.net_brl)}
+              {typeof roi.net_brl === 'number' && Number.isFinite(roi.net_brl) ? (
+                <CountUp value={roi.net_brl} format={(n) => fmtBRL(n)} />
+              ) : (
+                fmtBRL(roi.net_brl)
+              )}
             </strong>
           </div>
           <div
@@ -171,9 +216,11 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
           Historico de indicacoes ({leads.length})
         </div>
         {leads.length === 0 ? (
-          <div className="b2b-empty" style={{ padding: 16, fontStyle: 'italic' }}>
-            Nenhum lead indicado ainda. Ao emitir voucher, aparece aqui.
-          </div>
+          <EmptyState
+            variant="leads"
+            title="Sem leads indicados"
+            message="Ao emitir voucher, os leads atribuídos à parceria aparecem aqui."
+          />
         ) : (
           <div
             className="overflow-x-auto"
@@ -238,26 +285,65 @@ export async function RoiSection({ partnershipId }: { partnershipId: string }) {
   )
 }
 
-function Kpi({ lbl, val, color, tip }: { lbl: string; val: string; color?: string; tip?: string }) {
+function Kpi({
+  lbl,
+  val,
+  numeric,
+  series,
+  color,
+  tip,
+  valueFormat,
+}: {
+  lbl: string
+  /** Fallback string quando `numeric` ausente · ex: '—' ou '12%'. */
+  val?: string
+  /** Quando presente · usa CountUp animado. */
+  numeric?: number | null
+  /** Serie 7d · renderiza Sparkline mini ao lado quando >=2 pontos. */
+  series?: number[]
+  color?: string
+  tip?: string
+  /** Formatter custom · default toLocaleString('pt-BR') (inteiros). */
+  valueFormat?: (n: number) => string
+}) {
+  const c = color ?? 'var(--b2b-ivory)'
+  const sparkColor = color ?? '#C9A96E'
   return (
     <div className="flex flex-col gap-0.5" title={tip}>
       <span className="text-[10px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
         {lbl}
       </span>
-      <strong
-        className="text-[22px] font-semibold"
-        style={{
-          color: color ?? 'var(--b2b-ivory)',
-          fontFamily: "'Cormorant Garamond', serif",
-        }}
-      >
-        {val}
-      </strong>
+      <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+        <strong
+          className="text-[22px] font-semibold"
+          style={{ color: c, fontFamily: "'Cormorant Garamond', serif" }}
+        >
+          {typeof numeric === 'number' && Number.isFinite(numeric) ? (
+            <CountUp value={numeric} format={valueFormat} />
+          ) : (
+            val ?? '—'
+          )}
+        </strong>
+        {series && series.length >= 2 ? (
+          <Sparkline data={series} width={48} height={14} color={sparkColor} />
+        ) : null}
+      </span>
     </div>
   )
 }
 
-function MoneyLine({ label, value, tip }: { label: string; value: string; tip?: string }) {
+function MoneyLine({
+  label,
+  value,
+  numeric,
+  tip,
+}: {
+  label: string
+  value: string
+  /** Quando presente · CountUp formatando via fmtBRL. */
+  numeric?: number | null
+  tip?: string
+}) {
   return (
     <div className="flex items-baseline justify-between gap-2" title={tip}>
       <span className="text-[11px] uppercase tracking-[1.2px] text-[var(--b2b-text-muted)]">
@@ -267,7 +353,11 @@ function MoneyLine({ label, value, tip }: { label: string; value: string; tip?: 
         className="text-[16px] font-semibold"
         style={{ color: 'var(--b2b-ivory)', fontFamily: "'Cormorant Garamond', serif" }}
       >
-        {value}
+        {typeof numeric === 'number' && Number.isFinite(numeric) ? (
+          <CountUp value={numeric} format={(n) => fmtBRL(n)} />
+        ) : (
+          value
+        )}
       </strong>
     </div>
   )

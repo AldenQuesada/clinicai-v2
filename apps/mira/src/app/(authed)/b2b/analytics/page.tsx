@@ -34,6 +34,7 @@ import {
 import { PopChip } from './_shared/PopChip'
 import { FinancialCard } from './_shared/FinancialCard'
 import { Tooltip } from '@/components/Tooltip'
+import { CountUp, Sparkline } from '@clinicai/ui'
 import type {
   AnalyticsBlob,
   B2BFunnelBenchmarkDTO,
@@ -870,19 +871,15 @@ function SnapshotRow({ kpis }: { kpis: Kpi[] }) {
                 display: 'flex',
                 alignItems: 'baseline',
                 flexWrap: 'wrap',
+                gap: 6,
               }}
             >
-              <span
-                style={{
-                  fontFamily: '"Cormorant Garamond", Georgia, serif',
-                  fontSize: 22,
-                  fontWeight: 500,
-                  color,
-                  lineHeight: 1,
-                }}
-              >
-                {k.val}
+              <span style={{ fontSize: 22, lineHeight: 1 }}>
+                <KpiVal val={k.val} color={color} />
               </span>
+              {k.series && k.series.length >= 2 ? (
+                <Sparkline data={k.series} width={56} height={16} color={color} />
+              ) : null}
               {k.pop ? (
                 <PopChip delta={k.pop} tooltip={k.popTooltip ?? ''} />
               ) : null}
@@ -1054,19 +1051,15 @@ function CompactKpiGrid({ kpis }: { kpis: Kpi[] }) {
                 display: 'flex',
                 alignItems: 'baseline',
                 flexWrap: 'wrap',
+                gap: 5,
               }}
             >
-              <span
-                style={{
-                  fontFamily: '"Cormorant Garamond", Georgia, serif',
-                  fontSize: 20,
-                  fontWeight: 500,
-                  color,
-                  lineHeight: 1,
-                }}
-              >
-                {k.val}
+              <span style={{ fontSize: 20, lineHeight: 1 }}>
+                <KpiVal val={k.val} color={color} />
               </span>
+              {k.series && k.series.length >= 2 ? (
+                <Sparkline data={k.series} width={48} height={14} color={color} />
+              ) : null}
               {k.pop ? (
                 <PopChip delta={k.pop} tooltip={k.popTooltip ?? ''} />
               ) : null}
@@ -1144,6 +1137,49 @@ interface Kpi {
   popTooltip?: string
   /** Tooltip explicativo do KPI · threshold/criterio · aparece on hover do label */
   tip?: string
+  /** Serie temporal (7-30 pontos) · renderiza Sparkline ao lado quando presente. */
+  series?: number[]
+}
+
+/**
+ * Renderiza valor com CountUp quando numerico (inteiro ou %). Mantem
+ * formatting "X.X%" pra strings de percentual, "X" raw pra numero. String
+ * generica (ex: "12/34") cai pro fallback estatico.
+ */
+function KpiVal({ val, color }: { val: number | string; color: string }) {
+  const baseStyle: React.CSSProperties = {
+    fontFamily: '"Cormorant Garamond", Georgia, serif',
+    fontWeight: 500,
+    color,
+    lineHeight: 1,
+  }
+  if (typeof val === 'number') {
+    return (
+      <span style={baseStyle}>
+        <CountUp value={val} />
+      </span>
+    )
+  }
+  // String puro inteiro (ex: "42")
+  if (/^\d+$/.test(val)) {
+    return (
+      <span style={baseStyle}>
+        <CountUp value={Number(val)} />
+      </span>
+    )
+  }
+  // Percentual ("12.5%" ou "12%")
+  const pct = val.match(/^(-?\d+(?:\.\d+)?)%$/)
+  if (pct) {
+    const num = Number(pct[1])
+    return (
+      <span style={baseStyle}>
+        <CountUp value={num} format={(n) => `${n.toFixed(1)}%`} />
+      </span>
+    )
+  }
+  // Fallback · render raw (ex: "—", "12/34", "2h")
+  return <span style={baseStyle}>{val}</span>
 }
 
 function HealthBar({ h }: { h: AnalyticsBlob['health'] }) {
