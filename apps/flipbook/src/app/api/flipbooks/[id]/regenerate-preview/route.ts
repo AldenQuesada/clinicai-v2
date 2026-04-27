@@ -95,6 +95,8 @@ export async function POST(_req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, preview_count: uploadedCount.length, total_pages: totalPages })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const stack = e instanceof Error ? e.stack : undefined
+    console.error('[regenerate-preview] FAIL:', msg, stack)
+    return NextResponse.json({ error: msg, stack: process.env.NODE_ENV !== 'production' ? stack : undefined }, { status: 500 })
   }
 }

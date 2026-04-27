@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
 
+  // Pacotes nativos/binários que Turbopack/webpack não devem tentar bundlear server-side
+  serverExternalPackages: ['canvas', 'pdfjs-dist'],
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },
