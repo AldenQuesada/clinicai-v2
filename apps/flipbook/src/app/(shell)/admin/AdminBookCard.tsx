@@ -31,17 +31,25 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+  const [menuPos, setMenuPos] = useState<{ right: number; top?: number; bottom?: number }>({ right: 0, top: 0 })
 
   useEffect(() => { setMounted(true) }, [])
 
   function openMenu() {
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect()
-      setMenuPos({
-        top: r.bottom + 4,
-        right: window.innerWidth - r.right,
-      })
+      const MENU_HEIGHT = 380 // altura estimada do menu (10 itens + dividers)
+      const spaceBelow = window.innerHeight - r.bottom
+      const spaceAbove = r.top
+      const right = window.innerWidth - r.right
+
+      if (spaceBelow < MENU_HEIGHT && spaceAbove > spaceBelow) {
+        // Abre pra cima · ancora bottom no top do trigger
+        setMenuPos({ right, bottom: window.innerHeight - r.top + 4 })
+      } else {
+        // Padrão · abre pra baixo
+        setMenuPos({ right, top: r.bottom + 4 })
+      }
     }
     setMenuOpen(true)
   }
@@ -171,7 +179,11 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
                 <div className="fixed inset-0 z-[9998]" onClick={() => setMenuOpen(false)} />
                 <div
                   className="fixed w-52 bg-bg-elevated border border-border-strong rounded shadow-2xl z-[9999] py-1.5"
-                  style={{ top: menuPos.top, right: menuPos.right }}
+                  style={{
+                    right: menuPos.right,
+                    ...(menuPos.top !== undefined ? { top: menuPos.top } : {}),
+                    ...(menuPos.bottom !== undefined ? { bottom: menuPos.bottom } : {}),
+                  }}
                 >
                   <MenuItem Icon={Settings}     label="Editor"          onClick={() => router.push(`/admin/${book.slug}/edit`)} />
                   <MenuItem Icon={ExternalLink} label="Preview"         onClick={() => { window.open(`/${book.slug}`, '_blank'); setMenuOpen(false) }} />
