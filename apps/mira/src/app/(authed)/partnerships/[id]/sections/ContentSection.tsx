@@ -8,6 +8,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { EmptyState } from '@clinicai/ui'
 
 const KIND_LABELS: Record<string, string> = {
   post: 'Post',
@@ -31,10 +32,11 @@ export async function ContentSection({ partnershipId }: { partnershipId: string 
     return (
       <section className="flex flex-col gap-2">
         <h3 className="b2b-sec-title">Playbook de conteudo</h3>
-        <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
-          Nenhum conteudo planejado ainda. Aplique o playbook ou use "IA conteudo"
-          pra gerar carrosseis e ganchos automaticamente.
-        </div>
+        <EmptyState
+          variant="generic"
+          title="Sem conteúdo planejado"
+          message='Aplique o playbook ou use "IA conteúdo" pra gerar carrosséis e ganchos automaticamente.'
+        />
       </section>
     )
   }

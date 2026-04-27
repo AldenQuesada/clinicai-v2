@@ -10,6 +10,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveApplicationAction, rejectApplicationAction } from './actions'
 import type { ApplicationDTO, ApplicationStatus } from '@clinicai/repositories'
+import { EmptyState } from '@clinicai/ui'
 
 const SUB_TABS: Array<{ id: ApplicationStatus; label: string }> = [
   { id: 'pending', label: 'Pendentes' },
@@ -116,6 +117,13 @@ export function CandidaturasClient({
         ? 'Nenhuma candidatura aprovada ainda.'
         : 'Nenhuma candidatura rejeitada.'
 
+  const emptyTitle =
+    subTab === 'pending'
+      ? 'Sem candidaturas pendentes'
+      : subTab === 'approved'
+        ? 'Sem aprovadas'
+        : 'Sem rejeitadas'
+
   return (
     <>
       <div className="b2b-list-head">
@@ -147,7 +155,11 @@ export function CandidaturasClient({
       </nav>
 
       {items.length === 0 ? (
-        <div className="b2b-empty">{emptyMsg}</div>
+        <EmptyState
+          variant="leads"
+          title={emptyTitle}
+          message={emptyMsg}
+        />
       ) : (
         <div className="b2b-app-list">
           {items.map((a) => (

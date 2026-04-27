@@ -8,6 +8,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { EmptyState } from '@clinicai/ui'
 
 const EVENT_LABELS: Record<string, string> = {
   palestra: 'Palestra',
@@ -27,10 +28,11 @@ export async function EventsSection({ partnershipId }: { partnershipId: string }
     return (
       <section className="flex flex-col gap-2">
         <h3 className="b2b-sec-title">Eventos / exposicoes</h3>
-        <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
-          Nenhum evento registrado ainda. Use a acao "Alcance do grupo" pra
-          registrar palestras e exposicoes.
-        </div>
+        <EmptyState
+          variant="generic"
+          title="Sem eventos registrados"
+          message='Use a ação "Alcance do grupo" pra registrar palestras e exposições.'
+        />
       </section>
     )
   }

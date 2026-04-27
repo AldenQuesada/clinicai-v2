@@ -94,4 +94,34 @@ export class B2BNpsRepository {
     })
     return { items: data?.items ?? [] }
   }
+
+  /**
+   * IDs de parcerias que JA responderam NPS no periodo (default 90d).
+   * Usado pelo smart filter "NPS pendente" pra calcular complement: parcerias
+   * ativas - estas = pendentes.
+   *
+   * Defensivo: tenta `b2b_nps_responses_list` (RPC) com window-of-90d na
+   * camada client · se RPC nao filtra por data, recorre a `responded_at`
+   * dos items retornados.
+   */
+  async respondedPartnershipIdsSince(sinceIso: string): Promise<Set<string>> {
+    const ids = new Set<string>()
+    try {
+      const data = await this.rpc<NpsListResult | null>('b2b_nps_responses_list', {
+        p_partnership_id: null,
+        p_bucket: null,
+        p_limit: 500,
+      })
+      const items = data?.items ?? []
+      for (const it of items) {
+        if (!it.partnership_id) continue
+        const ts = it.responded_at || it.created_at
+        if (!ts) continue
+        if (ts >= sinceIso) ids.add(it.partnership_id)
+      }
+    } catch {
+      // ignore · retorna set vazio (filtro fica permissivo)
+    }
+    return ids
+  }
 }

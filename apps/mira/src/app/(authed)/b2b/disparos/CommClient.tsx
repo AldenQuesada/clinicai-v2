@@ -42,6 +42,7 @@ import type {
   B2BCommStats,
   B2BCommHistoryEntry,
 } from '@clinicai/repositories'
+import { EmptyState } from '@clinicai/ui'
 
 // Mig cleanup 2026-04-26: Eventos + Templates mergeados em "Catálogo".
 // Eram a mesma coisa renderizada de 2 jeitos (chips agrupados vs lista flat).
@@ -1259,8 +1260,11 @@ function FilteredList({
         ))
       ) : (
         <div className="bcomm-empty-lg">
-          <strong>Nenhum template</strong>
-          <span>Crie o primeiro disparo pra este evento.</span>
+          <EmptyState
+            variant="comm"
+            title="Nenhum template"
+            message="Crie o primeiro disparo pra este evento."
+          />
         </div>
       )}
     </>
@@ -1436,8 +1440,11 @@ function TemplatesTab({
           ))
         ) : (
           <div className="bcomm-empty-lg">
-            <strong>Nenhum template</strong>
-            <span>Ajuste os filtros ou crie um novo.</span>
+            <EmptyState
+              variant="comm"
+              title="Nenhum template"
+              message="Ajuste os filtros ou crie um novo."
+            />
           </div>
         )}
       </div>
@@ -1578,11 +1585,11 @@ function HistoryTab({
           ))
         ) : (
           <div className="bcomm-empty-lg">
-            <strong>Sem envios ainda</strong>
-            <span>
-              Histórico aparece aqui conforme a Mira dispara mensagens pelos
-              triggers B2B.
-            </span>
+            <EmptyState
+              variant="history"
+              title="Sem envios ainda"
+              message="Histórico aparece aqui conforme a Mira dispara mensagens pelos triggers B2B."
+            />
           </div>
         )}
       </div>
@@ -2448,8 +2455,11 @@ function SequencesTab({
           <div className="bcomm-empty">Carregando sequências…</div>
         ) : allNamed.length === 0 && looseGroup.templates.length === 0 ? (
           <div className="bcomm-empty-lg">
-            <strong>Nenhum template ainda</strong>
-            <span>Crie templates na aba <em>Templates</em> e depois atribua a uma sequência.</span>
+            <EmptyState
+              variant="comm"
+              title="Nenhum template ainda"
+              message="Crie templates na aba Catálogo e depois atribua a uma sequência."
+            />
           </div>
         ) : (
           <>

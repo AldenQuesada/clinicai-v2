@@ -544,4 +544,58 @@ export class B2BVoucherRepository {
     const { data } = await q
     return (data ?? []).map(mapVoucherRow)
   }
+
+  /**
+   * IDs de parcerias com vouchers expirando entre `now` e `now + days`.
+   * Exclui status terminais (expired/cancelled/redeemed) e o status sintético
+   * 'purchased' do funnel · esses ja nao precisam de acao.
+   * Usado pelo smart filter "Vouchers expirando 7d" (QuickSearch).
+   */
+  async listPartnershipsWithExpiringVouchers(
+    clinicId: string,
+    days = 7,
+  ): Promise<string[]> {
+    const now = new Date()
+    const limit = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+    const { data } = await this.supabase
+      .from('b2b_vouchers')
+      .select('partnership_id')
+      .eq('clinic_id', clinicId)
+      .gte('valid_until', now.toISOString())
+      .lte('valid_until', limit.toISOString())
+      .not('status', 'in', '(expired,cancelled,redeemed,purchased)')
+    const ids = new Set<string>()
+    for (const row of data ?? []) {
+      const id = (row as { partnership_id?: string }).partnership_id
+      if (id) ids.add(id)
+    }
+    return Array.from(ids)
+  }
+
+  /**
+   * Mapa partnership_id → ultima emissao (issued_at ISO). Usado pelo smart
+   * filter "Sem voucher 60d" · pra detectar parcerias dormindo. Parcerias
+   * sem ENTRADA no map nunca emitiram voucher.
+   */
+  async lastIssuedAtByPartnership(
+    clinicId: string,
+  ): Promise<Map<string, string>> {
+    // Pega ultimo issued_at por partnership · ordenando desc + dedup no client.
+    // Volume tipico clinic-dashboard: < 5k vouchers, OK rodar 1 query.
+    const { data } = await this.supabase
+      .from('b2b_vouchers')
+      .select('partnership_id, issued_at')
+      .eq('clinic_id', clinicId)
+      .order('issued_at', { ascending: false })
+      .limit(5000)
+    const map = new Map<string, string>()
+    for (const row of data ?? []) {
+      const r = row as { partnership_id?: string; issued_at?: string }
+      if (!r.partnership_id || !r.issued_at) continue
+      if (!map.has(r.partnership_id)) {
+        map.set(r.partnership_id, r.issued_at)
+      }
+    }
+    return map
+  }
 }

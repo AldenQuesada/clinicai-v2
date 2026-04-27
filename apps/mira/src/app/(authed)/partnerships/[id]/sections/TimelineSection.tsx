@@ -11,6 +11,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { EmptyState } from '@clinicai/ui'
 
 const ACTION_META: Record<string, { glyph: string; color: string; label: string }> = {
   created: { glyph: '●', color: '#C9A96E', label: 'Criada' },
@@ -104,9 +105,11 @@ export async function TimelineSection({ partnershipId }: { partnershipId: string
         Historico {items.length > 0 ? `(${items.length})` : ''}
       </h3>
       {items.length === 0 ? (
-        <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
-          Nenhuma acao registrada ainda.
-        </div>
+        <EmptyState
+          variant="history"
+          title="Sem ações registradas"
+          message="O histórico aparece aqui conforme a parceria gera eventos."
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((item) => {

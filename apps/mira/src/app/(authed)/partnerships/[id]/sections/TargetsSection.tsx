@@ -8,6 +8,7 @@
  */
 
 import { loadMiraServerContext } from '@/lib/server-context'
+import { EmptyState } from '@clinicai/ui'
 
 const KIND_LABELS: Record<string, string> = {
   vouchers_month: 'Vouchers/mes',
@@ -24,9 +25,11 @@ export async function TargetsSection({ partnershipId }: { partnershipId: string 
     return (
       <section className="flex flex-col gap-2">
         <h3 className="b2b-sec-title">Metas operacionais</h3>
-        <div className="b2b-empty" style={{ padding: 12, fontStyle: 'italic' }}>
-          Nenhuma meta cadastrada. Aplique o playbook pra criar metas padrao.
-        </div>
+        <EmptyState
+          variant="generic"
+          title="Sem metas cadastradas"
+          message="Aplique o playbook pra criar metas padrão."
+        />
       </section>
     )
   }
