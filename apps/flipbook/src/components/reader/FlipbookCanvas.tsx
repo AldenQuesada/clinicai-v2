@@ -13,6 +13,7 @@ interface Props {
   onPageChange: (n: number) => void
   onTotalPages: (n: number) => void
   flipbookId: string
+  coverUrl?: string | null
 }
 
 /**
@@ -25,7 +26,7 @@ interface Props {
  * Mobile-first: width < 768 → single-page (sem double spread).
  */
 export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas(
-  { pdfUrl, onPageChange, onTotalPages, flipbookId },
+  { pdfUrl, onPageChange, onTotalPages, flipbookId, coverUrl },
   ref,
 ) {
   const [numPages, setNumPages] = useState(0)
@@ -106,7 +107,7 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
       <Document
         file={pdfUrl}
         onLoadSuccess={onDocLoad}
-        loading={<ReaderSkeleton />}
+        loading={<CoverLoading coverUrl={coverUrl} size={size} />}
         error={<div className="text-red-400 text-center p-8 font-display italic text-xl">Falha ao carregar o PDF.</div>}
         className="flex items-center justify-center"
       >
@@ -154,3 +155,36 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
     </div>
   )
 })
+
+/**
+ * Loading state · mostra a capa real (se tiver) com shimmer suave em vez
+ * de skeleton genérico. Faz o leitor sentir mais rápido perceptualmente.
+ */
+function CoverLoading({ coverUrl, size }: { coverUrl?: string | null; size: { width: number; height: number } }) {
+  if (!coverUrl) return <ReaderSkeleton />
+  return (
+    <div className="flex items-center justify-center">
+      <div
+        className="relative rounded shadow-[var(--shadow-page)] overflow-hidden bg-bg-elevated"
+        style={{ width: size.width, height: size.height }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={coverUrl}
+          alt="Carregando capa"
+          className="w-full h-full object-cover"
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'linear-gradient(110deg, transparent 30%, rgba(232,177,74,0.15) 50%, transparent 70%)',
+            animation: 'shimmer 2.4s infinite',
+          }}
+        />
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-meta text-text-dim text-[10px] bg-bg/70 backdrop-blur px-3 py-1.5 rounded">
+          carregando…
+        </div>
+      </div>
+    </div>
+  )
+}

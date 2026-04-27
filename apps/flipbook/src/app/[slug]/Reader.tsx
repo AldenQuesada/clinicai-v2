@@ -195,7 +195,7 @@ export function Reader({
       flipbookId,
     }
     switch (format) {
-      case 'pdf':  return <FlipbookCanvas {...common} />
+      case 'pdf':  return <FlipbookCanvas {...common} coverUrl={coverUrl} />
       case 'epub': return <EpubCanvas {...common} />
       case 'cbz':  return <CbzCanvas {...common} />
       case 'html': return <HtmlCanvas {...common} />
