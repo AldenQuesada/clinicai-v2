@@ -1767,15 +1767,14 @@ function HistoryRow({
 // Aba Config · info read-only + variáveis + formatação
 // ═══════════════════════════════════════════════════════════════════════
 function ConfigTab({
-  stats,
-  onReload,
+  stats: _stats,
+  onReload: _onReload,
 }: {
   stats: B2BCommStats | null
   onReload: () => Promise<void>
 }) {
-  const st = stats || ({} as B2BCommStats)
-  const [busy, setBusy] = useState(false)
-
+  // stats/onReload mantidos na interface pra nao quebrar caller · usados
+  // antes pelo bloco "Saude do sistema" que migrou pra tab Metricas (Alden 2026-04-27).
   return (
     <div className="bcomm-cfg">
       <div className="bcomm-cfg-section">
@@ -1794,44 +1793,8 @@ function ConfigTab({
         </div>
       </div>
 
-      <div className="bcomm-cfg-section">
-        <h4>Saúde do sistema</h4>
-        <div className="bcomm-cfg-row">
-          <span>Templates ativos</span>
-          <strong>{st.active_templates || 0}</strong>
-        </div>
-        <div className="bcomm-cfg-row">
-          <span>Eventos cobertos</span>
-          <strong>{st.events_configured || 0}</strong>
-        </div>
-        <div className="bcomm-cfg-row">
-          <span>Enviados (30d)</span>
-          <strong>{st.sent_30d || 0}</strong>
-        </div>
-        <div className="bcomm-cfg-row">
-          <span>Taxa entrega (30d)</span>
-          <strong>
-            {st.delivery_rate_30d == null ? '—' : st.delivery_rate_30d + '%'}
-          </strong>
-        </div>
-        <div className="bcomm-cfg-row">
-          <button
-            type="button"
-            className="bcomm-btn bcomm-btn-ghost bcomm-btn-xs"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true)
-              try {
-                await onReload()
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            {busy ? '…' : 'Recalcular'}
-          </button>
-        </div>
-      </div>
+      {/* "Saúde do sistema" removida 2026-04-27 · KPIs vivem na tab Métricas
+          agora. Botão recalcular vai pro footer da tab Config. */}
 
       <div className="bcomm-cfg-section">
         <h4>Variáveis disponíveis</h4>
@@ -3230,9 +3193,11 @@ function BucketRail({
                 gap: 6,
                 padding: '6px 12px',
                 borderRadius: 999,
-                border: '1px solid ' + (active ? 'var(--b2b-gold)' : 'var(--b2b-border)'),
-                background: active ? 'var(--b2b-gold)' : 'transparent',
-                color: active ? '#0F0D0A' : 'var(--b2b-fg-1)',
+                // Cores explicitas (sem CSS var) · evita "preto invisivel" quando
+                // var nao carrega em algum contexto (Alden 2026-04-27).
+                border: '1px solid ' + (active ? '#C9A96E' : 'rgba(201,169,110,0.25)'),
+                background: active ? '#C9A96E' : 'transparent',
+                color: active ? '#0F0D0A' : '#F5F0E8',
                 fontSize: 12,
                 fontWeight: active ? 600 : 500,
                 cursor: 'pointer',
