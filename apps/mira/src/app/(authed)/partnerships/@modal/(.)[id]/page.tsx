@@ -33,34 +33,50 @@ export default async function InterceptedPartnershipModal({
   params,
   searchParams,
 }: PageProps) {
-  const { id } = await params
-  const sp = await searchParams
-  const { ctx, repos } = await loadMiraServerContext()
+  try {
+    const { id } = await params
+    const sp = await searchParams
+    console.log('[modal-detail] start id=' + id + ' tab=' + (sp.tab || 'detail'))
 
-  const partnership = await repos.b2bPartnerships.getById(id)
-  if (!partnership || partnership.clinicId !== ctx.clinic_id) {
-    notFound()
+    const { ctx, repos } = await loadMiraServerContext()
+    console.log('[modal-detail] ctx loaded clinic=' + ctx.clinic_id + ' role=' + (ctx.role || '-'))
+
+    const partnership = await repos.b2bPartnerships.getById(id)
+    console.log('[modal-detail] partnership fetched ' + (partnership ? 'OK' : 'NULL'))
+
+    if (!partnership || partnership.clinicId !== ctx.clinic_id) {
+      notFound()
+    }
+
+    const activeTab: DetailTabKey =
+      sp.tab && VALID_TABS.includes(sp.tab) ? (sp.tab as DetailTabKey) : 'detail'
+
+    const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+
+    const managers =
+      activeTab === 'detail'
+        ? await repos.b2bCollab.teamManagers().catch(() => [])
+        : []
+    console.log('[modal-detail] rendering tab=' + activeTab + ' managers=' + managers.length)
+
+    return (
+      <PartnershipModalShell partnershipId={id}>
+        <PartnershipDetailLayout
+          partnership={partnership}
+          activeTab={activeTab}
+          canManage={canManage}
+          managers={managers.map((m) => m.name || m.email || 'sem-nome').filter(Boolean)}
+          inModal
+        />
+      </PartnershipModalShell>
+    )
+  } catch (err) {
+    const e = err as Error
+    console.error('[modal-detail] CRASH', {
+      message: e.message,
+      name: e.name,
+      stack: e.stack,
+    })
+    throw err
   }
-
-  const activeTab: DetailTabKey =
-    sp.tab && VALID_TABS.includes(sp.tab) ? (sp.tab as DetailTabKey) : 'detail'
-
-  const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
-
-  const managers =
-    activeTab === 'detail'
-      ? await repos.b2bCollab.teamManagers().catch(() => [])
-      : []
-
-  return (
-    <PartnershipModalShell partnershipId={id}>
-      <PartnershipDetailLayout
-        partnership={partnership}
-        activeTab={activeTab}
-        canManage={canManage}
-        managers={managers.map((m) => m.name || m.email || 'sem-nome').filter(Boolean)}
-        inModal
-      />
-    </PartnershipModalShell>
-  )
 }

@@ -29,26 +29,37 @@ interface PageProps {
 }
 
 export default async function PartnershipDetailPage({ params, searchParams }: PageProps) {
-  const { id } = await params
-  const sp = await searchParams
-  const { ctx, repos } = await loadMiraServerContext()
+  let id = ''
+  let activeTab: DetailTabKey = 'detail'
+  try {
+    const p = await params
+    id = p.id
+    const sp = await searchParams
+    console.log('[detail-page] start id=' + id + ' tab=' + (sp.tab || 'detail'))
 
-  const partnership = await repos.b2bPartnerships.getById(id)
-  if (!partnership || partnership.clinicId !== ctx.clinic_id) {
-    notFound()
-  }
+    const { ctx, repos } = await loadMiraServerContext()
+    console.log('[detail-page] ctx loaded clinic=' + ctx.clinic_id)
 
-  const activeTab: DetailTabKey =
-    sp.tab && VALID_TABS.includes(sp.tab) ? (sp.tab as DetailTabKey) : 'detail'
+    const partnership = await repos.b2bPartnerships.getById(id)
+    console.log('[detail-page] partnership ' + (partnership ? 'OK' : 'NULL'))
 
-  const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+    if (!partnership || partnership.clinicId !== ctx.clinic_id) {
+      notFound()
+    }
 
-  const managers =
-    activeTab === 'detail'
-      ? await repos.b2bCollab.teamManagers().catch(() => [])
-      : []
+    activeTab = sp.tab && VALID_TABS.includes(sp.tab) ? (sp.tab as DetailTabKey) : 'detail'
+    const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
 
-  return (
+    const managers =
+      activeTab === 'detail'
+        ? await repos.b2bCollab.teamManagers().catch((e) => {
+            console.error('[detail-page] teamManagers fail', (e as Error).message)
+            return []
+          })
+        : []
+    console.log('[detail-page] rendering tab=' + activeTab + ' managers=' + managers.length)
+
+    return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
       <div className="max-w-[1080px] mx-auto px-7 pt-7">
         <Link href="/partnerships" className="b2b-back-link mb-3">
@@ -64,4 +75,15 @@ export default async function PartnershipDetailPage({ params, searchParams }: Pa
       />
     </main>
   )
+  } catch (err) {
+    const e = err as Error
+    console.error('[detail-page] CRASH', {
+      id,
+      tab: activeTab,
+      message: e.message,
+      name: e.name,
+      stack: e.stack,
+    })
+    throw err
+  }
 }
