@@ -50,6 +50,21 @@ function localPlusMinutesInput(minutes: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Default sugerido quando user clica "Agendar": hoje 12:00 ou amanha 12:00
+// se ja passou de meio-dia. Pedido Alden 2026-04-26: hora padrao 12:00,
+// nao a hora atual.
+function localNextNoonInput(): string {
+  const now = new Date()
+  const target = new Date(now)
+  target.setHours(12, 0, 0, 0)
+  // Se ja passou de meio-dia hoje, agenda pra amanha 12:00
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T12:00`
+}
+
 // Heuristica: scheduled_at e "agora-ish" se diferenca pra now <= 90s.
 // Usado pra decidir qual radio vem checked quando carregamos preview do cookie.
 function isNowIsh(iso: string): boolean {
@@ -149,7 +164,7 @@ export default async function VoucherBulkPage() {
   const defaultScheduled =
     preview?.scheduledAt && !previewIsNow
       ? toLocalInput(preview.scheduledAt)
-      : localPlusMinutesInput(15) // sugestao "+15min" quando user escolhe Agendar
+      : localNextNoonInput() // sugestao 12:00 (Alden 2026-04-26)
   // min do datetime-local = +5min no futuro · evita race com worker atual
   const minScheduled = localPlusMinutesInput(5)
 
@@ -281,23 +296,31 @@ export default async function VoucherBulkPage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
+          {/*
+            Quando enviar · datetime-local visivel SO se "Agendar" selecionado.
+            CSS injetado abaixo usa :has() pra controlar visibilidade puro CSS
+            (sem JS) · Pedido Alden 2026-04-26.
+          */}
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
+                .bulk-schedule-section .bulk-schedule-row { display: none; }
+                .bulk-schedule-section:has(input[value="schedule"]:checked) .bulk-schedule-row { display: flex; }
+              `,
+            }}
+          />
+          <div className="flex flex-col gap-2 bulk-schedule-section">
             <label className="text-[10px] uppercase tracking-[1px] font-bold text-[#9CA3AF]">
               Quando enviar
             </label>
-            <div className="grid grid-cols-[auto_auto_1fr] gap-3 items-center">
-              {/*
-                Radio "Agora" · scheduled_at vai como now() no server
-                (peer pattern do Tailwind faz o datetime-local ao lado ficar
-                disabled quando "Agora" esta checado · sem precisar JS).
-              */}
+            <div className="flex gap-3 items-center flex-wrap">
               <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer has-[:checked]:border-[#C9A96E]/50 has-[:checked]:bg-[#C9A96E]/[0.06] transition-colors">
                 <input
                   type="radio"
                   name="dispatch_when"
                   value="now"
                   defaultChecked={defaultDispatchWhen === 'now'}
-                  className="peer accent-[#C9A96E]"
+                  className="accent-[#C9A96E]"
                 />
                 <span className="text-xs text-[#F5F0E8]">Agora</span>
               </label>
@@ -307,10 +330,16 @@ export default async function VoucherBulkPage() {
                   name="dispatch_when"
                   value="schedule"
                   defaultChecked={defaultDispatchWhen === 'schedule'}
-                  className="peer accent-[#C9A96E]"
+                  className="accent-[#C9A96E]"
                 />
-                <span className="text-xs text-[#F5F0E8]">Agendar</span>
+                <span className="text-xs text-[#F5F0E8]">Agendar data e hora</span>
               </label>
+            </div>
+            {/* Linha do datetime · so aparece quando "Agendar" selecionado */}
+            <div className="bulk-schedule-row gap-2 items-center mt-1">
+              <span className="text-[10px] uppercase tracking-[1px] text-[#9CA3AF]">
+                Disparar em:
+              </span>
               <input
                 id="bulk-scheduled"
                 name="scheduled_at"
@@ -320,11 +349,15 @@ export default async function VoucherBulkPage() {
                 step={60}
                 aria-label="Data e hora do dispatch"
                 className="px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/10 text-xs text-[#F5F0E8] focus:outline-none focus:border-[#C9A96E]/50"
+                style={{ colorScheme: 'dark' }}
               />
+              <span className="text-[10px] text-[#6B7280]">
+                Default 12:00 · mínimo +5min no futuro · fuso BR
+              </span>
             </div>
             <span className="text-[10px] text-[#6B7280]">
-              <span className="text-[#9CA3AF]">Agora</span> = worker dispara no proximo minuto ·{' '}
-              <span className="text-[#9CA3AF]">Agendar</span> = minimo +5min no futuro · fuso BR
+              <span className="text-[#9CA3AF]">Agora</span> = worker dispara no próximo minuto ·{' '}
+              <span className="text-[#9CA3AF]">Agendar</span> = abre seletor de data/hora
             </span>
           </div>
 
