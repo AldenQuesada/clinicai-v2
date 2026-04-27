@@ -6,7 +6,7 @@
 #
 # Setup necessário:
 #   GitHub repo → Settings → Secrets and variables → Actions → New repo secret
-#     · LARA_CRON_SECRET = <mesmo valor da env LARA_CRON_SECRET no Easypanel>
+#     · CRON_SECRET = <mesmo valor da env CRON_SECRET no Easypanel>
 #
 # Gerar segredo: openssl rand -hex 32
 
@@ -48,14 +48,14 @@ jobs:
 
       - name: Fire crons
         env:
-          LARA_CRON_SECRET: ${{ secrets.LARA_CRON_SECRET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -e
           BASE="https://lara.miriandpaula.com.br"
           for ep in ${{ steps.route.outputs.endpoints }}; do
             echo "→ $ep"
             HTTP_CODE=$(curl -fsS -o /tmp/resp.json -w "%{http_code}" \
-              -H "x-cron-secret: $LARA_CRON_SECRET" \
+              -H "x-cron-secret: $CRON_SECRET" \
               -m 60 \
               "$BASE/api/cron/$ep" || echo "000")
             echo "  status=$HTTP_CODE"
