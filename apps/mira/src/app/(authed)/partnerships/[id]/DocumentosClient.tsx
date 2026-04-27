@@ -77,6 +77,9 @@ export function DocumentosClient({
   partnershipId,
   partnershipName,
   partnershipPhone,
+  partnershipResponsavel,
+  defaultTemplateId,
+  prefillVars,
   canManage,
   templates,
   initialRequests,
@@ -84,6 +87,12 @@ export function DocumentosClient({
   partnershipId: string
   partnershipName: string
   partnershipPhone: string
+  /** Responsavel da parceria · default no campo signer (Alden 2026-04-26). */
+  partnershipResponsavel?: string
+  /** Template default selecionado · contrato-parceria-b2b ou primeiro de parceria. */
+  defaultTemplateId?: string | null
+  /** Variaveis pre-preenchidas (clinic + partnership) · usadas no merge do contrato. */
+  prefillVars?: Record<string, string>
   canManage: boolean
   templates: TemplateOption[]
   initialRequests: RequestRow[]
@@ -93,12 +102,19 @@ export function DocumentosClient({
   const [showForm, setShowForm] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
+  // Default signer = responsavel da parceria (contact_name) · fallback nome da parceria.
+  const defaultSignerName = partnershipResponsavel || partnershipName
+
   // Form state · emitir
-  const [templateId, setTemplateId] = useState<string>(templates[0]?.id ?? '')
-  const [signerName, setSignerName] = useState(partnershipName)
+  const [templateId, setTemplateId] = useState<string>(
+    defaultTemplateId || templates[0]?.id || '',
+  )
+  const [signerName, setSignerName] = useState(defaultSignerName)
   const [signerCpf, setSignerCpf] = useState('')
-  const [profissional, setProfissional] = useState('')
-  const [procedimento, setProcedimento] = useState('')
+  const [profissional, setProfissional] = useState(
+    prefillVars?.['clinica_nome'] ? 'Dra. Mirian de Paula' : '',
+  )
+  const [procedimento, setProcedimento] = useState(prefillVars?.['voucher_combo'] ?? '')
   const [lastIssuedLink, setLastIssuedLink] = useState<string | null>(null)
 
   // Modal "Visualizar assinatura"
@@ -106,8 +122,8 @@ export function DocumentosClient({
   const [viewSigLoading, setViewSigLoading] = useState(false)
 
   function resetForm() {
-    setTemplateId(templates[0]?.id ?? '')
-    setSignerName(partnershipName)
+    setTemplateId(defaultTemplateId || templates[0]?.id || '')
+    setSignerName(defaultSignerName)
     setSignerCpf('')
     setProfissional('')
     setProcedimento('')
@@ -128,19 +144,26 @@ export function DocumentosClient({
       return
     }
     startTransition(async () => {
+      // Merge prefillVars (clinic + partnership) com edits do form.
+      // Form fields tomam prioridade quando preenchidos.
+      const mergedVars: Record<string, string> = {
+        ...(prefillVars ?? {}),
+        // Vars do form (signer)
+        nome: signerName.trim(),
+        cpf: signerCpf.trim(),
+        profissional: profissional.trim(),
+        procedimento: procedimento.trim(),
+        parceria: partnershipName,
+        // Override com signerName se editado
+        parceira_responsavel: signerName.trim() || prefillVars?.['parceira_responsavel'] || '',
+      }
       const r = await issueLegalDocAction({
         partnershipId,
         templateId,
         signerName: signerName.trim(),
         signerCpf: signerCpf.trim() || null,
         signerPhone: partnershipPhone || null,
-        variables: {
-          nome: signerName.trim(),
-          cpf: signerCpf.trim(),
-          profissional: profissional.trim(),
-          procedimento: procedimento.trim(),
-          parceria: partnershipName,
-        },
+        variables: mergedVars,
       })
       if (!r.ok) {
         setFeedback(`Erro: ${r.error || 'falha'}`)
