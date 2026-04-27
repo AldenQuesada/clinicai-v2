@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens da marca Flipbook · Tema dark luxury (matching brandbook v2.0)
+ * Cores extraídas direto do brandbook canônico Mirian de Paula.
+ * Trocar valores aqui = re-tema todo o app.
+ */
+@theme inline {
+  --color-bg: #0F0D0A;
+  --color-bg-elevated: #1A1714;
+  --color-bg-panel: #1F1B17;
+  --color-text: #F5F0E8;
+  --color-text-muted: #A8A099;
+  --color-text-dim: #6B6660;
+  --color-gold: #C9A96E;
+  --color-gold-light: #DFC5A0;
+  --color-gold-dark: #8F7643;
+  --color-border: rgba(201, 169, 110, 0.15);
+  --color-border-strong: rgba(201, 169, 110, 0.35);
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-meta: 'Montserrat', system-ui, sans-serif;
+
+  --radius: 4px;
+  --radius-lg: 8px;
+  --container: 1240px;
+
+  --shadow-soft: 0 24px 60px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-page: 0 30px 80px rgba(0, 0, 0, 0.7), 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+html, body { background: var(--color-bg); color: var(--color-text); }
+body { font-family: var(--font-body); }
+
+::selection { background: var(--color-gold); color: var(--color-bg); }
+
+/* Scrollbar premium */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-gold-dark); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gold); }
+
+/* Tipografia editorial */
+.font-display { font-family: var(--font-display); }
+.font-meta { font-family: var(--font-meta); letter-spacing: 0.15em; text-transform: uppercase; font-size: 11px; font-weight: 600; }
+
+/* Hide PDF.js text layer warnings */
+.react-pdf__Page__textContent, .react-pdf__Page__annotations { display: none !important; }
+
+/* Page-flip premium shadow */
+.flipbook-page {
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-page);
+  position: relative;
+  overflow: hidden;
+}
+.flipbook-page::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(0,0,0,0.15), transparent 5%, transparent 95%, rgba(0,0,0,0.15));
+}

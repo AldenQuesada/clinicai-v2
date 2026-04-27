@@ -1,0 +1,44 @@
+{
+  "name": "@clinicai/flipbook",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3333",
+    "build": "next build --webpack",
+    "start": "next start -p 3333",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clinicai/supabase": "workspace:*",
+    "@clinicai/ui": "workspace:*",
+    "@clinicai/utils": "workspace:*",
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "clsx": "catalog:",
+    "framer-motion": "^12.0.0",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-themes": "catalog:",
+    "pdfjs-dist": "^4.10.38",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-pageflip": "^2.0.3",
+    "react-pdf": "^9.2.1",
+    "tailwind-merge": "catalog:",
+    "uuid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@clinicai/tsconfig": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@types/uuid": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-next": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}
