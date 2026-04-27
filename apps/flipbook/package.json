@@ -23,7 +23,7 @@
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "catalog:",
-    "pdfjs-dist": "^4.10.38",
+    "pdfjs-dist": "4.8.69",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-pageflip": "^2.0.3",
