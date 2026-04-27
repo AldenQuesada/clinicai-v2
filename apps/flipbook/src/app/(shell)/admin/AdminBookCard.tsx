@@ -38,17 +38,23 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
   function openMenu() {
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect()
-      const MENU_HEIGHT = 380 // altura estimada do menu (10 itens + dividers)
-      const spaceBelow = window.innerHeight - r.bottom
+      const MENU_HEIGHT = 380
+      const MARGIN = 16
+      const vh = window.innerHeight
+      const spaceBelow = vh - r.bottom
       const spaceAbove = r.top
       const right = window.innerWidth - r.right
 
       if (spaceBelow < MENU_HEIGHT && spaceAbove > spaceBelow) {
-        // Abre pra cima · ancora bottom no top do trigger
-        setMenuPos({ right, bottom: window.innerHeight - r.top + 4 })
+        // Abre pra cima · clampa em 16px do topo
+        const desiredBottom = vh - r.top + 4
+        const maxBottom = vh - MARGIN
+        setMenuPos({ right, bottom: Math.min(desiredBottom, maxBottom) })
       } else {
-        // Padrão · abre pra baixo
-        setMenuPos({ right, top: r.bottom + 4 })
+        // Abre pra baixo · clampa em 16px do bottom
+        const desiredTop = r.bottom + 4
+        const maxTop = vh - MENU_HEIGHT - MARGIN
+        setMenuPos({ right, top: Math.max(MARGIN, Math.min(desiredTop, maxTop)) })
       }
     }
     setMenuOpen(true)
@@ -178,9 +184,10 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
               <>
                 <div className="fixed inset-0 z-[9998]" onClick={() => setMenuOpen(false)} />
                 <div
-                  className="fixed w-52 bg-bg-elevated border border-border-strong rounded shadow-2xl z-[9999] py-1.5"
+                  className="fixed w-52 bg-bg-elevated border border-border-strong rounded shadow-2xl z-[9999] py-1.5 overflow-y-auto"
                   style={{
                     right: menuPos.right,
+                    maxHeight: 'calc(100vh - 32px)',
                     ...(menuPos.top !== undefined ? { top: menuPos.top } : {}),
                     ...(menuPos.bottom !== undefined ? { bottom: menuPos.bottom } : {}),
                   }}
