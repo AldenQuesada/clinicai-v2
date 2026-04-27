@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Library, Upload, BarChart3, Settings, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { UserMenu } from './UserMenu'
 
 interface NavItem {
   href: string
@@ -58,16 +59,8 @@ export function Sidebar({ user }: { user: { email: string; isAdmin: boolean } | 
 
       {/* User footer */}
       {user && (
-        <div className="px-4 py-4 border-t border-border">
-          <Link href="/settings" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center font-display italic text-gold text-sm">
-              {user.email[0]?.toUpperCase() ?? '?'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm text-text truncate group-hover:text-gold transition">{user.email}</div>
-              <div className="font-meta text-text-dim text-[9px]">{user.isAdmin ? 'Admin' : 'Leitor'}</div>
-            </div>
-          </Link>
+        <div className="p-2 border-t border-border">
+          <UserMenu user={user} />
         </div>
       )}
       {!user && (
