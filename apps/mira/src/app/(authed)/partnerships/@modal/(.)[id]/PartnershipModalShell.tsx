@@ -23,14 +23,29 @@ export function PartnershipModalShell({
 }) {
   const router = useRouter()
 
+  // Fecha · tenta back (preserva lista) · fallback push pra /partnerships
+  // (evita ficar travado quando user landed direto sem history).
+  function close() {
+    try {
+      if (window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/partnerships')
+      }
+    } catch {
+      router.push('/partnerships')
+    }
+  }
+
   // ESC fecha
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') router.back()
+      if (e.key === 'Escape') close()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
@@ -38,7 +53,7 @@ export function PartnershipModalShell({
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
-        if (e.target === e.currentTarget) router.back()
+        if (e.target === e.currentTarget) close()
       }}
       style={{ alignItems: 'flex-start', paddingTop: 32 }}
     >
@@ -75,7 +90,7 @@ export function PartnershipModalShell({
           </Link>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={close}
             className="b2b-btn"
             style={{ padding: '4px 10px', fontSize: 11 }}
             title="Fechar (ESC)"

@@ -32,6 +32,7 @@ import { CommentsTab } from './CommentsTab'
 import { GrowthTab } from './GrowthTab'
 import { ContratoTab } from './ContratoTab'
 import { DocumentosTab } from './DocumentosTab'
+import { DetailTabBar } from './DetailTabBar'
 
 const TABS = [
   { key: 'detail', label: 'Detalhe', icon: Info },
@@ -176,24 +177,13 @@ export function PartnershipDetailLayout({
         </div>
       </header>
 
-      {/* Tabs sub-internas */}
-      <nav className="b2b-tab-bar">
-        {TABS.map((t) => {
-          const Icon = t.icon
-          const isActive = activeTab === t.key
-          return (
-            <Link
-              key={t.key}
-              href={tabHref(t.key)}
-              className={`b2b-tab-link ${isActive ? 'is-active' : ''}`}
-              scroll={false}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {t.label}
-            </Link>
-          )
-        })}
-      </nav>
+      {/* Tabs sub-internas · client component pra evitar bug de Link
+          em intercepting route (modal nao re-renderizava ao mudar tab) */}
+      <DetailTabBar
+        partnershipId={id}
+        activeTab={activeTab}
+        tabs={TABS}
+      />
 
       {/* Tab content */}
       {activeTab === 'detail' && (
