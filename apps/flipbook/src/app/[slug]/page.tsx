@@ -1,9 +1,6 @@
-/**
- * Leitor de 1 livro · /[slug]
- * Server Component: carrega metadata + signed URL do PDF, hidrata o Reader client.
- */
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase/server'
 import { getFlipbookBySlug, getSignedPdfUrl } from '@/lib/supabase/flipbooks'
@@ -13,6 +10,42 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  try {
+    const supabase = await createServerClient()
+    const book = await getFlipbookBySlug(supabase, slug)
+    if (!book || book.status !== 'published') return { title: 'Livro · Flipbook' }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3333'
+    const url = `${baseUrl}/${book.slug}`
+    const desc = book.subtitle ?? `${book.title} · ${book.author} · leia online em flipbook digital`
+
+    return {
+      title: `${book.title} · ${book.author}`,
+      description: desc,
+      alternates: { canonical: url },
+      openGraph: {
+        type: 'book',
+        url,
+        title: book.title,
+        description: desc,
+        siteName: 'Flipbook',
+        locale: book.language === 'en' ? 'en_US' : book.language === 'es' ? 'es_ES' : 'pt_BR',
+        images: book.cover_url ? [{ url: book.cover_url, width: 600, height: 840, alt: book.title }] : [],
+      },
+      twitter: {
+        card: book.cover_url ? 'summary_large_image' : 'summary',
+        title: book.title,
+        description: desc,
+        images: book.cover_url ? [book.cover_url] : [],
+      },
+    }
+  } catch {
+    return { title: 'Livro · Flipbook' }
+  }
 }
 
 export default async function ReaderPage({ params }: Props) {
@@ -25,7 +58,6 @@ export default async function ReaderPage({ params }: Props) {
     book = await getFlipbookBySlug(supabase, slug)
     if (!book) notFound()
     if (book.status !== 'published') {
-      // só admin pode ver não publicados
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) notFound()
     }
@@ -34,8 +66,28 @@ export default async function ReaderPage({ params }: Props) {
     notFound()
   }
 
+  // Schema.org Book JSON-LD
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Book',
+    name: book.title,
+    author: { '@type': 'Person', name: book.author },
+    inLanguage: book.language === 'en' ? 'en' : book.language === 'es' ? 'es' : 'pt-BR',
+    bookFormat: 'EBook',
+    image: book.cover_url ?? undefined,
+    isbn: undefined,
+    numberOfPages: book.page_count ?? undefined,
+    description: book.subtitle ?? undefined,
+    ...(book.amazon_asin ? { sameAs: `https://www.amazon.com/dp/${book.amazon_asin}` } : {}),
+  }
+
   return (
     <main className="min-h-screen bg-bg flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
         <Link href="/" className="font-meta text-text-muted hover:text-gold transition flex items-center gap-2">
           <ArrowLeft className="w-3 h-3" /> Catálogo

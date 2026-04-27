@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { PWARegister } from '@/components/shell/PWARegister'
 
 export const metadata: Metadata = {
   title: 'Flipbook · Biblioteca Premium',
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full bg-bg text-text font-body">{children}</body>
+      <body className="min-h-full bg-bg text-text font-body">
+        <PWARegister />
+        {children}
+      </body>
     </html>
   )
 }
