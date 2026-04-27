@@ -3,27 +3,31 @@
 import { useEffect, useRef, useState } from 'react'
 import HTMLFlipBook from 'react-pageflip'
 import Link from 'next/link'
-import { Play, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import {
+  Play, ArrowRight, ChevronLeft, ChevronRight,
+  Maximize2, Settings, ArrowLeftRight, MousePointer2, PenLine,
+} from 'lucide-react'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 
 interface Props {
   book: Flipbook
-  /**
-   * Base URL do bucket public flipbook-previews (sem trailing slash).
-   * Default: usa NEXT_PUBLIC_SUPABASE_URL/storage/v1/object/public/flipbook-previews
-   */
   previewBaseUrl?: string
 }
 
 /**
- * Mini flipbook interativo · usa só primeiras N páginas pré-renderizadas
- * em JPEG (sem react-pdf · sem expor PDF inteiro · super leve).
+ * Mini flipbook interativo · usa primeiras N páginas pré-renderizadas em JPEG.
+ * Tamanho responsivo · ocupa todo o espaço do hero (não mais 380px fixo).
  *
- * Última página = CTA "Ler completo →" que leva pro leitor full.
+ * Controles no canvas (modelo Heyzine):
+ *   top-right · Fullscreen + Direction + Settings
+ *   bottom-right · Annotate (placeholder)
+ *   bottom-left · Cursor select (placeholder)
+ *
+ * Última slide = CTA "Continue lendo".
  */
 export function MiniFlipbook({ book, previewBaseUrl }: Props) {
-  const [size, setSize] = useState({ width: 320, height: 448 })
+  const [size, setSize] = useState({ width: 480, height: 672 })
   const [currentPage, setCurrentPage] = useState(0)
   const wrapRef = useRef<HTMLDivElement>(null)
   const flipRef = useRef<{ pageFlip: () => { flipNext: () => void; flipPrev: () => void } } | null>(null)
@@ -36,21 +40,34 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
     const wrap = wrapRef.current
     const update = () => {
       const rect = wrap.getBoundingClientRect()
-      const w = Math.max(220, Math.min(rect.width - 24, 380))
-      const h = w * 1.4
+      // Single page (portrait) · ocupa todo o espaço disponível com aspect 0.71 (1/1.4)
+      const availableW = Math.max(280, rect.width - 32)
+      const availableH = Math.max(360, Math.min(rect.height - 80, window.innerHeight - 200))
+
+      const ratio = 1.4
+      let w = availableW
+      let h = w * ratio
+      if (h > availableH) { h = availableH; w = h / ratio }
+
+      // Cap em 720px de largura · tela muito grande não estica demais
+      if (w > 720) { w = 720; h = w * ratio }
+
       setSize({ width: Math.floor(w), height: Math.floor(h) })
     }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(wrap)
-    return () => ro.disconnect()
+    window.addEventListener('resize', update)
+    return () => { ro.disconnect(); window.removeEventListener('resize', update) }
   }, [])
 
   const previewCount = book.preview_count ?? 0
   const pages = Array.from({ length: previewCount }, (_, i) => i + 1)
-  const totalSlides = previewCount + 1 // +1 pra CTA final
+  const totalSlides = previewCount + 1
 
   const onFlip = (e: { data: number }) => setCurrentPage(e.data)
+  const flipNext = () => flipRef.current?.pageFlip()?.flipNext()
+  const flipPrev = () => flipRef.current?.pageFlip()?.flipPrev()
 
   return (
     <motion.div
@@ -58,92 +75,110 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1], delay: 0.15 }}
-      className="relative w-full max-w-[440px] mx-auto"
+      className="relative w-full min-h-[460px] md:min-h-[600px] lg:min-h-[720px]"
     >
       {/* Glow ambient */}
       <div
         className="absolute -inset-12 opacity-50 blur-3xl pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle, rgba(232,177,74,0.32), transparent 60%)',
-        }}
+        style={{ background: 'radial-gradient(circle, rgba(232,177,74,0.32), transparent 60%)' }}
       />
 
-      <div className="relative">
-        <HTMLFlipBook
-          ref={flipRef as React.Ref<typeof HTMLFlipBook>}
-          width={size.width}
-          height={size.height}
-          size="fixed"
-          minWidth={200}
-          maxWidth={500}
-          minHeight={280}
-          maxHeight={700}
-          drawShadow
-          flippingTime={650}
-          usePortrait
-          startZIndex={0}
-          autoSize={false}
-          maxShadowOpacity={0.5}
-          showCover
-          mobileScrollSupport={false}
-          clickEventForward
-          useMouseEvents
-          swipeDistance={30}
-          showPageCorners
-          disableFlipByClick={false}
-          startPage={0}
-          onFlip={onFlip}
-          className="mini-flipbook"
-          style={{}}
-        >
-          {pages.map((n) => (
-            <div key={`p${n}`} className="bg-bg-elevated rounded shadow-page overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${supabaseUrl}/${book.slug}/page-${n}.jpg`}
-                alt={`Página ${n} de ${book.title}`}
-                className="w-full h-full object-cover"
-                loading={n <= 2 ? 'eager' : 'lazy'}
-              />
-            </div>
-          ))}
-
-          {/* Última "página" · CTA pra leitor completo */}
-          <div className="bg-bg-elevated rounded overflow-hidden flex flex-col items-center justify-center text-center p-6 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-gold/10 via-transparent to-transparent" />
-            <Play className="w-10 h-10 text-gold mb-4 relative" fill="currentColor" />
-            <div className="font-display italic text-text text-2xl mb-2 leading-tight relative">Continue<br/>lendo</div>
-            <div className="font-meta text-text-muted text-[9px] mb-6 relative">
-              {book.page_count ? `${book.page_count} páginas no total` : 'livro completo'}
-            </div>
-            <Link
-              href={`/${book.slug}`}
-              className="font-meta bg-gold text-bg px-4 py-2.5 rounded hover:bg-gold-light transition flex items-center gap-2 text-xs relative"
-            >
-              Abrir leitor <ArrowRight className="w-3 h-3" />
-            </Link>
+      {/* Container do flipbook · centralizado */}
+      <div className="relative flex items-center justify-center w-full h-full min-h-[inherit]">
+        <div className="relative" style={{ width: size.width, height: size.height }}>
+          {/* 3 controles top-right (Heyzine style) */}
+          <div className="absolute -top-12 right-0 z-10 flex items-center gap-1.5">
+            <CtrlBtn icon={Maximize2} title="Abrir leitor completo" href={`/${book.slug}`} />
+            <CtrlBtn icon={ArrowLeftRight} title="Direção do flip" />
+            <CtrlBtn icon={Settings} title="Configurações" />
           </div>
-        </HTMLFlipBook>
 
-        {/* Botões prev/next sutis · só mostra se não está na primeira/última */}
-        {currentPage > 0 && (
-          <button
-            onClick={() => flipRef.current?.pageFlip()?.flipPrev()}
-            aria-label="Página anterior"
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-3 lg:-ml-6 w-9 h-9 rounded-full bg-bg-elevated border border-border-strong flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition shadow-xl"
+          <HTMLFlipBook
+            ref={flipRef as React.Ref<typeof HTMLFlipBook>}
+            width={size.width}
+            height={size.height}
+            size="fixed"
+            minWidth={200}
+            maxWidth={800}
+            minHeight={280}
+            maxHeight={1120}
+            drawShadow
+            flippingTime={650}
+            usePortrait
+            startZIndex={0}
+            autoSize={false}
+            maxShadowOpacity={0.5}
+            showCover
+            mobileScrollSupport={false}
+            clickEventForward
+            useMouseEvents
+            swipeDistance={30}
+            showPageCorners
+            disableFlipByClick={false}
+            startPage={0}
+            onFlip={onFlip}
+            className="mini-flipbook"
+            style={{}}
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        )}
-        {currentPage < totalSlides - 1 && (
-          <button
-            onClick={() => flipRef.current?.pageFlip()?.flipNext()}
-            aria-label="Próxima página"
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-3 lg:-mr-6 w-9 h-9 rounded-full bg-bg-elevated border border-border-strong flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition shadow-xl"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+            {pages.map((n) => (
+              <div key={`p${n}`} className="bg-bg-elevated rounded shadow-page overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`${supabaseUrl}/${book.slug}/page-${n}.jpg`}
+                  alt={`Página ${n} de ${book.title}`}
+                  className="w-full h-full object-cover"
+                  loading={n <= 2 ? 'eager' : 'lazy'}
+                />
+              </div>
+            ))}
+
+            {/* Última slide = CTA */}
+            <div className="bg-bg-elevated rounded overflow-hidden flex flex-col items-center justify-center text-center p-8 relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-gold/10 via-transparent to-transparent" />
+              <Play className="w-12 h-12 text-gold mb-5 relative" fill="currentColor" />
+              <div className="font-display italic text-text text-3xl md:text-4xl mb-3 leading-tight relative">
+                Continue<br/>lendo
+              </div>
+              <div className="font-meta text-text-muted text-[10px] mb-8 relative">
+                {book.page_count ? `${book.page_count} páginas no total` : 'livro completo'}
+              </div>
+              <Link
+                href={`/${book.slug}`}
+                className="font-meta bg-gold text-bg px-5 py-3 rounded hover:bg-gold-light transition flex items-center gap-2 text-xs relative"
+              >
+                Abrir leitor <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </HTMLFlipBook>
+
+          {/* Controles bottom · cursor (left) + pen (right) */}
+          <div className="absolute -bottom-12 left-0 z-10">
+            <CtrlBtn icon={MousePointer2} title="Selecionar (em breve)" disabled />
+          </div>
+          <div className="absolute -bottom-12 right-0 z-10">
+            <CtrlBtn icon={PenLine} title="Anotar (em breve)" disabled />
+          </div>
+
+          {/* Setas prev/next laterais · sutis · só aparecem se faz sentido */}
+          {currentPage > 0 && (
+            <button
+              onClick={flipPrev}
+              aria-label="Página anterior"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -ml-5 lg:-ml-8 w-10 h-10 rounded-full bg-bg-elevated border border-border-strong flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition shadow-xl"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          {currentPage < totalSlides - 1 && (
+            <button
+              onClick={flipNext}
+              aria-label="Próxima página"
+              className="absolute right-0 top-1/2 -translate-y-1/2 -mr-5 lg:-mr-8 w-10 h-10 rounded-full bg-bg-elevated border border-border-strong flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition shadow-xl"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Page indicator */}
@@ -157,11 +192,28 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
           />
         ))}
       </div>
-
-      {/* Sub label */}
-      <div className="mt-3 text-center font-meta text-text-dim text-[9px]">
-        Preview · arraste pra virar a página
-      </div>
     </motion.div>
+  )
+}
+
+function CtrlBtn({
+  icon: Icon, title, href, disabled,
+}: { icon: typeof Maximize2; title: string; href?: string; disabled?: boolean }) {
+  const cls = `w-9 h-9 rounded-full bg-bg-elevated border border-border-strong flex items-center justify-center transition shadow-lg ${
+    disabled
+      ? 'text-text-dim cursor-not-allowed opacity-60'
+      : 'text-text-muted hover:text-gold hover:border-gold'
+  }`
+  if (href && !disabled) {
+    return (
+      <Link href={href} title={title} aria-label={title} className={cls}>
+        <Icon className="w-4 h-4" strokeWidth={1.5} />
+      </Link>
+    )
+  }
+  return (
+    <button title={title} aria-label={title} disabled={disabled} className={cls}>
+      <Icon className="w-4 h-4" strokeWidth={1.5} />
+    </button>
   )
 }

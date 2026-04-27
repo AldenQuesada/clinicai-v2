@@ -27,7 +27,7 @@ export default async function CatalogPage() {
       <PublicHeader />
       {/* HERO · split */}
       <section className="px-6 md:px-12 pt-12 pb-16 md:pt-20 md:pb-24">
-        <div className="max-w-[var(--container)] mx-auto grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-center">
+        <div className="max-w-[var(--container)] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_1.3fr] gap-12 lg:gap-16 items-center">
           {/* LEFT · texto + CTAs */}
           <div className="order-2 lg:order-1">
             <div className="font-meta text-gold mb-3">Biblioteca · Premium</div>
