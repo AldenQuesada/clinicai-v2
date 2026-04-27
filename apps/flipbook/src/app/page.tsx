@@ -3,6 +3,7 @@ import { ArrowRight, Upload, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase/server'
 import { listPublishedFlipbooks, type Flipbook } from '@/lib/supabase/flipbooks'
 import { BookCard } from '@/components/cover/BookCard'
+import { PublicHeader } from '@/components/public/PublicHeader'
 import { HeroBookPreview } from './HeroBookPreview'
 import { HomeFeatures } from './HomeFeatures'
 
@@ -23,6 +24,7 @@ export default async function CatalogPage() {
 
   return (
     <>
+      <PublicHeader />
       {/* HERO · split */}
       <section className="px-6 md:px-12 pt-12 pb-16 md:pt-20 md:pb-24">
         <div className="max-w-[var(--container)] mx-auto grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-center">

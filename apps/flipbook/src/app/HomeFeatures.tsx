@@ -38,7 +38,7 @@ const FEATURES = [
  */
 export function HomeFeatures() {
   return (
-    <section className="py-16 md:py-24 border-t border-border">
+    <section id="features" className="py-16 md:py-24 border-t border-border scroll-mt-20">
       <div className="max-w-[var(--container)] mx-auto px-6 md:px-12">
         <header className="mb-12">
           <div className="font-meta text-gold mb-2">O que tem dentro</div>
