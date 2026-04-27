@@ -17,6 +17,7 @@ export const FlipbookSchema = z.object({
   pdf_url: z.string(),
   format: z.enum(['pdf', 'epub', 'mobi', 'cbz', 'html']).default('pdf'),
   page_count: z.number().nullable(),
+  preview_count: z.number().default(0),
   amazon_asin: z.string().nullable(),
   published_at: z.string().nullable(),
   status: z.enum(['draft', 'published', 'archived']),

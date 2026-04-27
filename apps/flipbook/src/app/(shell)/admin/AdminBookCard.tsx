@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import {
   Eye, EyeOff, Archive, MoreHorizontal, Pencil, Copy, Trash2, Loader2,
-  Settings, ExternalLink, Share2, Check, Image as ImageIcon,
+  Settings, ExternalLink, Share2, Check, Image as ImageIcon, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -52,6 +52,17 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
       setError(j.error ?? 'Falha ao regenerar capa')
+      return
+    }
+    startTransition(() => router.refresh())
+  }
+
+  async function regenPreview() {
+    setError(null); setMenuOpen(false)
+    const res = await fetch(`/api/flipbooks/${book.id}/regenerate-preview`, { method: 'POST' })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setError(j.error ?? 'Falha ao gerar preview')
       return
     }
     startTransition(() => router.refresh())
@@ -168,6 +179,12 @@ export function AdminBookCard({ book }: { book: Flipbook }) {
                   <MenuItem Icon={copied ? Check : Copy} label={copied ? 'Copiado!' : 'Copiar link'} onClick={copyLink} />
                   <div className="border-t border-border my-1" />
                   <MenuItem Icon={ImageIcon} label="Regenerar capa" onClick={regenCover} disabled={pending} />
+                  <MenuItem
+                    Icon={Layers}
+                    label={book.preview_count > 0 ? `Regerar preview (${book.preview_count})` : 'Gerar preview p/ home'}
+                    onClick={regenPreview}
+                    disabled={pending}
+                  />
                   <MenuItem Icon={Pencil} label="Editar metadata" onClick={() => router.push(`/admin/${book.slug}/edit#meta`)} />
                   <MenuItem Icon={Copy}   label="Duplicar" onClick={duplicateBook} disabled={pending} />
                   <div className="border-t border-border my-1" />
