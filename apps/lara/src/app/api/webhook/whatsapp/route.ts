@@ -13,7 +13,7 @@
  *  - N7: WhatsApp service per-tenant (createWhatsAppCloudFromWaNumber)
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import {
   createWhatsAppCloudFromWaNumber,
@@ -47,6 +47,33 @@ import {
 const log = createLogger({ app: 'lara' });
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Extrai pergunta final da resposta da Lara (paridade legacy n8n).
+ * Pega a ultima linha que termina em "?" SE estiver nas ultimas 3 linhas.
+ * Quando ha foto, a pergunta vai como mensagem de TEXTO separada apos as
+ * fotos · regra do prompt: "sempre finalize com pergunta que abre novo loop".
+ */
+function extractFollowUp(text: string): {
+  textWithoutQuestion: string;
+  followUp: string | null;
+} {
+  if (!text) return { textWithoutQuestion: '', followUp: null };
+  const lines = text.split('\n');
+  let lastQ = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim().endsWith('?')) {
+      lastQ = i;
+      break;
+    }
+  }
+  if (lastQ < 0 || lastQ < lines.length - 3) {
+    return { textWithoutQuestion: text, followUp: null };
+  }
+  const followUp = lines.slice(lastQ).join('\n').trim();
+  const textWithoutQuestion = lines.slice(0, lastQ).join('\n').trim();
+  return { textWithoutQuestion, followUp };
+}
 
 // ── GET: Webhook verification ────────────────────────────────
 export async function GET(request: NextRequest) {
@@ -541,42 +568,52 @@ async function processInboundMessage(
     });
 
     if (media.photos.length > 0) {
-      // Audit gap D1 (paridade legacy n8n): manda até 2 fotos de pessoas
-      // diferentes · cada uma com sua caption real (nome+idade do wa_media_bank).
-      // Texto principal acompanha a primeira foto · demais fotos vão sem texto.
+      // Paridade legacy n8n: manda até 2 fotos de pessoas diferentes,
+      // delay entre 1ª e 2ª, pergunta final sai como texto APÓS as fotos
+      // pra abrir novo loop conversacional (regra do prompt).
       aiResponse = media.textCleaned;
+
+      // Extrai a pergunta final (ultima linha terminando em "?") · paridade
+      // legacy n8n. Sem isso a pergunta da Lara vira caption ou se perde.
+      const { textWithoutQuestion, followUp } = extractFollowUp(aiResponse);
+
       const [first, ...rest] = media.photos;
-      sendResult = await wa.sendImage(phone, first.url, first.caption || aiResponse);
+
+      // 1ª foto: caption combina texto da Lara (sem pergunta) + caption real
+      // do banco (nome+idade). Se nao ha texto da Lara, usa so a caption real.
+      const firstCaption = textWithoutQuestion
+        ? (first.caption ? `${textWithoutQuestion}\n\n${first.caption}` : textWithoutQuestion)
+        : (first.caption || 'Resultado real · Dra. Mirian de Paula');
+
+      sendResult = await wa.sendImage(phone, first.url, firstCaption);
       outboundContentType = 'image';
       outboundMediaUrl = first.url;
 
-      // Salva 1ª como outbound principal (com aiResponse texto contextual)
       await repos.messages.saveOutbound(clinic_id, {
         conversationId: conv.id,
         sender: 'lara',
-        content: aiResponse,
+        content: firstCaption,
         contentType: outboundContentType,
         mediaUrl: outboundMediaUrl,
         status: sendResult.ok ? 'sent' : 'failed',
       });
 
-      // Manda fotos extras com delay entre cada uma · UX legacy n8n: 15s pra
-      // paciente registrar a 1a foto antes da 2a chegar. Configuravel via
-      // lara_config.photo_delay_seconds (default 15) ou env LARA_PHOTO_DELAY_MS.
-      //
-      // FIRE-AND-FORGET: nao espera o delay no handler atual (webhook do Meta
-      // tem timeout de ~20s). setTimeout dispara em background apos o response
-      // sair, no proprio processo Node persistente do Easypanel.
+      // Delay configuravel · default 15s entre 1a e 2a foto
       const cfg = await getLaraConfig(clinic_id);
       const photoDelayMs =
         Number.isFinite(cfg.photo_delay_seconds) && cfg.photo_delay_seconds >= 0
           ? cfg.photo_delay_seconds * 1000
           : Number(process.env.LARA_PHOTO_DELAY_MS ?? 15000);
 
-      for (let i = 0; i < rest.length; i++) {
-        const extra = rest[i];
-        const delayForThis = photoDelayMs * (i + 1); // 1ª extra: 15s, 2ª extra (improvavel): 30s
-        setTimeout(async () => {
+      // after() garante execucao apos a response · setTimeout dentro de after
+      // sobrevive no runtime do Next.js 16 (vs setTimeout solto que pode ser
+      // morto em ambientes serverless quando o request handler retorna).
+      after(async () => {
+        for (let i = 0; i < rest.length; i++) {
+          const extra = rest[i];
+          if (photoDelayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, photoDelayMs));
+          }
           try {
             await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
             await repos.messages.saveOutbound(clinic_id, {
@@ -587,12 +624,32 @@ async function processInboundMessage(
               mediaUrl: extra.url,
               status: 'sent',
             });
-            log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: delayForThis }, 'media.extra.sent_async');
+            log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: photoDelayMs }, 'media.extra.sent_after');
           } catch (e) {
-            log.warn({ clinic_id, phone_hash: hashPhone(phone), idx: i, err: (e as Error)?.message }, 'media.extra.send_failed_async');
+            log.warn({ clinic_id, phone_hash: hashPhone(phone), idx: i, err: (e as Error)?.message }, 'media.extra.send_failed_after');
           }
-        }, delayForThis);
-      }
+        }
+
+        // Pergunta final (followUp) · texto separado APOS todas as fotos
+        // chegarem · 3s extra pra paciente terminar de ler a ultima caption.
+        if (followUp) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          try {
+            const fuResult = await wa.sendText(phone, followUp);
+            await repos.messages.saveOutbound(clinic_id, {
+              conversationId: conv.id,
+              sender: 'lara',
+              content: followUp,
+              contentType: 'text',
+              mediaUrl: null,
+              status: fuResult.ok ? 'sent' : 'failed',
+            });
+            log.info({ clinic_id, phone_hash: hashPhone(phone), chars: followUp.length }, 'media.followup.sent');
+          } catch (e) {
+            log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (e as Error)?.message }, 'media.followup.failed');
+          }
+        }
+      });
     } else {
       aiResponse = media.textCleaned;
       sendResult = await wa.sendText(phone, aiResponse);
