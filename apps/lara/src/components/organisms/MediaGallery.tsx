@@ -1,20 +1,17 @@
 'use client'
 
 /**
- * MediaGallery · organismo · gallery editorial assimetrica.
+ * MediaGallery · organismo · espelha vocabulario Mira (b2b-* / luxury-card).
  *
  * Layout:
- *   - Grid 4 colunas em xl, 3 cols em lg, 2 cols em md, 1 col em sm
- *   - Pattern de spans: hero (2x2), tall (1x2), wide (2x1), sm (1x1)
- *   - Padrao ritmico repete a cada 6 cards · 1 hero + 1 tall + 4 sm
- *
- * Filtros editoriais (chips substituem tabs admin), upload + edit drawers
- * mantidos.
+ *   - Filtros editoriais com .b2b-tab e .b2b-chip (padrao Mira)
+ *   - Grid de cards · 3 cols · imagens 4:5 · cada card .luxury-card
+ *   - Caption italic Cormorant · meta em b2b-text-dim
  */
 
 import { useMemo, useState } from 'react'
-import { Plus, ImageOff } from 'lucide-react'
-import { MediaCard, type MediaCardSize } from '@/components/molecules/MediaCard'
+import { ImageOff, Plus } from 'lucide-react'
+import { MediaCard } from '@/components/molecules/MediaCard'
 import { MediaFilters, type FunnelFilter } from '@/components/molecules/MediaFilters'
 import { MediaEditDrawer, type MediaEditData } from '@/components/organisms/MediaEditDrawer'
 import { MediaUploadDrawer } from '@/components/organisms/MediaUploadDrawer'
@@ -30,23 +27,6 @@ export interface GalleryMediaItem {
   phase: string | null
   sort_order: number
   is_active: boolean
-}
-
-/**
- * Padrao ritmico editorial · cada bloco de 6 imagens segue:
- *   [hero=2x2] [sm] [sm]
- *              [sm] [sm]
- *   [tall=1x2] [wide=2x1] [sm]
- *              [sm]       [sm]
- *
- * Resultado: ritmo visual variado em vez de grid uniforme tedioso.
- */
-function pickSize(idx: number): MediaCardSize {
-  const mod = idx % 7
-  if (mod === 0) return 'hero' // primeira de cada bloco
-  if (mod === 5) return 'wide' // 6a posicao
-  if (mod === 6) return 'tall' // 7a posicao
-  return 'sm'
 }
 
 export function MediaGallery({
@@ -102,14 +82,8 @@ export function MediaGallery({
 
   return (
     <>
-      {/* Toolbar editorial · filtros + nova foto · separados por dotted divider */}
-      <div
-        className="reveal flex items-end justify-between gap-6 mb-12 pb-6 flex-wrap border-b border-dotted"
-        style={{
-          ['--reveal-delay' as string]: '480ms',
-          borderColor: 'rgba(201, 169, 110, 0.25)',
-        }}
-      >
+      {/* Filtros · padrao Mira (b2b-tab + b2b-chip) */}
+      <div className="mb-6">
         <MediaFilters
           funnel={funnelFilter}
           onFunnelChange={setFunnelFilter}
@@ -118,48 +92,39 @@ export function MediaGallery({
           availableQueixas={availableQueixas}
           counts={counts}
         />
-
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            className="group inline-flex items-center gap-2 font-[family-name:var(--font-cursive)] italic text-xl font-light text-[hsl(var(--primary))] hover:opacity-80 transition-opacity"
-          >
-            <Plus className="w-4 h-4 -translate-y-px transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:rotate-90" />
-            <span className="border-b border-dotted border-[hsl(var(--primary))]/60 pb-px">
-              nova foto
-            </span>
-          </button>
-        )}
       </div>
 
-      {/* Grid editorial assimetrico */}
       {filtered.length === 0 ? (
-        <div className="reveal text-center py-32" style={{ ['--reveal-delay' as string]: '600ms' }}>
-          <ImageOff className="w-8 h-8 mx-auto text-[hsl(var(--muted-foreground))]/40 mb-4" />
-          <p className="font-[family-name:var(--font-cursive)] italic text-2xl font-light text-[hsl(var(--muted-foreground))]">
-            {items.length === 0
-              ? 'O banco está em branco.'
-              : 'Nenhuma imagem para esses filtros.'}
-          </p>
+        <div className="b2b-empty">
+          {items.length === 0
+            ? 'O banco está vazio. Use "Nova foto" para subir a primeira imagem.'
+            : 'Nenhuma imagem bate com os filtros atuais.'}
         </div>
       ) : (
-        <div
-          className="grid gap-x-6 gap-y-12 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-          style={{ gridAutoRows: '180px' }}
-        >
-          {filtered.map((m, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((m) => (
             <MediaCard
               key={m.id}
               media={m}
               canManage={canManage}
-              size={pickSize(idx)}
-              revealDelay={600 + idx * 50}
               onEdit={setEditingId}
               onToggleActive={toggleMediaActiveAction}
             />
           ))}
         </div>
+      )}
+
+      {/* Floating upload trigger · estilo Mira (não sticky bottom-right exagerado) */}
+      {canManage && (
+        <button
+          type="button"
+          onClick={() => setUploadOpen(true)}
+          className="fixed bottom-6 right-6 b2b-btn b2b-btn-primary shadow-lg"
+          aria-label="Nova foto"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Nova foto
+        </button>
       )}
 
       <MediaEditDrawer media={editingItem} onClose={() => setEditingId(null)} />

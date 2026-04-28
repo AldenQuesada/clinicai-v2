@@ -1,21 +1,16 @@
 'use client'
 
 /**
- * MediaCard · molecula · cartao editorial · suporta spans assimetricos.
+ * MediaCard · molecula · cartao de foto · estilo Mira (.luxury-card).
  *
- * Layout (asymmetric grid):
- *   - default 1x1 (size='sm')
- *   - 2x1 horizontal (size='wide')
- *   - 1x2 vertical (size='tall')
- *   - 2x2 hero (size='hero')
- *
- * Caption em estilo magazine (italic Cormorant + dash + uppercase),
- * NAO mais empilhado retangular admin.
+ * - Card .luxury-card · bg b2b-bg-1, border b2b-border, hover border-strong
+ * - Imagem aspect 4:5 (retrato natural pra antes/depois)
+ * - Caption Cormorant italic + meta uppercase tracking
+ * - Hover overlay simples com .b2b-btn pra acoes
  */
 
 import { useState, useTransition } from 'react'
 import { Eye, EyeOff, Pencil, Image as ImageIcon } from 'lucide-react'
-import { MagazineCaption } from '@/components/atoms/MagazineCaption'
 
 export interface MediaCardData {
   id: string
@@ -27,45 +22,21 @@ export interface MediaCardData {
   is_active: boolean
 }
 
-export type MediaCardSize = 'sm' | 'wide' | 'tall' | 'hero'
-
-const SIZE_CLASSES: Record<MediaCardSize, string> = {
-  sm: 'col-span-1 row-span-1',
-  wide: 'col-span-2 row-span-1',
-  tall: 'col-span-1 row-span-2',
-  hero: 'col-span-2 row-span-2',
-}
-
-const ASPECT_CLASSES: Record<MediaCardSize, string> = {
-  sm: 'aspect-[4/5]',
-  wide: 'aspect-[16/9]',
-  tall: 'aspect-[3/5]',
-  hero: 'aspect-square',
-}
-
 function parseCaption(raw: string | null): { primary: string; secondary: string | null } {
   if (!raw) return { primary: 'Sem caption', secondary: null }
-  // Pattern: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"
   const parts = raw.split(/\s*·\s*/)
-  if (parts.length >= 2) {
-    return { primary: parts[0], secondary: parts.slice(1).join(' · ') }
-  }
-  // Pattern: "Miriam Poppi, 52 anos"
+  if (parts.length >= 2) return { primary: parts[0], secondary: parts.slice(1).join(' · ') }
   return { primary: parts[0], secondary: null }
 }
 
 export function MediaCard({
   media,
   canManage,
-  size = 'sm',
-  revealDelay = 0,
   onEdit,
   onToggleActive,
 }: {
   media: MediaCardData
   canManage: boolean
-  size?: MediaCardSize
-  revealDelay?: number
   onEdit: (id: string) => void
   onToggleActive: (id: string, isActive: boolean) => Promise<void>
 }) {
@@ -87,107 +58,98 @@ export function MediaCard({
   const cap = parseCaption(media.caption)
 
   return (
-    <figure
-      className={`reveal group relative ${SIZE_CLASSES[size]} ${
+    <article
+      className={`luxury-card overflow-hidden cursor-pointer group ${
         media.is_active ? '' : 'opacity-50'
       }`}
-      style={{ ['--reveal-delay' as string]: `${revealDelay}ms` }}
+      onClick={() => onEdit(media.id)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onEdit(media.id)
+        }
+      }}
     >
-      <article
-        onClick={() => onEdit(media.id)}
-        tabIndex={0}
-        role="button"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onEdit(media.id)
-          }
-        }}
-        className="relative cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--primary))] focus-visible:ring-offset-4 focus-visible:ring-offset-transparent"
-      >
-        {/* Imagem · sem border-radius cliche · borda sutil dotted */}
-        <div
-          className={`relative ${ASPECT_CLASSES[size]} bg-[hsl(var(--muted))] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)]`}
-        >
-          {imgError ? (
-            <div className="absolute inset-0 flex items-center justify-center text-[hsl(var(--muted-foreground))]">
-              <ImageIcon className="w-10 h-10 opacity-50" />
-            </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={media.url}
-              alt={cap.primary}
-              loading="lazy"
-              onError={() => setImgError(true)}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.04]"
-            />
-          )}
-
-          {/* Linha gold no canto inferior esquerdo · signature do hover */}
-          <span
-            className="absolute left-0 bottom-0 h-px bg-[hsl(var(--primary))] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-            style={{ width: '40%' }}
-            aria-hidden
-          />
-
-          {/* Status no canto superior direito · italic Cormorant pequeno */}
-          <div className="absolute top-3 right-3">
-            <span
-              className={`font-[family-name:var(--font-cursive)] italic text-[11px] font-light tracking-wide ${
-                media.is_active ? 'text-[hsl(var(--primary))]' : 'text-white/60'
-              }`}
-              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}
-            >
-              {media.is_active ? 'em uso' : 'arquivada'}
-            </span>
+      {/* Imagem · aspect 4:5 retrato */}
+      <div className="relative aspect-[4/5] bg-[var(--b2b-bg-2)] overflow-hidden">
+        {imgError ? (
+          <div className="absolute inset-0 flex items-center justify-center text-[var(--b2b-text-muted)]">
+            <ImageIcon className="w-8 h-8 opacity-50" />
           </div>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={media.url}
+            alt={cap.primary}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+          />
+        )}
 
-          {/* Hover overlay · acoes em italic minimalista */}
-          {canManage && (
-            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-[#0F0D0A]/85 via-[#0F0D0A]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleEdit}
-                className="font-[family-name:var(--font-cursive)] italic text-base text-[hsl(var(--primary))] hover:underline underline-offset-4 decoration-1"
-              >
-                <Pencil className="inline w-3 h-3 mr-1.5 -translate-y-px" aria-hidden />
-                editar
-              </button>
-              <button
-                type="button"
-                onClick={handleToggle}
-                disabled={pending}
-                className="font-[family-name:var(--font-cursive)] italic text-base text-white/80 hover:text-[hsl(var(--primary))] disabled:opacity-50"
-                title={media.is_active ? 'Arquivar' : 'Reativar'}
-              >
-                {media.is_active ? (
-                  <>
-                    <EyeOff className="inline w-3 h-3 mr-1.5 -translate-y-px" aria-hidden />
-                    arquivar
-                  </>
-                ) : (
-                  <>
-                    <Eye className="inline w-3 h-3 mr-1.5 -translate-y-px" aria-hidden />
-                    reativar
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+        {/* Status pill no canto · padrao Mira (.b2b-pill) */}
+        <div className="absolute top-3 right-3">
+          <span
+            className={`b2b-pill ${
+              media.is_active ? 'b2b-pill-tier' : ''
+            }`}
+            style={{ backdropFilter: 'blur(6px)' }}
+          >
+            {media.is_active ? 'em uso' : 'arquivada'}
+          </span>
         </div>
 
-        {/* Caption magazine · italic + dash · fora da imagem */}
-        <div className="pt-4 pb-2">
-          <MagazineCaption primary={cap.primary} secondary={cap.secondary ?? undefined} />
-          {media.queixas.length > 0 && (
-            <p className="mt-2 font-display-uppercase text-[9px] tracking-[0.3em] text-[hsl(var(--muted-foreground))]/70">
-              {media.queixas.slice(0, 4).join(' · ')}
-              {media.queixas.length > 4 ? ` · +${media.queixas.length - 4}` : ''}
-            </p>
-          )}
-        </div>
-      </article>
-    </figure>
+        {/* Hover overlay com acoes · b2b-btn */}
+        {canManage && (
+          <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="b2b-btn b2b-btn-primary"
+              style={{ padding: '6px 12px', fontSize: '11px' }}
+            >
+              <Pencil className="w-3 h-3" />
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={handleToggle}
+              disabled={pending}
+              className="b2b-btn"
+              style={{ padding: '6px 10px', fontSize: '11px' }}
+              title={media.is_active ? 'Arquivar' : 'Reativar'}
+            >
+              {media.is_active ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Footer · caption Cormorant + meta */}
+      <div className="p-4">
+        <p className="font-display text-[20px] leading-tight text-[var(--b2b-ivory)] italic font-normal">
+          {cap.primary}
+        </p>
+        {cap.secondary && (
+          <p className="text-[11px] text-[var(--b2b-text-muted)] uppercase tracking-[1.5px] mt-1.5">
+            {cap.secondary}
+          </p>
+        )}
+        {media.queixas.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {media.queixas.slice(0, 4).map((q) => (
+              <span key={q} className="b2b-pill">
+                {q}
+              </span>
+            ))}
+            {media.queixas.length > 4 && (
+              <span className="b2b-pill">+{media.queixas.length - 4}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
   )
 }

@@ -1,18 +1,13 @@
 /**
- * Banco de mídias · Server Component editorial.
- *
- * Brandbook v2.0 + frontend-design skill (Anthropic):
- *   - Atmosfera com noise + gradient mesh subtle (wraps em .editorial-atmosphere)
- *   - Masthead estilo capa de revista (Cormorant 5xl + italic anchor + deck italic)
- *   - Grid assimetrico magazine-style (hero/wide/tall/sm spans)
- *   - Stagger reveal 1.1s · brandbook §14
- *   - Signature gold line vertical na borda esquerda (no body via globals.css)
+ * Banco de mídias · Server Component.
+ * Visual: ESPELHO da Mira (mesmo vocabulario .b2b-* / .luxury-card / .eyebrow / .font-display).
  */
 
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { Plus } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { MediaGallery, type GalleryMediaItem } from '@/components/organisms/MediaGallery'
-import { EditorialMasthead } from '@/components/molecules/EditorialMasthead'
 import type { WaMediaBankDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +33,10 @@ async function loadMedia(): Promise<{ media: GalleryMediaItem[]; canManage: bool
   return { media: dtos.map(toView), canManage }
 }
 
+function noun(n: number) {
+  return n === 1 ? 'imagem' : 'imagens'
+}
+
 export default async function MediaPage() {
   const { media, canManage } = await loadMedia()
 
@@ -48,23 +47,35 @@ export default async function MediaPage() {
   const activeCount = media.filter((m) => m.is_active).length
 
   return (
-    <main className="editorial-atmosphere flex-1 overflow-y-auto custom-scrollbar">
-      <div className="relative z-10 max-w-7xl mx-auto px-8 lg:px-16 py-16 lg:py-24">
-        <EditorialMasthead
-          eyebrow="Banco de imagens · Lara"
-          title="Resultados"
-          italicAnchor="da clínica"
-          deck="Fotos antes-depois enviadas pela Lara durante as conversas. Caption com nome, idade e assinatura · Lara escolhe pela tag que ela mesma escreve."
-          meta={[
-            { label: 'imagens', value: media.length, tone: 'foreground' },
-            { label: 'em uso', value: activeCount, tone: 'primary' },
-            {
-              label: 'arquivadas',
-              value: media.length - activeCount,
-              tone: 'foreground',
-            },
-          ]}
-        />
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+      <div className="b2b-page-container">
+        {/* Page heading · Cormorant + eyebrow (padrão Mira) */}
+        <div className="mb-8">
+          <p className="eyebrow mb-3">Painel · Lara</p>
+          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
+            Banco de <em>imagens</em>
+          </h1>
+          <p className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl">
+            Resultados antes-depois enviados pela Lara durante as conversas.
+            Caption com nome, idade e assinatura — Lara escolhe pela tag que ela mesma escreve.
+          </p>
+        </div>
+
+        {/* Head: count + actions */}
+        <div className="b2b-list-head">
+          <div className="b2b-list-count">
+            {media.length} {noun(media.length)} ·{' '}
+            <span style={{ color: 'var(--b2b-champagne)' }}>{activeCount} em uso</span>
+          </div>
+          {canManage && (
+            <div className="b2b-list-head-acts">
+              <Link href="#upload" className="b2b-btn b2b-btn-primary">
+                <Plus className="w-3.5 h-3.5" />
+                Nova foto
+              </Link>
+            </div>
+          )}
+        </div>
 
         <MediaGallery items={media} canManage={canManage} />
       </div>
