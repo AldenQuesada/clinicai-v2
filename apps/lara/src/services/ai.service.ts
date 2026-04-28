@@ -32,6 +32,12 @@ const PROMPT_KEYS = {
   fullface: 'lara_prompt_fullface',
   prices_defense: 'lara_prompt_prices_defense',
   voucher_recipient: 'lara_prompt_voucher_recipient',
+  // Audit gap C2-C6 (P0): 5 personas restantes (legacy tinha 6, nova só usava onboarder)
+  persona_sdr: 'lara_prompt_persona_sdr',
+  persona_confirmador: 'lara_prompt_persona_confirmador',
+  persona_closer: 'lara_prompt_persona_closer',
+  persona_recuperador: 'lara_prompt_persona_recuperador',
+  persona_agendador: 'lara_prompt_persona_agendador',
 } as const;
 
 const FILE_PATHS = {
@@ -41,7 +47,29 @@ const FILE_PATHS = {
   fullface: ['src', 'prompt', 'flows', 'fullface-flow.md'],
   prices_defense: ['src', 'prompt', 'flows', 'prices-defense-flow.md'],
   voucher_recipient: ['src', 'prompt', 'flows', 'voucher-recipient-flow.md'],
+  persona_sdr: ['src', 'prompt', 'personas', 'sdr.md'],
+  persona_confirmador: ['src', 'prompt', 'personas', 'confirmador.md'],
+  persona_closer: ['src', 'prompt', 'personas', 'closer.md'],
+  persona_recuperador: ['src', 'prompt', 'personas', 'recuperador.md'],
+  persona_agendador: ['src', 'prompt', 'personas', 'agendador.md'],
 } as const;
+
+/**
+ * Audit gap C2-C6 (P0): mapeia ai_persona do lead pra layer key.
+ * 'onboarder' (default) usa apenas o base prompt · sem layer extra.
+ */
+function personaKey(
+  persona: string | undefined,
+): keyof typeof PROMPT_KEYS | null {
+  switch (persona) {
+    case 'sdr': return 'persona_sdr';
+    case 'confirmador': return 'persona_confirmador';
+    case 'closer': return 'persona_closer';
+    case 'recuperador': return 'persona_recuperador';
+    case 'agendador': return 'persona_agendador';
+    default: return null; // onboarder ou unknown · sem layer extra
+  }
+}
 
 /**
  * Audit gap A10 (P2): após N mensagens trocadas, switch pra prompt compact
@@ -101,15 +129,23 @@ async function getSystemPromptText(
   clinicId: string | null,
   isVoucherRecipient = false,
   messageCount = 0,
+  persona: string | undefined = undefined,
 ): Promise<string> {
   try {
+    const persLayerKey = personaKey(persona);
+
     // Audit gap A10: após threshold de mensagens, usa prompt compact (~70% menor).
     // Compact já inclui regras + funis condensados + tags · não precisa empilhar layers.
     if (shouldUseCompactPrompt(messageCount)) {
       const compact = await readPromptLayer(clinicId, 'compact');
       if (compact) {
-        // Voucher layer ainda injeta (pequeno, contexto crítico).
         let prompt = compact;
+        // Persona layer mantida no compact · pequena (~30 linhas) e crítica pra tom
+        if (persLayerKey) {
+          const persText = await readPromptLayer(clinicId, persLayerKey);
+          if (persText) prompt += '\n\n' + persText;
+        }
+        // Voucher layer ainda injeta (pequeno, contexto crítico).
         if (isVoucherRecipient) {
           const voucher = await readPromptLayer(clinicId, 'voucher_recipient');
           if (voucher) prompt += '\n\n' + voucher;
@@ -139,6 +175,13 @@ async function getSystemPromptText(
     // Sempre injeta defesa de preços
     const prices = await readPromptLayer(clinicId, 'prices_defense');
     if (prices) prompt += '\n\n' + prices;
+
+    // Audit gap C2-C6: persona-specific layer (sdr/confirmador/closer/recuperador/agendador).
+    // Onboarder default usa só o base prompt (já tem instruções pra primeiro contato).
+    if (persLayerKey) {
+      const persText = await readPromptLayer(clinicId, persLayerKey);
+      if (persText) prompt += '\n\n' + persText;
+    }
 
     // Voucher recipient layer · so injeta quando o lead e beneficiaria
     if (isVoucherRecipient) {
@@ -251,6 +294,7 @@ export async function generateResponse(
     leadContext.clinic_id || null,
     isVoucherRecipient,
     messageCount,
+    persona,
   );
   const isReturning = leadContext.is_returning || false;
 
