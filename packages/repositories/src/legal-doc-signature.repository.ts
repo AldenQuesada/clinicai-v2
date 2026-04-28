@@ -9,7 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface LegalDocSignatureDTO {
   id: string
   requestId: string
@@ -55,7 +54,6 @@ function mapSignatureRow(r: any): LegalDocSignatureDTO {
 }
 
 export class LegalDocSignatureRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

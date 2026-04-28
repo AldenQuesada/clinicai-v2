@@ -47,8 +47,7 @@ export async function checkBudget(
   try {
     const supabase = createServiceRoleClient()
     // RPC retorna jsonb com used_usd / limit_usd / allowed
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('_ai_budget_check', {
+    const { data, error } = await supabase.rpc('_ai_budget_check', {
       p_clinic_id: clinic_id,
       p_daily_limit_usd: DEFAULT_DAILY_LIMIT_USD,
     })
@@ -56,7 +55,7 @@ export async function checkBudget(
       log.warn({ err: error, clinic_id, source }, 'budget_check RPC falhou · permitindo')
       return { allowed: true, used_usd: 0, limit_usd: DEFAULT_DAILY_LIMIT_USD }
     }
-    const result = (data as BudgetCheckResult) ?? null
+    const result = (data as unknown as BudgetCheckResult) ?? null
     if (!result) {
       return { allowed: true, used_usd: 0, limit_usd: DEFAULT_DAILY_LIMIT_USD }
     }
@@ -85,10 +84,11 @@ export async function recordUsage(usage: UsageRecord): Promise<void> {
   try {
     const supabase = createServiceRoleClient()
     // RPC `_ai_budget_record` faz UPSERT com tokens += e cost +=
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc('_ai_budget_record', {
+    const { error } = await supabase.rpc('_ai_budget_record', {
       p_clinic_id: usage.clinic_id,
-      p_user_id: usage.user_id ?? null,
+      // RPC requer string (nao opcional na signature canonica) · default ''
+      // pra usage system-level (cron/webhook sem user identificado).
+      p_user_id: usage.user_id ?? '',
       p_source: usage.source,
       p_model: usage.model,
       p_input_tokens: usage.input_tokens,

@@ -15,7 +15,6 @@ import { createServerClient } from '@/lib/supabase'
 import { makeMiraRepos, type MiraRepos } from '@/lib/repos'
 import { resolveClinicId } from '@/lib/clinic'
 import { createLogger } from '@clinicai/logger'
-
 const log = createLogger({ app: 'mira' })
 
 export function timingSafeEqual(a: string, b: string): boolean {

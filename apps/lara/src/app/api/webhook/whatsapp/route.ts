@@ -405,8 +405,7 @@ async function processInboundMessage(
   // PostgREST · aqui o lock é GARANTIDAMENTE atômico (FOR UPDATE SKIP LOCKED
   // dentro de UPDATE single-statement no RPC SQL).
   // TTL 30s · libera no fim · stuck-lock cleanup cron pega zumbis.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: lockId, error: lockErr } = await (supabase as any).rpc('wa_claim_conversation', {
+  const { data: lockId, error: lockErr } = await supabase.rpc('wa_claim_conversation', {
     p_conversation_id: conv.id,
     p_ttl_sec: 30,
   });
@@ -670,8 +669,7 @@ async function processInboundMessage(
   } finally {
     // Audit fix N4: SEMPRE libera o lock no fim · idempotente, só libera se for dele
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).rpc('wa_release_conversation', {
+      await supabase.rpc('wa_release_conversation', {
         p_conversation_id: conv.id,
         p_lock_id: lockId,
       });

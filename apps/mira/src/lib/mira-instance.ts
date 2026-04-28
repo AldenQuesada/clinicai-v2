@@ -20,9 +20,7 @@
 
 import { makeMiraRepos } from '@/lib/repos'
 import { createServerClient } from '@/lib/supabase'
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 const CACHE_TTL_MS = 60_000
 const cache = new Map<string, { val: string; exp: number }>()
 

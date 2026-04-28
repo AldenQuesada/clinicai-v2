@@ -25,9 +25,12 @@
     "start:dashboard": "pnpm --filter=@clinicai/dashboard start",
     "start:flipbook": "pnpm --filter=@clinicai/flipbook start",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck --filter=!@clinicai/flipbook",
+    "typecheck:all": "turbo run typecheck",
+    "typecheck:flipbook": "turbo run typecheck --filter=@clinicai/flipbook",
     "test": "turbo run test",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:types": "node scripts/generate-types.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",

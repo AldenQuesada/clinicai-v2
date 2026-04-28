@@ -27,7 +27,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger, hashPhone } from '@clinicai/logger'
-
 const log = createLogger({ app: 'lara' })
 
 export type PhotoTag =
@@ -184,8 +183,7 @@ async function fetchFromBank(
   queixa: string | null,
 ): Promise<BankPhoto[]> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('wa_get_media', {
+    const { data, error } = await supabase.rpc('wa_get_media', {
       p_funnel: funnel,
       p_queixa: queixa,
       p_phase: null,

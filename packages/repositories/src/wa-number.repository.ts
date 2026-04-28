@@ -9,7 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface WaNumberDTO {
   id: string
   clinicId: string
@@ -67,7 +66,6 @@ function mapRow(row: any): WaNumberDTO {
 }
 
 export class WaNumberRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   async list(clinicId: string): Promise<WaNumberDTO[]> {
@@ -305,9 +303,7 @@ export class WaNumberRepository {
    * vs partner. Retorna apenas array de phones (string) pra match rapido.
    */
   async listAdminPrivatePhones(): Promise<string[]> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (this.supabase
-      .from('wa_numbers') as any)
+    const { data } = await this.supabase.from('wa_numbers')
       .select('phone')
       .eq('is_active', true)
       .eq('number_type', 'professional_private')

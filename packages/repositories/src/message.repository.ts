@@ -15,7 +15,6 @@ import {
   type SaveInboundMessageInput,
   type SaveOutboundMessageInput,
 } from './types'
-
 export interface AIHistoryMessage {
   role: 'user' | 'assistant'
   content: string
@@ -181,7 +180,6 @@ export class MessageRepository {
       .order('sent_at', { ascending: false })
       .limit(limit)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data ?? [])
       .slice()
       .reverse()

@@ -30,7 +30,6 @@ import * as path from 'path';
 import { callAnthropic, MODELS } from '@clinicai/ai';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import type { SupabaseClient } from '@supabase/supabase-js';
-
 export type ColdOpenTemplateKey =
   | 'aq_novo_lead'
   | 'aq_lead_frio'
@@ -109,8 +108,7 @@ async function pickFromRpc(
   key: ColdOpenTemplateKey,
 ): Promise<PickedTemplate | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('lara_pick_template', {
+    const { data, error } = await supabase.rpc('lara_pick_template', {
       p_key: key,
     });
     if (error) return null;

@@ -37,7 +37,7 @@ export async function GET(
     .from('wa_conversations')
     .select('clinic_id')
     .eq('id', id)
-    .maybeSingle();
+    .maybeSingle<{ clinic_id: string }>();
 
   if (!conv) {
     return new Response('Not found', { status: 404 });

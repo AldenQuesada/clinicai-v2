@@ -118,7 +118,7 @@ async function loadPanel(token: string): Promise<PartnerPanelData> {
     if (!data || typeof data !== 'object') {
       return { ok: false, error: 'empty_response' }
     }
-    return data as PartnerPanelData
+    return data as unknown as PartnerPanelData
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'rpc_failed' }
   }

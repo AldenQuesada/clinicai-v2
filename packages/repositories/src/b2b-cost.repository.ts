@@ -6,7 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface CostBreakdown {
   ok: boolean
   voucher_unit_cost_brl: number | null

@@ -9,7 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type ConsentType = 'comm' | 'analytics' | 'data_sharing' | 'marketing'
 
 export interface ConsentEntry {

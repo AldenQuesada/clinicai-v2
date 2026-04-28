@@ -67,11 +67,12 @@ export async function POST(
   // Audit fix N7 (2026-04-27): WhatsApp service per-tenant.
   // Tenta resolver pelo wa_number_id da conversation; fallback pra env global
   // enquanto wa_numbers está sendo populado pra todas clínicas.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const waNumberId = (conv as any).waNumberId as string | null | undefined;
+  // Camada 3.5 da auditoria CRM: ConversationDTO agora tem waNumberId tipado
+  // (antes faltava · `(conv as any).waNumberId` retornava undefined em runtime).
   let wa: WhatsAppCloudService | null = null;
-  if (waNumberId) {
-    wa = await createWhatsAppCloudFromWaNumber(supabase, waNumberId);
+  if (conv.waNumberId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    wa = await createWhatsAppCloudFromWaNumber(supabase as any, conv.waNumberId);
   }
   if (!wa) {
     wa = new WhatsAppCloudService({

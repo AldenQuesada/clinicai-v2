@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface B2BWASenderDTO {
   id: string
@@ -41,8 +42,7 @@ function last8(phone: string): string {
 }
 
 export class B2BWASenderRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Gate principal · verifica se o phone esta na whitelist ativa.

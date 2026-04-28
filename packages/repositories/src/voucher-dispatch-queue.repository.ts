@@ -15,7 +15,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type VoucherDispatchQueueStatus =
   | 'pending'
   | 'processing'
@@ -152,7 +151,6 @@ function mapPickedItem(raw: any): PickedQueueItemDTO {
 }
 
 export class B2BVoucherDispatchQueueRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

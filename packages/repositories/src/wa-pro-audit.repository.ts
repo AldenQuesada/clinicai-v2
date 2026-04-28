@@ -10,7 +10,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface WaProMessageInput {
   clinicId: string
   phone: string

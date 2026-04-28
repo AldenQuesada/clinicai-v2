@@ -17,7 +17,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
-
 const log = createLogger({ app: 'lara' })
 
 // Fallback pro clinic_id da Mirian · usado SOMENTE se RPC retornar null E
@@ -59,8 +58,7 @@ export async function resolveTenantContext(
     }
     return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null }
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc('wa_numbers_resolve_by_phone_number_id', {
+  const { data, error } = await supabase.rpc('wa_numbers_resolve_by_phone_number_id', {
     p_phone_number_id: phoneNumberId,
   })
   if (error || !data?.ok) {

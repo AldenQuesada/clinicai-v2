@@ -13,7 +13,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 // ─── Tipos raw das RPCs ────────────────────────────────────────────────
 
 export interface GrowthWeek {
@@ -139,7 +138,6 @@ export class B2BMetricsV2Repository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.supabase.rpc(name, args || {})
     if (error) throw new Error(`[${name}] ${error.message}`)

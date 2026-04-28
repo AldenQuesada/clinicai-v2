@@ -16,7 +16,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type ContractStatus = 'draft' | 'sent' | 'signed' | 'expired' | 'cancelled'
 export type ActivityKind =
   | 'monthly_meeting'
@@ -120,7 +119,6 @@ function mapActivityRow(r: any): PartnershipActivityDTO {
 }
 
 export class B2BPartnershipContractRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   // ─── Contracts ──────────────────────────────────────────────────────

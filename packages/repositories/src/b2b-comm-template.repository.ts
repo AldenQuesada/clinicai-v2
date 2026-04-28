@@ -16,7 +16,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 /**
  * Mig 800-41 · catalogo de event_keys vira tabela editavel.
  * Bucket = string livre (UI sugere parceiros/convidadas/admin).
@@ -104,7 +103,6 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
 }
 
 export class B2BCommTemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

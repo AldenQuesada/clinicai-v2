@@ -23,7 +23,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface FinancialSnapshot {
   /** Receita gerada por conversoes B2B no periodo (R$). */
   revenue: number

@@ -10,7 +10,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { InboxNotificationInput } from './types'
-
 export class InboxNotificationRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
@@ -19,8 +18,7 @@ export class InboxNotificationRepository {
    * Cria notificacao via RPC · throw em erro pra caller decidir log/silencio.
    */
   async create(input: InboxNotificationInput): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (this.supabase as any).rpc('inbox_notification_create', {
+    const { error } = await this.supabase.rpc('inbox_notification_create', {
       p_clinic_id: input.clinicId,
       p_conversation_id: input.conversationId,
       p_source: input.source,

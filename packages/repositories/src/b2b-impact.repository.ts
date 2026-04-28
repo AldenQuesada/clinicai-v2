@@ -6,7 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface ImpactScore {
   id?: string
   name?: string

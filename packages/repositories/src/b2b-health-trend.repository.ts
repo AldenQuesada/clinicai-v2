@@ -6,7 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface HealthTrendHistoryEntry {
   color: 'green' | 'yellow' | 'red' | 'unknown'
   previous: 'green' | 'yellow' | 'red' | 'unknown' | null

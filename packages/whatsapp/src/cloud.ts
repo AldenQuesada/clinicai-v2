@@ -198,8 +198,7 @@ export async function createWhatsAppCloudFromWaNumber(
   serviceClient: SupabaseClient,
   wa_number_id: string,
 ): Promise<WhatsAppCloudService | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (serviceClient.from('wa_numbers') as any)
+  const { data, error } = await serviceClient.from('wa_numbers')
     .select('id, clinic_id, phone_number_id, access_token')
     .eq('id', wa_number_id)
     .eq('is_active', true)

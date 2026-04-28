@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface SuggestionCategory {
   slug: string
@@ -48,8 +49,7 @@ function mapRow(row: any): SuggestionCategory {
 }
 
 export class B2BSuggestionsRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Retorna snapshot completo do plano · 24 categorias com state + counts.

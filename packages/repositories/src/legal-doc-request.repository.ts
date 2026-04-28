@@ -19,7 +19,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type LegalDocStatus = 'pending' | 'viewed' | 'signed' | 'expired' | 'revoked'
 
 export interface LegalDocRequestDTO {
@@ -128,7 +127,6 @@ function mapRequestRow(r: any): LegalDocRequestDTO {
 }
 
 export class LegalDocRequestRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

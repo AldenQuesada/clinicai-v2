@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "catalog:",
+    "@clinicai/supabase": "workspace:*",
     "@clinicai/utils": "workspace:*",
     "uuid": "catalog:"
   },

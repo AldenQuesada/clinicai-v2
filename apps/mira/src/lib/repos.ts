@@ -72,7 +72,6 @@ import {
   LegalDocRequestRepository,
   LegalDocSignatureRepository,
 } from '@clinicai/repositories'
-
 export interface MiraRepos {
   // Shared
   leads: LeadRepository

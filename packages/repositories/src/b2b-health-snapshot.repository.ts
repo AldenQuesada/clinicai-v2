@@ -6,7 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface PartnershipHealthSnapshotMetrics {
   days_since_last_voucher: number
   cap_used: number

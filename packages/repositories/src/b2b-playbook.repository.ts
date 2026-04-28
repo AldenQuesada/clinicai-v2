@@ -17,7 +17,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type PlaybookKind = 'prospect_to_active' | 'retention' | 'renewal'
 
 export interface PlaybookTaskTemplate {
@@ -119,7 +118,6 @@ function mapApplication(row: any): PlaybookApplication {
 }
 
 export class B2BPlaybookRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

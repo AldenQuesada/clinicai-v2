@@ -7,10 +7,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { mapTemplateRow, type CreateTemplateInput, type TemplateDTO } from './types'
+import type { Database } from '@clinicai/supabase'
 
 export class TemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista templates da clinica · default ordena por sort_order asc, name asc.

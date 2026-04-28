@@ -9,7 +9,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
-
 const log = createLogger({ app: 'mira' })
 
 let _cachedClinicId: string | null = null

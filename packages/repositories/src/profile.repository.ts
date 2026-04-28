@@ -6,6 +6,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface ProfileDTO {
   id: string
@@ -14,8 +15,7 @@ export interface ProfileDTO {
 }
 
 export class ProfileRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async getById(userId: string): Promise<ProfileDTO | null> {
     const { data } = await this.supabase

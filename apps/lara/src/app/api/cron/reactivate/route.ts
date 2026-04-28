@@ -69,12 +69,10 @@ export async function GET(req: NextRequest) {
       const reactivateMessage =
         'Oi! Você acabou se ocupando por aí? Entendo perfeitamente, a rotina esmaga a gente. Vou pausar meu contato por aqui pra não atrapalhar seu dia, mas seu cadastro (com os bônus) está salvo. Assim que tiver um respiro, me chama de volta pra continuarmos!';
 
-      // Audit fix N7: tenta resolver WhatsApp service por wa_number_id da conv
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const waNumberId = (conv as any).waNumberId as string | null | undefined;
+      // Audit fix N7 (Camada 3.5 cleanup): ConversationDTO agora tem waNumberId tipado
       let wa: WhatsAppCloudService | null = null;
-      if (waNumberId) {
-        wa = await createWhatsAppCloudFromWaNumber(supabase, waNumberId);
+      if (conv.waNumberId) {
+        wa = await createWhatsAppCloudFromWaNumber(supabase, conv.waNumberId);
       }
       const sender = wa ?? fallbackWa;
 

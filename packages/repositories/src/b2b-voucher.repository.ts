@@ -14,7 +14,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { phoneVariants } from '@clinicai/utils'
 import type { DedupHit, DedupHitKind } from './types'
-
 export type LaraFollowupState =
   | 'pending'
   | 'engaged'
@@ -96,7 +95,6 @@ export interface IssueVoucherInput {
 }
 
 export class B2BVoucherRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

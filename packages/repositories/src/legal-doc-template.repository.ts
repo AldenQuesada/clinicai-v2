@@ -15,7 +15,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type LegalDocType = 'uso_imagem' | 'procedimento' | 'anestesia' | 'lgpd' | 'contrato' | 'custom'
 
 export interface LegalDocTemplateDTO {
@@ -72,7 +71,6 @@ function mapTemplateRow(r: any): LegalDocTemplateDTO {
 }
 
 export class LegalDocTemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**

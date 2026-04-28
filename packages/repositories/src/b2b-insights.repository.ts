@@ -9,7 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
 export type InsightSeverity = 'critical' | 'warning' | 'success' | 'info'
 export type InsightKind =
   | 'over_cap'
