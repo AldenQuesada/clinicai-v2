@@ -22,13 +22,13 @@ export class ClinicDataRepository {
   async getSetting<T = unknown>(clinicId: string, key: string): Promise<T | null> {
     const { data } = await this.supabase
       .from('clinic_data')
-      .select('value')
+      .select('data')
       .eq('clinic_id', clinicId)
       .eq('key', key)
       .maybeSingle()
 
-    if (!data || data.value === undefined || data.value === null) return null
-    return data.value as T
+    if (!data || data.data === undefined || data.data === null) return null
+    return data.data as T
   }
 
   async upsertSetting(
@@ -40,7 +40,7 @@ export class ClinicDataRepository {
       {
         clinic_id: clinicId,
         key,
-        value,
+        data: value,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'clinic_id,key' },
@@ -68,13 +68,13 @@ export class ClinicDataRepository {
 
     const { data } = await this.supabase
       .from('clinic_data')
-      .select('key, value')
+      .select('key, data')
       .eq('clinic_id', clinicId)
       .in('key', keys)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const row of (data ?? []) as any[]) {
-      map.set(String(row.key), row.value)
+      map.set(String(row.key), row.data)
     }
     return map
   }
