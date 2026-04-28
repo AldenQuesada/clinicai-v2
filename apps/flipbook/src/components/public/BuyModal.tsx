@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { X, Loader2, Check, ArrowRight } from 'lucide-react'
+import { X, Loader2, ArrowRight } from 'lucide-react'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import { formatOfferPrice, type BookOffer } from '@/lib/supabase/products'
-import { captureBuyerAction } from '@/app/_actions/buyer'
+import { createLeadAndChargeAction } from '@/app/_actions/buyer'
 
 interface Props {
   /** Quando null, modal está fechado */
@@ -27,9 +27,10 @@ interface Props {
 export function BuyModal({ open, onClose }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [cpf, setCpf] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   // Reset state quando o modal reabre
@@ -37,9 +38,10 @@ export function BuyModal({ open, onClose }: Props) {
     if (open) {
       setName('')
       setPhone('')
+      setCpf('')
       setEmail('')
       setError(null)
-      setSuccess(false)
+      setRedirecting(false)
     }
   }, [open])
 
@@ -71,20 +73,23 @@ export function BuyModal({ open, onClose }: Props) {
   function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!name.trim() || !phone.trim()) {
-      setError('Nome e WhatsApp são obrigatórios.')
+    if (!name.trim() || !phone.trim() || !cpf.trim()) {
+      setError('Nome, WhatsApp e CPF são obrigatórios.')
       return
     }
     startTransition(async () => {
-      const res = await captureBuyerAction({
+      const res = await createLeadAndChargeAction({
         name,
         phoneRaw: phone,
+        cpfRaw: cpf,
         email: email.trim() || null,
         productId: bookOffer.productId,
         offerId: bookOffer.offer.id,
       })
       if (res.ok) {
-        setSuccess(true)
+        setRedirecting(true)
+        // Redireciona pra hosted page Asaas (PIX/boleto/cartão)
+        window.location.href = res.invoiceUrl
       } else {
         setError(res.error)
       }
@@ -95,23 +100,25 @@ export function BuyModal({ open, onClose }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={success ? 'Compra registrada' : `Comprar ${book.title}`}
+      aria-label={redirecting ? 'Redirecionando para pagamento' : `Comprar ${book.title}`}
       className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 md:p-8"
-      onClick={onClose}
+      onClick={redirecting ? undefined : onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md bg-bg-elevated border border-border rounded-lg shadow-2xl relative"
       >
-        <button
-          onClick={onClose}
-          aria-label="Fechar"
-          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-bg-panel border border-border flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {!redirecting && (
+          <button
+            onClick={onClose}
+            aria-label="Fechar"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-bg-panel border border-border flex items-center justify-center text-text-muted hover:text-gold hover:border-gold transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
-        {success ? <SuccessView book={book} priceLabel={priceLabel} onClose={onClose} /> : (
+        {redirecting ? <RedirectingView book={book} priceLabel={priceLabel} /> : (
           <div className="p-6 md:p-8">
             {/* Header */}
             <div className="mb-6">
@@ -142,7 +149,7 @@ export function BuyModal({ open, onClose }: Props) {
               <Field
                 label="WhatsApp"
                 required
-                hint="É por aqui que vou te mandar o link de pagamento e do livro"
+                hint="É por aqui que vou te mandar o link do livro depois do pagamento"
               >
                 <input
                   type="tel"
@@ -153,6 +160,19 @@ export function BuyModal({ open, onClose }: Props) {
                   autoComplete="tel"
                   className="input"
                   maxLength={40}
+                />
+              </Field>
+
+              <Field label="CPF" required hint="Necessário pra emitir a nota da compra">
+                <input
+                  type="text"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                  required
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  className="input"
+                  maxLength={20}
                 />
               </Field>
 
@@ -202,37 +222,31 @@ export function BuyModal({ open, onClose }: Props) {
   )
 }
 
-function SuccessView({
+function RedirectingView({
   book,
   priceLabel,
-  onClose,
 }: {
   book: Flipbook
   priceLabel: string
-  onClose: () => void
 }) {
   return (
     <div className="p-8 md:p-10 text-center">
       <div className="w-16 h-16 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center mx-auto mb-6">
-        <Check className="w-8 h-8 text-gold" strokeWidth={2} />
+        <Loader2 className="w-8 h-8 text-gold animate-spin" strokeWidth={2} />
       </div>
-      <h2 className="font-display italic text-text text-2xl md:text-3xl mb-3">Estamos te aguardando!</h2>
+      <h2 className="font-display italic text-text text-2xl md:text-3xl mb-3">
+        Indo pro pagamento...
+      </h2>
       <p className="font-display italic text-text-muted text-base leading-relaxed mb-2">
-        Em instantes você recebe no WhatsApp o link de pagamento de
+        Sua cobrança de
       </p>
       <div className="font-display italic text-gold text-xl mb-1">{book.title}</div>
       <div className="font-meta text-gold-light text-sm mb-8">{priceLabel}</div>
 
-      <p className="font-meta text-text-dim text-[10px] mb-6 leading-relaxed">
-        Pago, o livro destrava na hora. Se travar algo, é só me responder por lá.
+      <p className="font-meta text-text-dim text-[10px] leading-relaxed">
+        Você vai escolher PIX, boleto ou cartão na próxima tela.<br/>
+        Pago, o livro destrava na hora e o link chega no seu WhatsApp.
       </p>
-
-      <button
-        onClick={onClose}
-        className="font-meta border border-border text-text-muted px-5 py-2.5 rounded hover:border-gold/40 hover:text-gold transition text-xs"
-      >
-        Fechar
-      </button>
     </div>
   )
 }

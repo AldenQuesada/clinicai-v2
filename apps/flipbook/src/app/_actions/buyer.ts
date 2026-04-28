@@ -1,31 +1,56 @@
 'use server'
 
 import { createServerClient } from '@/lib/supabase/server'
-import { normalizeBrPhone } from '@/lib/utils/phone'
+import { normalizeBrPhone, normalizeCpf } from '@/lib/utils/phone'
+import {
+  createCustomer,
+  findCustomerByExternalReference,
+  createPayment,
+  createSubscription,
+  offerBillingToAsaasCycle,
+  AsaasError,
+} from '@/lib/payments/asaas'
 import { z } from 'zod'
 
 const BuyerInputSchema = z.object({
   name: z.string().min(2).max(120),
   phoneRaw: z.string().min(8).max(40),
+  cpfRaw: z.string().min(11).max(20),
   email: z.string().email().optional().nullable(),
   productId: z.string().uuid(),
   offerId: z.string().uuid(),
   utm: z.record(z.string()).optional(),
 })
 
-export type CreateBuyerResult =
-  | { ok: true; buyerId: string; status: 'pending_charge' }
+export type CreateLeadAndChargeResult =
+  | {
+      ok: true
+      buyerId: string
+      invoiceUrl: string
+      kind: 'one_time' | 'subscription'
+      gatewayId: string
+    }
   | { ok: false; error: string }
 
 /**
- * Captura buyer do BuyModal · cria flipbook_buyers com status='new'.
+ * Captura buyer + cria charge Asaas + persiste purchase/subscription.
  *
- * Fase 8 entrega só a captura · Fase 11 vai estender essa action pra criar
- * customer + payment Asaas e devolver invoice_url. Por enquanto retorna
- * status='pending_charge' indicando que o link Asaas será enviado por
- * WhatsApp (manualmente até Fase 11 pronta).
+ * Fluxo:
+ *   1. Valida input + normaliza phone/cpf
+ *   2. Insere flipbook_buyers status='new'
+ *   3. Busca product + offer (validar still active + within window)
+ *   4. Asaas: createCustomer (idempotente por externalReference=buyer.id)
+ *   5. Asaas: createPayment (one_time) ou createSubscription (monthly/yearly)
+ *   6. Insere flipbook_purchases status='pending' OR flipbook_subscriptions status='active'
+ *   7. Update buyer status='charge_created'
+ *   8. Retorna invoiceUrl pro frontend redirecionar
+ *
+ * Em caso de falha após inserir buyer: deixa o buyer no status='new' pra retry.
+ * O webhook posterior reconcilia tudo via gateway_charge_id.
  */
-export async function captureBuyerAction(input: unknown): Promise<CreateBuyerResult> {
+export async function createLeadAndChargeAction(
+  input: unknown,
+): Promise<CreateLeadAndChargeResult> {
   const parsed = BuyerInputSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, error: 'Dados inválidos: ' + parsed.error.issues.map((i) => i.message).join(', ') }
@@ -36,13 +61,20 @@ export async function captureBuyerAction(input: unknown): Promise<CreateBuyerRes
     return { ok: false, error: 'WhatsApp inválido. Inclua DDD (ex: 44 99999-8888).' }
   }
 
+  const cpf = normalizeCpf(parsed.data.cpfRaw)
+  if (!cpf) {
+    return { ok: false, error: 'CPF inválido.' }
+  }
+
   const supabase = await createServerClient()
 
-  const { data, error } = await supabase
+  // Step 1 · cria buyer
+  const { data: buyer, error: buyerErr } = await supabase
     .from('flipbook_buyers')
     .insert({
       name: parsed.data.name.trim(),
       phone,
+      cpf,
       email: parsed.data.email?.trim() || null,
       product_id: parsed.data.productId,
       offer_id: parsed.data.offerId,
@@ -52,9 +84,173 @@ export async function captureBuyerAction(input: unknown): Promise<CreateBuyerRes
     .select('id')
     .single()
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? 'Falha ao registrar' }
+  if (buyerErr || !buyer) {
+    return { ok: false, error: buyerErr?.message ?? 'Falha ao registrar' }
   }
 
-  return { ok: true, buyerId: data.id, status: 'pending_charge' }
+  // Step 2 · valida product + offer ainda vigentes
+  const [productRes, offerRes] = await Promise.all([
+    supabase
+      .from('flipbook_products')
+      .select('id, kind, name, active, flipbook_id')
+      .eq('id', parsed.data.productId)
+      .single(),
+    supabase
+      .from('flipbook_offers')
+      .select('id, name, price_cents, currency, billing, active, valid_from, valid_until, max_purchases, current_purchases')
+      .eq('id', parsed.data.offerId)
+      .single(),
+  ])
+
+  if (productRes.error || !productRes.data || !productRes.data.active) {
+    return { ok: false, error: 'Produto não disponível.' }
+  }
+  if (offerRes.error || !offerRes.data || !offerRes.data.active) {
+    return { ok: false, error: 'Oferta indisponível.' }
+  }
+  const offer = offerRes.data
+  const now = new Date()
+  const validFrom = new Date(offer.valid_from)
+  const validUntil = offer.valid_until ? new Date(offer.valid_until) : null
+  if (validFrom > now || (validUntil && validUntil <= now)) {
+    return { ok: false, error: 'Oferta fora da janela de validade.' }
+  }
+  if (offer.max_purchases !== null && offer.current_purchases >= offer.max_purchases) {
+    return { ok: false, error: 'Oferta esgotada.' }
+  }
+
+  const product = productRes.data
+  const description = `${product.name} · oferta "${offer.name}"`
+
+  // Step 3 · Asaas customer (idempotente por externalReference)
+  let customerId: string
+  try {
+    const existing = await findCustomerByExternalReference(buyer.id)
+    if (existing) {
+      customerId = existing.id
+    } else {
+      const created = await createCustomer({
+        name: parsed.data.name.trim(),
+        cpfCnpj: cpf,
+        mobilePhone: phone.startsWith('55') ? phone.slice(2) : phone, // Asaas BR sem +55
+        email: parsed.data.email?.trim() || undefined,
+        externalReference: buyer.id,
+        notificationDisabled: true,
+      })
+      customerId = created.id
+    }
+  } catch (e) {
+    if (e instanceof AsaasError) {
+      return { ok: false, error: `Asaas: ${e.message}` }
+    }
+    return { ok: false, error: 'Falha ao criar cobrança. Tente novamente.' }
+  }
+
+  // Step 4 · cria payment ou subscription
+  try {
+    if (offer.billing === 'one_time') {
+      const payment = await createPayment({
+        customer: customerId,
+        amountCents: offer.price_cents,
+        description,
+        externalReference: buyer.id,
+      })
+
+      const { error: insertErr } = await supabase.from('flipbook_purchases').insert({
+        buyer_id: buyer.id,
+        product_id: product.id,
+        offer_id: offer.id,
+        buyer_name: parsed.data.name.trim(),
+        buyer_email: parsed.data.email?.trim() || null,
+        buyer_phone: phone,
+        buyer_cpf: cpf,
+        amount_cents: offer.price_cents,
+        currency: offer.currency,
+        gateway: 'asaas',
+        gateway_charge_id: payment.id,
+        gateway_invoice_url: payment.invoiceUrl,
+        status: 'pending',
+      })
+      if (insertErr) {
+        // Charge criou mas DB falhou. Webhook eventual reconcilia.
+        console.error('flipbook_purchases insert failed', insertErr)
+      }
+
+      await supabase
+        .from('flipbook_buyers')
+        .update({ status: 'charge_created', last_touch_at: new Date().toISOString() })
+        .eq('id', buyer.id)
+
+      return {
+        ok: true,
+        buyerId: buyer.id,
+        invoiceUrl: payment.invoiceUrl,
+        kind: 'one_time',
+        gatewayId: payment.id,
+      }
+    } else {
+      // monthly/yearly → subscription
+      const sub = await createSubscription({
+        customer: customerId,
+        amountCents: offer.price_cents,
+        cycle: offerBillingToAsaasCycle(offer.billing as 'monthly' | 'yearly'),
+        description,
+        externalReference: buyer.id,
+      })
+
+      // Calcula current_period_end estimado (Asaas vai confirmar via webhook)
+      const periodEnd = new Date()
+      if (offer.billing === 'monthly') periodEnd.setMonth(periodEnd.getMonth() + 1)
+      else periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+
+      const { error: insertErr } = await supabase.from('flipbook_subscriptions').insert({
+        buyer_id: buyer.id,
+        product_id: product.id,
+        offer_id: offer.id,
+        subscriber_name: parsed.data.name.trim(),
+        subscriber_email: parsed.data.email?.trim() || null,
+        subscriber_phone: phone,
+        subscriber_cpf: cpf,
+        gateway: 'asaas',
+        gateway_subscription_id: sub.id,
+        gateway_customer_id: customerId,
+        billing_cycle: offer.billing,
+        amount_cents: offer.price_cents,
+        currency: offer.currency,
+        status: 'active',
+        current_period_start: new Date().toISOString(),
+        current_period_end: periodEnd.toISOString(),
+      })
+      if (insertErr) {
+        console.error('flipbook_subscriptions insert failed', insertErr)
+      }
+
+      await supabase
+        .from('flipbook_buyers')
+        .update({ status: 'charge_created', last_touch_at: new Date().toISOString() })
+        .eq('id', buyer.id)
+
+      // Asaas subscription tem invoice url da PRIMEIRA cobrança auto-gerada
+      // mas precisa de query separada. Por hora, usa o portal de pagamentos do customer.
+      // TODO: GET /payments?subscription={id} pegar primeiro payment + invoiceUrl
+      return {
+        ok: true,
+        buyerId: buyer.id,
+        invoiceUrl: `https://www.asaas.com/c/${customerId}`, // placeholder · webhook traz URL real
+        kind: 'subscription',
+        gatewayId: sub.id,
+      }
+    }
+  } catch (e) {
+    if (e instanceof AsaasError) {
+      return { ok: false, error: `Asaas: ${e.message}` }
+    }
+    return { ok: false, error: 'Falha ao criar cobrança. Tente novamente.' }
+  }
 }
+
+/**
+ * Mantém o nome antigo como alias temporário pra não quebrar imports da Fase 8.
+ * BuyModal vai migrar pro nome novo no commit desta fase.
+ */
+export const captureBuyerAction = createLeadAndChargeAction
