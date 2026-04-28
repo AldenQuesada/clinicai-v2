@@ -1,20 +1,6 @@
 'use client'
 
-const SESSION_KEY = 'flipbook_session_id'
-
-/**
- * Persiste session_id (uuid) no localStorage. Mesmo session pra todas as
- * leituras do mesmo browser, sem auth.
- */
-function getSessionId(): string {
-  if (typeof window === 'undefined') return 'ssr'
-  let id = window.localStorage.getItem(SESSION_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    window.localStorage.setItem(SESSION_KEY, id)
-  }
-  return id
-}
+import { getSessionId } from './session'
 
 /**
  * Registra view de página. Chamar com debounce (não a cada virada — a cada
