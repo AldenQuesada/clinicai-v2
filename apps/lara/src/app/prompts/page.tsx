@@ -287,51 +287,63 @@ export default async function PromptsPage() {
 
   return (
     <main className="flex-1 flex flex-col overflow-hidden bg-[var(--b2b-bg-0)]">
+      {/* Header compacto · 1 linha · padrao Mira (top bar) */}
       <header
         style={{
-          padding: '32px 40px 20px',
+          padding: '12px 24px',
           borderBottom: '1px solid var(--b2b-border)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexWrap: 'wrap',
+          background: 'var(--b2b-bg-1)',
+          flexShrink: 0,
         }}
       >
-        <p className="eyebrow" style={{ marginBottom: 8 }}>
-          Painel · Lara
-        </p>
-        <h1
-          className="font-display"
-          style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
-        >
-          Prompts em <em>camadas</em>
-        </h1>
-        <div
-          style={{
-            display: 'flex',
-            gap: 16,
-            marginTop: 12,
-            fontSize: 11,
-            letterSpacing: 1.5,
-            textTransform: 'uppercase',
-            color: 'var(--b2b-text-muted)',
-            fontWeight: 600,
-          }}
-        >
-          <span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <p className="eyebrow" style={{ margin: 0 }}>
+            Prompts da Lara
+          </p>
+          <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
+          <span
+            style={{
+              fontSize: 11,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-text-muted)',
+              fontWeight: 600,
+            }}
+          >
             <span style={{ color: 'var(--b2b-ivory)', fontVariantNumeric: 'tabular-nums' }}>
               {totalLayers}
             </span>{' '}
             layers
           </span>
-          <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
-          <span>
+          <span
+            style={{
+              fontSize: 11,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-text-muted)',
+              fontWeight: 600,
+            }}
+          >
             <span style={{ color: 'var(--b2b-champagne)', fontVariantNumeric: 'tabular-nums' }}>
               {totalOverrides}
             </span>{' '}
-            overrides ativos
-          </span>
-          <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
-          <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, fontStyle: 'italic', color: 'var(--b2b-text-dim)' }}>
-            esvaziar campo e salvar restaura o padrão do repo
+            overrides
           </span>
         </div>
+        <span
+          style={{
+            fontSize: 11,
+            color: 'var(--b2b-text-dim)',
+            fontStyle: 'italic',
+            marginLeft: 'auto',
+          }}
+        >
+          esvaziar campo e salvar restaura o padrão do repo
+        </span>
       </header>
 
       <PromptsWorkspace groups={groups} />

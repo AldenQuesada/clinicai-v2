@@ -20,7 +20,15 @@ export interface EditorPrompt {
   hasOverride: boolean
 }
 
-export function PromptEditor({ prompt, onSaved }: { prompt: EditorPrompt; onSaved: () => void }) {
+export function PromptEditor({
+  prompt,
+  onSaved,
+  onContentChange,
+}: {
+  prompt: EditorPrompt
+  onSaved: () => void
+  onContentChange?: (content: string) => void
+}) {
   const initialContent = prompt.override ?? prompt.filesystem_default
   const [content, setContent] = useState(initialContent)
   const [pending, setPending] = useState(false)
@@ -29,6 +37,11 @@ export function PromptEditor({ prompt, onSaved }: { prompt: EditorPrompt; onSave
   useEffect(() => {
     setContent(prompt.override ?? prompt.filesystem_default)
   }, [prompt.key, prompt.override, prompt.filesystem_default])
+
+  // Live preview sync · cada keystroke avisa o pai
+  useEffect(() => {
+    onContentChange?.(content)
+  }, [content, onContentChange])
 
   const dirty = content !== initialContent
   const charCount = content.length
