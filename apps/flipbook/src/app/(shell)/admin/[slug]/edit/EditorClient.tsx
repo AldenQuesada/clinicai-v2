@@ -679,7 +679,7 @@ function renderStylePanel(id: Section, book: Flipbook, setSavedAt: (d: Date) => 
     case 'title':       return <TitlePanel book={book} onSaved={setSavedAt} />
     case 'page-effect': return <PageEffectPanel />
     case 'background':  return <BackgroundPanel />
-    case 'logo':        return <LogoPanel />
+    case 'logo':        return <LogoPanel book={book} />
     case 'controls':    return <ControlsPanel />
     case 'pagination':  return <PaginationPanel />
     case 'toc':         return <TocPanel />
@@ -904,19 +904,131 @@ function BackgroundPanel() {
   )
 }
 
-function LogoPanel() {
+type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+interface LogoSettings {
+  url?: string | null
+  position?: LogoPosition
+  size?: number
+  href?: string | null
+}
+
+const LOGO_ALLOWED = new Set(['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp'])
+const LOGO_MAX_BYTES = 5 * 1024 * 1024
+
+function LogoPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.logo as LogoSettings) ?? {}
+  const url = current.url ?? null
+  const position: LogoPosition = current.position ?? 'top-right'
+  const size = current.size ?? 60
+  const href = current.href ?? ''
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function patch(next: Partial<LogoSettings>) {
+    ctx.update('logo', { ...current, ...next })
+  }
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setError(null)
+    if (!LOGO_ALLOWED.has(f.type)) {
+      setError('Use PNG, SVG, JPG ou WEBP')
+      return
+    }
+    if (f.size > LOGO_MAX_BYTES) {
+      setError(`Logo acima de ${LOGO_MAX_BYTES / 1024 / 1024}MB`)
+      return
+    }
+    setUploading(true)
+    try {
+      const ext = f.name.split('.').pop()?.toLowerCase() ?? 'png'
+      const { uploadAsset } = await import('@/lib/editor/upload-asset')
+      const { url: publicUrl } = await uploadAsset(book.id, f, `logo.${ext}`)
+      patch({ url: publicUrl })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'falha no upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function clearLogo() {
+    patch({ url: null })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
-      <FileDropArea label="Logo (.png/.svg)" />
-      <Field label="Tamanho"><input type="range" className="w-full" /></Field>
+      {url ? (
+        <div className="bg-bg-panel/50 border border-border rounded p-2 flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Logo" className="w-12 h-12 object-contain bg-black/30 rounded" />
+          <div className="flex-1 min-w-0 font-meta text-[9px] text-text-dim truncate">{url.split('/').pop()?.split('?')[0]}</div>
+          <button
+            onClick={clearLogo}
+            className="font-meta text-[9px] text-red-400 hover:text-red-300 px-2 py-1"
+          >
+            Remover
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed border-border hover:border-gold/40 rounded p-3 text-center text-[10px] text-text-dim hover:text-gold transition disabled:opacity-50"
+        >
+          {uploading ? '⏳ enviando…' : '📁 Logo (.png/.svg/.jpg/.webp · max 5MB)'}
+        </button>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/svg+xml,image/jpeg,image/webp"
+        onChange={pickFile}
+        className="hidden"
+      />
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+
+      <Field label={`Tamanho · ${size}px`}>
+        <input
+          type="range"
+          min={30}
+          max={150}
+          step={5}
+          value={size}
+          onChange={(e) => patch({ size: parseInt(e.target.value) })}
+          className="w-full"
+        />
+      </Field>
+
       <Field label="Posição">
-        <select className={INPUT_CLS}>
-          <option>Top left</option><option>Top right</option>
-          <option>Bottom left</option><option>Bottom right</option>
+        <select
+          value={position}
+          onChange={(e) => patch({ position: e.target.value as LogoPosition })}
+          className={INPUT_CLS}
+        >
+          <option value="top-left">Top left</option>
+          <option value="top-right">Top right</option>
+          <option value="bottom-left">Bottom left</option>
+          <option value="bottom-right">Bottom right</option>
         </select>
       </Field>
-      <Field label="Link (opcional)"><input type="url" placeholder="https://" className={INPUT_CLS} /></Field>
-      <SoonNote />
+
+      <Field label="Link (opcional)">
+        <input
+          type="url"
+          value={href}
+          onChange={(e) => patch({ href: e.target.value || null })}
+          placeholder="https://"
+          className={INPUT_CLS}
+        />
+      </Field>
     </div>
   )
 }
