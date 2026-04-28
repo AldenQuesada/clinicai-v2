@@ -19,7 +19,7 @@
  *  - M2: defesa anti prompt-injection (bloco no system + envoltório XML)
  */
 
-import { callAnthropic, MODELS } from '@clinicai/ai';
+import { callAnthropic, MODELS, type ContentBlock } from '@clinicai/ai';
 import { createServerClient } from '@/lib/supabase';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import * as fs from 'fs';
@@ -181,6 +181,11 @@ interface LeadContext {
   clinic_id?: string; // multi-tenant ADR-028 · resolvido pelo webhook via wa_numbers
   is_voucher_recipient?: boolean; // true quando paciente e beneficiaria de voucher B2B (mig 800-07)
   voucher?: VoucherContext; // dados do voucher pra ancorar resposta · prompt usa
+  // Audit gap A3/F5 (P0): Vision · paciente envia foto e Lara descreve.
+  // Quando presente, ultimo message vai como ContentBlock[] com image + text.
+  image_base64?: string;
+  image_media_type?: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  image_caption?: string; // caption da imagem se paciente mandou junto
 }
 
 interface ChatMessage {
@@ -293,11 +298,38 @@ ${isReturning ? '- IMPORTANTE: NÃO repita boas-vindas nem se apresente novament
 ${leadContext.phase === 'unknown' ? '- Número NÃO cadastrado. Pergunte gentilmente o nome.' : ''}
 ${leadContext.is_audio_message ? '- MENSAGEM DE ÁUDIO: O lead enviou um áudio de voz que foi transcrito automaticamente. Reconheça isso de forma natural e calorosa (ex: "Que bom ouvir sua voz!", "Adorei seu áudio!"). Responda de forma um pouco mais informal e acolhedora, como se fosse uma conversa por voz.' : ''}`;
 
-  // Audit fix M2: envolve content user em <patient_input> · Claude trata como dado
-  const safeMessages = messages.map((m) => ({
-    role: m.role,
-    content: m.role === 'user' ? wrapPatientInput(m.content) : m.content,
-  }));
+  // Audit fix M2: envolve content user em <patient_input> · Claude trata como dado.
+  // Audit gap A3/F5 (Vision): se há imagem, ultimo user message vira ContentBlock[]
+  // com image block + text block. History continua texto puro.
+  const safeMessages: Array<{ role: 'user' | 'assistant'; content: string | ContentBlock[] }> =
+    messages.map((m) => ({
+      role: m.role,
+      content: m.role === 'user' ? wrapPatientInput(m.content) : m.content,
+    }));
+
+  if (leadContext.image_base64 && leadContext.image_media_type) {
+    const lastIdx = safeMessages.length - 1;
+    if (lastIdx >= 0 && safeMessages[lastIdx].role === 'user') {
+      const captionText = wrapPatientInput(
+        (leadContext.image_caption ? leadContext.image_caption + '\n\n' : '') +
+          'O paciente enviou esta foto. OBRIGATÓRIO: descreva especificamente o que você vê (região do rosto, queixa visível, características). NÃO ignore a imagem. Baseie sua resposta no que observa. Lembre-se: você NÃO dá diagnóstico, mas pode descrever o que vê e dizer que a Dra. Mirian vai avaliar pessoalmente.',
+      );
+      safeMessages[lastIdx] = {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: leadContext.image_media_type,
+              data: leadContext.image_base64,
+            },
+          },
+          { type: 'text', text: captionText },
+        ],
+      };
+    }
+  }
 
   // Audit fix N2 + N5: callAnthropic do package canônico (cost control + retry/fallback).
   // Não passamos `model` · callAnthropic usa getDefaultModel() que lê
