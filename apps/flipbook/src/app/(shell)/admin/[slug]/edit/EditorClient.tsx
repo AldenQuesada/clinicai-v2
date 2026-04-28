@@ -818,8 +818,22 @@ function PageEffectPanel() {
   )
 }
 
+interface BackgroundSettings {
+  type?: 'color' | 'image'
+  color?: string
+  image_url?: string
+}
+
 function BackgroundPanel() {
-  const [tab, setTab] = useState<'image' | 'color' | 'style'>('image')
+  const ctx = useEditorSettingsContext()
+  const [tab, setTab] = useState<'image' | 'color' | 'style'>('color')
+  const current = (ctx.settings.background as BackgroundSettings) ?? {}
+  const color = current.color ?? '#0F0D0A'
+
+  function setColor(c: string) {
+    ctx.update('background', { ...current, type: 'color', color: c })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <div className="flex gap-1 border border-border rounded p-0.5">
@@ -836,10 +850,33 @@ function BackgroundPanel() {
           </button>
         ))}
       </div>
-      {tab === 'image' && <FileDropArea label="Imagem de fundo (.jpg/.png)" />}
+      {tab === 'image' && (
+        <>
+          <FileDropArea label="Imagem de fundo (.jpg/.png)" />
+          <SoonNote />
+        </>
+      )}
       {tab === 'color' && (
         <Field label="Cor">
-          <input type="color" defaultValue="#0F0D0A" className="w-full h-8 rounded border border-border bg-bg-panel" />
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="w-10 h-8 rounded border border-border bg-bg-panel cursor-pointer"
+            />
+            <input
+              type="text"
+              value={color}
+              onChange={(e) => {
+                const v = e.target.value
+                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColor(v)
+              }}
+              maxLength={7}
+              placeholder="#0F0D0A"
+              className={INPUT_CLS}
+            />
+          </div>
         </Field>
       )}
       {tab === 'style' && (
@@ -848,9 +885,9 @@ function BackgroundPanel() {
           <Field label="Posição"><select className={INPUT_CLS}><option>Center center</option><option>Top left</option><option>Bottom right</option></select></Field>
           <Field label="Transparência"><input type="range" className="w-full" /></Field>
           <Field label="Blur"><input type="range" className="w-full" /></Field>
+          <SoonNote />
         </>
       )}
-      <SoonNote />
     </div>
   )
 }
