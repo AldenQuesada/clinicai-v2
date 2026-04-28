@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { BackButton } from '@/components/ui/BackButton'
@@ -936,7 +936,7 @@ function renderSettingsPanel(id: Section, book: Flipbook): React.ReactNode {
   switch (id) {
     case 'password':    return <PasswordPanel />
     case 'lead':        return <LeadPanel />
-    case 'replace-pdf': return <ReplacePdfPanel />
+    case 'replace-pdf': return <ReplacePdfPanel book={book} />
     case 'copy':        return <CopyPanel book={book} />
     case 'links':       return <LinksPanel book={book} />
     default: return null
@@ -1003,14 +1003,185 @@ function LeadPanel() {
   )
 }
 
-function ReplacePdfPanel() {
+interface PdfVersion {
+  id: string
+  version: number
+  pdf_url: string
+  pdf_size_bytes: number | null
+  page_count: number | null
+  label: string | null
+  replaced_at: string
+}
+
+function ReplacePdfPanel({ book }: { book: Flipbook }) {
+  const router = useRouter()
+  const [, startTransition] = useTransition()
+  const [versions, setVersions] = useState<PdfVersion[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [label, setLabel] = useState('')
+  const [confirming, setConfirming] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const loadVersions = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/replace-pdf`)
+      if (res.ok) {
+        const json = await res.json()
+        setVersions(json.versions ?? [])
+      }
+    } catch {
+      // ignora · loadVersions é informativo, falha silenciosa
+    } finally {
+      setLoading(false)
+    }
+  }, [book.id])
+
+  useEffect(() => { loadVersions() }, [loadVersions])
+
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.type !== 'application/pdf') {
+      setError('Apenas PDF é aceito')
+      return
+    }
+    if (f.size > 50 * 1024 * 1024) {
+      setError('PDF acima de 50MB · use Calibre pra otimizar')
+      return
+    }
+    setError(null); setSuccess(null)
+    setConfirming(f) // abre confirmação antes de mandar
+  }
+
+  async function doReplace() {
+    if (!confirming) return
+    setUploading(true); setError(null); setSuccess(null)
+    const form = new FormData()
+    form.append('file', confirming)
+    if (label) form.append('label', label)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/replace-pdf`, { method: 'POST', body: form })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Falha')
+      setSuccess(`Versão v${json.archived_version} arquivada · novo PDF ativo`)
+      setLabel('')
+      setConfirming(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      loadVersions()
+      startTransition(() => router.refresh())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function fmtBytes(n: number | null): string {
+    if (!n) return '—'
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+    return `${(n / 1024 / 1024).toFixed(1)} MB`
+  }
+
+  function fmtDate(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+
   return (
-    <div className="space-y-2.5 mt-2">
-      <div className="bg-red-500/10 border border-red-500/30 rounded p-2.5 text-[10px] text-red-300">
-        ⚠ Ação irreversível · todos os settings são preservados, mas o PDF original é substituído.
+    <div className="space-y-3 mt-2">
+      <div className="bg-orange-500/10 border border-orange-500/30 rounded p-2.5 text-[10px] text-orange-300">
+        ⚠ O PDF atual vai pra <code>archive/v{(versions[0]?.version ?? 0) + 1}.pdf</code>.
+        Settings, capa e preview são preservados — rode "Regenerar capa" depois se o conteúdo mudar.
       </div>
-      <FileDropArea label="Novo PDF" />
-      <SoonNote />
+
+      {/* Upload */}
+      {!confirming && (
+        <>
+          <Field label="Etiqueta (opcional)">
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value.slice(0, 200))}
+              placeholder="ex: revisão Bia · março/26"
+              className={INPUT_CLS}
+            />
+          </Field>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full border border-dashed border-border hover:border-gold/40 rounded p-3 text-center text-[10px] text-text-dim hover:text-gold transition disabled:opacity-50"
+          >
+            📁 Clique pra escolher novo PDF (max 50MB)
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={pickFile}
+            className="hidden"
+          />
+        </>
+      )}
+
+      {/* Confirmação modal-inline */}
+      {confirming && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded p-3 space-y-2">
+          <div className="font-meta text-[10px] text-red-300 uppercase tracking-wider">Confirmar substituição</div>
+          <div className="text-text-muted text-xs leading-relaxed">
+            Vou arquivar o PDF atual como <strong className="text-gold">v{(versions[0]?.version ?? 0) + 1}</strong>{label && <> com etiqueta &ldquo;{label}&rdquo;</>} e ativar &ldquo;<strong className="text-text">{confirming.name}</strong>&rdquo; ({fmtBytes(confirming.size)}).
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={doReplace}
+              disabled={uploading}
+              className="flex-1 font-meta bg-red-500/80 text-white py-1.5 rounded hover:bg-red-500 transition flex items-center justify-center gap-1.5 text-[10px] disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Substituir
+            </button>
+            <button
+              onClick={() => { setConfirming(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+              disabled={uploading}
+              className="font-meta border border-border text-text-muted py-1.5 px-3 rounded hover:border-gold/40 hover:text-gold transition text-[10px] disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+      {success && <div className="text-gold-light text-xs">{success}</div>}
+
+      {/* Lista de versões */}
+      <div className="border-t border-border pt-3 mt-3">
+        <div className="font-meta text-text-dim text-[9px] uppercase tracking-wider mb-2">
+          Versões arquivadas {versions.length > 0 && <span className="text-gold-dark">· {versions.length}</span>}
+        </div>
+        {loading ? (
+          <div className="text-text-dim text-[10px]">Carregando…</div>
+        ) : versions.length === 0 ? (
+          <div className="text-text-dim text-[10px] italic">Nenhuma versão anterior. PDF atual é o original.</div>
+        ) : (
+          <ul className="space-y-1.5">
+            {versions.map((v) => (
+              <li key={v.id} className="bg-bg-panel/50 border border-border rounded p-2 flex items-start gap-2">
+                <div className="font-display italic text-gold text-base leading-none w-8 shrink-0">v{v.version}</div>
+                <div className="flex-1 min-w-0">
+                  {v.label && <div className="text-text text-xs truncate" title={v.label}>{v.label}</div>}
+                  <div className="font-meta text-[9px] text-text-dim mt-0.5">
+                    {fmtDate(v.replaced_at)} · {v.page_count ?? '?'} pág · {fmtBytes(v.pdf_size_bytes)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
