@@ -140,10 +140,12 @@ export async function createLeadAndChargeAction(
       customerId = created.id
     }
   } catch (e) {
+    console.error('[createLeadAndCharge] failed:', e)
     if (e instanceof AsaasError) {
       return { ok: false, error: `Asaas: ${e.message}` }
     }
-    return { ok: false, error: 'Falha ao criar cobrança. Tente novamente.' }
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: `Falha ao criar cobrança: ${msg}` }
   }
 
   // Step 4 · cria payment ou subscription
@@ -242,10 +244,12 @@ export async function createLeadAndChargeAction(
       }
     }
   } catch (e) {
+    console.error('[createLeadAndCharge] failed:', e)
     if (e instanceof AsaasError) {
       return { ok: false, error: `Asaas: ${e.message}` }
     }
-    return { ok: false, error: 'Falha ao criar cobrança. Tente novamente.' }
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: `Falha ao criar cobrança: ${msg}` }
   }
 }
 

@@ -23,6 +23,7 @@ import { callAnthropic, MODELS, type ContentBlock } from '@clinicai/ai';
 import { createServerClient } from '@/lib/supabase';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import { getLaraConfig } from '@/lib/lara-config';
+import { buildClinicInfoBlock } from '@/lib/clinic-context';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -340,7 +341,13 @@ REGRAS PRA ESSA CONVERSA (sobrepoem outras):
 - Se ela tiver duvida sobre o procedimento, responde curto e volta pra agendar.`
     : '';
 
+  // Injeta dados reais da clinica (endereco, whatsapp, horario, redes) ·
+  // sem isso a Lara aluciaria "São Paulo" quando paciente perguntasse onde fica.
+  const clinicBlock = await buildClinicInfoBlock(leadContext.clinic_id || null);
+
   const systemPrompt = `${basePrompt}
+
+${clinicBlock}
 
 ${INJECTION_DEFENSE_BLOCK}
 ## Contexto atual do lead:

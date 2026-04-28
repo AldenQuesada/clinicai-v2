@@ -12,6 +12,14 @@ export { LeadRepository } from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
 export { MessageRepository, type AIHistoryMessage } from './message.repository'
 export { ClinicDataRepository } from './clinic-data.repository'
+export {
+  ClinicRepository,
+  type ClinicDTO,
+  type ClinicAddress,
+  type ClinicSocial,
+  type ClinicHours,
+  type ClinicHoursDay,
+} from './clinic.repository'
 export { TemplateRepository } from './template.repository'
 export { BudgetRepository } from './budget.repository'
 export { InboxNotificationRepository } from './inbox-notification.repository'
