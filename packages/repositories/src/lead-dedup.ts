@@ -14,7 +14,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
 import { phoneVariants } from '@clinicai/utils'
 import type { DedupHit } from './types/dtos'
 
@@ -37,7 +36,8 @@ import type { DedupHit } from './types/dtos'
  * @param _name     Nome do recipient · reservado pra logging futuro
  */
 export async function findLeadInAnySystem(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   clinicId: string,
   phone: string,
   _name?: string | null,

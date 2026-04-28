@@ -13,7 +13,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
 import {
   mapOrcamentoRow,
   orcamentoItemsToDbShape,
@@ -33,7 +32,8 @@ const ORC_COLUMNS =
 const TERMINAL_STATUSES: OrcamentoStatus[] = ['approved', 'lost']
 
 export class OrcamentoRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 

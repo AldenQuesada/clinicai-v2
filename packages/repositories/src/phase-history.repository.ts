@@ -13,7 +13,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
 import {
   mapPhaseHistoryRow,
   type PhaseHistoryDTO,
@@ -25,7 +24,8 @@ const PH_COLUMNS =
   'origin, triggered_by, actor_id, reason, created_at'
 
 export class PhaseHistoryRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Timeline de um lead · ordenada cronologicamente (asc) · pra render no

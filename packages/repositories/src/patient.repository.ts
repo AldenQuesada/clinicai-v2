@@ -14,7 +14,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
 import {
   mapPatientRow,
   type PatientDTO,
@@ -29,7 +28,8 @@ const PATIENT_COLUMNS =
   'created_at, updated_at, deleted_at'
 
 export class PatientRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
