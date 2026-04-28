@@ -23,6 +23,7 @@ export const FlipbookSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']),
   tags: z.array(z.string()).default([]),
   metadata: z.record(z.unknown()).default({}),
+  settings: z.record(z.unknown()).default({}),
   created_at: z.string(),
   updated_at: z.string(),
 })

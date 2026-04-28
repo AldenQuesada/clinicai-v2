@@ -21,6 +21,11 @@ import {
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import { FlipbookCanvas } from '@/components/reader/FlipbookCanvas'
 import { cn } from '@/lib/utils/cn'
+import {
+  EditorSettingsProvider,
+  useEditorSettings,
+  useEditorSettingsContext,
+} from '@/lib/editor/useEditorSettings'
 
 interface Props {
   book: Flipbook
@@ -71,6 +76,15 @@ const INTERACTIONS_NAV: Array<{ id: Section; label: string; Icon: typeof Type }>
 ]
 
 export function EditorClient({ book, pdfUrl }: Props) {
+  const settingsCtx = useEditorSettings(book.id, (book.settings as Record<string, unknown>) ?? {})
+  return (
+    <EditorSettingsProvider value={settingsCtx}>
+      <EditorClientInner book={book} pdfUrl={pdfUrl} />
+    </EditorSettingsProvider>
+  )
+}
+
+function EditorClientInner({ book, pdfUrl }: Props) {
   const [expanded, setExpanded] = useState<Set<Section>>(new Set(['title']))
   const [groupOpen, setGroupOpen] = useState<Record<'style' | 'settings' | 'interactions', boolean>>({
     style: true, settings: true, interactions: true,
