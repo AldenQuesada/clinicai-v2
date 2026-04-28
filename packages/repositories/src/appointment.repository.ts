@@ -17,6 +17,7 @@ import type { Database } from '@clinicai/supabase'
 import {
   mapAppointmentRow,
   mapRpcResult,
+  orcamentoItemsToDbShape,
   type AppointmentDTO,
   type AppointmentStatus,
   type CreateAppointmentInput,
@@ -346,13 +347,7 @@ export class AppointmentRepository {
    */
   async finalize(input: AppointmentFinalizeRpcInput): Promise<AppointmentFinalizeResult> {
     const itemsForDb = input.orcamentoItems
-      ? input.orcamentoItems.map((it) => ({
-          name: it.name,
-          qty: it.qty,
-          unit_price: it.unitPrice,
-          subtotal: it.subtotal,
-          ...(it.procedureCode ? { procedure_code: it.procedureCode } : {}),
-        }))
+      ? orcamentoItemsToDbShape(input.orcamentoItems)
       : null
     const { data, error } = await this.supabase.rpc('appointment_finalize', {
       p_appointment_id: input.appointmentId,

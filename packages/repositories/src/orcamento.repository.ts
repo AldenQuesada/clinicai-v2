@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@clinicai/supabase'
 import {
   mapOrcamentoRow,
+  orcamentoItemsToDbShape,
   type OrcamentoDTO,
   type OrcamentoItem,
   type OrcamentoPayment,
@@ -187,13 +188,7 @@ export class OrcamentoRepository {
     // desalinhado). Caller pode passar `total` explicito se quiser override
     // mas precisa bater (CHECK garante).
     if (input.items !== undefined) {
-      row.items = input.items.map((it) => ({
-        name: it.name,
-        qty: it.qty,
-        unit_price: it.unitPrice,
-        subtotal: it.subtotal,
-        ...(it.procedureCode ? { procedure_code: it.procedureCode } : {}),
-      }))
+      row.items = orcamentoItemsToDbShape(input.items)
     }
     if (input.subtotal !== undefined || input.discount !== undefined) {
       // Precisa do estado atual pra recalcular total se so um veio

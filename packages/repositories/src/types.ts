@@ -96,24 +96,125 @@ export type OrcamentoStatus =
 
 export type AppointmentFinalizeOutcome = 'paciente' | 'orcamento' | 'perdido'
 
+// ── Matriz canonica de transicao de phase ──────────────────────────────────
+//
+// ESPELHO 1:1 da RPC `_lead_phase_transition_allowed` (mig 65). Mantida aqui
+// pra UI poder desabilitar fases invalidas no Kanban / dropdown sem precisar
+// de round-trip ao banco. SE A MATRIZ MUDAR NA MIG, atualizar AQUI tambem ·
+// caso contrario UI permite drag que o RPC vai rejeitar.
+//
+// Verbatim do CASE no SQL:
+//   lead       → agendado, perdido
+//   agendado   → reagendado, compareceu, perdido, agendado (no-op)
+//   reagendado → agendado, compareceu, perdido, reagendado
+//   compareceu → paciente, orcamento, perdido, compareceu
+//   orcamento  → paciente, agendado, perdido, orcamento
+//   paciente   → perdido, paciente
+//   perdido    → lead, agendado, reagendado, perdido (recovery)
+
+export const LEAD_PHASE_TRANSITIONS: Record<LeadPhase, readonly LeadPhase[]> = {
+  lead: ['agendado', 'perdido'],
+  agendado: ['reagendado', 'compareceu', 'perdido', 'agendado'],
+  reagendado: ['agendado', 'compareceu', 'perdido', 'reagendado'],
+  compareceu: ['paciente', 'orcamento', 'perdido', 'compareceu'],
+  orcamento: ['paciente', 'agendado', 'perdido', 'orcamento'],
+  paciente: ['perdido', 'paciente'],
+  perdido: ['lead', 'agendado', 'reagendado', 'perdido'],
+} as const
+
+/**
+ * Verifica se uma transicao de phase eh permitida pela matriz canonica.
+ * Espelho da RPC `_lead_phase_transition_allowed` · usar aqui pra
+ * pre-validacao client-side (Kanban drag, dropdown desabilitado).
+ *
+ * RPC sempre eh chamada como gate final · esse helper eh otimizacao UX.
+ */
+export function isPhaseTransitionAllowed(from: LeadPhase, to: LeadPhase): boolean {
+  return LEAD_PHASE_TRANSITIONS[from]?.includes(to) ?? false
+}
+
+/**
+ * Converte `OrcamentoItem[]` (camelCase) pra shape esperado pelas RPCs/INSERTs
+ * (snake_case `unit_price`/`procedure_code`). Usado por LeadRepository.toOrcamento,
+ * AppointmentRepository.finalize (orcamento outcome) e OrcamentoRepository.update.
+ */
+export function orcamentoItemsToDbShape(
+  items: OrcamentoItem[],
+): Array<Record<string, unknown>> {
+  return items.map((it) => ({
+    name: it.name,
+    qty: it.qty,
+    unit_price: it.unitPrice,
+    subtotal: it.subtotal,
+    ...(it.procedureCode ? { procedure_code: it.procedureCode } : {}),
+  }))
+}
+
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
+/**
+ * LeadDTO · espelho 1:1 do schema canonico mig 60. Phase tipada como
+ * LeadPhase (era `string` solto) · narrowing seguro em consumidores.
+ *
+ * Camada 4 audit (2026-04-28): expandido de 14 → 30 colunas pra cobrir
+ * o schema completo. Callers existentes (Lara, Mira) continuam compativeis
+ * porque so consomem o subset original; novos campos sao opcional/nullable.
+ */
 export interface LeadDTO {
   id: string
   clinicId: string
-  phone: string
+
+  // Identidade
   name: string | null
-  phase: string
-  temperature: string | null
-  funnel: string | null
-  leadScore: number
-  aiPersona: string | null
-  tags: string[]
-  queixasFaciais: string[]
+  phone: string
+  email: string | null
+  cpf: string | null
+  rg: string | null
+  birthDate: string | null
   idade: number | null
+
+  // State machine
+  phase: LeadPhase
+  phaseUpdatedAt: string | null
+  phaseUpdatedBy: string | null
+  phaseOrigin: PhaseOrigin | null
+
+  // Funil + roteamento
+  source: LeadSource
+  sourceType: LeadSourceType
+  sourceQuizId: string | null
+  funnel: Funnel
+  aiPersona: string
+  temperature: LeadTemperature
+  priority: LeadPriority
+  leadScore: number
   dayBucket: number | null
+  channelMode: LeadChannelMode
+
+  // Atribuicao
+  assignedTo: string | null
+
+  // Recovery / perdido
+  isInRecovery: boolean
+  lostReason: string | null
+  lostAt: string | null
+  lostBy: string | null
+
+  // Payload Lara
+  queixasFaciais: string[]
+  /** Tags · campo legado mantido pra compat (na mig 60 tags nao existe; vem de Lara) */
+  tags: string[]
+  metadata: Record<string, unknown>
+
+  // WhatsApp
+  waOptIn: boolean
+  lastContactedAt: string | null
   lastResponseAt: string | null
+
+  // Timestamps
   createdAt: string
+  updatedAt: string
+  deletedAt: string | null
 }
 
 export interface ConversationDTO {
@@ -653,19 +754,50 @@ export function mapLeadRow(row: any): LeadDTO {
   return {
     id: String(row.id),
     clinicId: String(row.clinic_id),
-    phone: String(row.phone ?? ''),
+
     name: row.name ?? null,
-    phase: String(row.phase ?? 'lead'),
-    temperature: row.temperature ?? null,
-    funnel: row.funnel ?? null,
-    leadScore: Number(row.lead_score ?? 0),
-    aiPersona: row.ai_persona ?? null,
-    tags: Array.isArray(row.tags) ? row.tags : [],
-    queixasFaciais: Array.isArray(row.queixas_faciais) ? row.queixas_faciais : [],
+    phone: String(row.phone ?? ''),
+    email: row.email ?? null,
+    cpf: row.cpf ?? null,
+    rg: row.rg ?? null,
+    birthDate: row.birth_date ?? null,
     idade: row.idade != null ? Number(row.idade) : null,
+
+    phase: (row.phase ?? 'lead') as LeadPhase,
+    phaseUpdatedAt: row.phase_updated_at ?? null,
+    phaseUpdatedBy: row.phase_updated_by ?? null,
+    phaseOrigin: (row.phase_origin ?? null) as PhaseOrigin | null,
+
+    source: (row.source ?? 'manual') as LeadSource,
+    sourceType: (row.source_type ?? 'manual') as LeadSourceType,
+    sourceQuizId: row.source_quiz_id ?? null,
+    funnel: (row.funnel ?? 'procedimentos') as Funnel,
+    aiPersona: String(row.ai_persona ?? 'onboarder'),
+    temperature: (row.temperature ?? 'warm') as LeadTemperature,
+    priority: (row.priority ?? 'normal') as LeadPriority,
+    leadScore: Number(row.lead_score ?? 0),
     dayBucket: row.day_bucket != null ? Number(row.day_bucket) : null,
+    channelMode: (row.channel_mode ?? 'whatsapp') as LeadChannelMode,
+
+    assignedTo: row.assigned_to ?? null,
+
+    isInRecovery: row.is_in_recovery === true,
+    lostReason: row.lost_reason ?? null,
+    lostAt: row.lost_at ?? null,
+    lostBy: row.lost_by ?? null,
+
+    queixasFaciais: Array.isArray(row.queixas_faciais) ? row.queixas_faciais : [],
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    metadata:
+      row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
+
+    waOptIn: row.wa_opt_in !== false,
+    lastContactedAt: row.last_contacted_at ?? null,
     lastResponseAt: row.last_response_at ?? null,
+
     createdAt: row.created_at ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+    deletedAt: row.deleted_at ?? null,
   }
 }
 

@@ -14,6 +14,7 @@ import { phoneVariants } from '@clinicai/utils'
 import {
   mapLeadRow,
   mapRpcResult,
+  orcamentoItemsToDbShape,
   type CreateLeadInput,
   type DedupHit,
   type LeadDTO,
@@ -340,9 +341,12 @@ export class LeadRepository {
     const map = new Map<string, LeadDTO>()
     if (!phones.length) return map
 
+    // Audit Camada 4 (2026-04-28): troca select de lista parcial por '*'
+    // depois que LeadDTO expandiu pra 30 campos. Caller ja limita por
+    // phones[] · custo extra por linha eh ~marginal.
     const { data } = await this.supabase
       .from('leads')
-      .select('id, name, phone, phase, temperature, funnel, queixas_faciais, ai_persona, lead_score, tags, clinic_id, idade, day_bucket, last_response_at, created_at')
+      .select('*')
       .eq('clinic_id', clinicId)
       .in('phone', phones)
 
@@ -528,13 +532,7 @@ export class LeadRepository {
    * snake_case esperado pela RPC.
    */
   async toOrcamento(input: LeadToOrcamentoRpcInput): Promise<LeadToOrcamentoResult> {
-    const itemsForDb = input.items.map((it) => ({
-      name: it.name,
-      qty: it.qty,
-      unit_price: it.unitPrice,
-      subtotal: it.subtotal,
-      ...(it.procedureCode ? { procedure_code: it.procedureCode } : {}),
-    }))
+    const itemsForDb = orcamentoItemsToDbShape(input.items)
     const { data, error } = await this.supabase.rpc('lead_to_orcamento', {
       p_lead_id: input.leadId,
       p_subtotal: input.subtotal,

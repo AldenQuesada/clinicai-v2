@@ -306,6 +306,9 @@ export {
   type UpdateMediaInput,
 } from './wa-media-bank.repository'
 
+// CRM core utilities (espelho de helpers SQL · pre-validacao client-side)
+export { LEAD_PHASE_TRANSITIONS, isPhaseTransitionAllowed, orcamentoItemsToDbShape } from './types'
+
 // ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────
 export {
   LegalDocTemplateRepository,
