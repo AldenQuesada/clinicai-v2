@@ -683,7 +683,7 @@ function renderStylePanel(id: Section, book: Flipbook, setSavedAt: (d: Date) => 
     case 'controls':    return <ControlsPanel />
     case 'pagination':  return <PaginationPanel />
     case 'toc':         return <TocPanel />
-    case 'bg-audio':    return <BgAudioPanel />
+    case 'bg-audio':    return <BgAudioPanel book={book} />
     default: return null
   }
 }
@@ -1100,17 +1100,135 @@ function TocPanel() {
   )
 }
 
-function BgAudioPanel() {
+interface BgAudioSettings {
+  url?: string | null
+  page_start?: number
+  page_end?: number
+  volume?: number
+  loop?: boolean
+}
+
+const AUDIO_ALLOWED = new Set(['audio/mpeg', 'audio/mp3'])
+const AUDIO_MAX_BYTES = 5 * 1024 * 1024
+
+function BgAudioPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.bg_audio as BgAudioSettings) ?? {}
+  const url = current.url ?? null
+  const pageStart = current.page_start ?? 1
+  const pageEnd = current.page_end ?? (book.page_count ?? 99)
+  const volume = current.volume ?? 50
+  const loop = current.loop ?? true
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function patch(next: Partial<BgAudioSettings>) {
+    ctx.update('bg_audio', { ...current, ...next })
+  }
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setError(null)
+    if (!AUDIO_ALLOWED.has(f.type) && !f.name.toLowerCase().endsWith('.mp3')) {
+      setError('Apenas MP3 é aceito')
+      return
+    }
+    if (f.size > AUDIO_MAX_BYTES) {
+      setError(`MP3 acima de ${AUDIO_MAX_BYTES / 1024 / 1024}MB`)
+      return
+    }
+    setUploading(true)
+    try {
+      const { uploadAsset } = await import('@/lib/editor/upload-asset')
+      const { url: publicUrl } = await uploadAsset(book.id, f, 'bg-audio.mp3')
+      patch({ url: publicUrl })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'falha no upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function clearAudio() {
+    patch({ url: null })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
-      <FileDropArea label="MP3 de fundo" />
+      {url ? (
+        <div className="bg-bg-panel/50 border border-border rounded p-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎵</span>
+            <div className="flex-1 min-w-0 font-meta text-[9px] text-text-dim truncate">
+              {url.split('/').pop()?.split('?')[0]}
+            </div>
+            <button
+              onClick={clearAudio}
+              className="font-meta text-[9px] text-red-400 hover:text-red-300 px-2"
+            >
+              Remover
+            </button>
+          </div>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio src={url} controls className="w-full h-7" />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed border-border hover:border-gold/40 rounded p-3 text-center text-[10px] text-text-dim hover:text-gold transition disabled:opacity-50"
+        >
+          {uploading ? '⏳ enviando…' : '🎵 MP3 de fundo · max 5MB'}
+        </button>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/mpeg,audio/mp3,.mp3"
+        onChange={pickFile}
+        className="hidden"
+      />
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Pág inicial"><input type="number" defaultValue={1} className={INPUT_CLS} /></Field>
-        <Field label="Pág final"><input type="number" defaultValue={99} className={INPUT_CLS} /></Field>
+        <Field label="Pág inicial">
+          <input
+            type="number"
+            min={1}
+            value={pageStart}
+            onChange={(e) => patch({ page_start: Math.max(1, parseInt(e.target.value) || 1) })}
+            className={INPUT_CLS}
+          />
+        </Field>
+        <Field label="Pág final">
+          <input
+            type="number"
+            min={1}
+            value={pageEnd}
+            onChange={(e) => patch({ page_end: Math.max(1, parseInt(e.target.value) || 1) })}
+            className={INPUT_CLS}
+          />
+        </Field>
       </div>
-      <Field label="Volume"><input type="range" className="w-full" /></Field>
-      <Toggle label="Loop" value={true} onChange={() => {}} />
-      <SoonNote />
+
+      <Field label={`Volume · ${volume}%`}>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={volume}
+          onChange={(e) => patch({ volume: parseInt(e.target.value) })}
+          className="w-full"
+        />
+      </Field>
+
+      <Toggle label="Loop" value={loop} onChange={(v) => patch({ loop: v })} />
     </div>
   )
 }
