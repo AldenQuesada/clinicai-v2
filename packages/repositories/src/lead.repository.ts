@@ -213,17 +213,20 @@ export class LeadRepository {
    * indicacoes com slug da parceria.
    */
   async create(clinicId: string, input: CreateLeadInput): Promise<LeadDTO | null> {
+    // BUG FIX 2026-04-28: tabela leads tem várias colunas NOT NULL com default
+    // (funnel='procedimentos', name='', source='manual', etc). Passar null
+    // explícito viola NOT NULL · omitimos pra DB usar default.
     const row: Record<string, unknown> = {
       id: uuidv4(),
       clinic_id: clinicId,
       phone: input.phone,
-      name: input.name ?? null,
       phase: input.phase ?? 'lead',
       temperature: input.temperature ?? 'warm',
       ai_persona: input.aiPersona ?? 'onboarder',
-      funnel: input.funnel ?? null,
       created_at: new Date().toISOString(),
     }
+    if (input.name) row.name = input.name
+    if (input.funnel) row.funnel = input.funnel
     if (input.source) row.source = input.source
     if (Array.isArray(input.tags) && input.tags.length > 0) row.tags = input.tags
 
