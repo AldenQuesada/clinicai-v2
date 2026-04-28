@@ -19,6 +19,7 @@ interface LaraConfig {
   daily_message_limit: number
   auto_pause_minutes: number
   disparo_cooldown_minutes: number
+  compact_after: number
 }
 
 const DEFAULT_CONFIG: LaraConfig = {
@@ -27,6 +28,7 @@ const DEFAULT_CONFIG: LaraConfig = {
   daily_message_limit: 45,
   auto_pause_minutes: 30,
   disparo_cooldown_minutes: 30,
+  compact_after: 6,
 }
 
 async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> {
@@ -131,6 +133,25 @@ export default async function ConfiguracoesPage() {
               Quando atendente clica &quot;Assumir&quot; ou envia mensagem manual,
               IA fica pausada por esse tempo. Após expirar, IA volta a responder
               automaticamente. Padrão 30 minutos.
+            </p>
+          </Section>
+
+          {/* Compact prompt threshold */}
+          <Section title="Compact prompt · após N mensagens trocadas">
+            <input
+              type="number"
+              name="compact_after"
+              defaultValue={config.compact_after}
+              min="2"
+              max="50"
+              step="1"
+              className="w-full px-4 py-3 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))]"
+            />
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
+              Após N mensagens trocadas, Lara troca pro prompt compact (~70% menor) ·
+              economia de tokens em conversas longas. Padrão 6 (paridade Lara legacy n8n).
+              Diminuir = econômico mas pode perder contexto · aumentar = mais tokens por
+              chamada na fase tardia.
             </p>
           </Section>
 

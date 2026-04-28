@@ -22,6 +22,7 @@
 import { callAnthropic, MODELS, type ContentBlock } from '@clinicai/ai';
 import { createServerClient } from '@/lib/supabase';
 import { ClinicDataRepository } from '@clinicai/repositories';
+import { getLaraConfig } from '@/lib/lara-config';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -79,10 +80,11 @@ function personaKey(
 /**
  * Audit gap A10 (P2): após N mensagens trocadas, switch pra prompt compact
  * pra economizar ~70% dos tokens. Lara legacy n8n usava `useCompact = msgCount > 6`.
- * Override via env LARA_PROMPT_COMPACT_AFTER (default 6).
+ *
+ * Threshold lido de lara_config.compact_after (UI /configuracoes) · fallback
+ * pro env LARA_PROMPT_COMPACT_AFTER pra retro-compat · default 6.
  */
-function shouldUseCompactPrompt(messageCount: number): boolean {
-  const threshold = Number(process.env.LARA_PROMPT_COMPACT_AFTER ?? 6);
+function shouldUseCompactPrompt(messageCount: number, threshold: number): boolean {
   return messageCount > threshold;
 }
 
@@ -139,9 +141,26 @@ async function getSystemPromptText(
   try {
     const persLayerKey = personaKey(persona);
 
+    // Threshold compact: lara_config (UI) > env > default 6
+    let compactThreshold = 6;
+    if (clinicId) {
+      try {
+        const cfg = await getLaraConfig(clinicId);
+        if (Number.isFinite(cfg.compact_after) && cfg.compact_after > 0) {
+          compactThreshold = cfg.compact_after;
+        }
+      } catch {
+        // ignore · fallback pro env / default
+      }
+    }
+    const envThreshold = Number(process.env.LARA_PROMPT_COMPACT_AFTER);
+    if (!clinicId && Number.isFinite(envThreshold) && envThreshold > 0) {
+      compactThreshold = envThreshold;
+    }
+
     // Audit gap A10: após threshold de mensagens, usa prompt compact (~70% menor).
     // Compact já inclui regras + funis condensados + tags · não precisa empilhar layers.
-    if (shouldUseCompactPrompt(messageCount)) {
+    if (shouldUseCompactPrompt(messageCount, compactThreshold)) {
       const compact = await readPromptLayer(clinicId, 'compact');
       if (compact) {
         let prompt = compact;

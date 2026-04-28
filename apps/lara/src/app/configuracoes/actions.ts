@@ -8,6 +8,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { loadServerReposContext } from '@/lib/repos'
+import { invalidateLaraConfigCache } from '@/lib/lara-config'
 
 export async function saveLaraConfigAction(formData: FormData) {
   const { ctx, repos } = await loadServerReposContext()
@@ -22,9 +23,13 @@ export async function saveLaraConfigAction(formData: FormData) {
     daily_message_limit: Number(formData.get('daily_message_limit') || 45),
     auto_pause_minutes: Number(formData.get('auto_pause_minutes') || 30),
     disparo_cooldown_minutes: Number(formData.get('disparo_cooldown_minutes') || 30),
+    compact_after: Number(formData.get('compact_after') || 6),
   }
 
   await repos.clinicData.upsertSetting(ctx.clinic_id, 'lara_config', config)
+
+  // Invalida cache em memoria (lib/lara-config.ts) pra mudancas refletirem no proximo webhook
+  invalidateLaraConfigCache(ctx.clinic_id)
 
   revalidatePath('/configuracoes')
   revalidatePath('/dashboard')

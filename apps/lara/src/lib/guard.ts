@@ -11,13 +11,12 @@
 
 import { createServerClient } from '@/lib/supabase'
 import { makeRepos } from '@/lib/repos'
+import { getLaraConfig } from '@/lib/lara-config'
 
 export interface GuardResult {
   allowed: boolean
   reason?: string
 }
-
-const DAILY_LIMIT = 45
 
 export async function checkGuard(conversationId: string): Promise<GuardResult> {
   const supabase = createServerClient()
@@ -47,11 +46,13 @@ export async function checkGuard(conversationId: string): Promise<GuardResult> {
     return { allowed: false, reason: 'conversation_closed' }
   }
 
-  // Daily limit · 24h
+  // Daily limit · 24h · lido de lara_config (UI /configuracoes)
+  const cfg = await getLaraConfig(conv.clinicId)
+  const dailyLimit = cfg.daily_message_limit
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const dailySent = await repos.messages.countLaraOutboundSince(conversationId, yesterday)
 
-  if (dailySent > DAILY_LIMIT) {
+  if (dailySent > dailyLimit) {
     await repos.conversations.updateAiPause(conversationId, {
       pausedUntil: null,
       aiEnabled: false,
@@ -68,7 +69,7 @@ export async function checkGuard(conversationId: string): Promise<GuardResult> {
         payload: {
           phone: conv.phone,
           daily_count: dailySent,
-          limit: DAILY_LIMIT,
+          limit: dailyLimit,
           triggered_at: new Date().toISOString(),
         },
       })
