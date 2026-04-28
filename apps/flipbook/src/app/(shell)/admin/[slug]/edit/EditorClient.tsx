@@ -787,14 +787,27 @@ function TitlePanel({ book, onSaved }: { book: Flipbook; onSaved: (d: Date) => v
   )
 }
 
+interface PageEffectSettings {
+  effect?: string
+  disposition?: string
+  sound?: boolean
+}
+
 function PageEffectPanel() {
-  const [effect, setEffect] = useState('magazine')
-  const [sound, setSound] = useState(true)
-  const [disposition, setDisposition] = useState('adaptive')
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.page_effect as PageEffectSettings) ?? {}
+  const effect = current.effect ?? 'magazine'
+  const disposition = current.disposition ?? 'adaptive'
+  const sound = current.sound ?? true
+
+  function patch(next: Partial<PageEffectSettings>) {
+    ctx.update('page_effect', { ...current, ...next })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Efeito de virada">
-        <select value={effect} onChange={(e) => setEffect(e.target.value)} className={INPUT_CLS}>
+        <select value={effect} onChange={(e) => patch({ effect: e.target.value })} className={INPUT_CLS}>
           <option value="magazine">Magazine</option>
           <option value="book">Book</option>
           <option value="album">Album</option>
@@ -806,14 +819,13 @@ function PageEffectPanel() {
         </select>
       </Field>
       <Field label="Disposição">
-        <select value={disposition} onChange={(e) => setDisposition(e.target.value)} className={INPUT_CLS}>
+        <select value={disposition} onChange={(e) => patch({ disposition: e.target.value })} className={INPUT_CLS}>
           <option value="adaptive">Adaptativo</option>
           <option value="single">Single page</option>
           <option value="double">Double page</option>
         </select>
       </Field>
-      <Toggle label="Som ao virar página" value={sound} onChange={setSound} />
-      <SoonNote />
+      <Toggle label="Som ao virar página" value={sound} onChange={(v) => patch({ sound: v })} />
     </div>
   )
 }
