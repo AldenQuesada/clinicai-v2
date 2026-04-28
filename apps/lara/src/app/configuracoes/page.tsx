@@ -28,6 +28,7 @@ interface LaraConfig {
   auto_pause_minutes: number
   disparo_cooldown_minutes: number
   compact_after: number
+  photo_delay_seconds: number
 }
 
 const DEFAULT_CONFIG: LaraConfig = {
@@ -37,6 +38,7 @@ const DEFAULT_CONFIG: LaraConfig = {
   auto_pause_minutes: 30,
   disparo_cooldown_minutes: 30,
   compact_after: 6,
+  photo_delay_seconds: 15,
 }
 
 const MODEL_OPTIONS = [
@@ -161,6 +163,25 @@ export default async function ConfiguracoesPage() {
               step={1}
               suffix="msgs"
               helper="Padrão 6. Diminuir = mais econômico, mas pode perder contexto · aumentar = mais tokens por chamada na fase tardia."
+            />
+          </ConfigSection>
+
+          <ConfigSection
+            eyebrow="Cadência de mídia"
+            title="Envio de"
+            italicAnchor="fotos"
+            description="Quando uma tag [FOTO:queixa] dispara, Lara envia 2 fotos de pessoas diferentes do banco. O delay define o intervalo entre a 1ª e a 2ª · paciente registra a primeira antes da segunda chegar."
+            cols={1}
+          >
+            <NumericField
+              name="photo_delay_seconds"
+              label="Delay entre 1ª e 2ª foto"
+              defaultValue={config.photo_delay_seconds}
+              min={0}
+              max={120}
+              step={1}
+              suffix="seg"
+              helper="Padrão 15s · paridade com fluxo Lara legacy n8n. 0 = mandar simultâneas. Acima de 30s pode parecer travado."
             />
           </ConfigSection>
 

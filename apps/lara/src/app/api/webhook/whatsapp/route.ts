@@ -37,6 +37,7 @@ import {
   stripHandoffTag,
 } from '@/lib/webhook/ai-tags-parser';
 import { resolveMediaDispatch } from '@/lib/webhook/media-dispatch';
+import { getLaraConfig } from '@/lib/lara-config';
 import {
   resolveLead,
   resolveConversation,
@@ -559,21 +560,38 @@ async function processInboundMessage(
         status: sendResult.ok ? 'sent' : 'failed',
       });
 
-      // Manda fotos extras (até 1 a mais) · cada uma como sendImage individual
-      for (const extra of rest) {
-        try {
-          await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
-          await repos.messages.saveOutbound(clinic_id, {
-            conversationId: conv.id,
-            sender: 'lara',
-            content: extra.caption || '',
-            contentType: 'image',
-            mediaUrl: extra.url,
-            status: 'sent',
-          });
-        } catch (e) {
-          log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (e as Error)?.message }, 'media.extra.send_failed');
-        }
+      // Manda fotos extras com delay entre cada uma · UX legacy n8n: 15s pra
+      // paciente registrar a 1a foto antes da 2a chegar. Configuravel via
+      // lara_config.photo_delay_seconds (default 15) ou env LARA_PHOTO_DELAY_MS.
+      //
+      // FIRE-AND-FORGET: nao espera o delay no handler atual (webhook do Meta
+      // tem timeout de ~20s). setTimeout dispara em background apos o response
+      // sair, no proprio processo Node persistente do Easypanel.
+      const cfg = await getLaraConfig(clinic_id);
+      const photoDelayMs =
+        Number.isFinite(cfg.photo_delay_seconds) && cfg.photo_delay_seconds >= 0
+          ? cfg.photo_delay_seconds * 1000
+          : Number(process.env.LARA_PHOTO_DELAY_MS ?? 15000);
+
+      for (let i = 0; i < rest.length; i++) {
+        const extra = rest[i];
+        const delayForThis = photoDelayMs * (i + 1); // 1ª extra: 15s, 2ª extra (improvavel): 30s
+        setTimeout(async () => {
+          try {
+            await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
+            await repos.messages.saveOutbound(clinic_id, {
+              conversationId: conv.id,
+              sender: 'lara',
+              content: extra.caption || '',
+              contentType: 'image',
+              mediaUrl: extra.url,
+              status: 'sent',
+            });
+            log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: delayForThis }, 'media.extra.sent_async');
+          } catch (e) {
+            log.warn({ clinic_id, phone_hash: hashPhone(phone), idx: i, err: (e as Error)?.message }, 'media.extra.send_failed_async');
+          }
+        }, delayForThis);
       }
     } else {
       aiResponse = media.textCleaned;

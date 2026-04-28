@@ -24,6 +24,7 @@ export async function saveLaraConfigAction(formData: FormData) {
     auto_pause_minutes: Number(formData.get('auto_pause_minutes') || 30),
     disparo_cooldown_minutes: Number(formData.get('disparo_cooldown_minutes') || 30),
     compact_after: Number(formData.get('compact_after') || 6),
+    photo_delay_seconds: Number(formData.get('photo_delay_seconds') || 15),
   }
 
   await repos.clinicData.upsertSetting(ctx.clinic_id, 'lara_config', config)

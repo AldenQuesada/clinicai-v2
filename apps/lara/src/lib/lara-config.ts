@@ -17,6 +17,7 @@ export interface LaraConfig {
   auto_pause_minutes: number
   disparo_cooldown_minutes: number
   compact_after: number
+  photo_delay_seconds: number
 }
 
 export const DEFAULT_LARA_CONFIG: LaraConfig = {
@@ -26,6 +27,7 @@ export const DEFAULT_LARA_CONFIG: LaraConfig = {
   auto_pause_minutes: 30,
   disparo_cooldown_minutes: 30,
   compact_after: 6,
+  photo_delay_seconds: 15,
 }
 
 interface CacheEntry {
