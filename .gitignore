@@ -53,3 +53,6 @@ tmp/
 # supabase CLI local cache (do not commit)
 supabase/.temp/
 supabase/.branches/
+
+# claude code local settings (per-machine, never commit)
+.claude/settings.local.json
