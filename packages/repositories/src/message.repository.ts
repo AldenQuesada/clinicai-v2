@@ -23,7 +23,6 @@ export interface AIHistoryMessage {
 }
 
 export class MessageRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async listByConversation(
@@ -182,7 +181,6 @@ export class MessageRepository {
       .order('sent_at', { ascending: false })
       .limit(limit)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data ?? [])
       .slice()
       .reverse()

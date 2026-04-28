@@ -19,7 +19,6 @@ export interface MiraStateRow<T = Record<string, unknown>> {
 }
 
 export class MiraStateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

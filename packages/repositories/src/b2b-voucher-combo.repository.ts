@@ -42,7 +42,6 @@ function mapComboRow(row: any): B2BVoucherComboDTO {
 }
 
 export class B2BVoucherComboRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

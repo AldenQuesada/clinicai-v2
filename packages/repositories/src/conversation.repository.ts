@@ -20,7 +20,6 @@ import type { Database } from '@clinicai/supabase'
 export type StatusFilter = 'active' | 'archived' | 'resolved' | 'dra'
 
 export class ConversationRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

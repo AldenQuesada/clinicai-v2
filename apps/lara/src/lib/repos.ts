@@ -38,7 +38,6 @@ export interface Repos {
   mediaBank: WaMediaBankRepository
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function makeRepos(supabase: SupabaseClient<Database>): Repos {
   return {
     leads: new LeadRepository(supabase),
@@ -58,7 +57,6 @@ export function makeRepos(supabase: SupabaseClient<Database>): Repos {
  * Carrega supabase + clinic context + repos numa chamada · pra RSC/Action.
  */
 export async function loadServerReposContext(): Promise<{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>
   ctx: ClinicContext
   repos: Repos

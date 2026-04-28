@@ -36,7 +36,6 @@ export interface WaProAuditInput {
 }
 
 export class WaProAuditRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

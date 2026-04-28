@@ -120,7 +120,6 @@ function mapApplication(row: any): PlaybookApplication {
 }
 
 export class B2BPlaybookRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

@@ -90,7 +90,6 @@ export interface MediaDispatchResult {
 }
 
 interface ResolveOpts {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>
   clinic_id: string
   phone: string
@@ -179,13 +178,11 @@ function pickTwoFromDifferentPeople(photos: BankPhoto[]): BankPhoto[] {
  * categorizadas com nomes/captions. Retorna [] em caso de erro ou bank vazio.
  */
 async function fetchFromBank(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   funnel: string | null,
   queixa: string | null,
 ): Promise<BankPhoto[]> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase.rpc('wa_get_media', {
       p_funnel: funnel,
       p_queixa: queixa,
@@ -217,7 +214,6 @@ async function fetchFromBank(
  * Fallback legacy · lista bucket direto. Sem captions reais (caller usa default).
  */
 async function fallbackBucketList(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   basePath: string,
 ): Promise<BankPhoto[]> {

@@ -149,7 +149,6 @@ export interface MonthlyConversionRow {
 }
 
 export class B2BPerformanceRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async full(partnershipId: string): Promise<PerformanceFull | null> {

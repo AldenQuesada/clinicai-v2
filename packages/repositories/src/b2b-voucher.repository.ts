@@ -97,7 +97,6 @@ export interface IssueVoucherInput {
 }
 
 export class B2BVoucherRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

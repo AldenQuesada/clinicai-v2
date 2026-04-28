@@ -47,7 +47,6 @@ export interface TenantContext {
  *  - default · log warn + fallback pro UUID Mirian (transição)
  */
 export async function resolveTenantContext(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   phoneNumberId: string | null,
 ): Promise<TenantContext> {
@@ -60,7 +59,6 @@ export async function resolveTenantContext(
     }
     return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null }
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await supabase.rpc('wa_numbers_resolve_by_phone_number_id', {
     p_phone_number_id: phoneNumberId,
   })

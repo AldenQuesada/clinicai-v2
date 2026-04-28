@@ -47,7 +47,6 @@ export interface ExportData {
 }
 
 export class B2BLgpdRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async anonymize(partnershipId: string, reason: string): Promise<AnonymizeResult> {

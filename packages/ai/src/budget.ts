@@ -47,7 +47,6 @@ export async function checkBudget(
   try {
     const supabase = createServiceRoleClient()
     // RPC retorna jsonb com used_usd / limit_usd / allowed
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase.rpc('_ai_budget_check', {
       p_clinic_id: clinic_id,
       p_daily_limit_usd: DEFAULT_DAILY_LIMIT_USD,
@@ -85,7 +84,6 @@ export async function recordUsage(usage: UsageRecord): Promise<void> {
   try {
     const supabase = createServiceRoleClient()
     // RPC `_ai_budget_record` faz UPSERT com tokens += e cost +=
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.rpc('_ai_budget_record', {
       p_clinic_id: usage.clinic_id,
       p_user_id: usage.user_id ?? null,

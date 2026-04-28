@@ -137,7 +137,6 @@ function mapPickedItem(raw: any): PickedWebhookItemDTO {
 }
 
 export class WebhookProcessingQueueRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

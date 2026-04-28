@@ -57,10 +57,8 @@ export interface MiraCronRun {
 }
 
 export class MiraCronRegistryRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.supabase.rpc(name, args || {})
     if (error) throw new Error(`[${name}] ${error.message}`)

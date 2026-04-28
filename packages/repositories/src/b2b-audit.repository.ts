@@ -21,7 +21,6 @@ export interface AuditTimelineEntry {
 }
 
 export class B2BAuditRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async timeline(partnershipId: string, limit = 50): Promise<AuditTimelineEntry[]> {

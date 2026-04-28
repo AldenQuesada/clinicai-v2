@@ -10,7 +10,6 @@ import { mapTemplateRow, type CreateTemplateInput, type TemplateDTO } from './ty
 import type { Database } from '@clinicai/supabase'
 
 export class TemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

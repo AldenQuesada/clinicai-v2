@@ -16,7 +16,6 @@ import { createServerClient, requireClinicContext, type ClinicContext, type Data
 import { makeMiraRepos, type MiraRepos } from './repos'
 
 interface MiraServerContextResult {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>
   ctx: ClinicContext
   repos: MiraRepos

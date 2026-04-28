@@ -74,7 +74,6 @@ export interface GrowthPanel {
 }
 
 export class B2BGrowthRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async panel(partnershipId: string): Promise<GrowthPanel | null> {

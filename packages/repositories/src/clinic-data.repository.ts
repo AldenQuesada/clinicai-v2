@@ -13,7 +13,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@clinicai/supabase'
 
 export class ClinicDataRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

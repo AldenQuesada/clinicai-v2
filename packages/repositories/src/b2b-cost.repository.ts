@@ -23,7 +23,6 @@ export interface CostBreakdown {
 }
 
 export class B2BCostRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async byPartnership(partnershipId: string): Promise<CostBreakdown | null> {

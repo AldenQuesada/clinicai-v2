@@ -36,7 +36,6 @@ function mapAttributionRow(row: any): B2BAttributionDTO {
 }
 
 export class B2BAttributionRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async listByPartnership(partnershipId: string, limit = 100): Promise<B2BAttributionDTO[]> {

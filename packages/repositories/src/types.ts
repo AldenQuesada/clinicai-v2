@@ -50,6 +50,17 @@ export interface ConversationDTO {
   lastMessageText: string | null
   lastLeadMsg: string | null
   createdAt: string
+  /**
+   * FK pra wa_numbers.id (mig 800-49) · permite resolver credenciais Cloud API
+   * per-tenant via createWhatsAppCloudFromWaNumber. Quando NULL, callers caem
+   * em fallback de env global (deprecated em multi-tenant ADR-028).
+   *
+   * BUG LATENTE descoberto na auditoria Camada 3 (2026-04-28): callers da Lara
+   * usavam `(conv as any).waNumberId` esperando o campo aqui · `mapConversationRow`
+   * nao retornava. Resultado: blindagem N7 da Lara nunca funcionou de verdade ·
+   * sempre caia em env global. Camada 3.5 fixa.
+   */
+  waNumberId: string | null
 }
 
 export interface MessageDTO {
@@ -221,6 +232,7 @@ export function mapConversationRow(row: any): ConversationDTO {
     lastMessageText: row.last_message_text ?? null,
     lastLeadMsg: row.last_lead_msg ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
+    waNumberId: row.wa_number_id ?? null,
   }
 }
 

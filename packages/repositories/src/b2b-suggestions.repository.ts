@@ -49,7 +49,6 @@ function mapRow(row: any): SuggestionCategory {
 }
 
 export class B2BSuggestionsRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

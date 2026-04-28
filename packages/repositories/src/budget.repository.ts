@@ -9,7 +9,6 @@ import type { BudgetDayDTO } from './types'
 import type { Database } from '@clinicai/supabase'
 
 export class BudgetRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async getTodayCost(clinicId: string): Promise<number> {

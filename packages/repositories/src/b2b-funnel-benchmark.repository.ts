@@ -69,7 +69,6 @@ function mapRow(row: any): B2BFunnelBenchmarkDTO {
 }
 
 export class B2BFunnelBenchmarkRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

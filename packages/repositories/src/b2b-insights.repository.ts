@@ -65,7 +65,6 @@ export interface UndoDismissResult {
 }
 
 export class B2BInsightsRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async global(): Promise<InsightsGlobal | null> {

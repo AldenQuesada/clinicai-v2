@@ -42,7 +42,6 @@ function last8(phone: string): string {
 }
 
 export class B2BWASenderRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

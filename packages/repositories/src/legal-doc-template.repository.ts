@@ -73,7 +73,6 @@ function mapTemplateRow(r: any): LegalDocTemplateDTO {
 }
 
 export class LegalDocTemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

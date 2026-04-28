@@ -28,7 +28,6 @@ export interface HealthTrend {
 }
 
 export class B2BHealthTrendRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async byPartnership(partnershipId: string, days = 90): Promise<HealthTrend | null> {

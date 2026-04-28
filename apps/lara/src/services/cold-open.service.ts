@@ -105,12 +105,10 @@ interface PickedTemplate {
  * Retorna null se RPC falhar ou não houver variante ativa pra essa key.
  */
 async function pickFromRpc(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   key: ColdOpenTemplateKey,
 ): Promise<PickedTemplate | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase.rpc('lara_pick_template', {
       p_key: key,
     });
@@ -137,7 +135,6 @@ async function pickFromRpc(
  *   3. .md no filesystem (default seed)
  */
 async function readTemplate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   clinicId: string | null,
   key: ColdOpenTemplateKey,
@@ -205,7 +202,6 @@ export interface ColdOpenResult {
  * Audit gap B8: retorna template_id/version/variant pra audit trail.
  */
 export async function generateColdOpenMessage(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   input: ColdOpenInput,
 ): Promise<ColdOpenResult> {

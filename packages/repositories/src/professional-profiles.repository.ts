@@ -21,7 +21,6 @@ export interface ProfessionalProfileDTO {
 }
 
 export class ProfessionalProfilesRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

@@ -16,7 +16,6 @@ const log = createLogger({ app: 'mira' })
 let _cachedClinicId: string | null = null
 
 export async function resolveClinicId(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
 ): Promise<string> {
   if (_cachedClinicId) return _cachedClinicId

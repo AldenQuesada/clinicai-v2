@@ -92,7 +92,6 @@ export interface FinancialKpisBlob {
 }
 
 export class B2BFinancialRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

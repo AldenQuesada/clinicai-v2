@@ -26,7 +26,6 @@ export interface ImpactScore {
 }
 
 export class B2BImpactRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async byPartnership(partnershipId: string): Promise<ImpactScore | null> {

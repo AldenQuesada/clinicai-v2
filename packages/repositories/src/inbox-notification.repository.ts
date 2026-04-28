@@ -13,14 +13,12 @@ import type { InboxNotificationInput } from './types'
 import type { Database } from '@clinicai/supabase'
 
 export class InboxNotificationRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Cria notificacao via RPC · throw em erro pra caller decidir log/silencio.
    */
   async create(input: InboxNotificationInput): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await this.supabase.rpc('inbox_notification_create', {
       p_clinic_id: input.clinicId,
       p_conversation_id: input.conversationId,

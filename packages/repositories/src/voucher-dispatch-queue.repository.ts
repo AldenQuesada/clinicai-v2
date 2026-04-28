@@ -153,7 +153,6 @@ function mapPickedItem(raw: any): PickedQueueItemDTO {
 }
 
 export class B2BVoucherDispatchQueueRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

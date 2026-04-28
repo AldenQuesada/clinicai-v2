@@ -138,7 +138,6 @@ export interface MiraRepos {
   legalDocSignatures: LegalDocSignatureRepository
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function makeMiraRepos(supabase: SupabaseClient<Database>): MiraRepos {
   return {
     leads: new LeadRepository(supabase),

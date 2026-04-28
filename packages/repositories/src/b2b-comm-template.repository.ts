@@ -105,7 +105,6 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
 }
 
 export class B2BCommTemplateRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

@@ -129,7 +129,6 @@ function mapRequestRow(r: any): LegalDocRequestDTO {
 }
 
 export class LegalDocRequestRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**

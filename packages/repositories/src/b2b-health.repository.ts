@@ -31,7 +31,6 @@ export interface HealthSnapshot {
 }
 
 export class B2BHealthRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   async snapshot(): Promise<HealthSnapshot> {

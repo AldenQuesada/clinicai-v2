@@ -50,7 +50,6 @@ export interface DispatchAdminResult {
 }
 
 export async function dispatchAdminText(opts: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>
   repos: MiraRepos
   clinicId: string
@@ -165,7 +164,6 @@ export async function dispatchAdminText(opts: {
  * Se RPC nao existir ou retornar vazio, devolve null (caller pula dispatch).
  */
 export async function tryRpcText(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>,
   rpcName: string,
   args: Record<string, unknown> = {},

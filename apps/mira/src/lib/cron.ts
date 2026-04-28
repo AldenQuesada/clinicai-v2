@@ -39,7 +39,6 @@ export function validateCronSecret(req: NextRequest): NextResponse | null {
 }
 
 export interface CronContext {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<Database>
   repos: MiraRepos
   clinicId: string

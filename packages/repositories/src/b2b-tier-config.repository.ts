@@ -63,7 +63,6 @@ function mapRow(row: any): B2BTierConfigDTO {
 }
 
 export class B2BTierConfigRepository {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
