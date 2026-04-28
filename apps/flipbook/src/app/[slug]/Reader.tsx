@@ -15,7 +15,7 @@ import { TocSidebar } from '@/components/reader/TocSidebar'
 import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls, readPagination, readBackground } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination, readBackground, readPageEffect } from '@/lib/editor/settings-shapes'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -66,6 +66,7 @@ export function Reader({
   const controls = readControls(settings ?? null)
   const paginationStyle = readPagination(settings ?? null).style ?? 'numbers'
   const background = readBackground(settings ?? null)
+  const pageEffect = readPageEffect(settings ?? null)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
@@ -192,7 +193,8 @@ export function Reader({
 
   const onPageChange = (n: number) => {
     setCurrentPage(n)
-    sound.play()
+    // pageEffect.sound default true · só silencia se explicitamente false
+    if (pageEffect.sound !== false) sound.play()
   }
 
   const toggleFullscreen = () => {
