@@ -157,8 +157,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'conversation_create_failed' }, { status: 500 });
   }
 
-  // 4. Gera mensagem via Claude Haiku
-  const messageText = await generateColdOpenMessage(supabase, {
+  // 4. Gera mensagem via Claude Haiku · audit gap B8 retorna template metadata (A/B testing)
+  const generated = await generateColdOpenMessage(supabase, {
     templateKey: body.template_key as ColdOpenTemplateKey,
     name: body.name,
     queixas,
@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
     lifecycle: body.lifecycle ?? null,
   });
 
+  const messageText = generated.messageText;
   if (!messageText) {
     return NextResponse.json(
       { ok: false, error: 'ai_generation_failed' },
@@ -209,7 +210,8 @@ export async function POST(req: NextRequest) {
     })
     .catch(() => null);
 
-  // 7. Atualiza anatomy_quiz_lara_dispatch se dispatch_id passado · ADR-012 dispatch repo
+  // 7. Atualiza anatomy_quiz_lara_dispatch se dispatch_id passado · audit gap B8 salva
+  // template_id/version/variant pra tracking de qual variante converteu melhor.
   if (body.dispatch_id) {
     try {
       await supabase
@@ -218,6 +220,9 @@ export async function POST(req: NextRequest) {
           status: 'dispatched',
           dispatched_at: new Date().toISOString(),
           message_text: messageText,
+          template_id: generated.templateId,
+          template_version: generated.templateVersion,
+          template_variant: generated.templateVariant,
         })
         .eq('id', body.dispatch_id);
     } catch (e) {
@@ -230,7 +235,12 @@ export async function POST(req: NextRequest) {
   }
 
   log.info(
-    { clinic_id, phone_hash: hashPhone(phone), template_key: body.template_key, lead_id: lead.id, message_id: messageId },
+    {
+      clinic_id, phone_hash: hashPhone(phone), template_key: body.template_key,
+      lead_id: lead.id, message_id: messageId,
+      template_source: generated.source,
+      template_variant: generated.templateVariant,
+    },
     'cold_open.dispatched',
   );
 
@@ -241,6 +251,10 @@ export async function POST(req: NextRequest) {
     conversation_id: conv.id,
     message_id: messageId,
     template_key: body.template_key,
+    template_id: generated.templateId,
+    template_version: generated.templateVersion,
+    template_variant: generated.templateVariant,
+    template_source: generated.source,
   });
 }
 
