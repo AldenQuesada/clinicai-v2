@@ -170,18 +170,25 @@ export class MessageRepository {
     conversationId: string,
     limit = 30,
   ): Promise<AIHistoryMessage[]> {
+    // BUG FIX 2026-04-28: ASC + LIMIT pegava as N PRIMEIRAS (mais antigas).
+    // Conversation com 70+ msgs · Lara via templates antigos e ignorava
+    // contexto recente. DESC + LIMIT + reverse() pega as N MAIS RECENTES
+    // em ordem cronológica (oldest → newest) que é o que Claude espera.
     const { data } = await this.supabase
       .from('wa_messages')
       .select('direction, content')
       .eq('conversation_id', conversationId)
-      .order('sent_at', { ascending: true })
+      .order('sent_at', { ascending: false })
       .limit(limit)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data ?? []).map((h: any) => ({
-      role: (h.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
-      content: String(h.content ?? ''),
-    }))
+    return (data ?? [])
+      .slice()
+      .reverse()
+      .map((h: any) => ({
+        role: (h.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: String(h.content ?? ''),
+      }))
   }
 
   /**
