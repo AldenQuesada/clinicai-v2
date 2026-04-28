@@ -239,6 +239,9 @@ export async function softDeleteOrcamentoAction(
   if (!parsed.success) return zodFail(parsed.error)
 
   const { ctx, repos } = await loadServerReposContext()
+  // Defense-in-depth · soft-delete (UPDATE deleted_at) bate na UPDATE policy
+  // de orcamentos que aceita owner|admin|receptionist|therapist. Restringimos
+  // pra owner|admin porque esconder orcamento e decisao sensivel (audit).
   const roleCheck = requireRole(ctx.role, ['owner', 'admin'])
   if (roleCheck) {
     log.warn(

@@ -8,9 +8,12 @@
  * leads.id, modelo excludente forte ADR-001).
  *
  * Role gating:
- *   - update: owner|admin|receptionist|therapist (consulta de dados clinicos)
- *   - softDelete: owner|admin (RLS DELETE policy + check explicito aqui)
- *   - addRevenue: invocado interno (post-finalize); UI nao chama direto
+ *   - update: owner|admin|receptionist|therapist (RLS UPDATE policy mig 61)
+ *   - softDelete: owner|admin (decisao de produto · soft-delete e mais
+ *     restritivo que update normal · esconde paciente do sistema)
+ *   - addRevenue: owner|admin|receptionist (todos que podem fazer UPDATE
+ *     em agregados financeiros · defense-in-depth contra caller arbitrario
+ *     mesmo sendo Server Action exposta)
  */
 
 import {
@@ -78,8 +81,9 @@ export async function softDeletePatientAction(
 
   const { ctx, repos } = await loadServerReposContext()
 
-  // Defense-in-depth · RLS DELETE policy ja exige is_admin, mas marcamos
-  // explicito aqui pra falhar antes de DB call e logar 'forbidden'.
+  // Defense-in-depth · soft-delete (UPDATE deleted_at) bate na UPDATE policy
+  // de patients que aceita owner|admin|receptionist. Aqui restringimos pra
+  // owner|admin porque esconder paciente do sistema e decisao sensivel.
   const roleCheck = requireRole(ctx.role, ['owner', 'admin'])
   if (roleCheck) {
     log.warn(
@@ -124,6 +128,10 @@ export async function softDeletePatientAction(
 // Chamado normalmente pos-finalizeAppointmentAction quando outcome NAO eh
 // promote=paciente (paciente recorrente). RPC lead_to_paciente ja seta
 // agregados na promocao inicial · esse helper cobre appointments seguintes.
+//
+// Defense-in-depth: action eh exposta · qualquer JWT da clinica poderia
+// inflar agregados. Role gate exige owner|admin|receptionist (mesmos
+// roles que podem fazer UPDATE patients · RLS mig 61).
 
 export async function addPatientRevenueAction(
   input: unknown,
@@ -132,6 +140,21 @@ export async function addPatientRevenueAction(
   if (!parsed.success) return zodFail(parsed.error)
 
   const { ctx, repos } = await loadServerReposContext()
+
+  const roleCheck = requireRole(ctx.role, ['owner', 'admin', 'receptionist'])
+  if (roleCheck) {
+    log.warn(
+      {
+        action: 'crm.patient.addRevenue',
+        clinic_id: ctx.clinic_id,
+        patient_id: parsed.data.patientId,
+        role: ctx.role,
+      },
+      'patient.addRevenue.forbidden',
+    )
+    return roleCheck
+  }
+
   const success = await repos.patients.addRevenueAfterAppointment(
     parsed.data.patientId,
     parsed.data.amount,

@@ -5,14 +5,28 @@
  *   1. Zod valida input · falha vira { ok:false, error:'invalid_input', details }
  *   2. loadServerReposContext() resolve auth + clinic_id (throw 401 se sem JWT)
  *   3. Retorna Result<T, E> discriminated union · UI narrow sem cast
- *   4. revalidateTag() apos mutation pra invalidar Next.js cache
+ *   4. updateTag() apos mutation pra invalidar Next.js cache
+ *      (Next.js 16 · semantica read-your-own-writes pra Server Actions)
  *   5. Logger estruturado · info no sucesso, warn em falha esperada,
  *      error em exception
  *
+ * Convencao READ vs MUTATION (importante pra Camada 6+):
+ *   - MUTATION (insert/update/delete/RPC com side-effect) → SEMPRE Server
+ *     Action. Garante validation Zod, role gate, logger, cache invalidation.
+ *   - READ (select/get/list) → RSC chama `repos.X.method()` direto via
+ *     `loadServerReposContext()`. Nao envolve Server Action wrapper · mais
+ *     ergonomico, sem overhead, e RSC ja roda server-side com auth resolvida.
+ *     Reads em pages podem usar `unstable_cache` com tags do CRM_TAGS.
+ *
  * UI consumer:
+ *   // mutation
  *   const r = await createLeadAction(formData)
  *   if (r.ok) router.push(`/crm/leads/${r.data.leadId}`)
  *   else setError(r.error)
+ *
+ *   // read (RSC)
+ *   const { repos, ctx } = await loadServerReposContext()
+ *   const leads = await repos.leads.listByPhase(ctx.clinic_id, 'lead')
  */
 
 import type { ZodError } from 'zod'
