@@ -1,8 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { Metadata } from 'next'
 import { createServerClient } from '@/lib/supabase/server'
 import { getFlipbookBySlug, getSignedPdfUrl } from '@/lib/supabase/flipbooks'
 import { readRedirectUrl } from '@/lib/editor/settings-shapes'
+import { PasswordGate } from '@/components/reader/PasswordGate'
 import { Reader } from './Reader'
 
 export const dynamic = 'force-dynamic'
@@ -74,7 +76,6 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const supabase = await createServerClient()
 
   let book
-  let signedUrl
   try {
     book = await getFlipbookBySlug(supabase, slug)
     if (!book) notFound()
@@ -82,7 +83,6 @@ export default async function ReaderPage({ params, searchParams }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) notFound()
     }
-    signedUrl = await getSignedPdfUrl(supabase, book.pdf_url)
   } catch {
     notFound()
   }
@@ -91,6 +91,28 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   // Útil pra livros depreciados ou que viraram landing externa.
   const redirectUrl = readRedirectUrl(book.settings ?? null)
   if (redirectUrl) redirect(redirectUrl)
+
+  // Gating por senha · cookie value = hash atual; se hash mudou, gate de novo
+  if (book.access_password_hash) {
+    const store = await cookies()
+    const cookieHash = store.get(`flipbook-pwd:${book.slug}`)?.value
+    if (cookieHash !== book.access_password_hash) {
+      return (
+        <PasswordGate
+          slug={book.slug}
+          flipbookId={book.id}
+          title={book.title}
+        />
+      )
+    }
+  }
+
+  let signedUrl
+  try {
+    signedUrl = await getSignedPdfUrl(supabase, book.pdf_url)
+  } catch {
+    notFound()
+  }
 
   // Schema.org Book JSON-LD
   const jsonLd = {
