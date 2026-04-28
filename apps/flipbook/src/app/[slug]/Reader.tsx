@@ -15,7 +15,7 @@ import { TocSidebar } from '@/components/reader/TocSidebar'
 import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls, readPagination } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination, readBackground } from '@/lib/editor/settings-shapes'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -65,6 +65,7 @@ export function Reader({
 }: Props) {
   const controls = readControls(settings ?? null)
   const paginationStyle = readPagination(settings ?? null).style ?? 'numbers'
+  const background = readBackground(settings ?? null)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
@@ -288,6 +289,7 @@ export function Reader({
     <div
       ref={containerRef}
       className={`relative h-screen w-full bg-bg flex flex-col ${cursorHidden ? 'cursor-none' : ''}`}
+      style={background.color ? { background: background.color } : undefined}
     >
       {coverShown && (
         <CinematicCover
