@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Volume2, VolumeX, BookOpen, Link2, Check, ZoomIn, Sun, Moon, Coffee, Search, ListOrdered, ExternalLink, ArrowLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Volume2, VolumeX, BookOpen, Link2, Check, ZoomIn, Sun, Moon, Coffee, Search, ListOrdered, ExternalLink, ArrowLeft, ShoppingCart, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { setupPdfWorker } from '@/lib/pdf/worker'
 import { ReaderSkeleton } from '@/components/ui/Skeleton'
@@ -70,6 +70,7 @@ export function Reader({
   const [theme, setTheme] = useState<'normal' | 'sepia' | 'dark'>('normal')
   const [searchOpen, setSearchOpen] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
+  const [amazonCtaDismissed, setAmazonCtaDismissed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<CanvasHandle | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -115,6 +116,21 @@ export function Reader({
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 1800)
     } catch {}
+  }
+
+  // CTA Amazon · dismiss persiste por slug (não fica martelando o leitor recorrente)
+  useEffect(() => {
+    if (!amazonAsin) return
+    try {
+      if (window.localStorage.getItem(`flipbook:cta-dismissed:${slug}`) === '1') {
+        setAmazonCtaDismissed(true)
+      }
+    } catch {}
+  }, [amazonAsin, slug])
+
+  function dismissAmazonCta() {
+    setAmazonCtaDismissed(true)
+    try { window.localStorage.setItem(`flipbook:cta-dismissed:${slug}`, '1') } catch {}
   }
 
   useEffect(() => { if (format === 'pdf') setupPdfWorker() }, [format])
@@ -438,6 +454,30 @@ export function Reader({
           <div className="font-meta text-text-muted text-xs">
             {currentPage} <span className="text-text-dim">/</span> {totalPages || '—'}
           </div>
+
+          {/* CTA Amazon · só aparece após pág 3 (engajamento mínimo) e enquanto não dispensado */}
+          {amazonAsin && currentPage >= 3 && !amazonCtaDismissed && !isFullscreen && (
+            <div className="hidden sm:flex items-center gap-1 bg-gold/10 border border-gold/30 rounded-full pl-3 pr-1 py-1 max-w-[280px] md:max-w-none">
+              <a
+                href={`https://www.amazon.com/dp/${amazonAsin}`}
+                target="_blank"
+                rel="noreferrer noopener sponsored"
+                className="font-meta text-[10px] uppercase tracking-wider text-gold hover:text-gold-light transition flex items-center gap-1.5 truncate"
+                title={`Comprar "${title}" no Amazon`}
+              >
+                <ShoppingCart className="w-3 h-3 shrink-0" strokeWidth={2} />
+                <span className="truncate">Comprar no Amazon</span>
+              </a>
+              <button
+                onClick={dismissAmazonCta}
+                aria-label="Dispensar CTA"
+                title="Não mostrar mais nesta sessão"
+                className="p-1 rounded-full text-gold-dark hover:text-gold hover:bg-gold/15 transition shrink-0"
+              >
+                <X className="w-3 h-3" strokeWidth={2} />
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <button
