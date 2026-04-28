@@ -1,26 +1,28 @@
 /**
  * Auto-dispatch de mídias ricas (fotos antes/depois) baseado em tag da IA.
  *
- * Audit gap D1 (P2): paridade com Lara legacy n8n · 9 tags suportadas com
- * pastas distintas no bucket. Cada tag roleia 1 foto random da pasta dela.
+ * Audit gap D1 (P2) · evolução: paridade COMPLETA com Lara legacy n8n via
+ * RPC `wa_get_media(p_funnel, p_queixa, p_phase)` que retorna fotos categorizadas
+ * de `wa_media_bank` (table populada com nomes/idades/queixas/captions reais).
  *
  * Tags suportadas (case-insensitive):
- *   [FOTO:geral]           → before-after/geral (overview da Dra.)
- *   [FOTO:olheiras]        → before-after/olheiras
- *   [FOTO:sulcos]          → before-after/sulcos (bigode chinês, marionete)
- *   [FOTO:flacidez]        → before-after/flacidez
- *   [FOTO:contorno]        → before-after/contorno (mandíbula)
- *   [FOTO:papada]          → before-after/papada
- *   [FOTO:textura]         → before-after/textura (poros, manchas)
- *   [FOTO:rugas]           → before-after/rugas
- *   [FOTO:rejuvenescimento]→ before-after/rejuvenescimento (geral fullface)
- *   [FOTO:fullface]        → before-after/fullface (back-compat)
+ *   [FOTO:geral|olheiras|sulcos|flacidez|contorno|papada|textura|rugas|
+ *         rejuvenescimento|fullface|firmeza|manchas|mandibula|perfil|bigode_chines]
  *   [ENVIAR_FOTO:olheiras|fullface] → back-compat formato antigo
  *
- * Override por env: BUCKET_FOTO_<TAG_UPPER> (ex: BUCKET_FOTO_OLHEIRAS).
+ * Diferente da v1 (que listava bucket folder direto): agora usa wa_media_bank
+ * que tem captions com nome+idade do paciente (ex: "Miriam Poppi, 52 anos ·
+ * Resultado real Dra. Mirian de Paula"). Lara legacy mandava 2 fotos de pessoas
+ * diferentes · esta versão também (audit gap D1 paridade total).
  *
- * Fallback: se pasta vazia ou inválida, cai pra olheiras/fullface segundo
- * leadFunnel · se nem isso, fullface (geral).
+ * Fallback chain:
+ *   1. RPC wa_get_media(funnel=fullface, queixa=<tag>) · fotos categorizadas com captions
+ *   2. RPC wa_get_media(funnel=fullface, queixa=null) · qualquer foto fullface
+ *   3. Listagem direta do bucket (legacy fallback) · sem captions
+ *   4. null · caller manda texto sem foto
+ *
+ * Compat com captions: cada foto retorna URL + caption · caller pode mandar
+ * sendImage(url, caption) e paciente vê o nome+idade.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -39,33 +41,50 @@ export type PhotoTag =
   | 'rugas'
   | 'rejuvenescimento'
   | 'fullface'
+  | 'firmeza'
+  | 'manchas'
+  | 'mandibula'
+  | 'perfil'
+  | 'bigode_chines'
 
 const KNOWN_TAGS: PhotoTag[] = [
   'geral', 'olheiras', 'sulcos', 'flacidez', 'contorno',
   'papada', 'textura', 'rugas', 'rejuvenescimento', 'fullface',
+  'firmeza', 'manchas', 'mandibula', 'perfil', 'bigode_chines',
 ]
 
-/** Pasta default no bucket 'media' por tag · pode override via env BUCKET_FOTO_<TAG_UPPER> */
-const DEFAULT_PATHS: Record<PhotoTag, string> = {
-  geral: 'before-after/geral',
-  olheiras: 'before-after/olheiras',
-  sulcos: 'before-after/sulcos',
-  flacidez: 'before-after/flacidez',
-  contorno: 'before-after/contorno',
-  papada: 'before-after/papada',
-  textura: 'before-after/textura',
-  rugas: 'before-after/rugas',
-  rejuvenescimento: 'before-after/rejuvenescimento',
-  fullface: 'before-after/fullface',
+/**
+ * Foto retornada pelo bank · `caption` traz nome+idade do paciente
+ * (ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula").
+ */
+export interface BankPhoto {
+  id: string
+  url: string
+  filename: string | null
+  caption: string | null
+  queixas: string[] | null
+  funnel: string | null
+  phase: string | null
 }
 
 export interface MediaDispatchResult {
   textCleaned: string
-  photoUrl: string | null
-  photoName: string | null
+  /**
+   * Fotos sortidas pra mandar · até 2 de pessoas diferentes (paridade legacy n8n).
+   * Caller envia cada uma via sendImage(url, caption).
+   */
+  photos: BankPhoto[]
   /** tag detectada · null se nenhuma encontrada */
   tag: PhotoTag | null
-  /** pasta resolvida (depois de fallback) */
+  /** source · pra debug · 'rpc' = wa_get_media OK, 'bucket' = legacy fallback, 'none' = nada */
+  source: 'rpc' | 'bucket' | 'none'
+
+  // Back-compat fields · primeira foto direto pra caller que ainda usa photoUrl singular
+  /** @deprecated · usar photos[0]?.url */
+  photoUrl: string | null
+  /** @deprecated · usar photos[0]?.filename */
+  photoName: string | null
+  /** @deprecated · não mais relevante (RPC retorna URLs absolutas) */
   resolvedPath: string | null
 }
 
@@ -78,33 +97,27 @@ interface ResolveOpts {
   leadFunnel: string | null | undefined
 }
 
-function envOverride(tag: PhotoTag): string | null {
-  const key = `BUCKET_FOTO_${tag.toUpperCase()}`
-  return process.env[key] || null
-}
-
 function resolveTag(aiResponse: string, leadFunnel: string | null | undefined): {
   tag: PhotoTag | null
   matchText: string | null
 } {
-  // 1. [FOTO:<tag>] · 9 tags + fullface back-compat
-  const fotoMatch = aiResponse.match(/\s*\[FOTO:([a-zA-ZçãáéíóúÇÃÁÉÍÓÚ]+)\]\s*/i)
+  // 1. [FOTO:<tag>] · case-insensitive · suporta underscore (bigode_chines)
+  const fotoMatch = aiResponse.match(/\s*\[FOTO:([a-zA-Z_çãáéíóúÇÃÁÉÍÓÚ]+)\]\s*/i)
   if (fotoMatch && fotoMatch[1]) {
     const raw = fotoMatch[1].toLowerCase()
     if (KNOWN_TAGS.includes(raw as PhotoTag)) {
       return { tag: raw as PhotoTag, matchText: fotoMatch[0] }
     }
-    // Tag desconhecida · cai pra heurística
     log.warn({ tag: raw }, 'media.tag.unknown · fallback heuristic')
   }
 
-  // 2. [ENVIAR_FOTO:olheiras|fullface] · formato legacy do código anterior
+  // 2. [ENVIAR_FOTO:olheiras|fullface] · formato legacy
   const enviarMatch = aiResponse.match(/\s*\[ENVIAR_FOTO:(olheiras|fullface)\]\s*/i)
   if (enviarMatch && enviarMatch[1]) {
     return { tag: enviarMatch[1].toLowerCase() as PhotoTag, matchText: enviarMatch[0] }
   }
 
-  // 3. [ENVIAR_FOTO] genérico ou tag desconhecida · usa leadFunnel ou fullface
+  // 3. [ENVIAR_FOTO] genérico
   const genericMatch = aiResponse.match(/\s*\[ENVIAR_FOTO\]\s*/i)
   if (genericMatch) {
     const fallback: PhotoTag =
@@ -118,65 +131,186 @@ function resolveTag(aiResponse: string, leadFunnel: string | null | undefined): 
 }
 
 /**
- * Detecta tag, sorteia foto, retorna URL pública. Caller decide se sendImage ou sendText.
+ * Pega 2 fotos de pessoas DIFERENTES baseado em filename pattern.
+ * Lara legacy n8n usava `ba-XX-<nome>` · extraímos o nome (ou fallback no índice).
+ */
+function pickTwoFromDifferentPeople(photos: BankPhoto[]): BankPhoto[] {
+  if (photos.length === 0) return []
+  if (photos.length === 1) return [photos[0]]
+
+  const shuffled = [...photos].sort(() => Math.random() - 0.5)
+  const picked: BankPhoto[] = []
+  const seenPersons = new Set<string>()
+
+  function getPersonKey(p: BankPhoto): string {
+    // Pattern: ba-XX-<nome>.jpg ou usa caption first word
+    const fnMatch = (p.filename || '').match(/ba-\d+-([a-z]+)/i)
+    if (fnMatch) return fnMatch[1].toLowerCase()
+    // Caption pattern: "Nome Sobrenome, idade ..."
+    const capMatch = (p.caption || '').match(/^([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)?)/)
+    if (capMatch) return capMatch[1].toLowerCase()
+    // Fallback: filename completo (cada foto vira "pessoa única")
+    return (p.filename || p.id || '').toLowerCase()
+  }
+
+  for (const p of shuffled) {
+    const key = getPersonKey(p)
+    if (!seenPersons.has(key)) {
+      picked.push(p)
+      seenPersons.add(key)
+      if (picked.length === 2) break
+    }
+  }
+  // Se não consegui 2 pessoas distintas, completa com qualquer foto restante
+  if (picked.length < 2) {
+    for (const p of shuffled) {
+      if (!picked.includes(p)) {
+        picked.push(p)
+        if (picked.length === 2) break
+      }
+    }
+  }
+  return picked
+}
+
+/**
+ * Chama RPC wa_get_media(p_funnel, p_queixa, p_phase) · retorna lista de fotos
+ * categorizadas com nomes/captions. Retorna [] em caso de erro ou bank vazio.
+ */
+async function fetchFromBank(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  funnel: string | null,
+  queixa: string | null,
+): Promise<BankPhoto[]> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc('wa_get_media', {
+      p_funnel: funnel,
+      p_queixa: queixa,
+      p_phase: null,
+    })
+    if (error) {
+      log.warn({ err: error.message, funnel, queixa }, 'media.bank.rpc_error')
+      return []
+    }
+    if (!Array.isArray(data)) return []
+    return data
+      .filter((m): m is BankPhoto => !!m && typeof m === 'object' && typeof m.url === 'string')
+      .map((m) => ({
+        id: String(m.id),
+        url: m.url,
+        filename: m.filename ?? null,
+        caption: m.caption ?? null,
+        queixas: Array.isArray(m.queixas) ? m.queixas : null,
+        funnel: m.funnel ?? null,
+        phase: m.phase ?? null,
+      }))
+  } catch (e) {
+    log.warn({ err: (e as Error)?.message }, 'media.bank.exception')
+    return []
+  }
+}
+
+/**
+ * Fallback legacy · lista bucket direto. Sem captions reais (caller usa default).
+ */
+async function fallbackBucketList(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  basePath: string,
+): Promise<BankPhoto[]> {
+  try {
+    const { data: files } = await supabase.storage.from('media').list(basePath)
+    const validFiles = files?.filter((f) => f.name.match(/\.(jpg|jpeg|png|webp)$/i)) || []
+    return validFiles.map((f) => {
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(`${basePath}/${f.name}`)
+      return {
+        id: f.id || f.name,
+        url: urlData?.publicUrl || '',
+        filename: f.name,
+        caption: 'Resultado real · Dra. Mirian de Paula',
+        queixas: null,
+        funnel: basePath.includes('olheiras') ? 'olheiras' : 'fullface',
+        phase: null,
+      }
+    }).filter((p) => p.url)
+  } catch (e) {
+    log.warn({ err: (e as Error)?.message, base_path: basePath }, 'media.bucket.fallback_failed')
+    return []
+  }
+}
+
+/**
+ * Detecta tag, busca fotos categorizadas em wa_media_bank, sorteia 2 de pessoas
+ * diferentes. Caller envia cada foto via sendImage(photo.url, photo.caption).
  */
 export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDispatchResult> {
   const { supabase, clinic_id, phone, aiResponse, leadFunnel } = opts
 
   const { tag, matchText } = resolveTag(aiResponse, leadFunnel)
   if (!tag || !matchText) {
-    return { textCleaned: aiResponse, photoUrl: null, photoName: null, tag: null, resolvedPath: null }
+    return {
+      textCleaned: aiResponse, photos: [], tag: null, source: 'none',
+      photoUrl: null, photoName: null, resolvedPath: null,
+    }
   }
 
   const textCleaned = aiResponse.replace(matchText, '\n\n').trim()
+  // Funnel: tag explícita ou leadFunnel · default fullface (cobre maioria das tags)
+  const funnel =
+    tag === 'olheiras' ? 'olheiras' :
+    leadFunnel === 'olheiras' ? 'olheiras' :
+    'fullface'
 
-  // Tenta pasta da tag · fallback pra fullface se pasta vazia/inválida
-  const tryPath = envOverride(tag) || DEFAULT_PATHS[tag]
-  let resolvedPath = tryPath
-  let photoName: string | null = null
+  // 1. Tenta RPC com queixa específica · paridade legacy
+  let photos = await fetchFromBank(supabase, funnel, tag)
+  let source: MediaDispatchResult['source'] = 'rpc'
 
-  try {
-    const { data: files } = await supabase.storage.from('media').list(tryPath)
-    const validFiles = files?.filter((f) => f.name.match(/\.(jpg|jpeg|png|webp)$/i)) || []
-    if (validFiles.length > 0) {
-      photoName = validFiles[Math.floor(Math.random() * validFiles.length)].name
-    } else {
-      // Fallback: pasta da tag vazia · usa fullface (mais rica) ou olheiras
-      const fallbackPath = envOverride('fullface') || DEFAULT_PATHS.fullface
-      log.warn({ clinic_id, tag, base_path: tryPath, fallback: fallbackPath }, 'media.roleta.empty · fallback')
-      const { data: fbFiles } = await supabase.storage.from('media').list(fallbackPath)
-      const fbValid = fbFiles?.filter((f) => f.name.match(/\.(jpg|jpeg|png|webp)$/i)) || []
-      if (fbValid.length > 0) {
-        photoName = fbValid[Math.floor(Math.random() * fbValid.length)].name
-        resolvedPath = fallbackPath
-      }
+  // 2. Sem fotos pra essa queixa · pega qualquer foto do funnel
+  if (photos.length === 0) {
+    photos = await fetchFromBank(supabase, funnel, null)
+    if (photos.length > 0) {
+      log.info({ tag, funnel, fallback: 'queixa_null' }, 'media.bank.queixa_fallback')
     }
-  } catch (e) {
-    log.warn({ clinic_id, tag, err: (e as Error)?.message }, 'media.roleta.failed')
   }
 
-  if (!photoName) {
-    return { textCleaned, photoUrl: null, photoName: null, tag, resolvedPath: null }
+  // 3. Bank vazio · fallback bucket folder legacy (sem captions categorizadas)
+  if (photos.length === 0) {
+    const folder = funnel === 'olheiras' ? 'before-after/olheiras' : 'before-after/fullface'
+    photos = await fallbackBucketList(supabase, folder)
+    source = 'bucket'
+    if (photos.length > 0) {
+      log.info({ tag, folder }, 'media.bucket.legacy_fallback')
+    }
   }
 
-  const { data: urlData } = supabase.storage
-    .from('media')
-    .getPublicUrl(`${resolvedPath}/${photoName}`)
-
-  if (!urlData?.publicUrl) {
-    return { textCleaned, photoUrl: null, photoName: null, tag, resolvedPath }
+  // 4. Nada encontrado · sem foto
+  if (photos.length === 0) {
+    log.warn({ clinic_id, phone_hash: hashPhone(phone), tag }, 'media.empty · sem foto pra mandar')
+    return {
+      textCleaned, photos: [], tag, source: 'none',
+      photoUrl: null, photoName: null, resolvedPath: null,
+    }
   }
+
+  // Pega até 2 fotos de pessoas distintas (paridade legacy n8n)
+  const picked = pickTwoFromDifferentPeople(photos)
 
   log.info(
-    { clinic_id, phone_hash: hashPhone(phone), photo: photoName, tag, resolved_path: resolvedPath },
+    {
+      clinic_id, phone_hash: hashPhone(phone), tag, funnel,
+      photo_count: picked.length, source,
+      filenames: picked.map((p) => p.filename).filter(Boolean),
+    },
     'media.dispatch',
   )
 
+  // Back-compat: photoUrl/photoName apontam pra primeira foto (callers antigos)
   return {
-    textCleaned,
-    photoUrl: urlData.publicUrl,
-    photoName,
-    tag,
-    resolvedPath,
+    textCleaned, photos: picked, tag, source,
+    photoUrl: picked[0]?.url ?? null,
+    photoName: picked[0]?.filename ?? null,
+    resolvedPath: null,
   }
 }

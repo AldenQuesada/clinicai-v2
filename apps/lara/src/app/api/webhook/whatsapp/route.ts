@@ -534,25 +534,55 @@ async function processInboundMessage(
       leadFunnel,
     });
 
-    if (media.photoUrl) {
+    if (media.photos.length > 0) {
+      // Audit gap D1 (paridade legacy n8n): manda até 2 fotos de pessoas
+      // diferentes · cada uma com sua caption real (nome+idade do wa_media_bank).
+      // Texto principal acompanha a primeira foto · demais fotos vão sem texto.
       aiResponse = media.textCleaned;
-      sendResult = await wa.sendImage(phone, media.photoUrl, aiResponse);
+      const [first, ...rest] = media.photos;
+      sendResult = await wa.sendImage(phone, first.url, first.caption || aiResponse);
       outboundContentType = 'image';
-      outboundMediaUrl = media.photoUrl;
+      outboundMediaUrl = first.url;
+
+      // Salva 1ª como outbound principal (com aiResponse texto contextual)
+      await repos.messages.saveOutbound(clinic_id, {
+        conversationId: conv.id,
+        sender: 'lara',
+        content: aiResponse,
+        contentType: outboundContentType,
+        mediaUrl: outboundMediaUrl,
+        status: sendResult.ok ? 'sent' : 'failed',
+      });
+
+      // Manda fotos extras (até 1 a mais) · cada uma como sendImage individual
+      for (const extra of rest) {
+        try {
+          await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
+          await repos.messages.saveOutbound(clinic_id, {
+            conversationId: conv.id,
+            sender: 'lara',
+            content: extra.caption || '',
+            contentType: 'image',
+            mediaUrl: extra.url,
+            status: 'sent',
+          });
+        } catch (e) {
+          log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (e as Error)?.message }, 'media.extra.send_failed');
+        }
+      }
     } else {
       aiResponse = media.textCleaned;
       sendResult = await wa.sendText(phone, aiResponse);
-    }
 
-    // 12. Save outbound
-    await repos.messages.saveOutbound(clinic_id, {
-      conversationId: conv.id,
-      sender: 'lara',
-      content: aiResponse,
-      contentType: outboundContentType,
-      mediaUrl: outboundMediaUrl,
-      status: sendResult.ok ? 'sent' : 'failed',
-    });
+      await repos.messages.saveOutbound(clinic_id, {
+        conversationId: conv.id,
+        sender: 'lara',
+        content: aiResponse,
+        contentType: outboundContentType,
+        mediaUrl: outboundMediaUrl,
+        status: sendResult.ok ? 'sent' : 'failed',
+      });
+    }
 
     await repos.leads.updateLastResponseAt(lead.id);
 
