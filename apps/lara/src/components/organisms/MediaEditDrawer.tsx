@@ -1,18 +1,26 @@
 'use client'
 
 /**
- * MediaEditDrawer · organismo · drawer right-side pra editar foto da galeria.
+ * MediaEditDrawer · modal de edicao de foto · CLONE 1:1 do
+ * PartnershipModalShell.tsx + .b2b-modal-hdr/.b2b-modal-body da Mira.
  *
- * Mantem contexto da grid atras (overlay 60% + drawer 480px).
- * Acessibilidade: Esc fecha · click no overlay fecha · autofocus no caption.
+ * Estrutura (espelho exato):
+ *   <div class="b2b-overlay">
+ *     <div class="b2b-modal" style="maxWidth:720">
+ *       <header class="b2b-modal-hdr"><h2>...</h2><button class="b2b-close">×</button></header>
+ *       <div class="b2b-modal-body">
+ *         <form>
+ *           [b2b-form-sec, b2b-grid-2, b2b-field, b2b-input, b2b-form-actions]
+ *         </form>
+ *       </div>
+ *     </div>
+ *   </div>
+ *
+ * Esc fecha · click no overlay fecha · autofocus no caption.
  */
 
 import { useEffect, useRef } from 'react'
-import { X, Save } from 'lucide-react'
 import { updateMediaAction } from '@/app/midia/actions'
-import { FunnelChip } from '@/components/atoms/FunnelChip'
-import { HelperText } from '@/components/atoms/HelperText'
-import { Button } from '@/components/atoms/Button'
 
 export interface MediaEditData {
   id: string
@@ -71,168 +79,186 @@ export function MediaEditDrawer({
 
   if (!media) return null
 
-  const queixasStr = media.queixas.join(', ')
-
   return (
-    <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Editar mídia">
-      {/* Overlay */}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Fechar"
-        className="flex-1 bg-black/60 backdrop-blur-sm cursor-default"
-      />
-
-      {/* Drawer wrapper · form ocupa drawer inteiro pra Save funcionar nativamente */}
-      <form
-        action={updateMediaAction.bind(null, media.id)}
-        onSubmit={() => onClose()}
-        className="w-full sm:w-[480px] bg-[hsl(var(--chat-panel-bg))] border-l border-[hsl(var(--chat-border))] flex flex-col shadow-luxury-lg"
-      >
-        {/* Header */}
-        <header className="flex items-start justify-between p-5 border-b border-[hsl(var(--chat-border))]">
-          <div className="flex-1 min-w-0">
-            <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-1.5">
-              Editar
-            </p>
-            <h3 className="font-[family-name:var(--font-cursive)] text-2xl font-light leading-tight tracking-[-0.01em] text-[hsl(var(--foreground))]">
-              {media.caption?.split(',')[0] || 'mídia'}
-            </h3>
-            <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] mt-1.5 truncate">
-              {media.filename}
-            </p>
-          </div>
+    <div
+      className="b2b-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Editar mídia"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="b2b-modal" style={{ maxWidth: 720 }}>
+        <header className="b2b-modal-hdr">
+          <h2>Editar mídia</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fechar"
-            className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] -m-2"
+            className="b2b-close"
+            aria-label="Fechar (ESC)"
+            title="Fechar (ESC)"
           >
-            <X className="w-4 h-4" />
+            ×
           </button>
         </header>
 
-        {/* Imagem preview */}
-        <div className="p-5 border-b border-[hsl(var(--chat-border))]">
-          <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-[4px] overflow-hidden bg-[hsl(var(--muted))] relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={media.url}
-              alt={media.caption || media.filename}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-[2px] bg-black/40 backdrop-blur-sm">
-              <FunnelChip funnel={media.funnel} />
-            </div>
-          </div>
-        </div>
-
-        {/* Form fields · scrollavel */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
-          {/* Caption */}
-          <div className="space-y-2">
-            <label
-              htmlFor="drawer-caption"
-              className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
+        <div className="b2b-modal-body">
+          {/* Preview da imagem · grid 2 cols (img + filename) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '180px 1fr',
+              gap: 16,
+              marginBottom: 20,
+              alignItems: 'start',
+            }}
+          >
+            <div
+              style={{
+                aspectRatio: '4 / 5',
+                background: 'var(--b2b-bg-2)',
+                border: '1px solid var(--b2b-border)',
+                borderRadius: 6,
+                overflow: 'hidden',
+              }}
             >
-              Caption
-            </label>
-            <input
-              ref={captionRef}
-              id="drawer-caption"
-              name="caption"
-              defaultValue={media.caption ?? ''}
-              placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
-              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
-            />
-            <HelperText>
-              Vai como legenda da foto pro paciente · padrão: <em>nome + idade + assinatura</em>.
-            </HelperText>
-          </div>
-
-          {/* Funnel + Phase + Sort */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <label
-                htmlFor="drawer-funnel"
-                className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-              >
-                Funnel
-              </label>
-              <select
-                id="drawer-funnel"
-                name="funnel"
-                defaultValue={media.funnel ?? ''}
-                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
-              >
-                <option value="">—</option>
-                <option value="olheiras">olheiras</option>
-                <option value="fullface">fullface</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="drawer-phase"
-                className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-              >
-                Fase
-              </label>
-              <input
-                id="drawer-phase"
-                name="phase"
-                defaultValue={media.phase ?? ''}
-                placeholder="opcional"
-                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))]"
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={media.url}
+                alt={media.caption || media.filename}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="drawer-sort"
-                className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  color: 'var(--b2b-text-muted)',
+                  marginBottom: 6,
+                }}
               >
-                Ordem
-              </label>
-              <input
-                id="drawer-sort"
-                type="number"
-                name="sort_order"
-                defaultValue={media.sort_order}
-                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
-              />
+                Arquivo
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--b2b-text-dim)',
+                  fontFamily: 'ui-monospace, monospace',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {media.filename}
+              </div>
             </div>
           </div>
 
-          {/* Queixas */}
-          <div className="space-y-2">
-            <label
-              htmlFor="drawer-queixas"
-              className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-            >
-              Queixas
-            </label>
-            <input
-              id="drawer-queixas"
-              name="queixas"
-              defaultValue={queixasStr}
-              placeholder="olheiras, sulcos, flacidez..."
-              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
-            />
-            <HelperText>
-              Separadas por vírgula · só entram tags válidas: {VALID_QUEIXAS.join(', ')}.
-            </HelperText>
-          </div>
-        </div>
+          <form action={updateMediaAction.bind(null, media.id)} onSubmit={() => onClose()}>
+            <div className="b2b-form-sec">Identificação</div>
+            <div className="b2b-field">
+              <label className="b2b-field-lbl" htmlFor="caption">
+                Caption
+              </label>
+              <input
+                ref={captionRef}
+                id="caption"
+                name="caption"
+                className="b2b-input"
+                defaultValue={media.caption ?? ''}
+                placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
+              />
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--b2b-text-muted)',
+                  marginTop: 4,
+                }}
+              >
+                Vai como legenda da foto pro paciente · padrão: nome + idade + assinatura.
+              </div>
+            </div>
 
-        {/* Footer · acoes */}
-        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-3">
-          <Button type="button" onClick={onClose} variant="text" size="sm">
-            Cancelar
-          </Button>
-          <Button type="submit" variant="gold" size="sm" icon={<Save className="w-3.5 h-3.5" />}>
-            Salvar
-          </Button>
-        </footer>
-      </form>
+            <div className="b2b-form-sec">Categorização</div>
+            <div className="b2b-grid-2">
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="funnel">
+                  Funnel
+                </label>
+                <select
+                  id="funnel"
+                  name="funnel"
+                  className="b2b-input"
+                  defaultValue={media.funnel ?? ''}
+                >
+                  <option value="">—</option>
+                  <option value="olheiras">olheiras</option>
+                  <option value="fullface">fullface</option>
+                </select>
+              </div>
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="phase">
+                  Fase (opcional)
+                </label>
+                <input
+                  id="phase"
+                  name="phase"
+                  className="b2b-input"
+                  defaultValue={media.phase ?? ''}
+                />
+              </div>
+            </div>
+
+            <div className="b2b-field">
+              <label className="b2b-field-lbl" htmlFor="queixas">
+                Queixas
+              </label>
+              <input
+                id="queixas"
+                name="queixas"
+                className="b2b-input"
+                defaultValue={media.queixas.join(', ')}
+                placeholder="olheiras, sulcos, flacidez..."
+              />
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--b2b-text-muted)',
+                  marginTop: 4,
+                }}
+              >
+                Separadas por vírgula · só entram tags válidas: {VALID_QUEIXAS.join(', ')}.
+              </div>
+            </div>
+
+            <div className="b2b-grid-2">
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="sort_order">
+                  Ordem
+                </label>
+                <input
+                  id="sort_order"
+                  name="sort_order"
+                  type="number"
+                  className="b2b-input"
+                  defaultValue={media.sort_order}
+                />
+              </div>
+              <div />
+            </div>
+
+            <div className="b2b-form-actions">
+              <button type="button" onClick={onClose} className="b2b-btn">
+                Cancelar
+              </button>
+              <button type="submit" className="b2b-btn b2b-btn-primary">
+                Salvar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

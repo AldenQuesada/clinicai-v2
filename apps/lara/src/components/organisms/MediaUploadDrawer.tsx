@@ -1,17 +1,12 @@
 'use client'
 
 /**
- * MediaUploadDrawer · organismo · drawer right-side pra subir nova foto.
- *
- * Dropzone grande no topo (visual feedback) + form de metadata abaixo.
- * Preview da imagem antes do upload.
+ * MediaUploadDrawer · modal upload · CLONE 1:1 do padrao Mira (.b2b-overlay/.b2b-modal).
+ * Estrutura igual ao MediaEditDrawer · diferenca: input file + preview blob.
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Upload, AlertCircle } from 'lucide-react'
 import { uploadMediaAction } from '@/app/midia/actions'
-import { HelperText } from '@/components/atoms/HelperText'
-import { Button } from '@/components/atoms/Button'
 
 const VALID_QUEIXAS = [
   'geral',
@@ -31,17 +26,10 @@ const VALID_QUEIXAS = [
   'bigode_chines',
 ]
 
-export function MediaUploadDrawer({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) {
+export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>('')
   const [error, setError] = useState<string>('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -88,214 +76,215 @@ export function MediaUploadDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex"
+      className="b2b-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Subir nova foto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose()
+      }}
     >
-      <button
-        type="button"
-        onClick={handleClose}
-        aria-label="Fechar"
-        className="flex-1 bg-black/60 backdrop-blur-sm cursor-default"
-      />
-
-      <form
-        action={uploadMediaAction}
-        encType="multipart/form-data"
-        onSubmit={() => handleClose()}
-        className="w-full sm:w-[480px] bg-[hsl(var(--chat-panel-bg))] border-l border-[hsl(var(--chat-border))] flex flex-col shadow-luxury-lg"
-      >
-        {/* Header */}
-        <header className="flex items-start justify-between p-5 border-b border-[hsl(var(--chat-border))]">
-          <div>
-            <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-1.5">
-              Nova mídia
-            </p>
-            <h3 className="font-[family-name:var(--font-cursive)] text-2xl font-light leading-tight tracking-[-0.01em] text-[hsl(var(--foreground))]">
-              Subir{' '}
-              <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
-                imagem
-              </em>
-            </h3>
-            <p className="text-[12px] text-[hsl(var(--muted-foreground))] mt-2 leading-snug">
-              Antes/depois categorizada para o banco da Lara
-            </p>
-          </div>
+      <div className="b2b-modal" style={{ maxWidth: 720 }}>
+        <header className="b2b-modal-hdr">
+          <h2>Subir nova foto</h2>
           <button
             type="button"
             onClick={handleClose}
-            aria-label="Fechar"
-            className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] -m-2"
+            className="b2b-close"
+            aria-label="Fechar (ESC)"
+            title="Fechar (ESC)"
           >
-            <X className="w-4 h-4" />
+            ×
           </button>
         </header>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
-          {/* Dropzone */}
-          <div
-            className={`relative rounded-[4px] border-2 border-dashed transition-colors ${
-              previewUrl
-                ? 'border-[hsl(var(--primary))]/40 bg-[hsl(var(--primary))]/5'
-                : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] hover:border-[hsl(var(--primary))]/40'
-            }`}
+        <div className="b2b-modal-body">
+          <form
+            action={uploadMediaAction}
+            encType="multipart/form-data"
+            onSubmit={() => handleClose()}
           >
-            <input
-              ref={fileRef}
-              type="file"
-              name="file"
-              accept="image/jpeg,image/png,image/webp"
-              required
-              onChange={handleFileChange}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-
-            {previewUrl ? (
-              <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-[4px] overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="py-12 px-6 text-center space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-[2px] bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))]">
-                  <Upload className="w-5 h-5" />
+            {/* Dropzone · file input invisivel sobre area decorativa */}
+            <div className="b2b-form-sec">Arquivo</div>
+            <div
+              style={{
+                position: 'relative',
+                border: '1px dashed var(--b2b-border-strong)',
+                borderRadius: 6,
+                background: previewUrl
+                  ? 'rgba(201, 169, 110, 0.04)'
+                  : 'var(--b2b-bg-2)',
+                marginBottom: 14,
+                overflow: 'hidden',
+              }}
+            >
+              <input
+                type="file"
+                name="file"
+                accept="image/jpeg,image/png,image/webp"
+                required
+                onChange={handleFileChange}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: 'pointer',
+                  zIndex: 10,
+                }}
+              />
+              {previewUrl ? (
+                <div
+                  style={{
+                    aspectRatio: '4 / 5',
+                    maxHeight: 320,
+                    margin: '0 auto',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewUrl}
+                    alt="preview"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-[hsl(var(--foreground))] font-medium">
+              ) : (
+                <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+                  <div
+                    style={{
+                      fontFamily: 'Cormorant Garamond, serif',
+                      fontSize: 22,
+                      color: 'var(--b2b-ivory)',
+                      marginBottom: 6,
+                    }}
+                  >
                     Clique ou arraste a imagem aqui
-                  </p>
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                    JPG, PNG ou WebP · max 5MB
-                  </p>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: 1,
+                      textTransform: 'uppercase',
+                      color: 'var(--b2b-text-muted)',
+                    }}
+                  >
+                    JPG · PNG · WebP · max 5MB
+                  </div>
                 </div>
+              )}
+            </div>
+            {fileName && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--b2b-text-dim)',
+                  fontFamily: 'ui-monospace, monospace',
+                  marginBottom: 10,
+                }}
+              >
+                {fileName}
               </div>
             )}
-          </div>
+            {error && <div className="b2b-form-err">{error}</div>}
 
-          {fileName && (
-            <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] truncate -mt-2">
-              {fileName}
-            </p>
-          )}
-
-          {error && (
-            <div className="flex items-start gap-2 p-3 rounded-[4px] border border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5">
-              <AlertCircle className="w-4 h-4 text-[hsl(var(--danger))] shrink-0 mt-0.5" />
-              <p className="text-xs text-[hsl(var(--danger))]">{error}</p>
-            </div>
-          )}
-
-          {/* Caption */}
-          <div className="space-y-2">
-            <label
-              htmlFor="up-caption"
-              className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-            >
-              Caption
-            </label>
-            <input
-              id="up-caption"
-              name="caption"
-              placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
-              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-            />
-            <HelperText>Vai como legenda da foto pro paciente.</HelperText>
-          </div>
-
-          {/* Funnel + Sort */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <label
-                htmlFor="up-funnel"
-                className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-              >
-                Funnel <span className="text-[hsl(var(--danger))]">*</span>
-              </label>
-              <select
-                id="up-funnel"
-                name="funnel"
-                required
-                defaultValue=""
-                className="w-full px-3 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
-              >
-                <option value="" disabled>
-                  selecionar...
-                </option>
-                <option value="olheiras">olheiras</option>
-                <option value="fullface">fullface</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="up-sort"
-                className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-              >
-                Ordem
+            <div className="b2b-form-sec">Identificação</div>
+            <div className="b2b-field">
+              <label className="b2b-field-lbl" htmlFor="up-caption">
+                Caption
               </label>
               <input
-                id="up-sort"
-                type="number"
-                name="sort_order"
-                defaultValue={0}
-                className="w-full px-3 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
+                id="up-caption"
+                name="caption"
+                className="b2b-input"
+                placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
               />
             </div>
-          </div>
 
-          {/* Queixas */}
-          <div className="space-y-2">
-            <label
-              htmlFor="up-queixas"
-              className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-            >
-              Queixas
-            </label>
-            <input
-              id="up-queixas"
-              name="queixas"
-              placeholder="olheiras, sulcos, flacidez..."
-              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))]"
-            />
-            <HelperText>
-              Separadas por vírgula · válidas: {VALID_QUEIXAS.join(', ')}.
-            </HelperText>
-          </div>
+            <div className="b2b-form-sec">Categorização</div>
+            <div className="b2b-grid-2">
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="up-funnel">
+                  Funnel <em>*</em>
+                </label>
+                <select
+                  id="up-funnel"
+                  name="funnel"
+                  required
+                  defaultValue=""
+                  className="b2b-input"
+                >
+                  <option value="" disabled>
+                    selecionar...
+                  </option>
+                  <option value="olheiras">olheiras</option>
+                  <option value="fullface">fullface</option>
+                </select>
+              </div>
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="up-phase">
+                  Fase (opcional)
+                </label>
+                <input id="up-phase" name="phase" className="b2b-input" />
+              </div>
+            </div>
 
-          {/* Phase */}
-          <div className="space-y-2">
-            <label
-              htmlFor="up-phase"
-              className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
-            >
-              Fase (opcional)
-            </label>
-            <input
-              id="up-phase"
-              name="phase"
-              placeholder="agendamento, fechamento..."
-              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-            />
-          </div>
+            <div className="b2b-field">
+              <label className="b2b-field-lbl" htmlFor="up-queixas">
+                Queixas
+              </label>
+              <input
+                id="up-queixas"
+                name="queixas"
+                className="b2b-input"
+                placeholder="olheiras, sulcos, flacidez..."
+              />
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--b2b-text-muted)',
+                  marginTop: 4,
+                }}
+              >
+                Separadas por vírgula · só entram tags válidas: {VALID_QUEIXAS.join(', ')}.
+              </div>
+            </div>
+
+            <div className="b2b-grid-2">
+              <div className="b2b-field">
+                <label className="b2b-field-lbl" htmlFor="up-sort">
+                  Ordem
+                </label>
+                <input
+                  id="up-sort"
+                  type="number"
+                  name="sort_order"
+                  className="b2b-input"
+                  defaultValue={0}
+                />
+              </div>
+              <div />
+            </div>
+
+            <div className="b2b-form-actions">
+              <button type="button" onClick={handleClose} className="b2b-btn">
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!previewUrl}
+                className="b2b-btn b2b-btn-primary"
+              >
+                Subir foto
+              </button>
+            </div>
+          </form>
         </div>
-
-        {/* Footer */}
-        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-3">
-          <Button type="button" onClick={handleClose} variant="text" size="sm">
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            disabled={!previewUrl}
-            variant="gold"
-            size="sm"
-            icon={<Upload className="w-3.5 h-3.5" />}
-          >
-            Subir foto
-          </Button>
-        </footer>
-      </form>
+      </div>
     </div>
   )
 }

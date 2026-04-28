@@ -238,6 +238,44 @@
   color: var(--b2b-ivory);
 }
 
+/* ── Overlay modal (1:1 com Mira globals.css L260-285) ── */
+.b2b-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; z-index: 1000; overflow-y: auto;
+}
+.b2b-modal {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 10px; max-width: 720px; width: 100%;
+  max-height: calc(100vh - 80px); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.b2b-modal-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 24px; border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-modal-hdr h2 {
+  font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400;
+  margin: 0; color: var(--b2b-ivory);
+}
+.b2b-close {
+  background: transparent; border: none; color: var(--b2b-text-muted);
+  font-size: 28px; cursor: pointer; line-height: 1; padding: 0 8px;
+}
+.b2b-close:hover { color: var(--b2b-ivory); }
+.b2b-modal-body { padding: 24px; overflow-y: auto; }
+
+/* ── Form actions (rodape do form dentro do modal · Mira L321-329) ── */
+.b2b-form-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding-top: 20px; border-top: 1px solid var(--b2b-border); margin-top: 16px;
+}
+.b2b-form-err {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(217, 122, 122, 0.12); color: var(--b2b-red);
+  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: 5px; font-size: 12px;
+}
+
 /* ── Form (modal/inline) ── */
 .b2b-form-sec {
   font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
