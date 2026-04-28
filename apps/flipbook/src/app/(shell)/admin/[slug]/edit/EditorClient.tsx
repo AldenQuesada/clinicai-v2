@@ -900,18 +900,29 @@ function ControlsPanel() {
   )
 }
 
+type PaginationStyle = 'thumbs-numbers' | 'numbers' | 'thumbs' | 'hidden'
+
 function PaginationPanel() {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.pagination as { style?: PaginationStyle }) ?? {}
+  const style: PaginationStyle = current.style ?? 'thumbs-numbers'
+  function setStyle(s: PaginationStyle) {
+    ctx.update('pagination', { ...current, style: s })
+  }
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Estilo">
-        <select className={INPUT_CLS}>
-          <option>Thumbnails + números</option>
-          <option>Apenas números</option>
-          <option>Apenas thumbnails</option>
-          <option>Oculto</option>
+        <select
+          value={style}
+          onChange={(e) => setStyle(e.target.value as PaginationStyle)}
+          className={INPUT_CLS}
+        >
+          <option value="thumbs-numbers">Thumbnails + números</option>
+          <option value="numbers">Apenas números</option>
+          <option value="thumbs">Apenas thumbnails</option>
+          <option value="hidden">Oculto</option>
         </select>
       </Field>
-      <SoonNote />
     </div>
   )
 }
