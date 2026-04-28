@@ -248,8 +248,11 @@ async function processInboundMessage(
     }
   }
 
-  // 5. Download/upload media · transcrição se áudio
+  // 5. Download/upload media · transcrição se áudio · Vision se imagem
   let isAudioMessage = false;
+  let imageBase64: string | null = null;
+  let imageMediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null = null;
+  let imageCaption: string | null = null;
   if (mediaId) {
     try {
       const mediaData = await wa.downloadMedia(mediaId);
@@ -270,6 +273,41 @@ async function processInboundMessage(
         if (uploadData) {
           const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath);
           mediaUrl = urlData?.publicUrl || null;
+        }
+
+        // Audit gap A3/F5: Vision · imagem inbound vai pro Claude como ContentBlock.
+        // Limita 3.75MB (limite Anthropic Vision base64) · normaliza media_type.
+        if (contentType === 'image' && mediaData.buffer) {
+          const sizeBytes = mediaData.buffer.byteLength;
+          if (sizeBytes > 3.75 * 1024 * 1024) {
+            log.warn(
+              { clinic_id, phone_hash: hashPhone(phone), size_bytes: sizeBytes },
+              'image.too_large_for_vision',
+            );
+          } else {
+            const ct = mediaData.contentType.toLowerCase();
+            const normalized: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null =
+              ct.includes('jpeg') || ct.includes('jpg') ? 'image/jpeg'
+              : ct.includes('png') ? 'image/png'
+              : ct.includes('gif') ? 'image/gif'
+              : ct.includes('webp') ? 'image/webp'
+              : null;
+            if (normalized) {
+              imageBase64 = Buffer.from(mediaData.buffer).toString('base64');
+              imageMediaType = normalized;
+              imageCaption = extracted.textContent && extracted.textContent !== '[imagem recebida]'
+                ? extracted.textContent
+                : null;
+              // Substitui textContent placeholder por algo informativo no DB log
+              textContent = imageCaption || '[imagem recebida · vision ativo]';
+              log.info(
+                { clinic_id, phone_hash: hashPhone(phone), size_bytes: sizeBytes, media_type: normalized },
+                'vision.enabled',
+              );
+            } else {
+              log.warn({ clinic_id, content_type: ct }, 'image.unsupported_format');
+            }
+          }
         }
 
         if (contentType === 'audio') {
@@ -409,6 +447,10 @@ async function processInboundMessage(
           clinic_id,
           is_voucher_recipient: voucherContext !== null,
           voucher: voucherContext ?? undefined,
+          // Audit gap A3/F5: Vision · paciente envia foto e Lara descreve
+          image_base64: imageBase64 ?? undefined,
+          image_media_type: imageMediaType ?? undefined,
+          image_caption: imageCaption ?? undefined,
         },
         messages,
         currentMsgCount

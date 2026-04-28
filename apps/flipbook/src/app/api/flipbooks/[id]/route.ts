@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
 
+// Slug · só lowercase, dígitos e hífens. Tamanho razoável pra URL pública.
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+
 const PatchSchema = z.object({
   title: z.string().min(1).max(256).optional(),
   subtitle: z.string().max(512).nullable().optional(),
@@ -10,6 +13,7 @@ const PatchSchema = z.object({
   amazon_asin: z.string().max(20).nullable().optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
   tags: z.array(z.string().min(1).max(48)).max(32).optional(),
+  slug: z.string().regex(SLUG_RE, 'slug inválido').optional(),
 })
 
 async function requireAdmin() {
@@ -49,6 +53,19 @@ export async function PATCH(request: Request, { params }: Params) {
   // Auto-set published_at quando muda pra published
   const update: Record<string, unknown> = { ...parsed.data }
   if (parsed.data.status === 'published') update.published_at = new Date().toISOString()
+
+  // Slug change · valida unicidade antes pra erro humano em vez de 23505 cru
+  if (parsed.data.slug) {
+    const { data: clash } = await auth.supabase
+      .from('flipbooks')
+      .select('id')
+      .eq('slug', parsed.data.slug)
+      .neq('id', id)
+      .maybeSingle()
+    if (clash) {
+      return NextResponse.json({ error: 'slug já está em uso' }, { status: 409 })
+    }
+  }
 
   const { data, error } = await auth.supabase.from('flipbooks').update(update).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

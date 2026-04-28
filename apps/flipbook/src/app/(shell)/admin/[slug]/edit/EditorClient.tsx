@@ -679,11 +679,11 @@ function renderStylePanel(id: Section, book: Flipbook, setSavedAt: (d: Date) => 
     case 'title':       return <TitlePanel book={book} onSaved={setSavedAt} />
     case 'page-effect': return <PageEffectPanel />
     case 'background':  return <BackgroundPanel />
-    case 'logo':        return <LogoPanel />
+    case 'logo':        return <LogoPanel book={book} />
     case 'controls':    return <ControlsPanel />
     case 'pagination':  return <PaginationPanel />
     case 'toc':         return <TocPanel />
-    case 'bg-audio':    return <BgAudioPanel />
+    case 'bg-audio':    return <BgAudioPanel book={book} />
     default: return null
   }
 }
@@ -787,14 +787,27 @@ function TitlePanel({ book, onSaved }: { book: Flipbook; onSaved: (d: Date) => v
   )
 }
 
+interface PageEffectSettings {
+  effect?: string
+  disposition?: string
+  sound?: boolean
+}
+
 function PageEffectPanel() {
-  const [effect, setEffect] = useState('magazine')
-  const [sound, setSound] = useState(true)
-  const [disposition, setDisposition] = useState('adaptive')
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.page_effect as PageEffectSettings) ?? {}
+  const effect = current.effect ?? 'magazine'
+  const disposition = current.disposition ?? 'adaptive'
+  const sound = current.sound ?? true
+
+  function patch(next: Partial<PageEffectSettings>) {
+    ctx.update('page_effect', { ...current, ...next })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Efeito de virada">
-        <select value={effect} onChange={(e) => setEffect(e.target.value)} className={INPUT_CLS}>
+        <select value={effect} onChange={(e) => patch({ effect: e.target.value })} className={INPUT_CLS}>
           <option value="magazine">Magazine</option>
           <option value="book">Book</option>
           <option value="album">Album</option>
@@ -806,20 +819,33 @@ function PageEffectPanel() {
         </select>
       </Field>
       <Field label="Disposição">
-        <select value={disposition} onChange={(e) => setDisposition(e.target.value)} className={INPUT_CLS}>
+        <select value={disposition} onChange={(e) => patch({ disposition: e.target.value })} className={INPUT_CLS}>
           <option value="adaptive">Adaptativo</option>
           <option value="single">Single page</option>
           <option value="double">Double page</option>
         </select>
       </Field>
-      <Toggle label="Som ao virar página" value={sound} onChange={setSound} />
-      <SoonNote />
+      <Toggle label="Som ao virar página" value={sound} onChange={(v) => patch({ sound: v })} />
     </div>
   )
 }
 
+interface BackgroundSettings {
+  type?: 'color' | 'image'
+  color?: string
+  image_url?: string
+}
+
 function BackgroundPanel() {
-  const [tab, setTab] = useState<'image' | 'color' | 'style'>('image')
+  const ctx = useEditorSettingsContext()
+  const [tab, setTab] = useState<'image' | 'color' | 'style'>('color')
+  const current = (ctx.settings.background as BackgroundSettings) ?? {}
+  const color = current.color ?? '#0F0D0A'
+
+  function setColor(c: string) {
+    ctx.update('background', { ...current, type: 'color', color: c })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <div className="flex gap-1 border border-border rounded p-0.5">
@@ -836,10 +862,33 @@ function BackgroundPanel() {
           </button>
         ))}
       </div>
-      {tab === 'image' && <FileDropArea label="Imagem de fundo (.jpg/.png)" />}
+      {tab === 'image' && (
+        <>
+          <FileDropArea label="Imagem de fundo (.jpg/.png)" />
+          <SoonNote />
+        </>
+      )}
       {tab === 'color' && (
         <Field label="Cor">
-          <input type="color" defaultValue="#0F0D0A" className="w-full h-8 rounded border border-border bg-bg-panel" />
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="w-10 h-8 rounded border border-border bg-bg-panel cursor-pointer"
+            />
+            <input
+              type="text"
+              value={color}
+              onChange={(e) => {
+                const v = e.target.value
+                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColor(v)
+              }}
+              maxLength={7}
+              placeholder="#0F0D0A"
+              className={INPUT_CLS}
+            />
+          </div>
         </Field>
       )}
       {tab === 'style' && (
@@ -848,82 +897,405 @@ function BackgroundPanel() {
           <Field label="Posição"><select className={INPUT_CLS}><option>Center center</option><option>Top left</option><option>Bottom right</option></select></Field>
           <Field label="Transparência"><input type="range" className="w-full" /></Field>
           <Field label="Blur"><input type="range" className="w-full" /></Field>
+          <SoonNote />
         </>
       )}
-      <SoonNote />
     </div>
   )
 }
 
-function LogoPanel() {
+type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+interface LogoSettings {
+  url?: string | null
+  position?: LogoPosition
+  size?: number
+  href?: string | null
+}
+
+const LOGO_ALLOWED = new Set(['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp'])
+const LOGO_MAX_BYTES = 5 * 1024 * 1024
+
+function LogoPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.logo as LogoSettings) ?? {}
+  const url = current.url ?? null
+  const position: LogoPosition = current.position ?? 'top-right'
+  const size = current.size ?? 60
+  const href = current.href ?? ''
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function patch(next: Partial<LogoSettings>) {
+    ctx.update('logo', { ...current, ...next })
+  }
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setError(null)
+    if (!LOGO_ALLOWED.has(f.type)) {
+      setError('Use PNG, SVG, JPG ou WEBP')
+      return
+    }
+    if (f.size > LOGO_MAX_BYTES) {
+      setError(`Logo acima de ${LOGO_MAX_BYTES / 1024 / 1024}MB`)
+      return
+    }
+    setUploading(true)
+    try {
+      const ext = f.name.split('.').pop()?.toLowerCase() ?? 'png'
+      const { uploadAsset } = await import('@/lib/editor/upload-asset')
+      const { url: publicUrl } = await uploadAsset(book.id, f, `logo.${ext}`)
+      patch({ url: publicUrl })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'falha no upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function clearLogo() {
+    patch({ url: null })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
-      <FileDropArea label="Logo (.png/.svg)" />
-      <Field label="Tamanho"><input type="range" className="w-full" /></Field>
+      {url ? (
+        <div className="bg-bg-panel/50 border border-border rounded p-2 flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Logo" className="w-12 h-12 object-contain bg-black/30 rounded" />
+          <div className="flex-1 min-w-0 font-meta text-[9px] text-text-dim truncate">{url.split('/').pop()?.split('?')[0]}</div>
+          <button
+            onClick={clearLogo}
+            className="font-meta text-[9px] text-red-400 hover:text-red-300 px-2 py-1"
+          >
+            Remover
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed border-border hover:border-gold/40 rounded p-3 text-center text-[10px] text-text-dim hover:text-gold transition disabled:opacity-50"
+        >
+          {uploading ? '⏳ enviando…' : '📁 Logo (.png/.svg/.jpg/.webp · max 5MB)'}
+        </button>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/svg+xml,image/jpeg,image/webp"
+        onChange={pickFile}
+        className="hidden"
+      />
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+
+      <Field label={`Tamanho · ${size}px`}>
+        <input
+          type="range"
+          min={30}
+          max={150}
+          step={5}
+          value={size}
+          onChange={(e) => patch({ size: parseInt(e.target.value) })}
+          className="w-full"
+        />
+      </Field>
+
       <Field label="Posição">
-        <select className={INPUT_CLS}>
-          <option>Top left</option><option>Top right</option>
-          <option>Bottom left</option><option>Bottom right</option>
+        <select
+          value={position}
+          onChange={(e) => patch({ position: e.target.value as LogoPosition })}
+          className={INPUT_CLS}
+        >
+          <option value="top-left">Top left</option>
+          <option value="top-right">Top right</option>
+          <option value="bottom-left">Bottom left</option>
+          <option value="bottom-right">Bottom right</option>
         </select>
       </Field>
-      <Field label="Link (opcional)"><input type="url" placeholder="https://" className={INPUT_CLS} /></Field>
-      <SoonNote />
+
+      <Field label="Link (opcional)">
+        <input
+          type="url"
+          value={href}
+          onChange={(e) => patch({ href: e.target.value || null })}
+          placeholder="https://"
+          className={INPUT_CLS}
+        />
+      </Field>
     </div>
   )
 }
 
 function ControlsPanel() {
-  const controls = ['Download', 'Share', 'Fullscreen', 'Zoom', 'First/Last page', 'Print', 'Thumbnails', 'Search', 'Sound']
+  const ctx = useEditorSettingsContext()
+  const controls: Array<{ key: string; label: string; defaultValue: boolean }> = [
+    { key: 'download',   label: 'Download',        defaultValue: true },
+    { key: 'share',      label: 'Share',           defaultValue: true },
+    { key: 'fullscreen', label: 'Fullscreen',      defaultValue: true },
+    { key: 'zoom',       label: 'Zoom',            defaultValue: true },
+    { key: 'first_last', label: 'First/Last page', defaultValue: true },
+    { key: 'print',      label: 'Print',           defaultValue: false },
+    { key: 'thumbnails', label: 'Thumbnails',      defaultValue: true },
+    { key: 'search',     label: 'Search',          defaultValue: true },
+    { key: 'sound',      label: 'Sound',           defaultValue: false },
+  ]
+  const current = (ctx.settings.controls as Record<string, boolean>) ?? {}
+  function toggle(key: string, value: boolean) {
+    ctx.update('controls', { ...current, [key]: value })
+  }
   return (
     <div className="space-y-1 mt-2">
       <div className="font-meta text-text-dim text-[9px] uppercase mb-1.5">Botões visíveis</div>
-      {controls.map((c) => (
-        <Toggle key={c} label={c} value={true} onChange={() => {}} />
-      ))}
-      <SoonNote />
+      {controls.map((c) => {
+        const v = current[c.key] ?? c.defaultValue
+        return <Toggle key={c.key} label={c.label} value={v} onChange={(nv) => toggle(c.key, nv)} />
+      })}
     </div>
   )
 }
 
+type PaginationStyle = 'thumbs-numbers' | 'numbers' | 'thumbs' | 'hidden'
+
 function PaginationPanel() {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.pagination as { style?: PaginationStyle }) ?? {}
+  const style: PaginationStyle = current.style ?? 'thumbs-numbers'
+  function setStyle(s: PaginationStyle) {
+    ctx.update('pagination', { ...current, style: s })
+  }
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Estilo">
-        <select className={INPUT_CLS}>
-          <option>Thumbnails + números</option>
-          <option>Apenas números</option>
-          <option>Apenas thumbnails</option>
-          <option>Oculto</option>
+        <select
+          value={style}
+          onChange={(e) => setStyle(e.target.value as PaginationStyle)}
+          className={INPUT_CLS}
+        >
+          <option value="thumbs-numbers">Thumbnails + números</option>
+          <option value="numbers">Apenas números</option>
+          <option value="thumbs">Apenas thumbnails</option>
+          <option value="hidden">Oculto</option>
         </select>
       </Field>
-      <SoonNote />
     </div>
   )
+}
+
+interface TocEntry {
+  label: string
+  page: number
+}
+interface TocSettings {
+  enabled?: boolean
+  entries?: TocEntry[]
 }
 
 function TocPanel() {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.toc as TocSettings) ?? {}
+  const enabled = current.enabled ?? false
+  const entries = current.entries ?? []
+
+  function patch(next: Partial<TocSettings>) {
+    ctx.update('toc', { ...current, ...next })
+  }
+
+  function addEntry() {
+    patch({ entries: [...entries, { label: '', page: 1 }] })
+  }
+
+  function updateEntry(i: number, next: Partial<TocEntry>) {
+    const copy = entries.slice()
+    copy[i] = { ...copy[i], ...next }
+    patch({ entries: copy })
+  }
+
+  function removeEntry(i: number) {
+    const copy = entries.slice()
+    copy.splice(i, 1)
+    patch({ entries: copy })
+  }
+
   return (
     <div className="space-y-2 mt-2">
-      <Toggle label="Habilitar sumário" value={false} onChange={() => {}} />
-      <button className="w-full font-meta border border-border text-text-muted py-1.5 rounded text-xs hover:border-gold/40 hover:text-gold transition">
+      <Toggle label="Habilitar sumário" value={enabled} onChange={(v) => patch({ enabled: v })} />
+
+      {entries.length > 0 && (
+        <ul className="space-y-1.5">
+          {entries.map((e, i) => (
+            <li key={i} className="flex items-center gap-1.5 bg-bg-panel/40 border border-border rounded p-1.5">
+              <input
+                type="text"
+                value={e.label}
+                onChange={(ev) => updateEntry(i, { label: ev.target.value })}
+                placeholder="Título da seção"
+                className={cn(INPUT_CLS, 'flex-1')}
+              />
+              <input
+                type="number"
+                min={1}
+                value={e.page}
+                onChange={(ev) => updateEntry(i, { page: Math.max(1, parseInt(ev.target.value) || 1) })}
+                className={cn(INPUT_CLS, 'w-14')}
+              />
+              <button
+                onClick={() => removeEntry(i)}
+                title="Remover"
+                className="text-red-400 hover:text-red-300 px-1.5 py-1 text-xs"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        onClick={addEntry}
+        className="w-full font-meta border border-border text-text-muted py-1.5 rounded text-xs hover:border-gold/40 hover:text-gold transition"
+      >
         + Adicionar entrada
       </button>
-      <SoonNote />
     </div>
   )
 }
 
-function BgAudioPanel() {
+interface BgAudioSettings {
+  url?: string | null
+  page_start?: number
+  page_end?: number
+  volume?: number
+  loop?: boolean
+}
+
+const AUDIO_ALLOWED = new Set(['audio/mpeg', 'audio/mp3'])
+const AUDIO_MAX_BYTES = 5 * 1024 * 1024
+
+function BgAudioPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.bg_audio as BgAudioSettings) ?? {}
+  const url = current.url ?? null
+  const pageStart = current.page_start ?? 1
+  const pageEnd = current.page_end ?? (book.page_count ?? 99)
+  const volume = current.volume ?? 50
+  const loop = current.loop ?? true
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function patch(next: Partial<BgAudioSettings>) {
+    ctx.update('bg_audio', { ...current, ...next })
+  }
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setError(null)
+    if (!AUDIO_ALLOWED.has(f.type) && !f.name.toLowerCase().endsWith('.mp3')) {
+      setError('Apenas MP3 é aceito')
+      return
+    }
+    if (f.size > AUDIO_MAX_BYTES) {
+      setError(`MP3 acima de ${AUDIO_MAX_BYTES / 1024 / 1024}MB`)
+      return
+    }
+    setUploading(true)
+    try {
+      const { uploadAsset } = await import('@/lib/editor/upload-asset')
+      const { url: publicUrl } = await uploadAsset(book.id, f, 'bg-audio.mp3')
+      patch({ url: publicUrl })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'falha no upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function clearAudio() {
+    patch({ url: null })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
-      <FileDropArea label="MP3 de fundo" />
+      {url ? (
+        <div className="bg-bg-panel/50 border border-border rounded p-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎵</span>
+            <div className="flex-1 min-w-0 font-meta text-[9px] text-text-dim truncate">
+              {url.split('/').pop()?.split('?')[0]}
+            </div>
+            <button
+              onClick={clearAudio}
+              className="font-meta text-[9px] text-red-400 hover:text-red-300 px-2"
+            >
+              Remover
+            </button>
+          </div>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio src={url} controls className="w-full h-7" />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed border-border hover:border-gold/40 rounded p-3 text-center text-[10px] text-text-dim hover:text-gold transition disabled:opacity-50"
+        >
+          {uploading ? '⏳ enviando…' : '🎵 MP3 de fundo · max 5MB'}
+        </button>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/mpeg,audio/mp3,.mp3"
+        onChange={pickFile}
+        className="hidden"
+      />
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Pág inicial"><input type="number" defaultValue={1} className={INPUT_CLS} /></Field>
-        <Field label="Pág final"><input type="number" defaultValue={99} className={INPUT_CLS} /></Field>
+        <Field label="Pág inicial">
+          <input
+            type="number"
+            min={1}
+            value={pageStart}
+            onChange={(e) => patch({ page_start: Math.max(1, parseInt(e.target.value) || 1) })}
+            className={INPUT_CLS}
+          />
+        </Field>
+        <Field label="Pág final">
+          <input
+            type="number"
+            min={1}
+            value={pageEnd}
+            onChange={(e) => patch({ page_end: Math.max(1, parseInt(e.target.value) || 1) })}
+            className={INPUT_CLS}
+          />
+        </Field>
       </div>
-      <Field label="Volume"><input type="range" className="w-full" /></Field>
-      <Toggle label="Loop" value={true} onChange={() => {}} />
-      <SoonNote />
+
+      <Field label={`Volume · ${volume}%`}>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={volume}
+          onChange={(e) => patch({ volume: parseInt(e.target.value) })}
+          className="w-full"
+        />
+      </Field>
+
+      <Toggle label="Loop" value={loop} onChange={(v) => patch({ loop: v })} />
     </div>
   )
 }
@@ -934,7 +1306,7 @@ function BgAudioPanel() {
 
 function renderSettingsPanel(id: Section, book: Flipbook): React.ReactNode {
   switch (id) {
-    case 'password':    return <PasswordPanel />
+    case 'password':    return <PasswordPanel book={book} />
     case 'lead':        return <LeadPanel />
     case 'replace-pdf': return <ReplacePdfPanel book={book} />
     case 'copy':        return <CopyPanel book={book} />
@@ -943,34 +1315,182 @@ function renderSettingsPanel(id: Section, book: Flipbook): React.ReactNode {
   }
 }
 
-function PasswordPanel() {
-  const [mode, setMode] = useState('none')
+function PasswordPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const [mode, setMode] = useState<'none' | 'single' | 'user' | 'magic' | 'google'>(
+    () => (((ctx.settings.password as { mode?: string })?.mode) ?? 'none') as 'none' | 'single' | 'user' | 'magic' | 'google',
+  )
+  const [password, setPassword] = useState('')
+  const [loginMessage, setLoginMessage] = useState<string>(
+    () => ((ctx.settings.password as { login_message?: string })?.login_message ?? ''),
+  )
+  const [protectedNow, setProtectedNow] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const isDirty = password.length > 0
+  usePanelDirty('password', isDirty)
+
+  // Carrega estado atual de proteção (sem hash exposto)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/flipbooks/${book.id}/password`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j) setProtectedNow(!!j.protected) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [book.id])
+
+  function patchSettings(next: Partial<{ mode: string; login_message: string }>) {
+    const current = (ctx.settings.password as Record<string, unknown>) ?? {}
+    ctx.update('password', { ...current, ...next })
+  }
+
+  async function savePassword() {
+    if (!password) return
+    setSaving(true); setError(null); setSuccess(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      patchSettings({ mode: 'single', login_message: loginMessage })
+      setProtectedNow(true)
+      setPassword('')
+      setSuccess('Senha definida ·  livro agora exige acesso')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erro ao salvar senha')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeProtection() {
+    setSaving(true); setError(null); setSuccess(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/password`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      patchSettings({ mode: 'none' })
+      setMode('none')
+      setProtectedNow(false)
+      setSuccess('Proteção removida · livro público novamente')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erro ao remover')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Modo">
-        <select value={mode} onChange={(e) => setMode(e.target.value)} className={INPUT_CLS}>
+        <select
+          value={mode}
+          onChange={(e) => {
+            const m = e.target.value as typeof mode
+            setMode(m)
+            if (m === 'none' && protectedNow) {
+              // não persiste settings agora · só com clique em Remover
+            } else {
+              patchSettings({ mode: m })
+            }
+          }}
+          className={INPUT_CLS}
+        >
           <option value="none">Sem senha</option>
           <option value="single">Senha única</option>
-          <option value="user">Usuário + senha</option>
-          <option value="email-otp">Email + senha por usuário</option>
-          <option value="magic">Magic link</option>
-          <option value="otp">One-time password</option>
-          <option value="google">Login Google</option>
+          <option value="user" disabled>Usuário + senha (em breve)</option>
+          <option value="magic" disabled>Magic link (em breve)</option>
+          <option value="google" disabled>Login Google (em breve)</option>
         </select>
       </Field>
-      {mode !== 'none' && (
+
+      {mode === 'single' && (
         <>
-          <Field label="Senha"><input type="password" className={INPUT_CLS} /></Field>
-          <Field label="Mensagem login"><input type="text" placeholder="Acesso restrito" className={INPUT_CLS} /></Field>
+          {protectedNow && (
+            <div className="bg-gold/10 border border-gold/40 rounded p-2 text-[10px] text-gold-light">
+              ✓ Livro protegido por senha
+            </div>
+          )}
+          <Field label={protectedNow ? 'Trocar senha' : 'Definir senha'}>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="mínimo 4 caracteres"
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Field label="Mensagem na tela de login">
+            <input
+              type="text"
+              value={loginMessage}
+              onChange={(e) => {
+                setLoginMessage(e.target.value)
+                patchSettings({ login_message: e.target.value })
+              }}
+              placeholder="Acesso restrito"
+              className={INPUT_CLS}
+            />
+          </Field>
+
+          {error && <div className="text-red-400 text-xs">{error}</div>}
+          {success && <div className="text-gold-light text-xs">{success}</div>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={savePassword}
+              disabled={saving || password.length < 4}
+              className="flex-1 font-meta bg-gold text-bg py-2 rounded hover:bg-gold-light transition flex items-center justify-center gap-1.5 text-xs disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lock className="w-3 h-3" />}
+              {protectedNow ? 'Atualizar senha' : 'Proteger livro'}
+            </button>
+            {protectedNow && (
+              <button
+                onClick={removeProtection}
+                disabled={saving}
+                className="font-meta border border-red-500/50 text-red-400 px-3 py-2 rounded hover:bg-red-500/10 transition text-[10px] disabled:opacity-50"
+              >
+                Remover
+              </button>
+            )}
+          </div>
         </>
       )}
-      <SoonNote />
+
+      {mode !== 'none' && mode !== 'single' && <SoonNote />}
     </div>
   )
 }
 
+interface LeadCaptureSettings {
+  page?: number
+  title?: string
+  dismissible?: boolean
+}
+
 function LeadPanel() {
+  const ctx = useEditorSettingsContext()
   const [tab, setTab] = useState<'options' | 'privacy' | 'fields' | 'style'>('options')
+  const current = (ctx.settings.lead_capture as LeadCaptureSettings) ?? {}
+  const page = current.page ?? 3
+  const title = current.title ?? ''
+  const dismissible = current.dismissible ?? false
+
+  function patch(next: Partial<LeadCaptureSettings>) {
+    ctx.update('lead_capture', { ...current, ...next })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <div className="flex gap-1 border border-border rounded p-0.5">
@@ -981,24 +1501,49 @@ function LeadPanel() {
       </div>
       {tab === 'options' && (
         <>
-          <Field label="Página de exibição"><input type="number" defaultValue={3} className={INPUT_CLS} /></Field>
-          <Field label="Título"><input type="text" placeholder="Continue lendo" className={INPUT_CLS} /></Field>
-          <Toggle label="Permitir pular" value={false} onChange={() => {}} />
+          <Field label="Página de exibição">
+            <input
+              type="number"
+              min={1}
+              value={page}
+              onChange={(e) => patch({ page: Math.max(1, parseInt(e.target.value) || 1) })}
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Field label="Título">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => patch({ title: e.target.value })}
+              placeholder="Continue lendo"
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Toggle label="Permitir pular" value={dismissible} onChange={(v) => patch({ dismissible: v })} />
+          <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+            Form ainda não é renderizado no reader · só config persistida.
+          </p>
         </>
       )}
       {tab === 'privacy' && (
         <>
           <Toggle label="Exigir consent" value={true} onChange={() => {}} />
           <Field label="Política URL"><input type="url" className={INPUT_CLS} /></Field>
+          <SoonNote />
         </>
       )}
       {tab === 'fields' && (
-        <div className="text-text-dim text-xs">Lista repetível de campos (email/text/checkbox/...).</div>
+        <>
+          <div className="text-text-dim text-xs">Lista repetível de campos (email/text/checkbox/...).</div>
+          <SoonNote />
+        </>
       )}
       {tab === 'style' && (
-        <Field label="Tema"><select className={INPUT_CLS}><option>Light</option><option>Dark</option></select></Field>
+        <>
+          <Field label="Tema"><select className={INPUT_CLS}><option>Light</option><option>Dark</option></select></Field>
+          <SoonNote />
+        </>
       )}
-      <SoonNote />
     </div>
   )
 }
@@ -1212,6 +1757,60 @@ function CopyPanel({ book }: { book: Flipbook }) {
 }
 
 function LinksPanel({ book }: { book: Flipbook }) {
+  const router = useRouter()
+  const ctx = useEditorSettingsContext()
+  const [, startTransition] = useTransition()
+  const [slug, setSlug] = useState(book.slug)
+  const [savedSlug, setSavedSlug] = useState(book.slug)
+  const [savingSlug, setSavingSlug] = useState(false)
+  const [slugError, setSlugError] = useState<string | null>(null)
+  const [confirmingSlug, setConfirmingSlug] = useState(false)
+
+  const slugDirty = slug !== savedSlug
+  usePanelDirty('links', slugDirty)
+
+  // Slug client-side validation visual
+  const slugValid = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)
+
+  // Redirect URL · vai pra settings.redirect_url (debounce automático do hook)
+  const redirectUrl = (ctx.settings.redirect_url as string | undefined) ?? ''
+  function setRedirect(url: string) {
+    ctx.update('redirect_url', url || null)
+  }
+
+  function tryChangeSlug() {
+    setSlugError(null)
+    if (!slugValid) {
+      setSlugError('Slug inválido · use apenas letras minúsculas, números e hífens')
+      return
+    }
+    if (slug === savedSlug) return
+    setConfirmingSlug(true)
+  }
+
+  async function doChangeSlug() {
+    setSavingSlug(true); setSlugError(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      setSavedSlug(slug)
+      setConfirmingSlug(false)
+      // Redirecciona pra nova URL do edit (slug mudou)
+      startTransition(() => router.replace(`/admin/${slug}/edit`))
+    } catch (err) {
+      setSlugError(err instanceof Error ? err.message : 'erro ao salvar slug')
+    } finally {
+      setSavingSlug(false)
+    }
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Subdomínio">
@@ -1219,13 +1818,67 @@ function LinksPanel({ book }: { book: Flipbook }) {
           <option>flipbook.aldenquesada.site</option>
         </select>
       </Field>
+
       <Field label="Slug">
-        <input type="text" defaultValue={book.slug} className={INPUT_CLS} />
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase())}
+          className={cn(INPUT_CLS, !slugValid && 'border-red-500/60')}
+          placeholder="meu-livro"
+        />
       </Field>
+      {slugError && <div className="text-red-400 text-xs">{slugError}</div>}
+
+      {slugDirty && !confirmingSlug && (
+        <button
+          onClick={tryChangeSlug}
+          disabled={!slugValid}
+          className="w-full font-meta border border-orange-500/50 text-orange-300 py-1.5 rounded hover:bg-orange-500/10 transition text-[10px] disabled:opacity-50"
+        >
+          Trocar slug…
+        </button>
+      )}
+
+      {confirmingSlug && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded p-3 space-y-2">
+          <div className="font-meta text-[10px] text-red-300 uppercase tracking-wider">Confirmar mudança de slug</div>
+          <div className="text-text-muted text-xs leading-relaxed">
+            Vou trocar de <code className="text-text">/{savedSlug}</code> pra <code className="text-gold">/{slug}</code>.
+            Isso vai <strong>quebrar links existentes</strong> pra esse livro · continuar?
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={doChangeSlug}
+              disabled={savingSlug}
+              className="flex-1 font-meta bg-red-500/80 text-white py-1.5 rounded hover:bg-red-500 transition flex items-center justify-center gap-1.5 text-[10px] disabled:opacity-50"
+            >
+              {savingSlug ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Sim, trocar
+            </button>
+            <button
+              onClick={() => setConfirmingSlug(false)}
+              disabled={savingSlug}
+              className="font-meta border border-border text-text-muted py-1.5 px-3 rounded hover:border-gold/40 hover:text-gold transition text-[10px] disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <Field label="Redirect (opcional)">
-        <input type="url" placeholder="https://" className={INPUT_CLS} />
+        <input
+          type="url"
+          value={redirectUrl}
+          onChange={(e) => setRedirect(e.target.value)}
+          placeholder="https://"
+          className={INPUT_CLS}
+        />
       </Field>
-      <SoonNote />
+      <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+        Se preenchido, o livro é substituído por um redirect 302 pra essa URL.
+      </p>
     </div>
   )
 }

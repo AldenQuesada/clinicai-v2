@@ -60,6 +60,14 @@ function calcCostUsd(model: string, inputTokens: number, outputTokens: number): 
   return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
 }
 
+/**
+ * Content blocks suportados por Claude · texto ou imagem base64.
+ * Vision (audit gap A3/F5): permite passar imagem inbound do paciente direto.
+ */
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }
+
 interface CallOptions {
   clinic_id: string
   user_id?: string
@@ -68,7 +76,11 @@ interface CallOptions {
   source: string
   model?: ModelId
   system: string
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  /**
+   * Mensagens da conversa · content pode ser string OU array de blocks (text/image).
+   * Use array quando precisar passar imagem (Vision · audit gap A3 da Lara).
+   */
+  messages: Array<{ role: 'user' | 'assistant'; content: string | ContentBlock[] }>
   max_tokens?: number
   temperature?: number
   /**

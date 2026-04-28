@@ -1,9 +1,10 @@
 /**
  * Lara · middleware de auth.
  *
- * Protege todas rotas exceto webhook + cron + login + assets:
- *   - /api/webhook/whatsapp · entry point Meta · validado por verify_token
+ * Protege todas rotas exceto webhook + cron + cold-open + login + assets:
+ *   - /api/webhook/whatsapp · entry point Meta · validado por verify_token + HMAC
  *   - /api/cron/*           · agendado externamente · validado por header secret
+ *   - /api/cold-open        · push pos-quiz · validado por COLD_OPEN_SECRET / CRON_SECRET
  *   - /login                · pagina de login publica
  *   - /api/auth/*           · server actions de login/logout
  *   - _next/* · favicon · etc
@@ -17,12 +18,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createMiddlewareClient } from '@clinicai/supabase'
 
-// Rotas publicas · NUNCA exigem auth
+// Rotas publicas · NUNCA exigem auth (cada uma tem seu proprio guard interno)
 const PUBLIC_PATHS = [
   '/login',
   '/api/auth',
   '/api/webhook',
   '/api/cron',
+  '/api/cold-open',
 ]
 
 function isPublicPath(pathname: string): boolean {

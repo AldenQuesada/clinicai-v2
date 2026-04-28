@@ -1,4 +1,4 @@
-export { getAnthropicClient, getDefaultModel, callAnthropic, MODELS } from './anthropic'
+export { getAnthropicClient, getDefaultModel, callAnthropic, MODELS, type ContentBlock } from './anthropic'
 export { getGroqClient, transcribeAudio } from './groq'
 export {
   checkBudget,

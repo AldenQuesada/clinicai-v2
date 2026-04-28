@@ -19,7 +19,7 @@
  *  - M2: defesa anti prompt-injection (bloco no system + envoltório XML)
  */
 
-import { callAnthropic, MODELS } from '@clinicai/ai';
+import { callAnthropic, MODELS, type ContentBlock } from '@clinicai/ai';
 import { createServerClient } from '@/lib/supabase';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import * as fs from 'fs';
@@ -27,19 +27,59 @@ import * as path from 'path';
 
 const PROMPT_KEYS = {
   base: 'lara_prompt_base',
+  compact: 'lara_prompt_compact',
   olheiras: 'lara_prompt_olheiras',
   fullface: 'lara_prompt_fullface',
   prices_defense: 'lara_prompt_prices_defense',
   voucher_recipient: 'lara_prompt_voucher_recipient',
+  // Audit gap C2-C6 (P0): 5 personas restantes (legacy tinha 6, nova só usava onboarder)
+  persona_sdr: 'lara_prompt_persona_sdr',
+  persona_confirmador: 'lara_prompt_persona_confirmador',
+  persona_closer: 'lara_prompt_persona_closer',
+  persona_recuperador: 'lara_prompt_persona_recuperador',
+  persona_agendador: 'lara_prompt_persona_agendador',
 } as const;
 
 const FILE_PATHS = {
   base: ['src', 'prompt', 'lara-prompt.md'],
+  compact: ['src', 'prompt', 'lara-prompt-compact.md'],
   olheiras: ['src', 'prompt', 'flows', 'olheiras-flow.md'],
   fullface: ['src', 'prompt', 'flows', 'fullface-flow.md'],
   prices_defense: ['src', 'prompt', 'flows', 'prices-defense-flow.md'],
   voucher_recipient: ['src', 'prompt', 'flows', 'voucher-recipient-flow.md'],
+  persona_sdr: ['src', 'prompt', 'personas', 'sdr.md'],
+  persona_confirmador: ['src', 'prompt', 'personas', 'confirmador.md'],
+  persona_closer: ['src', 'prompt', 'personas', 'closer.md'],
+  persona_recuperador: ['src', 'prompt', 'personas', 'recuperador.md'],
+  persona_agendador: ['src', 'prompt', 'personas', 'agendador.md'],
 } as const;
+
+/**
+ * Audit gap C2-C6 (P0): mapeia ai_persona do lead pra layer key.
+ * 'onboarder' (default) usa apenas o base prompt · sem layer extra.
+ */
+function personaKey(
+  persona: string | undefined,
+): keyof typeof PROMPT_KEYS | null {
+  switch (persona) {
+    case 'sdr': return 'persona_sdr';
+    case 'confirmador': return 'persona_confirmador';
+    case 'closer': return 'persona_closer';
+    case 'recuperador': return 'persona_recuperador';
+    case 'agendador': return 'persona_agendador';
+    default: return null; // onboarder ou unknown · sem layer extra
+  }
+}
+
+/**
+ * Audit gap A10 (P2): após N mensagens trocadas, switch pra prompt compact
+ * pra economizar ~70% dos tokens. Lara legacy n8n usava `useCompact = msgCount > 6`.
+ * Override via env LARA_PROMPT_COMPACT_AFTER (default 6).
+ */
+function shouldUseCompactPrompt(messageCount: number): boolean {
+  const threshold = Number(process.env.LARA_PROMPT_COMPACT_AFTER ?? 6);
+  return messageCount > threshold;
+}
 
 function readFromFile(key: keyof typeof FILE_PATHS): string | null {
   try {
@@ -88,8 +128,33 @@ async function getSystemPromptText(
   funnel: string | undefined,
   clinicId: string | null,
   isVoucherRecipient = false,
+  messageCount = 0,
+  persona: string | undefined = undefined,
 ): Promise<string> {
   try {
+    const persLayerKey = personaKey(persona);
+
+    // Audit gap A10: após threshold de mensagens, usa prompt compact (~70% menor).
+    // Compact já inclui regras + funis condensados + tags · não precisa empilhar layers.
+    if (shouldUseCompactPrompt(messageCount)) {
+      const compact = await readPromptLayer(clinicId, 'compact');
+      if (compact) {
+        let prompt = compact;
+        // Persona layer mantida no compact · pequena (~30 linhas) e crítica pra tom
+        if (persLayerKey) {
+          const persText = await readPromptLayer(clinicId, persLayerKey);
+          if (persText) prompt += '\n\n' + persText;
+        }
+        // Voucher layer ainda injeta (pequeno, contexto crítico).
+        if (isVoucherRecipient) {
+          const voucher = await readPromptLayer(clinicId, 'voucher_recipient');
+          if (voucher) prompt += '\n\n' + voucher;
+        }
+        return prompt;
+      }
+      // Se compact ausente, cai pro full (não silencia).
+    }
+
     const base = await readPromptLayer(clinicId, 'base');
     let prompt = base || 'Você é a Lara, assistente virtual da Dra. Mirian de Paula.';
 
@@ -110,6 +175,13 @@ async function getSystemPromptText(
     // Sempre injeta defesa de preços
     const prices = await readPromptLayer(clinicId, 'prices_defense');
     if (prices) prompt += '\n\n' + prices;
+
+    // Audit gap C2-C6: persona-specific layer (sdr/confirmador/closer/recuperador/agendador).
+    // Onboarder default usa só o base prompt (já tem instruções pra primeiro contato).
+    if (persLayerKey) {
+      const persText = await readPromptLayer(clinicId, persLayerKey);
+      if (persText) prompt += '\n\n' + persText;
+    }
 
     // Voucher recipient layer · so injeta quando o lead e beneficiaria
     if (isVoucherRecipient) {
@@ -152,6 +224,11 @@ interface LeadContext {
   clinic_id?: string; // multi-tenant ADR-028 · resolvido pelo webhook via wa_numbers
   is_voucher_recipient?: boolean; // true quando paciente e beneficiaria de voucher B2B (mig 800-07)
   voucher?: VoucherContext; // dados do voucher pra ancorar resposta · prompt usa
+  // Audit gap A3/F5 (P0): Vision · paciente envia foto e Lara descreve.
+  // Quando presente, ultimo message vai como ContentBlock[] com image + text.
+  image_base64?: string;
+  image_media_type?: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  image_caption?: string; // caption da imagem se paciente mandou junto
 }
 
 interface ChatMessage {
@@ -212,7 +289,13 @@ export async function generateResponse(
   const funnel = leadContext.funnel;
 
   const isVoucherRecipient = leadContext.is_voucher_recipient === true;
-  const basePrompt = await getSystemPromptText(funnel, leadContext.clinic_id || null, isVoucherRecipient);
+  const basePrompt = await getSystemPromptText(
+    funnel,
+    leadContext.clinic_id || null,
+    isVoucherRecipient,
+    messageCount,
+    persona,
+  );
   const isReturning = leadContext.is_returning || false;
 
   // Audit fix M3: phone mascarado · só últimos 4 dígitos
@@ -259,11 +342,38 @@ ${isReturning ? '- IMPORTANTE: NÃO repita boas-vindas nem se apresente novament
 ${leadContext.phase === 'unknown' ? '- Número NÃO cadastrado. Pergunte gentilmente o nome.' : ''}
 ${leadContext.is_audio_message ? '- MENSAGEM DE ÁUDIO: O lead enviou um áudio de voz que foi transcrito automaticamente. Reconheça isso de forma natural e calorosa (ex: "Que bom ouvir sua voz!", "Adorei seu áudio!"). Responda de forma um pouco mais informal e acolhedora, como se fosse uma conversa por voz.' : ''}`;
 
-  // Audit fix M2: envolve content user em <patient_input> · Claude trata como dado
-  const safeMessages = messages.map((m) => ({
-    role: m.role,
-    content: m.role === 'user' ? wrapPatientInput(m.content) : m.content,
-  }));
+  // Audit fix M2: envolve content user em <patient_input> · Claude trata como dado.
+  // Audit gap A3/F5 (Vision): se há imagem, ultimo user message vira ContentBlock[]
+  // com image block + text block. History continua texto puro.
+  const safeMessages: Array<{ role: 'user' | 'assistant'; content: string | ContentBlock[] }> =
+    messages.map((m) => ({
+      role: m.role,
+      content: m.role === 'user' ? wrapPatientInput(m.content) : m.content,
+    }));
+
+  if (leadContext.image_base64 && leadContext.image_media_type) {
+    const lastIdx = safeMessages.length - 1;
+    if (lastIdx >= 0 && safeMessages[lastIdx].role === 'user') {
+      const captionText = wrapPatientInput(
+        (leadContext.image_caption ? leadContext.image_caption + '\n\n' : '') +
+          'O paciente enviou esta foto. OBRIGATÓRIO: descreva especificamente o que você vê (região do rosto, queixa visível, características). NÃO ignore a imagem. Baseie sua resposta no que observa. Lembre-se: você NÃO dá diagnóstico, mas pode descrever o que vê e dizer que a Dra. Mirian vai avaliar pessoalmente.',
+      );
+      safeMessages[lastIdx] = {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: leadContext.image_media_type,
+              data: leadContext.image_base64,
+            },
+          },
+          { type: 'text', text: captionText },
+        ],
+      };
+    }
+  }
 
   // Audit fix N2 + N5: callAnthropic do package canônico (cost control + retry/fallback).
   // Não passamos `model` · callAnthropic usa getDefaultModel() que lê
@@ -313,8 +423,10 @@ export function getFixedResponse(
     if (funnel === 'olheiras' || funnel === 'fullface') {
       return null;
     }
-    // Caso contrário (ele apenas disse um "Oi" limpo ou seu nome), soltamos a ancoragem inicial.
-    return `Prazer, ${firstName}!\n\nMe conta uma coisa para eu entender como a Dra. Mirian pode te ajudar de forma perfeita: o que mais te incomoda hoje no seu rosto ou o que você gostaria de melhorar de imediato?`;
+    // Caso contrário (ele apenas disse um "Oi" limpo ou seu nome), soltamos a ancoragem inicial
+    // com [FOTO:geral] · audit gap A9 · paridade com Lara legacy n8n workflow.
+    // media-dispatch.ts detecta a tag e envia 2 fotos (antes/depois).
+    return `Prazer, ${firstName}!\n\nOlha o tipo de resultado que a Dra. Mirian entrega:\n\n[FOTO:geral]\n\nMe conta: o que mais te incomoda hoje? O que voce gostaria de melhorar?`;
   }
   return null;
 }
