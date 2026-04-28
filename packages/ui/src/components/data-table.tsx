@@ -38,17 +38,6 @@ export interface DataTableColumn<T> {
   hideMobile?: boolean
 }
 
-export interface DataTablePagination {
-  page: number
-  perPage: number
-  /** Total de rows · opcional. Se omitido, paginacao infinita (Next sem disabled) */
-  total?: number
-  /** Base URL pros links de page · ex: '/crm/pacientes' */
-  baseHref: string
-  /** Param adicional pra preservar (search, filter, etc) */
-  preserveParams?: Record<string, string | undefined>
-}
-
 export interface DataTableProps<T> {
   rows: ReadonlyArray<T>
   columns: ReadonlyArray<DataTableColumn<T>>
@@ -65,6 +54,19 @@ export interface DataTableProps<T> {
   rowHref?: (row: T) => string
   pagination?: DataTablePagination
   className?: string
+  /** ARIA label da tabela (a11y · screen readers) · ex: "Lista de pacientes" */
+  ariaLabel?: string
+}
+
+export interface DataTablePagination {
+  page: number
+  perPage: number
+  /** Total de rows · opcional. Se omitido, paginacao infinita (Next sem disabled) */
+  total?: number
+  /** Base URL pros links de page · ex: '/crm/pacientes' */
+  baseHref: string
+  /** Param adicional pra preservar (search, filter, etc) */
+  preserveParams?: Record<string, string | undefined>
 }
 
 export function DataTable<T>({
@@ -78,6 +80,7 @@ export function DataTable<T>({
   rowHref,
   pagination,
   className,
+  ariaLabel,
 }: DataTableProps<T>) {
   if (loading) {
     return <div className={className}>{loadingState ?? <DefaultSkeleton />}</div>
@@ -98,7 +101,7 @@ export function DataTable<T>({
   return (
     <div className={cn('w-full', className)}>
       <div className="overflow-x-auto rounded-md border border-[var(--border)]">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label={ariaLabel}>
           <thead className="bg-[var(--color-border-soft)]/40">
             <tr>
               {columns.map((c) => (
