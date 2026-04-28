@@ -19,6 +19,8 @@
     "canvas": "^3.2.3",
     "clsx": "catalog:",
     "dompurify": "^3.4.1",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "epubjs": "^0.3.93",
     "framer-motion": "^12.0.0",
     "jszip": "^3.10.1",
