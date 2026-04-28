@@ -313,8 +313,10 @@ export function getFixedResponse(
     if (funnel === 'olheiras' || funnel === 'fullface') {
       return null;
     }
-    // Caso contrário (ele apenas disse um "Oi" limpo ou seu nome), soltamos a ancoragem inicial.
-    return `Prazer, ${firstName}!\n\nMe conta uma coisa para eu entender como a Dra. Mirian pode te ajudar de forma perfeita: o que mais te incomoda hoje no seu rosto ou o que você gostaria de melhorar de imediato?`;
+    // Caso contrário (ele apenas disse um "Oi" limpo ou seu nome), soltamos a ancoragem inicial
+    // com [FOTO:geral] · audit gap A9 · paridade com Lara legacy n8n workflow.
+    // media-dispatch.ts detecta a tag e envia 2 fotos (antes/depois).
+    return `Prazer, ${firstName}!\n\nOlha o tipo de resultado que a Dra. Mirian entrega:\n\n[FOTO:geral]\n\nMe conta: o que mais te incomoda hoje? O que voce gostaria de melhorar?`;
   }
   return null;
 }
