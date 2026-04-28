@@ -29,8 +29,10 @@ interface FlipApi {
  * Click → wrapper expande pra esquerda revelando double-spread interno.
  * Borda direita ancorada (livro "se desloca pra esquerda" ao abrir).
  *
- * NOTA: bug conhecido — capa fica visível do lado esquerdo do 1º spread aberto
- * (efeito do showCover do react-pageflip). Será resolvido depois.
+ * Máscara cobre o lado esquerdo enquanto a capa ainda é o slot ativo —
+ * sem ela, durante a animação da virada o slot 0 (capa) vaza visualmente
+ * pelo lado esquerdo recém-revelado pela expansão do wrapper. Fade-out
+ * 200ms quando currentPage > 0 sincroniza com o assentamento do spread.
  */
 export function MiniFlipbook({ book, previewBaseUrl }: Props) {
   const [size, setSize] = useState({ width: 380, height: 532 })
@@ -208,6 +210,17 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
               className="absolute top-0"
               style={{ right: 0, width: size.width * 2, height: size.height }}
             >
+              {/* Máscara · cobre lado esquerdo enquanto capa é slot ativo (fade-out 200ms ao virar) */}
+              <div
+                className="absolute top-0 left-0 z-10 pointer-events-none transition-opacity duration-200"
+                style={{
+                  width: size.width,
+                  height: size.height,
+                  background: 'var(--color-bg, #0F0D0A)',
+                  opacity: currentPage === 0 ? 1 : 0,
+                }}
+                aria-hidden="true"
+              />
               <HTMLFlipBook
                 ref={flipRef as unknown as React.Ref<HTMLDivElement>}
                 width={size.width}
