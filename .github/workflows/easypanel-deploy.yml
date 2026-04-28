@@ -1,0 +1,93 @@
+name: Easypanel auto-deploy
+
+# Dispara webhook do Easypanel apos push pra main · so pros apps cujos paths
+# foram afetados (path filters). Funciona como fallback quando o autoDeploy
+# nativo do Easypanel falha (webhook GitHub quebrado, signature invalida, etc).
+#
+# CONFIGURACAO NECESSARIA · Settings -> Secrets -> Actions:
+#   EASYPANEL_DEPLOY_LARA  · token da app `whatsapp` (Lara)
+#   EASYPANEL_DEPLOY_MIRA  · token da app `mira`
+# Tokens em tmp/easypanel-list.json (campo `token` de cada service).
+#
+# TRIGGER MANUAL: Actions -> Easypanel auto-deploy -> Run workflow -> escolhe app.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/lara/**'
+      - 'apps/mira/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'Dockerfile'
+      - 'apps/lara/Dockerfile'
+      - 'apps/mira/Dockerfile'
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Qual app deployar manualmente'
+        required: true
+        type: choice
+        options: [all, lara, mira]
+        default: all
+
+jobs:
+  detect:
+    name: Detect changed apps
+    runs-on: ubuntu-latest
+    outputs:
+      lara: ${{ steps.filter.outputs.lara }}
+      mira: ${{ steps.filter.outputs.mira }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig.json'
+            lara:
+              - 'apps/lara/**'
+            mira:
+              - 'apps/mira/**'
+
+  deploy-lara:
+    name: Deploy Lara (whatsapp)
+    needs: detect
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.app == 'all' || inputs.app == 'lara') ||
+      github.event_name == 'push' && (needs.detect.outputs.lara == 'true' || needs.detect.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Easypanel deploy
+        run: |
+          if [ -z "${{ secrets.EASYPANEL_DEPLOY_LARA }}" ]; then
+            echo "::error::secret EASYPANEL_DEPLOY_LARA nao configurada"
+            exit 1
+          fi
+          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_LARA }}"
+
+  deploy-mira:
+    name: Deploy Mira
+    needs: detect
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.app == 'all' || inputs.app == 'mira') ||
+      github.event_name == 'push' && (needs.detect.outputs.mira == 'true' || needs.detect.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Easypanel deploy
+        run: |
+          if [ -z "${{ secrets.EASYPANEL_DEPLOY_MIRA }}" ]; then
+            echo "::error::secret EASYPANEL_DEPLOY_MIRA nao configurada"
+            exit 1
+          fi
+          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_MIRA }}"
