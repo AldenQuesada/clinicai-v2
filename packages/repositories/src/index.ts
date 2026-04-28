@@ -293,6 +293,15 @@ export {
 } from './professional-profiles.repository'
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
+export {
+  WaMediaBankRepository,
+  KNOWN_PHOTO_TAGS,
+  type WaMediaBankDTO,
+  type PhotoTag,
+  type MediaFunnel,
+  type CreateMediaInput,
+  type UpdateMediaInput,
+} from './wa-media-bank.repository'
 
 // ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────
 export {

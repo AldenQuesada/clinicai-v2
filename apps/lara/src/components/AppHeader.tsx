@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
 import { ProfileRepository } from '@clinicai/repositories'
-import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles } from 'lucide-react'
+import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles, Image as ImageIcon } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { NotificationToggle } from '@/components/NotificationToggle'
 
@@ -50,6 +50,7 @@ export async function AppHeader() {
   const isOnConfig = pathname.startsWith('/configuracoes')
   const isOnTemplates = pathname.startsWith('/templates')
   const isOnPrompts = pathname.startsWith('/prompts')
+  const isOnMidia = pathname.startsWith('/midia')
   const canManageConfig = !role || ['owner', 'admin'].includes(role)
 
   return (
@@ -83,6 +84,9 @@ export async function AppHeader() {
             <>
               <NavLink href="/prompts" icon={<Sparkles className="w-4 h-4" />} active={isOnPrompts}>
                 Prompts
+              </NavLink>
+              <NavLink href="/midia" icon={<ImageIcon className="w-4 h-4" />} active={isOnMidia}>
+                Mídias
               </NavLink>
               <NavLink href="/configuracoes" icon={<Settings className="w-4 h-4" />} active={isOnConfig}>
                 Configurações
