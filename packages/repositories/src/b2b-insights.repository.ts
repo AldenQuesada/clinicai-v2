@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type InsightSeverity = 'critical' | 'warning' | 'success' | 'info'
 export type InsightKind =
@@ -65,7 +66,7 @@ export interface UndoDismissResult {
 
 export class B2BInsightsRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async global(): Promise<InsightsGlobal | null> {
     const { data, error } = await this.supabase.rpc('b2b_insights_global')

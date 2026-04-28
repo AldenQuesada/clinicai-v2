@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface WaProMessageInput {
   clinicId: string
@@ -36,7 +37,7 @@ export interface WaProAuditInput {
 
 export class WaProAuditRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Loga 1 turn (inbound + audit) · idiomatico pra cada msg processada.

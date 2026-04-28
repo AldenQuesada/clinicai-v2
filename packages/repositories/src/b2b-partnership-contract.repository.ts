@@ -16,6 +16,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type ContractStatus = 'draft' | 'sent' | 'signed' | 'expired' | 'cancelled'
 export type ActivityKind =
@@ -121,7 +122,7 @@ function mapActivityRow(r: any): PartnershipActivityDTO {
 
 export class B2BPartnershipContractRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   // ─── Contracts ──────────────────────────────────────────────────────
 

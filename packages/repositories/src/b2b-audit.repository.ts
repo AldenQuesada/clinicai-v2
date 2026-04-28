@@ -7,6 +7,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface AuditTimelineEntry {
   id: string
@@ -21,7 +22,7 @@ export interface AuditTimelineEntry {
 
 export class B2BAuditRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async timeline(partnershipId: string, limit = 50): Promise<AuditTimelineEntry[]> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_audit_timeline', {

@@ -6,6 +6,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface B2BAttributionDTO {
   id: string
@@ -36,7 +37,7 @@ function mapAttributionRow(row: any): B2BAttributionDTO {
 
 export class B2BAttributionRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async listByPartnership(partnershipId: string, limit = 100): Promise<B2BAttributionDTO[]> {
     const { data } = await this.supabase

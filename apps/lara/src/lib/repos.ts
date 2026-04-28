@@ -23,7 +23,7 @@ import {
   B2BVoucherRepository,
   WaMediaBankRepository,
 } from '@clinicai/repositories'
-import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
+import { loadServerContext, type ClinicContext, type Database } from '@clinicai/supabase'
 
 export interface Repos {
   leads: LeadRepository
@@ -39,7 +39,7 @@ export interface Repos {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function makeRepos(supabase: SupabaseClient<any>): Repos {
+export function makeRepos(supabase: SupabaseClient<Database>): Repos {
   return {
     leads: new LeadRepository(supabase),
     conversations: new ConversationRepository(supabase),
@@ -59,7 +59,7 @@ export function makeRepos(supabase: SupabaseClient<any>): Repos {
  */
 export async function loadServerReposContext(): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  supabase: SupabaseClient<Database>
   ctx: ClinicContext
   repos: Repos
 }> {

@@ -27,6 +27,7 @@ import {
 } from '@clinicai/repositories'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 const TTL = 30 // seconds
 
@@ -36,7 +37,7 @@ const TTL = 30 // seconds
  */
 export function getCachedAnalytics(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   clinicId: string,
   days: number,
 ): Promise<AnalyticsBlob | null> {
@@ -54,7 +55,7 @@ export function getCachedAnalytics(
  */
 export function getCachedCriticalAlerts(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   clinicId: string,
 ): Promise<CriticalAlert[]> {
   const repo = new B2BMetricsV2Repository(supabase)
@@ -87,7 +88,7 @@ export function revalidateB2BCache(clinicId: string): void {
  */
 export function getCachedInsightsGlobal(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   clinicId: string,
 ): Promise<InsightsGlobal | null> {
   const repo = new B2BInsightsRepository(supabase)

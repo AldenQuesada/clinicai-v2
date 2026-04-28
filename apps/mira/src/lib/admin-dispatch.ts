@@ -23,6 +23,7 @@ import {
   type PermissionCategory,
 } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import type { Database } from '@clinicai/supabase'
 
 const log = createLogger({ app: 'mira' }).child({ helper: 'admin-dispatch' })
 
@@ -50,7 +51,7 @@ export interface DispatchAdminResult {
 
 export async function dispatchAdminText(opts: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  supabase: SupabaseClient<Database>
   repos: MiraRepos
   clinicId: string
   eventKey: string
@@ -165,7 +166,7 @@ export async function dispatchAdminText(opts: {
  */
 export async function tryRpcText(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   rpcName: string,
   args: Record<string, unknown> = {},
 ): Promise<string | null> {

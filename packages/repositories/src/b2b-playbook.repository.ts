@@ -17,6 +17,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type PlaybookKind = 'prospect_to_active' | 'retention' | 'renewal'
 
@@ -120,7 +121,7 @@ function mapApplication(row: any): PlaybookApplication {
 
 export class B2BPlaybookRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista templates de playbook da clinica corrente (RLS scoped via app_clinic_id()).

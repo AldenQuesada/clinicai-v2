@@ -27,7 +27,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:types": "node scripts/generate-types.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",

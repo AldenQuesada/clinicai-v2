@@ -6,6 +6,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface GrowthPartnership {
   id: string
@@ -74,7 +75,7 @@ export interface GrowthPanel {
 
 export class B2BGrowthRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async panel(partnershipId: string): Promise<GrowthPanel | null> {
     const { data, error } = await this.supabase.rpc('b2b_partner_growth_panel', {

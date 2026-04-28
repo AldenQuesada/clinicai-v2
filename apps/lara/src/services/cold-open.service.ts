@@ -30,6 +30,7 @@ import * as path from 'path';
 import { callAnthropic, MODELS } from '@clinicai/ai';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@clinicai/supabase'
 
 export type ColdOpenTemplateKey =
   | 'aq_novo_lead'
@@ -105,12 +106,12 @@ interface PickedTemplate {
  */
 async function pickFromRpc(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   key: ColdOpenTemplateKey,
 ): Promise<PickedTemplate | null> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('lara_pick_template', {
+    const { data, error } = await supabase.rpc('lara_pick_template', {
       p_key: key,
     });
     if (error) return null;
@@ -137,7 +138,7 @@ async function pickFromRpc(
  */
 async function readTemplate(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   clinicId: string | null,
   key: ColdOpenTemplateKey,
 ): Promise<{
@@ -205,7 +206,7 @@ export interface ColdOpenResult {
  */
 export async function generateColdOpenMessage(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   input: ColdOpenInput,
 ): Promise<ColdOpenResult> {
   const { templateKey, name, queixas, context, clinicId, lifecycle } = input;

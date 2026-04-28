@@ -16,6 +16,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 /**
  * Mig 800-41 · catalogo de event_keys vira tabela editavel.
@@ -105,7 +106,7 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
 
 export class B2BCommTemplateRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Resolve template ativo · prioriza override por parceria, fallback pra global.

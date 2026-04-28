@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface B2BVoucherComboDTO {
   id: string
@@ -42,7 +43,7 @@ function mapComboRow(row: any): B2BVoucherComboDTO {
 
 export class B2BVoucherComboRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista combos da clinica · ordenados por is_active DESC, is_default DESC,

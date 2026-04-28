@@ -17,10 +17,11 @@ import {
   type DedupHit,
   type LeadDTO,
 } from './types'
+import type { Database } from '@clinicai/supabase'
 
 export class LeadRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Busca lead em qualquer variante de telefone (com/sem 9 inicial).

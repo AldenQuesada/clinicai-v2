@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type NpsBucket = 'promoter' | 'passive' | 'detractor' | 'pending'
 
@@ -42,7 +43,7 @@ export interface NpsSummary {
 
 export class B2BNpsRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {

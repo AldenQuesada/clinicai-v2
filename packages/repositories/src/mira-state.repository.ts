@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface MiraStateRow<T = Record<string, unknown>> {
   value: T
@@ -19,7 +20,7 @@ export interface MiraStateRow<T = Record<string, unknown>> {
 
 export class MiraStateRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Set state · TTL em minutos. value=null → clear.

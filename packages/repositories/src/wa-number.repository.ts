@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface WaNumberDTO {
   id: string
@@ -68,7 +69,7 @@ function mapRow(row: any): WaNumberDTO {
 
 export class WaNumberRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async list(clinicId: string): Promise<WaNumberDTO[]> {
     const { data } = await this.supabase
@@ -306,8 +307,7 @@ export class WaNumberRepository {
    */
   async listAdminPrivatePhones(): Promise<string[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (this.supabase
-      .from('wa_numbers') as any)
+    const { data } = await this.supabase.from('wa_numbers')
       .select('phone')
       .eq('is_active', true)
       .eq('number_type', 'professional_private')

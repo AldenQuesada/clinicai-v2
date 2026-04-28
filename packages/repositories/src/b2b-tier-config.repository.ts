@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface B2BTierConfigDTO {
   clinicId: string
@@ -63,7 +64,7 @@ function mapRow(row: any): B2BTierConfigDTO {
 
 export class B2BTierConfigRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista configs (3 rows · tier 1/2/3) da clinica · ordenado por tier ASC.

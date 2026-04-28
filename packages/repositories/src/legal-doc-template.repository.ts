@@ -15,6 +15,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type LegalDocType = 'uso_imagem' | 'procedimento' | 'anestesia' | 'lgpd' | 'contrato' | 'custom'
 
@@ -73,7 +74,7 @@ function mapTemplateRow(r: any): LegalDocTemplateDTO {
 
 export class LegalDocTemplateRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista templates da clinica (apenas nao deletados). RLS filtra clinic_id.

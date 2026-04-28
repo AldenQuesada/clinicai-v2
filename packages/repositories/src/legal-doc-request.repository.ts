@@ -19,6 +19,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type LegalDocStatus = 'pending' | 'viewed' | 'signed' | 'expired' | 'revoked'
 
@@ -129,7 +130,7 @@ function mapRequestRow(r: any): LegalDocRequestDTO {
 
 export class LegalDocRequestRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Cria novo request via RPC. Retorna { id, slug, token } pra montar link

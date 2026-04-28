@@ -15,6 +15,7 @@ import { createServerClient } from '@/lib/supabase'
 import { makeMiraRepos, type MiraRepos } from '@/lib/repos'
 import { resolveClinicId } from '@/lib/clinic'
 import { createLogger } from '@clinicai/logger'
+import type { Database } from '@clinicai/supabase'
 
 const log = createLogger({ app: 'mira' })
 
@@ -39,7 +40,7 @@ export function validateCronSecret(req: NextRequest): NextResponse | null {
 
 export interface CronContext {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  supabase: SupabaseClient<Database>
   repos: MiraRepos
   clinicId: string
   cronName: string

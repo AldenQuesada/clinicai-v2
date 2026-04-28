@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface ClosureCandidate {
   id: string
@@ -20,7 +21,7 @@ export interface ClosureCandidate {
 
 export class B2BClosureRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {

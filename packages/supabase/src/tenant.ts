@@ -68,7 +68,7 @@ export async function resolveClinicContext(
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc('_default_clinic_id')
+  const { data, error } = await supabase.rpc('_default_clinic_id')
   if (!error && data) {
     _cachedDefaultClinicId = String(data)
     if (!_warnedAboutFallback && typeof console !== 'undefined') {
@@ -111,7 +111,7 @@ export async function resolveClinicByPhoneNumberId(
   // Tipagem any aqui · types.ts vai ser regenerado via supabase-js codegen
   // depois que rodarmos `supabase gen types typescript --linked` (Fase 1).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (serviceClient.from('wa_numbers') as any)
+  const { data, error } = await serviceClient.from('wa_numbers')
     .select('id, clinic_id, is_active')
     .eq('phone_number_id', phoneNumberId)
     .eq('is_active', true)

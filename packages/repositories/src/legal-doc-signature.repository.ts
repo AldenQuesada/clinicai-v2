@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface LegalDocSignatureDTO {
   id: string
@@ -56,7 +57,7 @@ function mapSignatureRow(r: any): LegalDocSignatureDTO {
 
 export class LegalDocSignatureRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Submete assinatura via RPC publica. Anon pode chamar · valida token

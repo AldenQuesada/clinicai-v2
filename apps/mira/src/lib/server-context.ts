@@ -12,12 +12,12 @@
 
 import { cookies } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createServerClient, requireClinicContext, type ClinicContext } from '@clinicai/supabase'
+import { createServerClient, requireClinicContext, type ClinicContext, type Database } from '@clinicai/supabase'
 import { makeMiraRepos, type MiraRepos } from './repos'
 
 interface MiraServerContextResult {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  supabase: SupabaseClient<Database>
   ctx: ClinicContext
   repos: MiraRepos
 }

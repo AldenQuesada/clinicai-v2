@@ -6,6 +6,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface AnalyticsApplications {
   total: number
@@ -67,7 +68,7 @@ export interface AnalyticsBlob {
 
 export class B2BAnalyticsRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async get(days: number = 30): Promise<AnalyticsBlob | null> {
     const { data, error } = await this.supabase.rpc('b2b_mira_analytics', {

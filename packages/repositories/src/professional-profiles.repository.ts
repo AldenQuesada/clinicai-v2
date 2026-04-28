@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface ProfessionalProfileDTO {
   id: string
@@ -21,7 +22,7 @@ export interface ProfessionalProfileDTO {
 
 export class ProfessionalProfilesRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   /**
    * Lista profissionais ativos com phone valido (whatsapp/telefone/phone).

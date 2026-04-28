@@ -27,6 +27,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger, hashPhone } from '@clinicai/logger'
+import type { Database } from '@clinicai/supabase'
 
 const log = createLogger({ app: 'lara' })
 
@@ -90,7 +91,7 @@ export interface MediaDispatchResult {
 
 interface ResolveOpts {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>
+  supabase: SupabaseClient<Database>
   clinic_id: string
   phone: string
   aiResponse: string
@@ -179,13 +180,13 @@ function pickTwoFromDifferentPeople(photos: BankPhoto[]): BankPhoto[] {
  */
 async function fetchFromBank(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   funnel: string | null,
   queixa: string | null,
 ): Promise<BankPhoto[]> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('wa_get_media', {
+    const { data, error } = await supabase.rpc('wa_get_media', {
       p_funnel: funnel,
       p_queixa: queixa,
       p_phase: null,
@@ -217,7 +218,7 @@ async function fetchFromBank(
  */
 async function fallbackBucketList(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   basePath: string,
 ): Promise<BankPhoto[]> {
   try {

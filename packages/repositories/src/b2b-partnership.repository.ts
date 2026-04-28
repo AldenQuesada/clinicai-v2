@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface B2BPartnershipDTO {
   id: string
@@ -153,7 +154,7 @@ function last8(phone: string): string {
 
 export class B2BPartnershipRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async list(clinicId: string, filters: { status?: string; tier?: number; pillar?: string } = {}): Promise<B2BPartnershipDTO[]> {
     let q = this.supabase
@@ -213,8 +214,7 @@ export class B2BPartnershipRepository {
 
     // Junta b2b_partnership_wa_senders ativos e devolve a parceria
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (this.supabase
-      .from('b2b_partnership_wa_senders') as any)
+    const { data } = await this.supabase.from('b2b_partnership_wa_senders')
       .select('partnership_id, b2b_partnerships(*)')
       .eq('clinic_id', clinicId)
       .eq('active', true)
@@ -362,8 +362,7 @@ export class B2BPartnershipRepository {
   }>> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (this.supabase
-        .from('b2b_partnership_comments') as any)
+      const { data, error } = await this.supabase.from('b2b_partnership_comments')
         .select('id, partnership_id, author_name, body, created_at, b2b_partnerships(name)')
         .eq('clinic_id', clinicId)
         .order('created_at', { ascending: false })
@@ -456,8 +455,7 @@ export class B2BPartnershipRepository {
   ): Promise<Array<{ partnership: B2BPartnershipDTO; count: number }>> {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (this.supabase
-      .from('b2b_attributions') as any)
+    const { data } = await this.supabase.from('b2b_attributions')
       .select('partnership_id, b2b_partnerships(*)')
       .eq('clinic_id', clinicId)
       .gte('created_at', since)
@@ -490,8 +488,7 @@ export class B2BPartnershipRepository {
   ): Promise<Array<{ kind: string; severity: string; message: string; createdAt: string }>> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (this.supabase
-        .from('b2b_partnership_alerts') as any)
+      const { data, error } = await this.supabase.from('b2b_partnership_alerts')
         .select('alert_kind, severity, message, created_at')
         .eq('partnership_id', partnershipId)
         .eq('resolved', false)

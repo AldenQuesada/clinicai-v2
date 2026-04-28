@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export type ConsentType = 'comm' | 'analytics' | 'data_sharing' | 'marketing'
 
@@ -47,7 +48,7 @@ export interface ExportData {
 
 export class B2BLgpdRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async anonymize(partnershipId: string, reason: string): Promise<AnonymizeResult> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_anonymize', {

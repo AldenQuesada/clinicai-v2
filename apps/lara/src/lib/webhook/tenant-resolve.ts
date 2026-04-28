@@ -17,6 +17,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
+import type { Database } from '@clinicai/supabase'
 
 const log = createLogger({ app: 'lara' })
 
@@ -47,7 +48,7 @@ export interface TenantContext {
  */
 export async function resolveTenantContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   phoneNumberId: string | null,
 ): Promise<TenantContext> {
   const failFast = process.env.LARA_TENANT_FAILFAST === 'true'
@@ -60,7 +61,7 @@ export async function resolveTenantContext(
     return { clinic_id: FALLBACK_CLINIC_ID, wa_number_id: null }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc('wa_numbers_resolve_by_phone_number_id', {
+  const { data, error } = await supabase.rpc('wa_numbers_resolve_by_phone_number_id', {
     p_phone_number_id: phoneNumberId,
   })
   if (error || !data?.ok) {

@@ -9,6 +9,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@clinicai/supabase'
 
 export interface PerformanceROI {
   revenue_brl: number
@@ -149,7 +150,7 @@ export interface MonthlyConversionRow {
 
 export class B2BPerformanceRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private supabase: SupabaseClient<any>) {}
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async full(partnershipId: string): Promise<PerformanceFull | null> {
     const { data, error } = await this.supabase.rpc('b2b_partner_performance_full', {
