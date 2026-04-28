@@ -14,6 +14,7 @@ import { SearchPanel } from '@/components/reader/SearchPanel'
 import { TocSidebar } from '@/components/reader/TocSidebar'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
+import { readControls } from '@/lib/editor/settings-shapes'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -35,6 +36,7 @@ interface Props {
   pdfPath: string
   flipbookId: string
   pageCount: number | null
+  previewCount?: number
   format: Format
   title: string
   subtitle: string | null
@@ -44,6 +46,8 @@ interface Props {
   slug: string
   initialPage: number
   amazonAsin: string | null
+  /** jsonb `flipbooks.settings` · merge raso · validado via settings-shapes. */
+  settings?: Record<string, unknown> | null
 }
 
 const REFRESH_INTERVAL_MS = 50 * 60 * 1000
@@ -54,9 +58,11 @@ interface CanvasHandle {
 }
 
 export function Reader({
-  pdfUrl: initialUrl, pdfPath, flipbookId, pageCount, format,
+  pdfUrl: initialUrl, pdfPath, flipbookId, pageCount, previewCount = 0, format,
   title, subtitle, author, edition, coverUrl, slug, initialPage, amazonAsin,
+  settings,
 }: Props) {
+  const controls = readControls(settings ?? null)
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [totalPages, setTotalPages] = useState(pageCount ?? 0)
@@ -362,42 +368,52 @@ export function Reader({
         {/* Overlay top-right · controles Heyzine-style */}
         {showControls && (
           <div className={`absolute top-4 right-4 z-20 flex items-center gap-1 bg-bg-elevated/85 backdrop-blur-md border border-border rounded-md p-1 shadow-lg transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <OverlayBtn
-              Icon={ListOrdered}
-              title="Índice de páginas (I)"
-              active={tocOpen}
-              onClick={() => setTocOpen((v) => !v)}
-            />
-            <OverlayBtn
-              Icon={Search}
-              title="Buscar texto (/ ou Ctrl+F)"
-              active={searchOpen}
-              onClick={() => setSearchOpen((v) => !v)}
-            />
+            {controls.thumbnails !== false && (
+              <OverlayBtn
+                Icon={ListOrdered}
+                title="Índice de páginas (I)"
+                active={tocOpen}
+                onClick={() => setTocOpen((v) => !v)}
+              />
+            )}
+            {controls.search !== false && (
+              <OverlayBtn
+                Icon={Search}
+                title="Buscar texto (/ ou Ctrl+F)"
+                active={searchOpen}
+                onClick={() => setSearchOpen((v) => !v)}
+              />
+            )}
             <OverlayBtn
               Icon={theme === 'normal' ? Sun : theme === 'sepia' ? Coffee : Moon}
               title={`Tema · ${theme === 'normal' ? 'normal' : theme === 'sepia' ? 'sépia' : 'escuro'} (T)`}
               active={theme !== 'normal'}
               onClick={() => setTheme((t) => t === 'normal' ? 'sepia' : t === 'sepia' ? 'dark' : 'normal')}
             />
-            <OverlayBtn
-              Icon={ZoomIn}
-              title={zoomLevel === 0 ? 'Zoom (Z)' : `Zoom ${100 + zoomLevel * 25}% · clique pra ${zoomLevel === 2 ? 'voltar' : 'aumentar'}`}
-              active={zoomLevel > 0}
-              onClick={() => setZoomLevel((z) => (z + 1) % 3)}
-            />
-            <OverlayBtn
-              Icon={isFullscreen ? Minimize2 : Maximize2}
-              title="Tela cheia (F)"
-              active={isFullscreen}
-              onClick={toggleFullscreen}
-            />
-            <OverlayBtn
-              Icon={sound.enabled ? Volume2 : VolumeX}
-              title={`Som ${sound.enabled ? 'ligado' : 'desligado'} (M)`}
-              active={sound.enabled}
-              onClick={sound.toggle}
-            />
+            {controls.zoom !== false && (
+              <OverlayBtn
+                Icon={ZoomIn}
+                title={zoomLevel === 0 ? 'Zoom (Z)' : `Zoom ${100 + zoomLevel * 25}% · clique pra ${zoomLevel === 2 ? 'voltar' : 'aumentar'}`}
+                active={zoomLevel > 0}
+                onClick={() => setZoomLevel((z) => (z + 1) % 3)}
+              />
+            )}
+            {controls.fullscreen !== false && (
+              <OverlayBtn
+                Icon={isFullscreen ? Minimize2 : Maximize2}
+                title="Tela cheia (F)"
+                active={isFullscreen}
+                onClick={toggleFullscreen}
+              />
+            )}
+            {controls.sound !== false && (
+              <OverlayBtn
+                Icon={sound.enabled ? Volume2 : VolumeX}
+                title={`Som ${sound.enabled ? 'ligado' : 'desligado'} (M)`}
+                active={sound.enabled}
+                onClick={sound.toggle}
+              />
+            )}
           </div>
         )}
 
@@ -480,14 +496,16 @@ export function Reader({
           )}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={copyDeepLink}
-              aria-label="Compartilhar página"
-              title={`Copiar link desta página · /${slug}?p=${currentPage}`}
-              className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition"
-            >
-              {linkCopied ? <Check className="w-5 h-5 text-gold" /> : <Link2 className="w-5 h-5" />}
-            </button>
+            {controls.share !== false && (
+              <button
+                onClick={copyDeepLink}
+                aria-label="Compartilhar página"
+                title={`Copiar link desta página · /${slug}?p=${currentPage}`}
+                className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition"
+              >
+                {linkCopied ? <Check className="w-5 h-5 text-gold" /> : <Link2 className="w-5 h-5" />}
+              </button>
+            )}
             <button
               onClick={() => setCoverShown(true)}
               aria-label="Ver capa"

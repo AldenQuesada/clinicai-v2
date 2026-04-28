@@ -113,6 +113,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         pdfPath={book.pdf_url}
         flipbookId={book.id}
         pageCount={book.page_count}
+        previewCount={book.preview_count}
         format={book.format}
         title={book.title}
         subtitle={book.subtitle}
@@ -122,6 +123,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         slug={book.slug}
         initialPage={initialPage}
         amazonAsin={book.amazon_asin}
+        settings={book.settings}
       />
     </main>
   )
