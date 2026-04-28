@@ -873,14 +873,29 @@ function LogoPanel() {
 }
 
 function ControlsPanel() {
-  const controls = ['Download', 'Share', 'Fullscreen', 'Zoom', 'First/Last page', 'Print', 'Thumbnails', 'Search', 'Sound']
+  const ctx = useEditorSettingsContext()
+  const controls: Array<{ key: string; label: string; defaultValue: boolean }> = [
+    { key: 'download',   label: 'Download',        defaultValue: true },
+    { key: 'share',      label: 'Share',           defaultValue: true },
+    { key: 'fullscreen', label: 'Fullscreen',      defaultValue: true },
+    { key: 'zoom',       label: 'Zoom',            defaultValue: true },
+    { key: 'first_last', label: 'First/Last page', defaultValue: true },
+    { key: 'print',      label: 'Print',           defaultValue: false },
+    { key: 'thumbnails', label: 'Thumbnails',      defaultValue: true },
+    { key: 'search',     label: 'Search',          defaultValue: true },
+    { key: 'sound',      label: 'Sound',           defaultValue: false },
+  ]
+  const current = (ctx.settings.controls as Record<string, boolean>) ?? {}
+  function toggle(key: string, value: boolean) {
+    ctx.update('controls', { ...current, [key]: value })
+  }
   return (
     <div className="space-y-1 mt-2">
       <div className="font-meta text-text-dim text-[9px] uppercase mb-1.5">Botões visíveis</div>
-      {controls.map((c) => (
-        <Toggle key={c} label={c} value={true} onChange={() => {}} />
-      ))}
-      <SoonNote />
+      {controls.map((c) => {
+        const v = current[c.key] ?? c.defaultValue
+        return <Toggle key={c.key} label={c.label} value={v} onChange={(nv) => toggle(c.key, nv)} />
+      })}
     </div>
   )
 }

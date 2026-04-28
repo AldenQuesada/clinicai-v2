@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Auditoria Lara · legacy ↔ nova · 2026-04-27</title>
+<style>
+  :root {
+    --gold: #C9A96E;
+    --ivory: #F5F0E8;
+    --bg-0: #0F0D0A;
+    --bg-1: #1A1814;
+    --bg-2: #211E1A;
+    --border: rgba(245, 240, 232, 0.08);
+    --border-strong: rgba(201, 169, 110, 0.3);
+    --muted: #9CA3AF;
+    --green: #10B981;
+    --yellow: #F59E0B;
+    --red: #EF4444;
+    --blue: #60A5FA;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--ivory); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; }
+  .serif { font-family: 'Cormorant Garamond', Georgia, serif; }
+  .italic { font-style: italic; color: var(--gold); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-size: 38px; font-weight: 400; margin: 0 0 6px; letter-spacing: -0.5px; }
+  h1 em { color: var(--gold); font-style: italic; }
+  .subtitle { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 8px; }
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; font-size: 12px; color: var(--muted); }
+  .meta-row strong { color: var(--ivory); font-weight: 600; }
+  .progress-overall { margin-top: 28px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; }
+  .progress-bar { height: 8px; background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; margin-top: 12px; position: relative; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #E5C893); border-radius: 999px; transition: width 0.4s ease; }
+  .progress-stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+  .progress-stats span strong { color: var(--ivory); font-size: 14px; font-weight: 700; margin-right: 4px; }
+  .progress-stats .done strong { color: var(--green); }
+  .progress-stats .partial strong { color: var(--yellow); }
+  .progress-stats .gap strong { color: var(--red); }
+  .progress-stats .superior strong { color: var(--blue); }
+
+  section { margin-bottom: 32px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .section-header { padding: 20px 28px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: background 0.15s; }
+  .section-header:hover { background: var(--bg-2); }
+  .section-header h2 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 500; flex: 1; }
+  .section-header h2 em { color: var(--gold); font-style: italic; }
+  .section-header .toggle { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .section.open .section-header .toggle { transform: rotate(90deg); }
+  .section-progress { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .section-progress .pill { padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); font-weight: 600; }
+  .section-progress .pill.full { background: rgba(16, 185, 129, 0.1); color: var(--green); border-color: rgba(16, 185, 129, 0.3); }
+  .section-content { padding: 0 28px 24px; display: none; border-top: 1px solid var(--border); padding-top: 16px; }
+  .section.open .section-content { display: block; }
+  .section-desc { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.6; }
+
+  .item { display: grid; grid-template-columns: 28px 1fr 100px; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); align-items: start; }
+  .item:first-of-type { border-top: none; }
+  .item .check { padding-top: 2px; }
+  .item .check input { appearance: none; width: 18px; height: 18px; border: 2px solid var(--muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; background: transparent; position: relative; }
+  .item .check input:hover { border-color: var(--gold); }
+  .item .check input:checked { background: var(--gold); border-color: var(--gold); }
+  .item .check input:checked::after { content: '✓'; position: absolute; top: -3px; left: 2px; color: var(--bg-0); font-weight: bold; font-size: 14px; }
+  .item.checked .body .title { text-decoration: line-through; opacity: 0.55; }
+
+  .item .body .id { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 4px; }
+  .item .body .title { font-size: 14px; color: var(--ivory); font-weight: 500; margin-bottom: 4px; }
+  .item .body .desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .item .body .desc code { background: rgba(245, 240, 232, 0.07); padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+
+  .item .status { text-align: right; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; font-weight: 700; padding-top: 4px; }
+  .item.status-done .status { color: var(--green); }
+  .item.status-partial .status { color: var(--yellow); }
+  .item.status-gap .status { color: var(--red); }
+  .item.status-superior .status { color: var(--blue); }
+
+  .item .status .effort { display: block; font-size: 10px; color: var(--muted); margin-top: 4px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .item .status .priority { display: inline-block; padding: 2px 6px; border-radius: 3px; margin-top: 6px; font-size: 9px; }
+  .priority.high { background: rgba(239, 68, 68, 0.12); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .priority.medium { background: rgba(245, 158, 11, 0.12); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.3); }
+  .priority.low { background: rgba(96, 165, 250, 0.1); color: #93C5FD; border: 1px solid rgba(96, 165, 250, 0.3); }
+
+  .actions-bar { position: sticky; bottom: 16px; margin-top: 32px; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .actions-bar .label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .actions-bar button { padding: 8px 16px; border: 1px solid var(--border-strong); background: transparent; color: var(--ivory); border-radius: 6px; cursor: pointer; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; transition: all 0.15s; }
+  .actions-bar button:hover { background: var(--gold); color: var(--bg-0); border-color: var(--gold); }
+  .actions-bar button.secondary { border-color: var(--border); color: var(--muted); }
+  .actions-bar button.secondary:hover { background: rgba(239, 68, 68, 0.1); color: var(--red); border-color: rgba(239, 68, 68, 0.4); }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 20px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; font-size: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-item .dot.done { background: var(--green); }
+  .legend-item .dot.partial { background: var(--yellow); }
+  .legend-item .dot.gap { background: var(--red); }
+  .legend-item .dot.superior { background: var(--blue); }
+
+  footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.8; }
+  footer a { color: var(--gold); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <div class="subtitle">Auditoria · 2026-04-27</div>
+  <h1>Lara <em>nova</em> ↔ Lara <em>legacy</em></h1>
+  <p style="margin: 8px 0 0; color: var(--muted); font-size: 14px; max-width: 720px;">
+    Auditoria feature-por-feature pra fechar paridade entre as duas Laras.
+    Lara legacy (clinic-dashboard, vanilla JS + n8n + Evolution) tinha tudo codado mas dava bug ·
+    Lara nova (apps/lara, Next.js 16 + React 19 + Cloud API) precisa fazer o mesmo com stack moderna.
+  </p>
+  <div class="meta-row">
+    <span><strong>Origin:</strong> commit a6ffbda (audit blindagem N1-N7, M2-M6)</span>
+    <span><strong>Repo legacy:</strong> clinic-dashboard</span>
+    <span><strong>Repo nova:</strong> clinicai-v2/apps/lara</span>
+  </div>
+
+  <div class="progress-overall">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); font-weight: 600;">Progresso geral</div>
+        <div id="progress-text" style="font-size: 22px; font-weight: 700; margin-top: 4px;">0 / 0 fechado</div>
+      </div>
+      <div id="progress-percent" style="font-size: 38px; font-family: 'Cormorant Garamond', serif; color: var(--gold); font-weight: 500;">0%</div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
+    </div>
+    <div class="progress-stats">
+      <span class="done"><strong id="stat-done">0</strong>já paridade ou superior</span>
+      <span class="partial"><strong id="stat-partial">0</strong>parcial</span>
+      <span class="gap"><strong id="stat-gap">0</strong>gap aberto</span>
+      <span class="superior"><strong id="stat-superior">0</strong>nova superior</span>
+    </div>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><span class="dot done"></span><span>Paridade · Lara nova faz o mesmo</span></div>
+  <div class="legend-item"><span class="dot partial"></span><span>Parcial · existe mas com débito</span></div>
+  <div class="legend-item"><span class="dot gap"></span><span>Gap · ainda não tem</span></div>
+  <div class="legend-item"><span class="dot superior"></span><span>Superior · nova faz mais que legacy</span></div>
+</div>
+
+<!-- ═══ SECTION A · Conversa interativa ═══ -->
+<section class="open" data-section="A">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>A.</em> Conversa interativa (paciente → Lara)</h2>
+    <div class="section-progress"><span class="pill">0/12</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Fluxo principal · paciente manda WhatsApp e Lara responde com IA.</p>
+
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A1"/></div>
+      <label for="A1" class="body"><div class="id">A1</div><div class="title">Recebe inbound texto</div><div class="desc">Webhook recebe payload Meta · extract conversation/text</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A2"/></div>
+      <label for="A2" class="body"><div class="id">A2</div><div class="title">Recebe inbound áudio (Whisper transcribe)</div><div class="desc">Whisper-large-v3 (Groq) transcreve PTT · prompt avisa "MENSAGEM DE ÁUDIO" pra IA responder informal</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="A3"/></div>
+      <label for="A3" class="body"><div class="id">A3</div><div class="title">Recebe inbound IMAGEM via Claude Vision</div><div class="desc">Legacy mandava base64 pro Claude Vision · paciente envia foto e Lara descreve. Nova só salva em storage e usa caption como texto · IA fica cega.</div></label>
+      <div class="status">Gap<span class="effort">~0.5d</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A4"/></div>
+      <label for="A4" class="body"><div class="id">A4</div><div class="title">Vídeo / sticker / documento</div><div class="desc">Salva placeholder · Lara reconhece e segue conversa</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="A5"/></div>
+      <label for="A5" class="body"><div class="id">A5</div><div class="title">Detecta secretária respondeu manual</div><div class="desc">Legacy n8n via event <code>send.message</code> com <code>source != 'api'</code>. Cloud API nova não notifica outbound humano via webhook · precisa polling externo ou Webhook Cloud "messages.delivered"</div></label>
+      <div class="status">Gap<span class="effort">~1d</span><span class="priority medium">P2</span></div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="A6"/></div>
+      <label for="A6" class="body"><div class="id">A6</div><div class="title">Multi-tenant por número (wa_numbers)</div><div class="desc">Legacy era 1 instance hardcoded · Nova resolve via <code>wa_numbers_resolve_by_phone_number_id</code> (ADR-028)</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A7"/></div>
+      <label for="A7" class="body"><div class="id">A7</div><div class="title">History pra Claude (últimas 30 msgs)</div><div class="desc">repos.messages.getHistoryForAI carrega contexto</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A8"/></div>
+      <label for="A8" class="body"><div class="id">A8</div><div class="title">Mensagem fixa 1 (greeting · zero-token)</div><div class="desc">"Que bom ter você aqui! Sou a Lara..."</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="A9"/></div>
+      <label for="A9" class="body"><div class="id">A9</div><div class="title">Mensagem fixa 2 com [FOTO:geral]</div><div class="desc">Legacy: "Prazer, X!\n\nOlha o tipo de resultado da Dra. Mirian:\n\n[FOTO:geral]". Nova: tem texto similar mas SEM tag de foto.</div></label>
+      <div class="status">Gap<span class="effort">~5min</span><span class="priority low">P3</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="A10"/></div>
+      <label for="A10" class="body"><div class="id">A10</div><div class="title">Prompt compact após 6 msgs</div><div class="desc">Legacy <code>useCompact = msgCount > 6</code> reduz prompt em ~70% · economiza tokens. Nova usa prompt completo sempre (~3x mais caro em conversas longas).</div></label>
+      <div class="status">Gap<span class="effort">~0.5d</span><span class="priority medium">P2</span></div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="A11"/></div>
+      <label for="A11" class="body"><div class="id">A11</div><div class="title">Debounce 5s rajada de fotos/áudios</div><div class="desc">Agrupa mensagens em rajada · só responde a última</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="A12"/></div>
+      <label for="A12" class="body"><div class="id">A12</div><div class="title">Lock atômico FOR UPDATE SKIP LOCKED</div><div class="desc">RPC <code>wa_claim_conversation</code> garante que 2 workers concorrentes não respondem em duplicata (audit fix N4 mig 800-50)</div></label>
+      <div class="status">Superior</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION B · Push proativo pós-quiz ═══ -->
+<section class="open" data-section="B">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>B.</em> Push proativo após anatomy quiz</h2>
+    <div class="section-progress"><span class="pill">0/9</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Lara legacy disparava mensagens proativas após paciente fazer anatomy quiz · 6 templates por fase do funil. <strong>Nada migrado pra Lara nova ainda</strong>.</p>
+
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B1"/></div>
+      <label for="B1" class="body"><div class="id">B1</div><div class="title">Endpoint <code>/api/cold-open</code></div><div class="desc">Entry point pra disparar primeira mensagem após quiz · planejado em <code>LARA_INTEGRATION_PLAN.md</code> Fase 3 mas não implementado</div></label>
+      <div class="status">Gap<span class="effort">~1d</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B2"/></div>
+      <label for="B2" class="body"><div class="id">B2</div><div class="title">Template <code>aq_novo_lead</code> (msg 1 de 5)</div><div class="desc">Onboarding+Rapport+Permissão · "agradeça confiança · cite as 2 queixas · peça permissão pra 2 perguntinhas"</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B3"/></div>
+      <label for="B3" class="body"><div class="id">B3</div><div class="title">Template <code>aq_lead_frio</code> (reconexão)</div><div class="desc">Lead retornando · "que bom te ver de novo · dessa vez marcou queixas X+Y · pergunta sem julgamento"</div></label>
+      <div class="status">Gap<span class="effort">~1h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B4"/></div>
+      <label for="B4" class="body"><div class="id">B4</div><div class="title">Template <code>aq_orcamento_aberto</code></div><div class="desc">Lead com orçamento sem fechar · "olha que coincidência · queixas atuais já entram no orçamento · se fechar essa semana, encaixa no mês atual"</div></label>
+      <div class="status">Gap<span class="effort">~1h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B5"/></div>
+      <label for="B5" class="body"><div class="id">B5</div><div class="title">Template <code>aq_agendado_futuro</code> (com [DATA] dinâmica)</div><div class="desc">Já agendada · "que ótimo · cite queixas + agendada dia [DATA] · espaço pra tirar dúvidas · 30 dias depois rosto se transforma em câmera lenta"</div></label>
+      <div class="status">Gap<span class="effort">~1h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B6"/></div>
+      <label for="B6" class="body"><div class="id">B6</div><div class="title">Template <code>aq_paciente_ativo</code></div><div class="desc">Paciente já ativa · "que alegria te ver de volta · ela já viveu · queixas X+Y entraram no radar · Dra. gosta de reavaliação a cada 6 meses"</div></label>
+      <div class="status">Gap<span class="effort">~1h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B7"/></div>
+      <label for="B7" class="body"><div class="id">B7</div><div class="title">Template <code>aq_requiz_recente</code> (humor leve &lt;24h)</div><div class="desc">Re-quiz dentro de 24h · "voltou? tá pensando carinhosamente na sua pele 😊 · oferece reservar horário · 'topa?'"</div></label>
+      <div class="status">Gap<span class="effort">~1h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B8"/></div>
+      <label for="B8" class="body"><div class="id">B8</div><div class="title">RPC <code>lara_pick_template</code> A/B ponderada</div><div class="desc">Variantes ativas com weight · escolhe via random ponderada · ainda em DB legacy mas precisa ser usada pelo novo endpoint</div></label>
+      <div class="status">Gap<span class="effort">~1d</span><span class="priority medium">P1</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="B9"/></div>
+      <label for="B9" class="body"><div class="id">B9</div><div class="title">Trigger no Quiz aponta pro novo endpoint</div><div class="desc">anatomy_quiz_lara_dispatch atualmente é processado pela edge legacy <code>lara-dispatch</code> · precisa redirecionar pro <code>/api/cold-open</code> da Lara nova</div></label>
+      <div class="status">Gap<span class="effort">~0.5d</span><span class="priority medium">P1</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION C · Personas + funis ═══ -->
+<section class="open" data-section="C">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>C.</em> Personas + funis</h2>
+    <div class="section-progress"><span class="pill">0/9</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Legacy tinha 6 personas distintas que mudavam tom da Lara conforme fase do lead. Nova só usa "onboarder" hardcoded.</p>
+
+    <div class="item status-partial" data-status="partial"><div class="check"><input type="checkbox" id="C1"/></div>
+      <label for="C1" class="body"><div class="id">C1</div><div class="title">Persona <code>onboarder</code> (lead novo)</div><div class="desc">Boas-vindas, qualificar, entender queixas · tom entusiasmada/acolhedora</div></label>
+      <div class="status">Parcial<span class="effort">já hardcoded</span><span class="priority low">P3</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="C2"/></div>
+      <label for="C2" class="body"><div class="id">C2</div><div class="title">Persona <code>sdr</code> (follow-up)</div><div class="desc">Nutrir interesse, agendar avaliação · tom consultiva/interessada · perdida no port</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="C3"/></div>
+      <label for="C3" class="body"><div class="id">C3</div><div class="title">Persona <code>confirmador</code> (agendado)</div><div class="desc">Confirmar consulta, preparar paciente · tom organizada/prestativa</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="C4"/></div>
+      <label for="C4" class="body"><div class="id">C4</div><div class="title">Persona <code>closer</code> (pós-consulta)</div><div class="desc">Fechar tratamento, negociar condições · tom confiante/resolutiva</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="C5"/></div>
+      <label for="C5" class="body"><div class="id">C5</div><div class="title">Persona <code>recuperador</code> (lead frio)</div><div class="desc">Re-engajar com valor, sem pressão · tom leve · "O que falta?", "Desistiu ou correria te engoliu?"</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="C6"/></div>
+      <label for="C6" class="body"><div class="id">C6</div><div class="title">Persona <code>agendador</code> (quer agendar)</div><div class="desc">Encontrar melhor horário · tom eficiente/rápida · NUNCA propor horários específicos (não tem agenda)</div></label>
+      <div class="status">Gap<span class="effort">~2h</span><span class="priority high">P0</span></div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="C7"/></div>
+      <label for="C7" class="body"><div class="id">C7</div><div class="title">Funil Full Face (Lifting 5D)</div><div class="desc">Cashback, Anovator A5, SPIN, prompt completo · vive em <code>fullface-flow.md</code></div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="C8"/></div>
+      <label for="C8" class="body"><div class="id">C8</div><div class="title">Funil Olheiras (Smooth Eyes + AH)</div><div class="desc">Balde furado, 2 etapas, evita cirurgia · <code>olheiras-flow.md</code></div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="C9"/></div>
+      <label for="C9" class="body"><div class="id">C9</div><div class="title">Voucher recipient (paciente B2B beneficiária)</div><div class="desc">Detecção via <code>b2b_vouchers</code> + flow <code>voucher-recipient-flow.md</code> · não existia no legacy</div></label>
+      <div class="status">Superior</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION D · Smart tags ═══ -->
+<section class="open" data-section="D">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>D.</em> Smart tags emitidas pela IA</h2>
+    <div class="section-progress"><span class="pill">0/8</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Lara escreve tags inline na resposta · parser extrai e dispara side-effects · tags removidas do texto antes de enviar.</p>
+
+    <div class="item status-partial" data-status="partial"><div class="check"><input type="checkbox" id="D1"/></div>
+      <label for="D1" class="body"><div class="id">D1</div><div class="title">Tag <code>[FOTO:queixa]</code> envia 2 fotos</div><div class="desc">Legacy: 9 tags (geral, olheiras, sulcos, flacidez, contorno, papada, textura, rugas, rejuvenescimento). Nova: <code>media-dispatch.ts</code> existe mas precisa auditar quantas tags estão mapeadas.</div></label>
+      <div class="status">Parcial<span class="effort">~2h auditar</span><span class="priority medium">P2</span></div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="D2"/></div>
+      <label for="D2" class="body"><div class="id">D2</div><div class="title">Tag <code>[ACIONAR_HUMANO]</code> handoff</div><div class="desc">Pausa IA 24h + cria <code>inbox_notifications</code> reason='transbordo_humano' · sino bate no dashboard</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D3"/></div>
+      <label for="D3" class="body"><div class="id">D3</div><div class="title">Tag <code>[SCORE:N]</code></div><div class="desc">Atualiza <code>lead.lead_score</code> (0-10) · qualifica lead · não existia no legacy</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D4"/></div>
+      <label for="D4" class="body"><div class="id">D4</div><div class="title">Tag <code>[ADD_TAG:nome]</code></div><div class="desc">Adiciona em <code>lead.tags</code> (array, dedup) · pode disparar workflows externos</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D5"/></div>
+      <label for="D5" class="body"><div class="id">D5</div><div class="title">Tag <code>[SET_FUNNEL:tipo]</code></div><div class="desc">Reclassifica funnel · system prompt usa flow específico na próxima · legacy fazia via lógica n8n não tag</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D6"/></div>
+      <label for="D6" class="body"><div class="id">D6</div><div class="title">Filtro travessões (— → ,)</div><div class="desc">IA teima em usar travessão mesmo com bloqueio no prompt · regex no fim limpa</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D7"/></div>
+      <label for="D7" class="body"><div class="id">D7</div><div class="title">Anti prompt-injection</div><div class="desc">Wrap user msgs em <code>&lt;patient_input&gt;</code> + bloco defesa no system prompt · audit M2</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="D8"/></div>
+      <label for="D8" class="body"><div class="id">D8</div><div class="title">Phone mascarado (LGPD art. 9)</div><div class="desc">Só últimos 4 dígitos vão pro prompt · audit M3</div></label>
+      <div class="status">Superior</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION E · Operacional + guards ═══ -->
+<section class="open" data-section="E">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>E.</em> Operacional + guard-rails</h2>
+    <div class="section-progress"><span class="pill">0/10</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Limites, pause, reactivate, cost tracking, segurança.</p>
+
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="E1"/></div>
+      <label for="E1" class="body"><div class="id">E1</div><div class="title">Pause manual via dashboard</div><div class="desc"><code>/api/conversations/[id]/pause</code> · seta <code>conv.aiEnabled=false</code></div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="E2"/></div>
+      <label for="E2" class="body"><div class="id">E2</div><div class="title">Pause auto após handoff (24h)</div><div class="desc">Tag <code>[ACIONAR_HUMANO]</code> → <code>pausedBy='human_handoff'</code> + <code>aiPausedUntil = now+24h</code></div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="E3"/></div>
+      <label for="E3" class="body"><div class="id">E3</div><div class="title">Daily limit 45 msgs/conv</div><div class="desc">Const <code>DAILY_LIMIT</code> · bloqueia + cria sino reason='rate_limit'</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="E4"/></div>
+      <label for="E4" class="body"><div class="id">E4</div><div class="title">Cron reactivate D1 (23h-26h)</div><div class="desc"><code>/api/cron/reactivate</code> manda template Meta-aprovado pra leads sem resposta há 23-26h · evita perder sessão Meta de 24h</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="E5"/></div>
+      <label for="E5" class="body"><div class="id">E5</div><div class="title">HMAC fail-CLOSED webhook</div><div class="desc"><code>validateMetaSignature</code> X-Hub-Signature-256 · prod sem META_APP_SECRET retorna 401 · audit N1</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="E6"/></div>
+      <label for="E6" class="body"><div class="id">E6</div><div class="title">Cost tracking <code>_ai_budget</code></div><div class="desc">Tabela registra cada call · dashboard mostra cost hoje + 7d · legacy era ad-hoc</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="E7"/></div>
+      <label for="E7" class="body"><div class="id">E7</div><div class="title">Retry exp backoff Anthropic (1s+jitter, 2s, 4s)</div><div class="desc"><code>isTransientError</code> discrimina 5xx/429/network vs 4xx auth · audit M5</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="E8"/></div>
+      <label for="E8" class="body"><div class="id">E8</div><div class="title">Fallback Sonnet → Haiku 4.5</div><div class="desc">Na exaustão de retry · audit M6 (legacy não tinha fallback algum)</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="E9"/></div>
+      <label for="E9" class="body"><div class="id">E9</div><div class="title"><code>LARA_CRON_SECRET</code> timing-safe</div><div class="desc"><code>validateCronSecret</code> em <code>@clinicai/utils</code> · fail-CLOSED se ausente · audit N3</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-partial" data-status="partial"><div class="check"><input type="checkbox" id="E10"/></div>
+      <label for="E10" class="body"><div class="id">E10</div><div class="title">Multi-tenant fail-fast strict</div><div class="desc">Código pronto via <code>LARA_TENANT_FAILFAST=true</code> · MAS env em prod é <code>false</code> default · cai em <code>FALLBACK_CLINIC_ID</code> Mirian. Ligar quando todos wa_numbers populados (audit N23)</div></label>
+      <div class="status">Parcial<span class="effort">~5min env</span><span class="priority medium">P2</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION F · Modelo Claude ═══ -->
+<section class="open" data-section="F">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>F.</em> Modelo Claude</h2>
+    <div class="section-progress"><span class="pill">0/5</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Modelo, custos, parâmetros · trade-off qualidade vs custo.</p>
+
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="F1"/></div>
+      <label for="F1" class="body"><div class="id">F1</div><div class="title">Modelo principal Sonnet 4.6</div><div class="desc">Legacy era Haiku 4.5 (~$0.001/msg). Nova é Sonnet 4.6 (~$0.005/msg) · qualidade melhor, custo 5x</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="F2"/></div>
+      <label for="F2" class="body"><div class="id">F2</div><div class="title">Centralização <code>MODELS.SONNET</code></div><div class="desc">Em <code>@clinicai/ai</code> via <code>callAnthropic</code> · audit N5 · override por <code>ANTHROPIC_MODEL</code> env</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="F3"/></div>
+      <label for="F3" class="body"><div class="id">F3</div><div class="title">max_tokens 600</div><div class="desc">Mesmo valor do legacy</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="F4"/></div>
+      <label for="F4" class="body"><div class="id">F4</div><div class="title">Temperature 0.2 (foco em determinismo)</div><div class="desc">Legacy não setava (default 1.0) · mais aleatório</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="F5"/></div>
+      <label for="F5" class="body"><div class="id">F5</div><div class="title">Vision (recebe imagem inbound)</div><div class="desc">Legacy mandava base64 + prompt vision · paciente envia foto e Lara descreve queixa visível. Nova ainda não faz isso (duplicado A3 · está aqui pra rastrear no eixo modelo).</div></label>
+      <div class="status">Gap<span class="effort">~0.5d</span><span class="priority high">P0</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECTION G · Dashboard / UI controle ═══ -->
+<section class="open" data-section="G">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><em>G.</em> Dashboard / UI controle</h2>
+    <div class="section-progress"><span class="pill">0/9</span><span class="toggle">▶</span></div>
+  </div>
+  <div class="section-content">
+    <p class="section-desc">Painéis pra equipe gerenciar a Lara · inbox, métricas, prompts, regras, auditoria.</p>
+
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="G1"/></div>
+      <label for="G1" class="body"><div class="id">G1</div><div class="title">Inbox de conversas (SSE realtime)</div><div class="desc"><code>/conversas</code> + <code>/conversas/[id]</code> com Server-Sent Events · legacy era polling</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="G2"/></div>
+      <label for="G2" class="body"><div class="id">G2</div><div class="title">Dashboard de métricas consolidado</div><div class="desc"><code>/dashboard</code> · cost hoje+7d, msgs in/out, conversas ativas, leads, funis, transbordo · legacy era disperso em vários HTML</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="G3"/></div>
+      <label for="G3" class="body"><div class="id">G3</div><div class="title">Editor de templates</div><div class="desc"><code>/templates</code> CRUD UI</div></label>
+      <div class="status">Paridade</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="G4"/></div>
+      <label for="G4" class="body"><div class="id">G4</div><div class="title">Editor visual de prompts (DB override)</div><div class="desc"><code>/prompts</code> com 5 layers (base, olheiras, fullface, prices_defense, voucher_recipient) · alterações via DB sem rebuild · legacy era DB direto</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="G5"/></div>
+      <label for="G5" class="body"><div class="id">G5</div><div class="title">Página de regras (replicar regras-lara.html)</div><div class="desc">Legacy <code>regras-lara.html</code> (574 LOC) era painel humano-friendly de todas as regras. Nova só tem os <code>.md</code> brutos.</div></label>
+      <div class="status">Gap<span class="effort">~1d</span><span class="priority low">P3</span></div>
+    </div>
+    <div class="item status-gap" data-status="gap"><div class="check"><input type="checkbox" id="G6"/></div>
+      <label for="G6" class="body"><div class="id">G6</div><div class="title">Página de auditoria/logs (replicar auditoria-lara.html)</div><div class="desc">Legacy <code>auditoria-lara.html</code> (1008 LOC) tinha vista historiográfica de cada conversa, tags emitidas, custos, falhas. Nova ainda não tem.</div></label>
+      <div class="status">Gap<span class="effort">~2d</span><span class="priority low">P3</span></div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="G7"/></div>
+      <label for="G7" class="body"><div class="id">G7</div><div class="title">Configurações persistentes</div><div class="desc"><code>/configuracoes</code> consolidado · legacy era disperso</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-superior" data-status="superior"><div class="check"><input type="checkbox" id="G8"/></div>
+      <label for="G8" class="body"><div class="id">G8</div><div class="title">Browser notifications</div><div class="desc">Lara avisa via Notification API quando handoff/rate_limit · controle granular per-tipo</div></label>
+      <div class="status">Superior</div>
+    </div>
+    <div class="item status-done" data-status="done"><div class="check"><input type="checkbox" id="G9"/></div>
+      <label for="G9" class="body"><div class="id">G9</div><div class="title">Sino de notificações cross-app</div><div class="desc"><code>inbox_notifications</code> compartilhado com Mira/clinic-dashboard · sino bate em todos</div></label>
+      <div class="status">Paridade</div>
+    </div>
+  </div>
+</section>
+
+<div class="actions-bar">
+  <span class="label">Progresso salvo localmente · localStorage</span>
+  <div style="display: flex; gap: 8px;">
+    <button onclick="exportJson()">Exportar JSON</button>
+    <button class="secondary" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+
+<footer>
+  Auditoria gerada 2026-04-27 · clinicai-v2/docs/audits/2026-04-27-lara-vs-legacy.html<br>
+  Origin: <a href="https://github.com/AldenQuesada/clinicai-v2/commit/a6ffbda" target="_blank">commit a6ffbda</a> + análise feature-por-feature<br>
+  Stack alvo: Next.js 16 + React 19 + TypeScript strict + Tailwind 4 + Supabase JS · ADR-012 + ADR-028
+</footer>
+</div>
+
+<script>
+const STORAGE_KEY = 'lara-audit-2026-04-27';
+const allItems = document.querySelectorAll('.item');
+
+// Load state
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    for (const item of allItems) {
+      const cb = item.querySelector('input[type=checkbox]');
+      if (cb && saved[cb.id]) {
+        cb.checked = true;
+        item.classList.add('checked');
+      }
+    }
+  } catch {}
+  updateProgress();
+}
+
+function saveState() {
+  const state = {};
+  for (const item of allItems) {
+    const cb = item.querySelector('input[type=checkbox]');
+    if (cb && cb.checked) state[cb.id] = true;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function updateProgress() {
+  const counts = { done: 0, partial: 0, gap: 0, superior: 0, total: 0, checked: 0 };
+  for (const item of allItems) {
+    const status = item.dataset.status;
+    if (status) { counts[status]++; counts.total++; }
+    const cb = item.querySelector('input[type=checkbox]');
+    if (cb && cb.checked) counts.checked++;
+  }
+  document.getElementById('stat-done').textContent = counts.done;
+  document.getElementById('stat-partial').textContent = counts.partial;
+  document.getElementById('stat-gap').textContent = counts.gap;
+  document.getElementById('stat-superior').textContent = counts.superior;
+  document.getElementById('progress-text').textContent = counts.checked + ' / ' + counts.total + ' fechado';
+  const pct = counts.total > 0 ? Math.round((counts.checked / counts.total) * 100) : 0;
+  document.getElementById('progress-percent').textContent = pct + '%';
+  document.getElementById('progress-fill').style.width = pct + '%';
+
+  // Per-section progress
+  document.querySelectorAll('section').forEach((sec) => {
+    const items = sec.querySelectorAll('.item');
+    const checked = sec.querySelectorAll('.item input[type=checkbox]:checked').length;
+    const pill = sec.querySelector('.section-progress .pill');
+    if (pill) {
+      pill.textContent = checked + '/' + items.length;
+      pill.classList.toggle('full', checked === items.length && items.length > 0);
+    }
+  });
+}
+
+function toggleSection(header) {
+  const sec = header.closest('section');
+  sec.classList.toggle('open');
+}
+
+function exportJson() {
+  const state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lara-audit-progress-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetAll() {
+  if (!confirm('Resetar todos os checks?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; });
+  document.querySelectorAll('.item.checked').forEach((it) => it.classList.remove('checked'));
+  updateProgress();
+}
+
+// Listeners
+document.addEventListener('change', (e) => {
+  if (e.target.type === 'checkbox') {
+    const item = e.target.closest('.item');
+    if (item) item.classList.toggle('checked', e.target.checked);
+    saveState();
+    updateProgress();
+  }
+});
+
+// Init
+loadState();
+</script>
+</body>
+</html>
