@@ -30,6 +30,14 @@ const csp = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Bug fix 2026-04-28: standalone build nao copia *.md de src/prompt/** que
+  // sao lidos via fs.readFileSync em runtime (ai.service + /prompts page).
+  // Sem isso, getFixedResponse retorna null e Lara cai pro Claude desde a 1a
+  // mensagem · /prompts mostra "(arquivo nao encontrado)" pra layers sem
+  // override no DB. Inclui em todas as rotas pra cobrir RSC + API + actions.
+  outputFileTracingIncludes: {
+    '/*': ['src/prompt/**/*.md'],
+  },
   transpilePackages: [
     '@clinicai/ui',
     '@clinicai/utils',
