@@ -15,8 +15,9 @@ import { TocSidebar } from '@/components/reader/TocSidebar'
 import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls, readPagination, readBackground, readPageEffect, readLogo } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio } from '@/lib/editor/settings-shapes'
 import { LogoOverlay } from '@/components/reader/LogoOverlay'
+import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -69,6 +70,7 @@ export function Reader({
   const background = readBackground(settings ?? null)
   const pageEffect = readPageEffect(settings ?? null)
   const logo = readLogo(settings ?? null)
+  const bgAudio = readBgAudio(settings ?? null)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
@@ -346,6 +348,19 @@ export function Reader({
             position={logo.position}
             size={logo.size}
             href={logo.href}
+            isFullscreen={isFullscreen}
+          />
+        )}
+
+        {/* Trilha sonora opcional · só aparece quando settings.bg_audio.url existir */}
+        {bgAudio && (
+          <BgAudioPlayer
+            url={bgAudio.url}
+            pageStart={bgAudio.page_start}
+            pageEnd={bgAudio.page_end}
+            volume={bgAudio.volume}
+            loop={bgAudio.loop ?? true}
+            currentPage={currentPage}
             isFullscreen={isFullscreen}
           />
         )}
