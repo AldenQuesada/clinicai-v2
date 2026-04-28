@@ -27,6 +27,7 @@ import * as path from 'path';
 
 const PROMPT_KEYS = {
   base: 'lara_prompt_base',
+  compact: 'lara_prompt_compact',
   olheiras: 'lara_prompt_olheiras',
   fullface: 'lara_prompt_fullface',
   prices_defense: 'lara_prompt_prices_defense',
@@ -35,11 +36,22 @@ const PROMPT_KEYS = {
 
 const FILE_PATHS = {
   base: ['src', 'prompt', 'lara-prompt.md'],
+  compact: ['src', 'prompt', 'lara-prompt-compact.md'],
   olheiras: ['src', 'prompt', 'flows', 'olheiras-flow.md'],
   fullface: ['src', 'prompt', 'flows', 'fullface-flow.md'],
   prices_defense: ['src', 'prompt', 'flows', 'prices-defense-flow.md'],
   voucher_recipient: ['src', 'prompt', 'flows', 'voucher-recipient-flow.md'],
 } as const;
+
+/**
+ * Audit gap A10 (P2): após N mensagens trocadas, switch pra prompt compact
+ * pra economizar ~70% dos tokens. Lara legacy n8n usava `useCompact = msgCount > 6`.
+ * Override via env LARA_PROMPT_COMPACT_AFTER (default 6).
+ */
+function shouldUseCompactPrompt(messageCount: number): boolean {
+  const threshold = Number(process.env.LARA_PROMPT_COMPACT_AFTER ?? 6);
+  return messageCount > threshold;
+}
 
 function readFromFile(key: keyof typeof FILE_PATHS): string | null {
   try {
@@ -88,8 +100,25 @@ async function getSystemPromptText(
   funnel: string | undefined,
   clinicId: string | null,
   isVoucherRecipient = false,
+  messageCount = 0,
 ): Promise<string> {
   try {
+    // Audit gap A10: após threshold de mensagens, usa prompt compact (~70% menor).
+    // Compact já inclui regras + funis condensados + tags · não precisa empilhar layers.
+    if (shouldUseCompactPrompt(messageCount)) {
+      const compact = await readPromptLayer(clinicId, 'compact');
+      if (compact) {
+        // Voucher layer ainda injeta (pequeno, contexto crítico).
+        let prompt = compact;
+        if (isVoucherRecipient) {
+          const voucher = await readPromptLayer(clinicId, 'voucher_recipient');
+          if (voucher) prompt += '\n\n' + voucher;
+        }
+        return prompt;
+      }
+      // Se compact ausente, cai pro full (não silencia).
+    }
+
     const base = await readPromptLayer(clinicId, 'base');
     let prompt = base || 'Você é a Lara, assistente virtual da Dra. Mirian de Paula.';
 
@@ -212,7 +241,12 @@ export async function generateResponse(
   const funnel = leadContext.funnel;
 
   const isVoucherRecipient = leadContext.is_voucher_recipient === true;
-  const basePrompt = await getSystemPromptText(funnel, leadContext.clinic_id || null, isVoucherRecipient);
+  const basePrompt = await getSystemPromptText(
+    funnel,
+    leadContext.clinic_id || null,
+    isVoucherRecipient,
+    messageCount,
+  );
   const isReturning = leadContext.is_returning || false;
 
   // Audit fix M3: phone mascarado · só últimos 4 dígitos
