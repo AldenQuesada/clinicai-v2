@@ -1287,6 +1287,60 @@ function CopyPanel({ book }: { book: Flipbook }) {
 }
 
 function LinksPanel({ book }: { book: Flipbook }) {
+  const router = useRouter()
+  const ctx = useEditorSettingsContext()
+  const [, startTransition] = useTransition()
+  const [slug, setSlug] = useState(book.slug)
+  const [savedSlug, setSavedSlug] = useState(book.slug)
+  const [savingSlug, setSavingSlug] = useState(false)
+  const [slugError, setSlugError] = useState<string | null>(null)
+  const [confirmingSlug, setConfirmingSlug] = useState(false)
+
+  const slugDirty = slug !== savedSlug
+  usePanelDirty('links', slugDirty)
+
+  // Slug client-side validation visual
+  const slugValid = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)
+
+  // Redirect URL · vai pra settings.redirect_url (debounce automático do hook)
+  const redirectUrl = (ctx.settings.redirect_url as string | undefined) ?? ''
+  function setRedirect(url: string) {
+    ctx.update('redirect_url', url || null)
+  }
+
+  function tryChangeSlug() {
+    setSlugError(null)
+    if (!slugValid) {
+      setSlugError('Slug inválido · use apenas letras minúsculas, números e hífens')
+      return
+    }
+    if (slug === savedSlug) return
+    setConfirmingSlug(true)
+  }
+
+  async function doChangeSlug() {
+    setSavingSlug(true); setSlugError(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      setSavedSlug(slug)
+      setConfirmingSlug(false)
+      // Redirecciona pra nova URL do edit (slug mudou)
+      startTransition(() => router.replace(`/admin/${slug}/edit`))
+    } catch (err) {
+      setSlugError(err instanceof Error ? err.message : 'erro ao salvar slug')
+    } finally {
+      setSavingSlug(false)
+    }
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Subdomínio">
@@ -1294,13 +1348,67 @@ function LinksPanel({ book }: { book: Flipbook }) {
           <option>flipbook.aldenquesada.site</option>
         </select>
       </Field>
+
       <Field label="Slug">
-        <input type="text" defaultValue={book.slug} className={INPUT_CLS} />
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase())}
+          className={cn(INPUT_CLS, !slugValid && 'border-red-500/60')}
+          placeholder="meu-livro"
+        />
       </Field>
+      {slugError && <div className="text-red-400 text-xs">{slugError}</div>}
+
+      {slugDirty && !confirmingSlug && (
+        <button
+          onClick={tryChangeSlug}
+          disabled={!slugValid}
+          className="w-full font-meta border border-orange-500/50 text-orange-300 py-1.5 rounded hover:bg-orange-500/10 transition text-[10px] disabled:opacity-50"
+        >
+          Trocar slug…
+        </button>
+      )}
+
+      {confirmingSlug && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded p-3 space-y-2">
+          <div className="font-meta text-[10px] text-red-300 uppercase tracking-wider">Confirmar mudança de slug</div>
+          <div className="text-text-muted text-xs leading-relaxed">
+            Vou trocar de <code className="text-text">/{savedSlug}</code> pra <code className="text-gold">/{slug}</code>.
+            Isso vai <strong>quebrar links existentes</strong> pra esse livro · continuar?
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={doChangeSlug}
+              disabled={savingSlug}
+              className="flex-1 font-meta bg-red-500/80 text-white py-1.5 rounded hover:bg-red-500 transition flex items-center justify-center gap-1.5 text-[10px] disabled:opacity-50"
+            >
+              {savingSlug ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Sim, trocar
+            </button>
+            <button
+              onClick={() => setConfirmingSlug(false)}
+              disabled={savingSlug}
+              className="font-meta border border-border text-text-muted py-1.5 px-3 rounded hover:border-gold/40 hover:text-gold transition text-[10px] disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <Field label="Redirect (opcional)">
-        <input type="url" placeholder="https://" className={INPUT_CLS} />
+        <input
+          type="url"
+          value={redirectUrl}
+          onChange={(e) => setRedirect(e.target.value)}
+          placeholder="https://"
+          className={INPUT_CLS}
+        />
       </Field>
-      <SoonNote />
+      <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+        Se preenchido, o livro é substituído por um redirect 302 pra essa URL.
+      </p>
     </div>
   )
 }
