@@ -9,10 +9,27 @@ import { revalidatePath } from 'next/cache'
 import { loadServerReposContext } from '@/lib/repos'
 
 const ALLOWED_KEYS = [
+  // Base & regras
   'lara_prompt_base',
+  'lara_prompt_compact',
+  'lara_prompt_prices_defense',
+  'lara_prompt_voucher_recipient',
+  // Funis
   'lara_prompt_olheiras',
   'lara_prompt_fullface',
-  'lara_prompt_prices_defense',
+  // Personas
+  'lara_prompt_persona_sdr',
+  'lara_prompt_persona_confirmador',
+  'lara_prompt_persona_closer',
+  'lara_prompt_persona_recuperador',
+  'lara_prompt_persona_agendador',
+  // Cold-open
+  'lara_prompt_cold_open_aq_novo_lead',
+  'lara_prompt_cold_open_aq_lead_frio',
+  'lara_prompt_cold_open_aq_orcamento_aberto',
+  'lara_prompt_cold_open_aq_agendado_futuro',
+  'lara_prompt_cold_open_aq_paciente_ativo',
+  'lara_prompt_cold_open_aq_requiz_recente',
 ] as const
 
 export async function savePromptAction(key: string, formData: FormData) {
