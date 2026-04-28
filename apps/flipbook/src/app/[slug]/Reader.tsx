@@ -529,7 +529,7 @@ export function Reader({
       )}
 
       {showControls && paginationStyle !== 'hidden' && (
-        <div className={`border-t border-border bg-bg-elevated/80 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-4 transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`${isFullscreen ? 'absolute bottom-0 left-0 right-0 z-30' : ''} border-t border-border bg-bg-elevated/80 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-4 transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <button onClick={flipPrev} aria-label="Página anterior" className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition">
             <ChevronLeft className="w-5 h-5" />
           </button>

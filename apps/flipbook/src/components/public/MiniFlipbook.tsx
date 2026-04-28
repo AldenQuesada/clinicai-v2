@@ -106,9 +106,12 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
   }, [])
 
   const previewCount = book.preview_count ?? 0
-  const pages = Array.from({ length: previewCount }, (_, i) => i + 1)
-  // Slides: [capa] + [N páginas] + [CTA] · capa e CTA são single-page por showCover
-  const totalSlides = 1 + previewCount + 1
+  // Pula page-1.jpg · ela é a pg 1 do PDF que tipicamente é a própria capa,
+  // duplicaria book.cover_url no spread inicial. Começa em page-2.jpg (1ª pg
+  // real do miolo). Se previewCount<=1, pages fica vazio (só capa+CTA).
+  const pages = Array.from({ length: Math.max(0, previewCount - 1) }, (_, i) => i + 2)
+  // Slides: [capa] + [N-1 páginas] + [CTA] · capa e CTA são single-page por showCover
+  const totalSlides = 1 + pages.length + 1
 
   const onFlip = (e: { data: number }) => {
     setCurrentPage(e.data)
