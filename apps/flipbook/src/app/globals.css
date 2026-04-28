@@ -54,9 +54,10 @@ body { font-family: var(--font-body); }
   100% { transform: translateX(100%); }
 }
 
-/* Page-flip premium shadow */
+/* Page-flip premium shadow · fundo branco evita "página preta" enquanto
+   pdfjs ainda está rasterizando (skeleton aparece em camada superior). */
 .flipbook-page {
-  background: var(--color-bg-elevated);
+  background: #ffffff;
   box-shadow: var(--shadow-page);
   position: relative;
   overflow: hidden;
@@ -65,5 +66,15 @@ body { font-family: var(--font-body); }
   content: '';
   position: absolute; inset: 0;
   pointer-events: none;
+  z-index: 2;
   background: linear-gradient(to right, rgba(0,0,0,0.15), transparent 5%, transparent 95%, rgba(0,0,0,0.15));
+}
+/* Page do react-pdf ocupa todo o wrapper · canvas é display:block. Sem
+   max-* que poderiam reduzir o canvas pra zero em alguns layouts flex. */
+.flipbook-page .react-pdf__Page {
+  width: 100%;
+  height: 100%;
+}
+.flipbook-page .react-pdf__Page canvas {
+  display: block;
 }
