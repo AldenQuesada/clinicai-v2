@@ -1473,8 +1473,24 @@ function PasswordPanel({ book }: { book: Flipbook }) {
   )
 }
 
+interface LeadCaptureSettings {
+  page?: number
+  title?: string
+  dismissible?: boolean
+}
+
 function LeadPanel() {
+  const ctx = useEditorSettingsContext()
   const [tab, setTab] = useState<'options' | 'privacy' | 'fields' | 'style'>('options')
+  const current = (ctx.settings.lead_capture as LeadCaptureSettings) ?? {}
+  const page = current.page ?? 3
+  const title = current.title ?? ''
+  const dismissible = current.dismissible ?? false
+
+  function patch(next: Partial<LeadCaptureSettings>) {
+    ctx.update('lead_capture', { ...current, ...next })
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <div className="flex gap-1 border border-border rounded p-0.5">
@@ -1485,24 +1501,49 @@ function LeadPanel() {
       </div>
       {tab === 'options' && (
         <>
-          <Field label="Página de exibição"><input type="number" defaultValue={3} className={INPUT_CLS} /></Field>
-          <Field label="Título"><input type="text" placeholder="Continue lendo" className={INPUT_CLS} /></Field>
-          <Toggle label="Permitir pular" value={false} onChange={() => {}} />
+          <Field label="Página de exibição">
+            <input
+              type="number"
+              min={1}
+              value={page}
+              onChange={(e) => patch({ page: Math.max(1, parseInt(e.target.value) || 1) })}
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Field label="Título">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => patch({ title: e.target.value })}
+              placeholder="Continue lendo"
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Toggle label="Permitir pular" value={dismissible} onChange={(v) => patch({ dismissible: v })} />
+          <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+            Form ainda não é renderizado no reader · só config persistida.
+          </p>
         </>
       )}
       {tab === 'privacy' && (
         <>
           <Toggle label="Exigir consent" value={true} onChange={() => {}} />
           <Field label="Política URL"><input type="url" className={INPUT_CLS} /></Field>
+          <SoonNote />
         </>
       )}
       {tab === 'fields' && (
-        <div className="text-text-dim text-xs">Lista repetível de campos (email/text/checkbox/...).</div>
+        <>
+          <div className="text-text-dim text-xs">Lista repetível de campos (email/text/checkbox/...).</div>
+          <SoonNote />
+        </>
       )}
       {tab === 'style' && (
-        <Field label="Tema"><select className={INPUT_CLS}><option>Light</option><option>Dark</option></select></Field>
+        <>
+          <Field label="Tema"><select className={INPUT_CLS}><option>Light</option><option>Dark</option></select></Field>
+          <SoonNote />
+        </>
       )}
-      <SoonNote />
     </div>
   )
 }
