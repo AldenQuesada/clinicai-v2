@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ p?: string }>
+  searchParams: Promise<{ p?: string; t?: string }>
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -71,7 +71,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 export default async function ReaderPage({ params, searchParams }: Props) {
   const { slug } = await params
-  const { p } = await searchParams
+  const { p, t } = await searchParams
   const initialPage = p ? Math.max(1, parseInt(p, 10) || 1) : 1
   const supabase = await createServerClient()
 
@@ -92,10 +92,42 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const redirectUrl = readRedirectUrl(book.settings ?? null)
   if (redirectUrl) redirect(redirectUrl)
 
-  // Gating por senha · cookie value = hash atual; se hash mudou, gate de novo
-  if (book.access_password_hash) {
-    const store = await cookies()
-    const cookieHash = store.get(`flipbook-pwd:${book.slug}`)?.value
+  // ─── Gating por access token (compra/assinatura) ───
+  // Aceita ?t={token} (vindo do link Lara WhatsApp) OU cookie flipbook-grant:{slug}
+  // (sessão lembrada por 90d). Validado via RPC SECURITY DEFINER que verifica:
+  //   - token existe + não revogado + não expirado
+  //   - flipbook_id casa
+  //   - subscription ainda active (se for grant via sub)
+  const cookieStore = await cookies()
+  const grantCookieName = `flipbook-grant:${book.slug}`
+  const cookieToken = cookieStore.get(grantCookieName)?.value
+  const candidateToken = (t || cookieToken || '').trim()
+  let hasGrantAccess = false
+
+  if (candidateToken) {
+    const { data: grantId } = await supabase.rpc('flipbook_resolve_access_token', {
+      p_access_token: candidateToken,
+      p_flipbook_id: book.id,
+    })
+    if (grantId) {
+      hasGrantAccess = true
+      // Persistir cookie 90d se veio via query param (primeira vez)
+      if (t && t !== cookieToken) {
+        cookieStore.set(grantCookieName, t, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 90, // 90 dias
+        })
+      }
+    }
+  }
+
+  // Gating por senha · cookie value = hash atual; se hash mudou, gate de novo.
+  // Token grant válido bypassa senha.
+  if (book.access_password_hash && !hasGrantAccess) {
+    const cookieHash = cookieStore.get(`flipbook-pwd:${book.slug}`)?.value
     if (cookieHash !== book.access_password_hash) {
       return (
         <PasswordGate
