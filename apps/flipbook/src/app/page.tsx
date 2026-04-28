@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { ArrowRight, Upload, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase/server'
 import { listPublishedFlipbooks, type Flipbook } from '@/lib/supabase/flipbooks'
-import { BookCard } from '@/components/cover/BookCard'
+import { listActiveOffersByBook } from '@/lib/supabase/products'
 import { PublicHeader } from '@/components/public/PublicHeader'
 import { HeroBookPreview } from './HeroBookPreview'
 import { HomeFeatures } from './HomeFeatures'
+import { HomeCarouselSection } from './HomeCarouselSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +19,17 @@ export default async function CatalogPage() {
     books = []
   }
 
+  // Resolve offers ativas (1 round-trip pra todos)
+  let offersArray: Array<{ flipbookId: string; offer: import('@/lib/supabase/products').BookOffer }> = []
+  try {
+    const offersMap = await listActiveOffersByBook(supabase)
+    offersArray = Array.from(offersMap.entries()).map(([flipbookId, offer]) => ({ flipbookId, offer }))
+  } catch {
+    offersArray = []
+  }
+
   // Livro hero: pega o mais recente publicado
   const heroBook = books[0] ?? null
-  const restBooks = books.slice(1)
 
   return (
     <>
@@ -88,27 +97,29 @@ export default async function CatalogPage() {
         </div>
       </section>
 
-      {/* FEATURES grid */}
-      <HomeFeatures />
-
-      {/* CATÁLOGO restante */}
-      {restBooks.length > 0 && (
-        <section id="catalogo" className="px-6 md:px-12 py-16 md:py-24 border-t border-border">
+      {/* CATÁLOGO · carrossel rotativo · todos os livros entram no funil */}
+      {books.length > 0 && (
+        <section id="catalogo" className="px-2 md:px-6 py-16 md:py-24 border-t border-border">
           <div className="max-w-[var(--container)] mx-auto">
-            <header className="mb-10">
-              <div className="font-meta text-gold mb-2">Mais no catálogo</div>
+            <header className="mb-10 text-center px-4">
+              <div className="font-meta text-gold mb-2">Catálogo</div>
               <h2 className="font-display font-light text-3xl md:text-5xl text-text leading-tight">
-                {restBooks.length} {restBooks.length === 1 ? 'outro livro' : 'outros livros'} pra ler.
+                {books.length === 1
+                  ? 'O livro disponível agora.'
+                  : `${books.length} livros pra ler.`}
               </h2>
+              <p className="font-display italic text-text-muted text-base mt-3 max-w-xl mx-auto">
+                Toca em qualquer capa pra folhear. Quando bater, é só comprar.
+              </p>
             </header>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-              {restBooks.map((book) => (
-                <BookCard key={book.id} book={book} />
-              ))}
-            </div>
+
+            <HomeCarouselSection books={books} offers={offersArray} />
           </div>
         </section>
       )}
+
+      {/* FEATURES grid */}
+      <HomeFeatures />
 
       {/* Footer pequeno */}
       <footer className="px-6 md:px-12 py-8 border-t border-border">
