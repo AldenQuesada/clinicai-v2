@@ -21,6 +21,10 @@ import {
   ProfileRepository,
   B2BVoucherRepository,
   WaMediaBankRepository,
+  AppointmentRepository,
+  PatientRepository,
+  OrcamentoRepository,
+  PhaseHistoryRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -43,6 +47,11 @@ export interface Repos {
   profiles: ProfileRepository
   b2bVouchers: B2BVoucherRepository
   mediaBank: WaMediaBankRepository
+  /** CRM core (Camada 4) · Agenda/Pacientes/Orcamento + audit trail */
+  appointments: AppointmentRepository
+  patients: PatientRepository
+  orcamentos: OrcamentoRepository
+  phaseHistory: PhaseHistoryRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -61,6 +70,10 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     profiles: new ProfileRepository(sb),
     b2bVouchers: new B2BVoucherRepository(sb),
     mediaBank: new WaMediaBankRepository(sb),
+    appointments: new AppointmentRepository(sb),
+    patients: new PatientRepository(sb),
+    orcamentos: new OrcamentoRepository(sb),
+    phaseHistory: new PhaseHistoryRepository(sb),
   }
 }
 

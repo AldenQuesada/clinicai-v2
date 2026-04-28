@@ -1,0 +1,23 @@
+/**
+ * mapMessageRow · row snake_case da tabela wa_messages → MessageDTO.
+ */
+
+import type { MessageDirection } from '../types/enums'
+import type { MessageDTO } from '../types/dtos'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mapMessageRow(row: any): MessageDTO {
+  return {
+    id: String(row.id),
+    clinicId: String(row.clinic_id ?? ''),
+    conversationId: String(row.conversation_id),
+    phone: row.phone ?? null,
+    direction: (row.direction ?? 'inbound') as MessageDirection,
+    sender: String(row.sender ?? 'system'),
+    content: String(row.content ?? ''),
+    contentType: String(row.content_type ?? 'text'),
+    mediaUrl: row.media_url ?? null,
+    status: String(row.status ?? 'received'),
+    sentAt: row.sent_at ?? new Date().toISOString(),
+  }
+}

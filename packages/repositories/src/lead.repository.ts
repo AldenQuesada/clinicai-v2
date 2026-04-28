@@ -10,183 +10,43 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
-import { phoneVariants } from '@clinicai/utils'
-import {
-  mapLeadRow,
-  type CreateLeadInput,
-  type DedupHit,
-  type LeadDTO,
-} from './types'
+import { mapLeadRow } from './mappers/lead'
+import { mapRpcResult } from './helpers/rpc-result'
+import { orcamentoItemsToDbShape } from './helpers/orcamento-items'
+import { findLeadInAnySystem } from './lead-dedup'
+import type {
+  CreateLeadInput,
+  LeadCreateRpcInput,
+  LeadToAppointmentRpcInput,
+  LeadToOrcamentoRpcInput,
+} from './types/inputs'
+import type { DedupHit, LeadDTO } from './types/dtos'
+import type { LeadPhase } from './types/enums'
+import type {
+  LeadCreateResult,
+  LeadLostResult,
+  LeadToAppointmentResult,
+  LeadToOrcamentoResult,
+  LeadToPacienteResult,
+  SdrChangePhaseResult,
+} from './types/rpc'
+
 export class LeadRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
   /**
-   * Busca lead em qualquer variante de telefone (com/sem 9 inicial).
-   * Caller passa `phoneVariants(phone)` ja calculado · package utils.
-   */
-  /**
-   * Dedup global pre-emit voucher · varredura cross-tabela em paralelo.
-   *
-   * Retorna o "hit mais forte" (patient > lead > voucher_recipient > partner_referral).
-   * Se nada bate, retorna null e o caller (b2b-emit-voucher) prossegue normal.
-   *
-   * Tabelas consultadas:
-   *   - leads (separado em phase='patient' vs resto)
-   *   - b2b_vouchers (recipient_phone)
-   *   - b2b_attributions (via lead_id · join leads)
-   *
-   * Schema canonico vive no clinic-dashboard · clinicai-v2 nao tem tabela
-   * `patients` separada (ADR REFACTOR_LEAD_MODEL: leads.phase='patient' e a
-   * fonte de verdade). Quando a v2 ganhar tabela patients propria, expandir
-   * aqui sem mudar contrato.
-   *
-   * `name` recebido apenas como sanity (nao bloqueia · phone que decide).
-   *
-   * @param clinicId  Multi-tenant ADR-028 · obrigatorio
-   * @param phone     Telefone do recipient (qualquer formato · normaliza interno)
-   * @param _name     Nome do recipient · reservado pra logging futuro
+   * Wrapper backwards-compat pro dedup global cross-tabela usado pelo
+   * fluxo b2b-emit-voucher. Logica vive em `./lead-dedup` (3 tabelas com
+   * regra de prioridade especifica) · ficou separado pra reduzir blast
+   * radius do LeadRepository.
    */
   async findInAnySystem(
     clinicId: string,
     phone: string,
-    _name?: string | null,
+    name?: string | null,
   ): Promise<DedupHit | null> {
-    const variants = phoneVariants(phone)
-    if (!variants.length) return null
-
-    // 4 queries paralelas · todas filtradas por clinic_id (ADR-028)
-    const [leadRes, voucherRes, attribRes] = await Promise.all([
-      // Leads (qualquer phase) · pega created_at mais antigo
-      this.supabase
-        .from('leads')
-        .select('id, name, phone, phase, created_at')
-        .eq('clinic_id', clinicId)
-        .in('phone', variants)
-        .order('created_at', { ascending: true })
-        .limit(5),
-      // Vouchers · recipient_phone variants (qualquer status · evita re-emit)
-      this.supabase
-        .from('b2b_vouchers')
-        .select('id, recipient_name, recipient_phone, partnership_id, issued_at')
-        .eq('clinic_id', clinicId)
-        .in('recipient_phone', variants)
-        .order('issued_at', { ascending: true })
-        .limit(5),
-      // Attributions · join via lead_id (b2b_attributions nao tem phone direto)
-      // Buscar leads.id por phone variants e checar attribution
-      this.supabase
-        .from('leads')
-        .select('id, name, created_at, b2b_attributions(id, partnership_id, created_at)')
-        .eq('clinic_id', clinicId)
-        .in('phone', variants)
-        .limit(5),
-    ])
-
-    // Hit candidato por kind · escolhe o mais forte
-    const leadRows = (leadRes.data ?? []) as Array<{
-      id: string
-      name: string | null
-      phone: string
-      phase: string | null
-      created_at: string
-    }>
-
-    // 1. patient (phase='patient' · prioridade maxima)
-    const patientRow = leadRows.find((r) => r.phase === 'patient')
-    if (patientRow) {
-      return {
-        kind: 'patient',
-        id: String(patientRow.id),
-        name: patientRow.name ?? null,
-        phone: String(patientRow.phone ?? ''),
-        since: patientRow.created_at ?? new Date().toISOString(),
-      }
-    }
-
-    // 2. lead (qualquer phase != patient · pega o mais antigo)
-    if (leadRows.length > 0) {
-      const r = leadRows[0]
-      return {
-        kind: 'lead',
-        id: String(r.id),
-        name: r.name ?? null,
-        phone: String(r.phone ?? ''),
-        since: r.created_at ?? new Date().toISOString(),
-      }
-    }
-
-    // 3. voucher_recipient · indicada antes (status irrelevante)
-    const voucherRows = (voucherRes.data ?? []) as Array<{
-      id: string
-      recipient_name: string | null
-      recipient_phone: string | null
-      partnership_id: string | null
-      issued_at: string
-    }>
-    if (voucherRows.length > 0) {
-      // Mais antigo · oldest first ja ordenado
-      const v = voucherRows[0]
-      // Resolve partnership name best-effort · 1 query simples
-      let partnershipName: string | null = null
-      if (v.partnership_id) {
-        const { data: p } = await this.supabase
-          .from('b2b_partnerships')
-          .select('name')
-          .eq('id', v.partnership_id)
-          .maybeSingle()
-        partnershipName = (p as { name?: string } | null)?.name ?? null
-      }
-      return {
-        kind: 'voucher_recipient',
-        id: String(v.id),
-        name: v.recipient_name ?? null,
-        phone: String(v.recipient_phone ?? ''),
-        since: v.issued_at ?? new Date().toISOString(),
-        partnershipName,
-      }
-    }
-
-    // 4. partner_referral · attribution via lead.id que nao caiu em (1)/(2)
-    //    Esse caminho cobre o edge: lead foi removido fisicamente mas
-    //    attribution sobrou (raro · soft delete). Em pratica, se chegou aqui
-    //    e nao tinha lead, attribution tambem nao existe. Mantemos o ramo
-    //    consistente com o contrato.
-    const attribRows = (attribRes.data ?? []) as Array<{
-      id: string
-      name: string | null
-      created_at: string
-      b2b_attributions: Array<{
-        id: string
-        partnership_id: string | null
-        created_at: string
-      }> | null
-    }>
-    for (const r of attribRows) {
-      const attribs = Array.isArray(r.b2b_attributions) ? r.b2b_attributions : []
-      if (attribs.length > 0) {
-        const a = attribs[0]
-        let partnershipName: string | null = null
-        if (a.partnership_id) {
-          const { data: p } = await this.supabase
-            .from('b2b_partnerships')
-            .select('name')
-            .eq('id', a.partnership_id)
-            .maybeSingle()
-          partnershipName = (p as { name?: string } | null)?.name ?? null
-        }
-        return {
-          kind: 'partner_referral',
-          id: String(r.id),
-          name: r.name ?? null,
-          phone: variants[0],
-          since: a.created_at ?? r.created_at ?? new Date().toISOString(),
-          partnershipName,
-        }
-      }
-    }
-
-    return null
+    return findLeadInAnySystem(this.supabase, clinicId, phone, name)
   }
 
   async findByPhoneVariants(clinicId: string, variants: string[]): Promise<LeadDTO | null> {
@@ -329,9 +189,12 @@ export class LeadRepository {
     const map = new Map<string, LeadDTO>()
     if (!phones.length) return map
 
+    // Audit Camada 4 (2026-04-28): troca select de lista parcial por '*'
+    // depois que LeadDTO expandiu pra 30 campos. Caller ja limita por
+    // phones[] · custo extra por linha eh ~marginal.
     const { data } = await this.supabase
       .from('leads')
-      .select('id, name, phone, phase, temperature, funnel, queixas_faciais, ai_persona, lead_score, tags, clinic_id, idade, day_bucket, last_response_at, created_at')
+      .select('*')
       .eq('clinic_id', clinicId)
       .in('phone', phones)
 
@@ -374,5 +237,200 @@ export class LeadRepository {
       phone: String(r.phone ?? ''),
       birthday: r.birthday ?? null,
     }))
+  }
+
+  // ── CRM core reads (Camada 4) ──────────────────────────────────────────────
+
+  /**
+   * Busca lead por id (soft-delete-aware). Quando `includeDeleted=true`,
+   * pega ate registros promovidos (paciente/orcamento) · util pra timeline.
+   */
+  async getById(leadId: string, opts: { includeDeleted?: boolean } = {}): Promise<LeadDTO | null> {
+    let q = this.supabase.from('leads').select('*').eq('id', leadId).limit(1)
+    if (!opts.includeDeleted) q = q.is('deleted_at', null)
+    const { data } = await q.maybeSingle()
+    return data ? mapLeadRow(data) : null
+  }
+
+  /**
+   * Lista leads ativos da clinica filtrados por phase + paginados.
+   * Usado pelo Kanban (1 chamada por coluna) e pela Lista (filter dropdown).
+   */
+  async listByPhase(
+    clinicId: string,
+    phase: LeadPhase,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<LeadDTO[]> {
+    const limit = Math.min(opts.limit ?? 100, 500)
+    const offset = opts.offset ?? 0
+    const { data } = await this.supabase
+      .from('leads')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('phase', phase)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+    return ((data ?? []) as unknown[]).map(mapLeadRow)
+  }
+
+  /**
+   * Snapshot pro Kanban · uma query por phase em paralelo. Limite por
+   * coluna (cards visiveis); UI faz "carregar mais" se precisar de mais.
+   */
+  async kanbanSnapshot(
+    clinicId: string,
+    phases: LeadPhase[],
+    perColumn = 50,
+  ): Promise<Record<string, LeadDTO[]>> {
+    const entries = await Promise.all(
+      phases.map(
+        async (p) => [p, await this.listByPhase(clinicId, p, { limit: perColumn })] as const,
+      ),
+    )
+    return Object.fromEntries(entries)
+  }
+
+  // ── CRM core RPC wrappers (Camada 4) ───────────────────────────────────────
+  //
+  // Convencao: cada wrapper aceita input camelCase, traduz pra parametros
+  // p_<nome> snake_case esperados pelo PG, chama supabase.rpc<>(), e retorna
+  // o discriminated union (`{ ok, ... }`) ja com chaves camelCase via
+  // mapRpcResult. Erros de transporte viram `{ ok:false, error:'rpc_error' }`.
+
+  /**
+   * Wrapper de `lead_create()` RPC · idempotente por (clinic_id, phone).
+   * Usado por: UI manual, Webhook Lara, B2B voucher emitido, VPI referral,
+   * quiz/landing submit. Falha explicita se phone bate com lead soft-deleted
+   * (modelo excludente ADR-001).
+   */
+  async createViaRpc(input: LeadCreateRpcInput): Promise<LeadCreateResult> {
+    const { data, error } = await this.supabase.rpc('lead_create', {
+      p_phone: input.phone,
+      p_name: input.name ?? null,
+      p_source: input.source ?? 'manual',
+      p_source_type: input.sourceType ?? 'manual',
+      p_funnel: input.funnel ?? 'procedimentos',
+      p_email: input.email ?? null,
+      p_metadata: input.metadata ?? {},
+      p_assigned_to: input.assignedTo ?? null,
+      p_temperature: input.temperature ?? 'warm',
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadCreateResult
+    }
+    return mapRpcResult<LeadCreateResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_appointment()` · cria appointment + atualiza
+   * leads.phase=agendado em transacao atomica. Valida matriz canonica.
+   */
+  async toAppointment(input: LeadToAppointmentRpcInput): Promise<LeadToAppointmentResult> {
+    const { data, error } = await this.supabase.rpc('lead_to_appointment', {
+      p_lead_id: input.leadId,
+      p_scheduled_date: input.scheduledDate,
+      p_start_time: input.startTime,
+      p_end_time: input.endTime,
+      p_professional_id: input.professionalId ?? null,
+      p_professional_name: input.professionalName ?? '',
+      p_procedure_name: input.procedureName ?? '',
+      p_consult_type: input.consultType ?? null,
+      p_eval_type: input.evalType ?? null,
+      p_value: input.value ?? 0,
+      p_origem: input.origem ?? 'manual',
+      p_obs: input.obs ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToAppointmentResult
+    }
+    return mapRpcResult<LeadToAppointmentResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_paciente()` · promove lead pra patients (UUID
+   * compartilhado · soft-delete em leads · re-mapeia appointments/orcamentos).
+   * Idempotente. Exige phase=compareceu (pre-condicao validada na RPC).
+   */
+  async toPaciente(
+    leadId: string,
+    opts: {
+      totalRevenue?: number | null
+      firstAt?: string | null
+      lastAt?: string | null
+      notes?: string | null
+    } = {},
+  ): Promise<LeadToPacienteResult> {
+    const { data, error } = await this.supabase.rpc('lead_to_paciente', {
+      p_lead_id: leadId,
+      p_total_revenue: opts.totalRevenue ?? null,
+      p_first_at: opts.firstAt ?? null,
+      p_last_at: opts.lastAt ?? null,
+      p_notes: opts.notes ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToPacienteResult
+    }
+    return mapRpcResult<LeadToPacienteResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_orcamento()` · cria orcamento + soft-delete em leads
+   * + phase=orcamento. Exige phase=compareceu. Items convertidos pra shape
+   * snake_case esperado pela RPC.
+   */
+  async toOrcamento(input: LeadToOrcamentoRpcInput): Promise<LeadToOrcamentoResult> {
+    const itemsForDb = orcamentoItemsToDbShape(input.items)
+    const { data, error } = await this.supabase.rpc('lead_to_orcamento', {
+      p_lead_id: input.leadId,
+      p_subtotal: input.subtotal,
+      p_items: itemsForDb,
+      p_discount: input.discount ?? 0,
+      p_notes: input.notes ?? null,
+      p_title: input.title ?? null,
+      p_valid_until: input.validUntil ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToOrcamentoResult
+    }
+    return mapRpcResult<LeadToOrcamentoResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_lost()` · marca perdido (reason obrigatorio · CHECK
+   * constraint chk_leads_lost_consistency). Idempotente.
+   */
+  async markLost(leadId: string, reason: string): Promise<LeadLostResult> {
+    const { data, error } = await this.supabase.rpc('lead_lost', {
+      p_lead_id: leadId,
+      p_reason: reason,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadLostResult
+    }
+    return mapRpcResult<LeadLostResult>(data)
+  }
+
+  /**
+   * Wrapper generico de mudanca de phase · roteia pra RPC especifica quando
+   * aplicavel (lead_lost / lead_to_paciente). Para fases simples
+   * (lead/agendado/reagendado/compareceu) faz UPDATE direto. orcamento
+   * exige RPC especifica (items+subtotal) · retorna erro
+   * `use_lead_to_orcamento_directly` se chamado com to_phase='orcamento'.
+   */
+  async changePhase(
+    leadId: string,
+    toPhase: LeadPhase,
+    reason?: string | null,
+  ): Promise<SdrChangePhaseResult> {
+    const { data, error } = await this.supabase.rpc('sdr_change_phase', {
+      p_lead_id: leadId,
+      p_to_phase: toPhase,
+      p_reason: reason ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as SdrChangePhaseResult
+    }
+    return mapRpcResult<SdrChangePhaseResult>(data)
   }
 }

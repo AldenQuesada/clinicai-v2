@@ -293,6 +293,9 @@ export {
 } from './professional-profiles.repository'
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
+export { PatientRepository } from './patient.repository'
+export { OrcamentoRepository } from './orcamento.repository'
+export { PhaseHistoryRepository } from './phase-history.repository'
 export {
   WaMediaBankRepository,
   KNOWN_PHOTO_TAGS,
@@ -302,6 +305,9 @@ export {
   type CreateMediaInput,
   type UpdateMediaInput,
 } from './wa-media-bank.repository'
+
+// CRM core utilities (espelho de helpers SQL · pre-validacao client-side)
+export { LEAD_PHASE_TRANSITIONS, isPhaseTransitionAllowed, orcamentoItemsToDbShape } from './types'
 
 // ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────
 export {
@@ -342,4 +348,50 @@ export type {
   InboxNotificationInput,
   DedupHit,
   DedupHitKind,
+  // ── CRM core (Camada 4) ─────────────────────────────────────────────────
+  LeadPhase,
+  LeadSource,
+  LeadSourceType,
+  LeadTemperature,
+  LeadPriority,
+  LeadChannelMode,
+  PhaseOrigin,
+  PatientStatus,
+  PatientSex,
+  AppointmentStatus,
+  AppointmentPaymentStatus,
+  AppointmentConsentImg,
+  OrcamentoStatus,
+  AppointmentFinalizeOutcome,
+  PatientDTO,
+  AppointmentDTO,
+  OrcamentoDTO,
+  OrcamentoItem,
+  OrcamentoPayment,
+  PhaseHistoryDTO,
+  LeadCreateRpcInput,
+  LeadToAppointmentRpcInput,
+  AppointmentFinalizeRpcInput,
+  LeadToOrcamentoRpcInput,
+  CreateAppointmentInput,
+  UpdateAppointmentInput,
+  UpdatePatientInput,
+  UpdateOrcamentoInput,
+  RpcResult,
+  LeadCreateOk,
+  LeadCreateResult,
+  LeadToAppointmentOk,
+  LeadToAppointmentResult,
+  AppointmentAttendOk,
+  AppointmentAttendResult,
+  AppointmentFinalizeOk,
+  AppointmentFinalizeResult,
+  LeadToPacienteOk,
+  LeadToPacienteResult,
+  LeadToOrcamentoOk,
+  LeadToOrcamentoResult,
+  LeadLostOk,
+  LeadLostResult,
+  SdrChangePhaseOk,
+  SdrChangePhaseResult,
 } from './types'
