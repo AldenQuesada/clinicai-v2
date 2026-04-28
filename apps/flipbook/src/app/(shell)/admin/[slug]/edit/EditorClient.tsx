@@ -1088,14 +1088,81 @@ function PaginationPanel() {
   )
 }
 
+interface TocEntry {
+  label: string
+  page: number
+}
+interface TocSettings {
+  enabled?: boolean
+  entries?: TocEntry[]
+}
+
 function TocPanel() {
+  const ctx = useEditorSettingsContext()
+  const current = (ctx.settings.toc as TocSettings) ?? {}
+  const enabled = current.enabled ?? false
+  const entries = current.entries ?? []
+
+  function patch(next: Partial<TocSettings>) {
+    ctx.update('toc', { ...current, ...next })
+  }
+
+  function addEntry() {
+    patch({ entries: [...entries, { label: '', page: 1 }] })
+  }
+
+  function updateEntry(i: number, next: Partial<TocEntry>) {
+    const copy = entries.slice()
+    copy[i] = { ...copy[i], ...next }
+    patch({ entries: copy })
+  }
+
+  function removeEntry(i: number) {
+    const copy = entries.slice()
+    copy.splice(i, 1)
+    patch({ entries: copy })
+  }
+
   return (
     <div className="space-y-2 mt-2">
-      <Toggle label="Habilitar sumário" value={false} onChange={() => {}} />
-      <button className="w-full font-meta border border-border text-text-muted py-1.5 rounded text-xs hover:border-gold/40 hover:text-gold transition">
+      <Toggle label="Habilitar sumário" value={enabled} onChange={(v) => patch({ enabled: v })} />
+
+      {entries.length > 0 && (
+        <ul className="space-y-1.5">
+          {entries.map((e, i) => (
+            <li key={i} className="flex items-center gap-1.5 bg-bg-panel/40 border border-border rounded p-1.5">
+              <input
+                type="text"
+                value={e.label}
+                onChange={(ev) => updateEntry(i, { label: ev.target.value })}
+                placeholder="Título da seção"
+                className={cn(INPUT_CLS, 'flex-1')}
+              />
+              <input
+                type="number"
+                min={1}
+                value={e.page}
+                onChange={(ev) => updateEntry(i, { page: Math.max(1, parseInt(ev.target.value) || 1) })}
+                className={cn(INPUT_CLS, 'w-14')}
+              />
+              <button
+                onClick={() => removeEntry(i)}
+                title="Remover"
+                className="text-red-400 hover:text-red-300 px-1.5 py-1 text-xs"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        onClick={addEntry}
+        className="w-full font-meta border border-border text-text-muted py-1.5 rounded text-xs hover:border-gold/40 hover:text-gold transition"
+      >
         + Adicionar entrada
       </button>
-      <SoonNote />
     </div>
   )
 }
