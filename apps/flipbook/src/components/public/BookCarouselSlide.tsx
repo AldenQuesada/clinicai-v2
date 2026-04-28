@@ -48,14 +48,16 @@ export function BookCarouselSlide({ book, isCenter, onSelect }: Props) {
           : 'scale-95 opacity-70 lg:opacity-80 hover:opacity-100 shadow-[0_15px_40px_rgba(0,0,0,0.5)]'
         }
       `}
-      style={{
-        transform: isCenter
-          ? `perspective(1400px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) ${
-              typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'scale(1.05)' : 'scale(1)'
-            }`
-          : undefined,
-        transition: 'transform 0.4s ease-out, opacity 0.5s, box-shadow 0.5s',
-      }}
+      style={
+        isCenter && (tilt.rx !== 0 || tilt.ry !== 0)
+          ? {
+              // Só sobrescreve transform durante hover (mouse moveu) · sem isso,
+              // SSR e client batem (Tailwind lg:scale-105 cuida do scale base).
+              transform: `perspective(1400px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+              transition: 'transform 0.4s ease-out',
+            }
+          : undefined
+      }
     >
       {/* Cover image */}
       {book.cover_url ? (
