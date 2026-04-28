@@ -15,7 +15,7 @@ import { TocSidebar } from '@/components/reader/TocSidebar'
 import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio, readToc } from '@/lib/editor/settings-shapes'
 import { LogoOverlay } from '@/components/reader/LogoOverlay'
 import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
 
@@ -71,6 +71,8 @@ export function Reader({
   const pageEffect = readPageEffect(settings ?? null)
   const logo = readLogo(settings ?? null)
   const bgAudio = readBgAudio(settings ?? null)
+  const toc = readToc(settings ?? null)
+  const customTocEntries = toc.enabled && toc.entries && toc.entries.length > 0 ? toc.entries : undefined
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
@@ -469,6 +471,7 @@ export function Reader({
             totalPages={totalPages}
             onClose={() => setTocOpen(false)}
             onJump={(p) => { flipTo(p); setTocOpen(false) }}
+            customEntries={customTocEntries}
           />
         )}
       </div>
