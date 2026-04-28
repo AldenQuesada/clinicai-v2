@@ -15,9 +15,10 @@ import { TocSidebar } from '@/components/reader/TocSidebar'
 import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio, readToc } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio, readToc, readLeadCapture } from '@/lib/editor/settings-shapes'
 import { LogoOverlay } from '@/components/reader/LogoOverlay'
 import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
+import { LeadCaptureModal } from '@/components/reader/LeadCaptureModal'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -73,6 +74,7 @@ export function Reader({
   const bgAudio = readBgAudio(settings ?? null)
   const toc = readToc(settings ?? null)
   const customTocEntries = toc.enabled && toc.entries && toc.entries.length > 0 ? toc.entries : undefined
+  const leadCapture = readLeadCapture(settings ?? null)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
@@ -88,6 +90,7 @@ export function Reader({
   const [searchOpen, setSearchOpen] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
   const [amazonCtaDismissed, setAmazonCtaDismissed] = useState(false)
+  const [leadDismissed, setLeadDismissed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<CanvasHandle | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -148,6 +151,21 @@ export function Reader({
   function dismissAmazonCta() {
     setAmazonCtaDismissed(true)
     try { window.localStorage.setItem(`flipbook:cta-dismissed:${slug}`, '1') } catch {}
+  }
+
+  // Lead capture · dismiss persiste por slug
+  useEffect(() => {
+    if (!leadCapture) return
+    try {
+      if (window.localStorage.getItem(`flipbook:lead-dismissed:${slug}`) === '1') {
+        setLeadDismissed(true)
+      }
+    } catch {}
+  }, [leadCapture, slug])
+
+  function dismissLeadCapture() {
+    setLeadDismissed(true)
+    try { window.localStorage.setItem(`flipbook:lead-dismissed:${slug}`, '1') } catch {}
   }
 
   useEffect(() => { if (format === 'pdf') setupPdfWorker() }, [format])
@@ -364,6 +382,17 @@ export function Reader({
             loop={bgAudio.loop ?? true}
             currentPage={currentPage}
             isFullscreen={isFullscreen}
+          />
+        )}
+
+        {/* Lead capture · dispara em settings.lead_capture.page · dismiss persiste por slug */}
+        {leadCapture && currentPage === leadCapture.page && !leadDismissed && (
+          <LeadCaptureModal
+            flipbookId={flipbookId}
+            currentPage={currentPage}
+            title={leadCapture.title}
+            dismissible={leadCapture.dismissible !== false}
+            onClose={dismissLeadCapture}
           />
         )}
 
