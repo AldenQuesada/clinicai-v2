@@ -8,7 +8,7 @@ import type { FlipbookWithStats } from '@/lib/supabase/flipbooks'
 import {
   MoreVertical, Pencil, Copy, Trash2, Loader2,
   Settings, ExternalLink, Share2, Check, Image as ImageIcon, Layers,
-  Eye, EyeOff, Archive, FileText, Link as LinkIcon,
+  Eye, EyeOff, Archive, FileText, Link as LinkIcon, Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -152,6 +152,7 @@ export function AdminBookCard({
           }}
         >
           <MenuItem Icon={Settings}     label="Editor"          onClick={() => router.push(`/admin/${book.slug}/edit`)} />
+          <MenuItem Icon={Megaphone}    label="Editar Landing"  onClick={() => router.push(`/admin/${book.slug}/landing`)} />
           <MenuItem Icon={ExternalLink} label="Preview"         onClick={() => { window.open(`/${book.slug}`, '_blank'); setMenuOpen(false) }} />
           <MenuItem Icon={Share2}       label="Compartilhar"    onClick={shareNative} />
           <MenuItem Icon={copied ? Check : Copy} label={copied ? 'Copiado!' : 'Copiar link'} onClick={copyLink} />
