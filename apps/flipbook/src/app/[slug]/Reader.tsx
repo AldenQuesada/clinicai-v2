@@ -12,9 +12,10 @@ import { CinematicCover } from '@/components/reader/CinematicCover'
 import { ResumeBanner } from '@/components/reader/ResumeBanner'
 import { SearchPanel } from '@/components/reader/SearchPanel'
 import { TocSidebar } from '@/components/reader/TocSidebar'
+import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
-import { readControls } from '@/lib/editor/settings-shapes'
+import { readControls, readPagination } from '@/lib/editor/settings-shapes'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -63,6 +64,8 @@ export function Reader({
   settings,
 }: Props) {
   const controls = readControls(settings ?? null)
+  const paginationStyle = readPagination(settings ?? null).style ?? 'numbers'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [totalPages, setTotalPages] = useState(pageCount ?? 0)
@@ -461,15 +464,21 @@ export function Reader({
         </button>
       )}
 
-      {showControls && (
+      {showControls && paginationStyle !== 'hidden' && (
         <div className={`border-t border-border bg-bg-elevated/80 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-4 transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <button onClick={flipPrev} aria-label="Página anterior" className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition">
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          <div className="font-meta text-text-muted text-xs">
-            {currentPage} <span className="text-text-dim">/</span> {totalPages || '—'}
-          </div>
+          <PaginationFooter
+            style={paginationStyle}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            slug={slug}
+            previewCount={previewCount}
+            supabaseUrl={supabaseUrl}
+            onJump={(p) => flipTo(p)}
+          />
 
           {/* CTA Amazon · só aparece após pág 3 (engajamento mínimo) e enquanto não dispensado */}
           {amazonAsin && currentPage >= 3 && !amazonCtaDismissed && !isFullscreen && (
