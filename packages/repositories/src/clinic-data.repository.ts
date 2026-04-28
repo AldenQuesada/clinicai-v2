@@ -10,10 +10,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export class ClinicDataRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Le valor armazenado · null se key nao existe.

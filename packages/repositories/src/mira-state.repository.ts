@@ -11,15 +11,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface MiraStateRow<T = Record<string, unknown>> {
   value: T
   expiresAt: string
 }
 
 export class MiraStateRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Set state · TTL em minutos. value=null → clear.

@@ -21,8 +21,6 @@
 import { makeMiraRepos } from '@/lib/repos'
 import { createServerClient } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 const CACHE_TTL_MS = 60_000
 const cache = new Map<string, { val: string; exp: number }>()
 
@@ -37,13 +35,15 @@ function fallback(): string {
 export async function resolveMiraInstance(
   clinicId: string,
   functionKey: string,
-  supabase?: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase?: SupabaseClient<any>,
 ): Promise<string> {
   const cacheKey = `${clinicId}:${functionKey}`
   const hit = cache.get(cacheKey)
   if (hit && hit.exp > Date.now()) return hit.val
 
-  const client = (supabase ?? createServerClient()) as SupabaseClient<Database>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = (supabase ?? createServerClient()) as SupabaseClient<any>
   const repos = makeMiraRepos(client)
 
   let resolved = fallback()

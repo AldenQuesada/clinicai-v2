@@ -9,8 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface MiraChannelDTO {
   id: string
   clinicId: string
@@ -54,7 +52,7 @@ export interface MiraChannelInstance {
 }
 
 export class MiraChannelRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Resolve qual phone_number_id (Evolution instance) usar pra uma funcao.

@@ -10,10 +10,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { InboxNotificationInput } from './types'
-import type { Database } from '@clinicai/supabase'
-
 export class InboxNotificationRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Cria notificacao via RPC · throw em erro pra caller decidir log/silencio.

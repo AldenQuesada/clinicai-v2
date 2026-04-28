@@ -15,12 +15,10 @@ import {
   type ConversationStatus,
   type CreateConversationInput,
 } from './types'
-import type { Database } from '@clinicai/supabase'
-
 export type StatusFilter = 'active' | 'archived' | 'resolved' | 'dra'
 
 export class ConversationRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Busca conversation em qualquer variante de telefone (status amplo).
@@ -200,10 +198,19 @@ export class ConversationRepository {
   async findReactivationCandidates(window: {
     olderThan: string
     newerThan: string
-  }): Promise<Array<{ id: string; phone: string; leadId: string | null; clinicId: string }>> {
+  }): Promise<Array<{
+    id: string
+    phone: string
+    leadId: string | null
+    clinicId: string
+    waNumberId: string | null
+  }>> {
+    // Camada 3.5 (audit 2026-04-28): incluido wa_number_id pra cron
+    // reactivate poder resolver credenciais Cloud API per-tenant via
+    // createWhatsAppCloudFromWaNumber. Sem isso, fallback env global.
     const { data } = await this.supabase
       .from('wa_conversations')
-      .select('id, phone, lead_id, clinic_id')
+      .select('id, phone, lead_id, clinic_id, wa_number_id')
       .eq('status', 'active')
       .eq('reactivation_sent', false)
       .lte('last_lead_msg', window.olderThan)
@@ -215,6 +222,7 @@ export class ConversationRepository {
       phone: String(r.phone ?? ''),
       leadId: r.lead_id ?? null,
       clinicId: String(r.clinic_id),
+      waNumberId: r.wa_number_id ?? null,
     }))
   }
 }

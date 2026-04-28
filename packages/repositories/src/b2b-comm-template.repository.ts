@@ -16,8 +16,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 /**
  * Mig 800-41 · catalogo de event_keys vira tabela editavel.
  * Bucket = string livre (UI sugere parceiros/convidadas/admin).
@@ -105,7 +103,7 @@ function mapTemplateRow(row: any): B2BCommTemplateDTO {
 }
 
 export class B2BCommTemplateRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Resolve template ativo · prioriza override por parceria, fallback pra global.

@@ -30,8 +30,6 @@ import * as path from 'path';
 import { callAnthropic, MODELS } from '@clinicai/ai';
 import { ClinicDataRepository } from '@clinicai/repositories';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@clinicai/supabase'
-
 export type ColdOpenTemplateKey =
   | 'aq_novo_lead'
   | 'aq_lead_frio'
@@ -105,7 +103,8 @@ interface PickedTemplate {
  * Retorna null se RPC falhar ou não houver variante ativa pra essa key.
  */
 async function pickFromRpc(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   key: ColdOpenTemplateKey,
 ): Promise<PickedTemplate | null> {
   try {
@@ -135,7 +134,8 @@ async function pickFromRpc(
  *   3. .md no filesystem (default seed)
  */
 async function readTemplate(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   clinicId: string | null,
   key: ColdOpenTemplateKey,
 ): Promise<{
@@ -202,7 +202,8 @@ export interface ColdOpenResult {
  * Audit gap B8: retorna template_id/version/variant pra audit trail.
  */
 export async function generateColdOpenMessage(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   input: ColdOpenInput,
 ): Promise<ColdOpenResult> {
   const { templateKey, name, queixas, context, clinicId, lifecycle } = input;

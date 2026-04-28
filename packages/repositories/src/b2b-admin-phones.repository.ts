@@ -9,8 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface B2BAdminPhoneRaw {
   phone_full: string
   phone_last8: string
@@ -33,7 +31,8 @@ export interface B2BAdminPhoneInput {
 }
 
 export class B2BAdminPhonesRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.supabase.rpc(name, args || {})

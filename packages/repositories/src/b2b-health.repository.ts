@@ -6,8 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface HealthSnapshot {
   counts: {
     green: number
@@ -31,7 +29,8 @@ export interface HealthSnapshot {
 }
 
 export class B2BHealthRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async snapshot(): Promise<HealthSnapshot> {
     const { data, error } = await this.supabase.rpc('b2b_health_snapshot')

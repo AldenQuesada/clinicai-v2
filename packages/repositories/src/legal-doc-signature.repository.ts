@@ -9,8 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface LegalDocSignatureDTO {
   id: string
   requestId: string
@@ -56,7 +54,7 @@ function mapSignatureRow(r: any): LegalDocSignatureDTO {
 }
 
 export class LegalDocSignatureRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Submete assinatura via RPC publica. Anon pode chamar · valida token

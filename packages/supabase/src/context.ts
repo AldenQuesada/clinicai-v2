@@ -20,26 +20,29 @@
  */
 
 import { cookies } from 'next/headers'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServerClient } from './server'
 import {
   requireClinicContext,
   resolveClinicContext,
   type ClinicContext,
 } from './tenant'
-import type { Database } from './types'
+
+// Camada 3 (2026-04-28): tipo derivado de createServerClient (3 generics
+// do @supabase/ssr) em vez de SupabaseClient<Database> nominal (4 generics
+// do @supabase/supabase-js@2.103+) · evita mismatch.
+type SupabaseServerClient = ReturnType<typeof createServerClient>
 
 interface ServerContextResult {
-  supabase: SupabaseClient<Database>
+  supabase: SupabaseServerClient
   ctx: ClinicContext
 }
 
 interface OptionalServerContextResult {
-  supabase: SupabaseClient<Database>
+  supabase: SupabaseServerClient
   ctx: ClinicContext | null
 }
 
-function makeSupabase(): Promise<SupabaseClient<Database>> {
+function makeSupabase(): Promise<SupabaseServerClient> {
   return cookies().then((cookieStore) =>
     createServerClient({
       getAll: () => cookieStore.getAll(),

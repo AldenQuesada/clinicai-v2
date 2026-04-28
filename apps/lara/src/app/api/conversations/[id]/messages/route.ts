@@ -71,7 +71,8 @@ export async function POST(
   // (antes faltava · `(conv as any).waNumberId` retornava undefined em runtime).
   let wa: WhatsAppCloudService | null = null;
   if (conv.waNumberId) {
-    wa = await createWhatsAppCloudFromWaNumber(supabase, conv.waNumberId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    wa = await createWhatsAppCloudFromWaNumber(supabase as any, conv.waNumberId);
   }
   if (!wa) {
     wa = new WhatsAppCloudService({

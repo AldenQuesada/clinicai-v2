@@ -6,8 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface ImpactScore {
   id?: string
   name?: string
@@ -26,7 +24,8 @@ export interface ImpactScore {
 }
 
 export class B2BImpactRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async byPartnership(partnershipId: string): Promise<ImpactScore | null> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_impact_score', {

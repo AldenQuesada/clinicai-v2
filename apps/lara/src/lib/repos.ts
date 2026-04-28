@@ -10,7 +10,6 @@
  * pra supabase + ctx + repos).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   LeadRepository,
   ConversationRepository,
@@ -23,7 +22,15 @@ import {
   B2BVoucherRepository,
   WaMediaBankRepository,
 } from '@clinicai/repositories'
-import { loadServerContext, type ClinicContext, type Database } from '@clinicai/supabase'
+import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
+
+// Camada 3 (2026-04-28): tipo polimorfico (qualquer SupabaseClient ·
+// ssr 3-generics ou supabase-js 5-generics) · evita mismatch ao receber
+// tanto loadServerContext (ssr · 3 generics) quanto createServiceRoleClient
+// (supabase-js · 5 generics) que coexistem nos callers Lara.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabase = import('@supabase/supabase-js').SupabaseClient<any, any, any, any, any>
+type LoadedSupabase = Awaited<ReturnType<typeof loadServerContext>>['supabase']
 
 export interface Repos {
   leads: LeadRepository
@@ -38,18 +45,22 @@ export interface Repos {
   mediaBank: WaMediaBankRepository
 }
 
-export function makeRepos(supabase: SupabaseClient<Database>): Repos {
+export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
+  // Repos legacy aceitam SupabaseClient<any> · cast pra compatibilidade
+  // de generics (3 vs 4) entre @supabase/ssr e @supabase/supabase-js@2.103+.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
   return {
-    leads: new LeadRepository(supabase),
-    conversations: new ConversationRepository(supabase),
-    messages: new MessageRepository(supabase),
-    clinicData: new ClinicDataRepository(supabase),
-    templates: new TemplateRepository(supabase),
-    budget: new BudgetRepository(supabase),
-    inboxNotifications: new InboxNotificationRepository(supabase),
-    profiles: new ProfileRepository(supabase),
-    b2bVouchers: new B2BVoucherRepository(supabase),
-    mediaBank: new WaMediaBankRepository(supabase),
+    leads: new LeadRepository(sb),
+    conversations: new ConversationRepository(sb),
+    messages: new MessageRepository(sb),
+    clinicData: new ClinicDataRepository(sb),
+    templates: new TemplateRepository(sb),
+    budget: new BudgetRepository(sb),
+    inboxNotifications: new InboxNotificationRepository(sb),
+    profiles: new ProfileRepository(sb),
+    b2bVouchers: new B2BVoucherRepository(sb),
+    mediaBank: new WaMediaBankRepository(sb),
   }
 }
 
@@ -57,7 +68,7 @@ export function makeRepos(supabase: SupabaseClient<Database>): Repos {
  * Carrega supabase + clinic context + repos numa chamada · pra RSC/Action.
  */
 export async function loadServerReposContext(): Promise<{
-  supabase: SupabaseClient<Database>
+  supabase: LoadedSupabase
   ctx: ClinicContext
   repos: Repos
 }> {

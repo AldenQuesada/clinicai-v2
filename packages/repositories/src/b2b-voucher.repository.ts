@@ -14,8 +14,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { phoneVariants } from '@clinicai/utils'
 import type { DedupHit, DedupHitKind } from './types'
-import type { Database } from '@clinicai/supabase'
-
 export type LaraFollowupState =
   | 'pending'
   | 'engaged'
@@ -97,7 +95,7 @@ export interface IssueVoucherInput {
 }
 
 export class B2BVoucherRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Emite voucher novo · RPC b2b_voucher_issue gera token + valida cap mensal.

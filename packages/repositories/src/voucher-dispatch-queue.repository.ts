@@ -15,8 +15,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export type VoucherDispatchQueueStatus =
   | 'pending'
   | 'processing'
@@ -153,7 +151,7 @@ function mapPickedItem(raw: any): PickedQueueItemDTO {
 }
 
 export class B2BVoucherDispatchQueueRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Enfileira N vouchers via RPC b2b_dispatch_queue_enqueue.

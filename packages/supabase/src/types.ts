@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-04-28T16:00:00Z
+ * Ultima geracao: 2026-04-28T19:58:00.723Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -5569,6 +5569,380 @@ export type Database = {
         }
         Relationships: []
       }
+      flipbook_access_grants: {
+        Row: {
+          access_token: string
+          buyer_email: string | null
+          buyer_phone: string
+          created_at: string
+          expires_at: string | null
+          flipbook_id: string | null
+          id: string
+          metadata: Json
+          purchase_id: string | null
+          revoked_at: string | null
+          subscription_id: string | null
+        }
+        Insert: {
+          access_token: string
+          buyer_email?: string | null
+          buyer_phone: string
+          created_at?: string
+          expires_at?: string | null
+          flipbook_id?: string | null
+          id?: string
+          metadata?: Json
+          purchase_id?: string | null
+          revoked_at?: string | null
+          subscription_id?: string | null
+        }
+        Update: {
+          access_token?: string
+          buyer_email?: string | null
+          buyer_phone?: string
+          created_at?: string
+          expires_at?: string | null
+          flipbook_id?: string | null
+          id?: string
+          metadata?: Json
+          purchase_id?: string | null
+          revoked_at?: string | null
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_access_grants_flipbook_id_fkey"
+            columns: ["flipbook_id"]
+            isOneToOne: false
+            referencedRelation: "flipbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_access_grants_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_access_grants_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_buyers: {
+        Row: {
+          cpf: string | null
+          created_at: string
+          email: string | null
+          id: string
+          last_touch_at: string
+          name: string
+          offer_id: string
+          phone: string
+          product_id: string
+          status: string
+          updated_at: string
+          utm: Json
+        }
+        Insert: {
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_touch_at?: string
+          name: string
+          offer_id: string
+          phone: string
+          product_id: string
+          status?: string
+          updated_at?: string
+          utm?: Json
+        }
+        Update: {
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_touch_at?: string
+          name?: string
+          offer_id?: string
+          phone?: string
+          product_id?: string
+          status?: string
+          updated_at?: string
+          utm?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_buyers_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_buyers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_comm_dispatches: {
+        Row: {
+          buyer_id: string
+          channel: string
+          created_at: string
+          error_text: string | null
+          event_key: string
+          id: string
+          provider_id: string | null
+          provider_status: string | null
+          rendered_body: string | null
+          scheduled_for: string
+          sent_at: string | null
+          sequence_id: string | null
+          status: string
+          step_id: string | null
+          updated_at: string
+          variables_used: Json
+        }
+        Insert: {
+          buyer_id: string
+          channel?: string
+          created_at?: string
+          error_text?: string | null
+          event_key: string
+          id?: string
+          provider_id?: string | null
+          provider_status?: string | null
+          rendered_body?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          sequence_id?: string | null
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+          variables_used?: Json
+        }
+        Update: {
+          buyer_id?: string
+          channel?: string
+          created_at?: string
+          error_text?: string | null
+          event_key?: string
+          id?: string
+          provider_id?: string | null
+          provider_status?: string | null
+          rendered_body?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          sequence_id?: string | null
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+          variables_used?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_comm_dispatches_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_comm_dispatches_event_key_fkey"
+            columns: ["event_key"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_event_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "flipbook_comm_dispatches_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_comm_dispatches_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_sequence_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_comm_event_keys: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label: string
+          sort_order: number
+          trigger_desc: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          trigger_desc?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          trigger_desc?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      flipbook_comm_sequence_steps: {
+        Row: {
+          created_at: string
+          delay_minutes: number
+          event_key: string
+          exit_condition: string | null
+          id: string
+          is_active: boolean
+          position: number
+          sequence_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_minutes: number
+          event_key: string
+          exit_condition?: string | null
+          id?: string
+          is_active?: boolean
+          position: number
+          sequence_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_minutes?: number
+          event_key?: string
+          exit_condition?: string | null
+          id?: string
+          is_active?: boolean
+          position?: number
+          sequence_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_comm_sequence_steps_event_key_fkey"
+            columns: ["event_key"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_event_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "flipbook_comm_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_comm_sequences: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          trigger_status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      flipbook_comm_templates: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          event_key: string
+          id: string
+          is_active: boolean
+          language: string
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          body: string
+          channel?: string
+          created_at?: string
+          event_key: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          event_key?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_comm_templates_event_key_fkey"
+            columns: ["event_key"]
+            isOneToOne: false
+            referencedRelation: "flipbook_comm_event_keys"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       flipbook_conversion_events: {
         Row: {
           created_at: string
@@ -5704,6 +6078,71 @@ export type Database = {
           },
         ]
       }
+      flipbook_offers: {
+        Row: {
+          active: boolean
+          billing: string
+          coupon_code: string | null
+          created_at: string
+          currency: string
+          current_purchases: number
+          id: string
+          max_purchases: number | null
+          metadata: Json
+          name: string
+          price_cents: number
+          priority: number
+          product_id: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          active?: boolean
+          billing: string
+          coupon_code?: string | null
+          created_at?: string
+          currency?: string
+          current_purchases?: number
+          id?: string
+          max_purchases?: number | null
+          metadata?: Json
+          name: string
+          price_cents: number
+          priority?: number
+          product_id: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          active?: boolean
+          billing?: string
+          coupon_code?: string | null
+          created_at?: string
+          currency?: string
+          current_purchases?: number
+          id?: string
+          max_purchases?: number | null
+          metadata?: Json
+          name?: string
+          price_cents?: number
+          priority?: number
+          product_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flipbook_pdf_versions: {
         Row: {
           flipbook_id: string
@@ -5748,6 +6187,53 @@ export type Database = {
           },
         ]
       }
+      flipbook_products: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          flipbook_id: string | null
+          id: string
+          kind: string
+          metadata: Json
+          name: string
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          flipbook_id?: string | null
+          id?: string
+          kind: string
+          metadata?: Json
+          name: string
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          flipbook_id?: string | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          name?: string
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_products_flipbook_id_fkey"
+            columns: ["flipbook_id"]
+            isOneToOne: false
+            referencedRelation: "flipbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flipbook_progress: {
         Row: {
           flipbook_id: string
@@ -5779,6 +6265,194 @@ export type Database = {
             columns: ["flipbook_id"]
             isOneToOne: false
             referencedRelation: "flipbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_purchases: {
+        Row: {
+          amount_cents: number
+          buyer_cpf: string | null
+          buyer_email: string | null
+          buyer_id: string
+          buyer_name: string
+          buyer_phone: string
+          created_at: string
+          currency: string
+          gateway: string
+          gateway_charge_id: string
+          gateway_invoice_url: string | null
+          id: string
+          metadata: Json
+          offer_id: string
+          paid_at: string | null
+          product_id: string
+          refunded_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          buyer_cpf?: string | null
+          buyer_email?: string | null
+          buyer_id: string
+          buyer_name: string
+          buyer_phone: string
+          created_at?: string
+          currency?: string
+          gateway?: string
+          gateway_charge_id: string
+          gateway_invoice_url?: string | null
+          id?: string
+          metadata?: Json
+          offer_id: string
+          paid_at?: string | null
+          product_id: string
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          buyer_cpf?: string | null
+          buyer_email?: string | null
+          buyer_id?: string
+          buyer_name?: string
+          buyer_phone?: string
+          created_at?: string
+          currency?: string
+          gateway?: string
+          gateway_charge_id?: string
+          gateway_invoice_url?: string | null
+          id?: string
+          metadata?: Json
+          offer_id?: string
+          paid_at?: string | null
+          product_id?: string
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_purchases_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_purchases_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_purchases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flipbook_subscriptions: {
+        Row: {
+          amount_cents: number
+          billing_cycle: string
+          buyer_id: string
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          currency: string
+          current_period_end: string
+          current_period_start: string
+          ended_at: string | null
+          gateway: string
+          gateway_customer_id: string | null
+          gateway_subscription_id: string
+          id: string
+          metadata: Json
+          offer_id: string
+          product_id: string
+          status: string
+          subscriber_cpf: string | null
+          subscriber_email: string | null
+          subscriber_name: string
+          subscriber_phone: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          billing_cycle: string
+          buyer_id: string
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          current_period_end: string
+          current_period_start?: string
+          ended_at?: string | null
+          gateway?: string
+          gateway_customer_id?: string | null
+          gateway_subscription_id: string
+          id?: string
+          metadata?: Json
+          offer_id: string
+          product_id: string
+          status?: string
+          subscriber_cpf?: string | null
+          subscriber_email?: string | null
+          subscriber_name: string
+          subscriber_phone: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          billing_cycle?: string
+          buyer_id?: string
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          current_period_end?: string
+          current_period_start?: string
+          ended_at?: string | null
+          gateway?: string
+          gateway_customer_id?: string | null
+          gateway_subscription_id?: string
+          id?: string
+          metadata?: Json
+          offer_id?: string
+          product_id?: string
+          status?: string
+          subscriber_cpf?: string | null
+          subscriber_email?: string | null
+          subscriber_name?: string
+          subscriber_phone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flipbook_subscriptions_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_subscriptions_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flipbook_subscriptions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_products"
             referencedColumns: ["id"]
           },
         ]
@@ -14743,6 +15417,33 @@ export type Database = {
         Args: { p_meta_data: Json; p_month: number; p_year: number }
         Returns: Json
       }
+      flipbook_active_offer_for: {
+        Args: { p_coupon_code?: string; p_product_id: string }
+        Returns: {
+          active: boolean
+          billing: string
+          coupon_code: string | null
+          created_at: string
+          currency: string
+          current_purchases: number
+          id: string
+          max_purchases: number | null
+          metadata: Json
+          name: string
+          price_cents: number
+          priority: number
+          product_id: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "flipbook_offers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       flipbook_conversion_funnel: {
         Args: { book_id?: string; days_back?: number }
         Returns: {
@@ -14750,6 +15451,10 @@ export type Database = {
           kind: string
           unique_sessions: number
         }[]
+      }
+      flipbook_resolve_access_token: {
+        Args: { p_access_token: string; p_flipbook_id: string }
+        Returns: string
       }
       fm_get_api_key: { Args: never; Returns: string }
       fm_get_crypto_key: { Args: never; Returns: string }

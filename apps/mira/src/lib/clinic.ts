@@ -9,14 +9,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
-import type { Database } from '@clinicai/supabase'
-
 const log = createLogger({ app: 'mira' })
 
 let _cachedClinicId: string | null = null
 
 export async function resolveClinicId(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
 ): Promise<string> {
   if (_cachedClinicId) return _cachedClinicId
 

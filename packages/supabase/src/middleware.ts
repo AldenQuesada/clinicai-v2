@@ -8,8 +8,12 @@
 
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './types'
+
+// Camada 3 (2026-04-28): tipo derivado de createSSRServerClient · evita
+// mismatch entre os 3 generics que ssr@0.5.2 retorna e os 4 que
+// supabase-js@2.103+ expande quando Database eh tipo concreto.
+type MiddlewareClient = ReturnType<typeof createSSRServerClient<Database>>
 
 interface CookieToSet {
   name: string
@@ -35,7 +39,7 @@ interface CookieToSet {
 export function createMiddlewareClient(
   req: NextRequest,
   res: NextResponse,
-): SupabaseClient<Database> {
+): MiddlewareClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {

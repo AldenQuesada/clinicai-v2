@@ -7,8 +7,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export type CandidateStatus =
   | 'new'
   | 'approved'
@@ -71,7 +69,8 @@ export interface SimilarCandidateDTO {
 }
 
 export class B2BScoutRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   private async rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.supabase.rpc(name, args || {})

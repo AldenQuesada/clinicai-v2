@@ -19,8 +19,11 @@
  * Comentário NÃO usar `// TODO(ADR-028)` · multi-tenant não é TODO, é requisito.
  */
 
+// Camada 3 (2026-04-28): tenant helpers aceitam qualquer SupabaseClient
+// (auth.getUser e rpc('_default_clinic_id') funcionam em qualquer schema).
+// Polimorfismo evita mismatch entre 3 generics (@supabase/ssr) e 4
+// (@supabase/supabase-js@2.103+) quando o Database real eh injetado.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from './types'
 
 export interface ClinicContext {
   clinic_id: string
@@ -48,7 +51,8 @@ let _cachedDefaultClinicId: string | null = null
 let _warnedAboutFallback = false
 
 export async function resolveClinicContext(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any, any, any>,
 ): Promise<ClinicContext | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -88,7 +92,8 @@ export async function resolveClinicContext(
  * Versão assertive · throw se sem context. Use em endpoints que exigem auth.
  */
 export async function requireClinicContext(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any, any, any>,
 ): Promise<ClinicContext> {
   const ctx = await resolveClinicContext(supabase)
   if (!ctx) {
@@ -102,7 +107,8 @@ export async function requireClinicContext(
  * Service role obrigatório · webhook é unauth (Meta envia direto).
  */
 export async function resolveClinicByPhoneNumberId(
-  serviceClient: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  serviceClient: SupabaseClient<any, any, any, any, any>,
   phoneNumberId: string,
 ): Promise<{ clinic_id: string; wa_number_id: string } | null> {
   if (!phoneNumberId) return null

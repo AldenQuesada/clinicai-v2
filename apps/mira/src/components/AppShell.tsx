@@ -81,10 +81,17 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>
   }
 
+  // Camada 3 (audit 2026-04-28): cast pra any · evita mismatch de generics
+  // entre @supabase/ssr (3) e @supabase/supabase-js@2.103+ (4-5) ao passar
+  // pros repos/helpers que esperam SupabaseClient<any>. Repos validam clinic_id
+  // por argumento explicito (ADR-028).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
   let firstName = ''
   let role = ''
   try {
-    const profiles = new ProfileRepository(supabase)
+    const profiles = new ProfileRepository(sb)
     const profile = await profiles.getById(user.id)
     firstName = profile?.firstName ?? ''
     role = profile?.role ?? ''
@@ -98,11 +105,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   let insights: Insight[] = []
   let counts: SubtabCounts = {}
   try {
-    const ctx = await resolveClinicContext(supabase)
+    const ctx = await resolveClinicContext(sb)
     if (ctx) {
-      const partnerRepo = new B2BPartnershipRepository(supabase)
-      const applicationsRepo = new B2BApplicationRepository(supabase)
-      const templatesRepo = new B2BCommTemplateRepository(supabase)
+      const partnerRepo = new B2BPartnershipRepository(sb)
+      const applicationsRepo = new B2BApplicationRepository(sb)
+      const templatesRepo = new B2BCommTemplateRepository(sb)
       // Mig #11 monitor consumo: 3 RPCs pesadas agora cacheadas 30s no Next.js
       // (unstable_cache · TTL 30s + tags). Reduz pressao Supabase em ~90% nas
       // navegacoes authed. Mutations precisam revalidateTag(...) (TODO).
@@ -114,10 +121,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         criticalAlerts,
       ] = await Promise.all([
         partnerRepo.list(ctx.clinic_id, {}).catch(() => []),
-        getCachedInsightsGlobal(supabase, ctx.clinic_id),
+        getCachedInsightsGlobal(sb, ctx.clinic_id),
         applicationsRepo.countPending().catch(() => 0),
-        getCachedAnalytics(supabase, ctx.clinic_id, 30),
-        getCachedCriticalAlerts(supabase, ctx.clinic_id),
+        getCachedAnalytics(sb, ctx.clinic_id, 30),
+        getCachedCriticalAlerts(sb, ctx.clinic_id),
       ])
       quickPartners = partners.map((p) => ({
         id: p.id,

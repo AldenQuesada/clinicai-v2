@@ -23,8 +23,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface FinancialSnapshot {
   /** Receita gerada por conversoes B2B no periodo (R$). */
   revenue: number
@@ -92,7 +90,8 @@ export interface FinancialKpisBlob {
 }
 
 export class B2BFinancialRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Busca KPIs financeiros do periodo de p_days dias.

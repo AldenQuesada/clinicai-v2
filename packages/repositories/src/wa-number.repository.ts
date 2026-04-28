@@ -9,8 +9,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface WaNumberDTO {
   id: string
   clinicId: string
@@ -68,7 +66,7 @@ function mapRow(row: any): WaNumberDTO {
 }
 
 export class WaNumberRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async list(clinicId: string): Promise<WaNumberDTO[]> {
     const { data } = await this.supabase

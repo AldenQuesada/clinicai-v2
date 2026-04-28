@@ -55,7 +55,7 @@ export async function checkBudget(
       log.warn({ err: error, clinic_id, source }, 'budget_check RPC falhou · permitindo')
       return { allowed: true, used_usd: 0, limit_usd: DEFAULT_DAILY_LIMIT_USD }
     }
-    const result = (data as BudgetCheckResult) ?? null
+    const result = (data as unknown as BudgetCheckResult) ?? null
     if (!result) {
       return { allowed: true, used_usd: 0, limit_usd: DEFAULT_DAILY_LIMIT_USD }
     }
@@ -86,7 +86,9 @@ export async function recordUsage(usage: UsageRecord): Promise<void> {
     // RPC `_ai_budget_record` faz UPSERT com tokens += e cost +=
     const { error } = await supabase.rpc('_ai_budget_record', {
       p_clinic_id: usage.clinic_id,
-      p_user_id: usage.user_id ?? null,
+      // RPC requer string (nao opcional na signature canonica) · default ''
+      // pra usage system-level (cron/webhook sem user identificado).
+      p_user_id: usage.user_id ?? '',
       p_source: usage.source,
       p_model: usage.model,
       p_input_tokens: usage.input_tokens,

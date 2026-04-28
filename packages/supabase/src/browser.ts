@@ -6,12 +6,17 @@
  */
 
 import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './types'
 
-let _browserClient: SupabaseClient<Database> | null = null
+// Camada 3 (2026-04-28): trocamos `SupabaseClient<Database>` por
+// `ReturnType<typeof createSSRBrowserClient<Database>>` pra evitar mismatch
+// entre os 3 generics que `@supabase/ssr@0.5.2` retorna e os 4 generics que
+// `@supabase/supabase-js@2.103+` expande quando referenciado nominalmente.
+type BrowserClient = ReturnType<typeof createSSRBrowserClient<Database>>
 
-export function createBrowserClient(): SupabaseClient<Database> {
+let _browserClient: BrowserClient | null = null
+
+export function createBrowserClient(): BrowserClient {
   if (_browserClient) return _browserClient
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

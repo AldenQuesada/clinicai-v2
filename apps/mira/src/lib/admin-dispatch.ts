@@ -23,8 +23,6 @@ import {
   type PermissionCategory,
 } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
-import type { Database } from '@clinicai/supabase'
-
 const log = createLogger({ app: 'mira' }).child({ helper: 'admin-dispatch' })
 
 export interface AdminPhone {
@@ -50,7 +48,8 @@ export interface DispatchAdminResult {
 }
 
 export async function dispatchAdminText(opts: {
-  supabase: SupabaseClient<Database>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>
   repos: MiraRepos
   clinicId: string
   eventKey: string
@@ -164,7 +163,8 @@ export async function dispatchAdminText(opts: {
  * Se RPC nao existir ou retornar vazio, devolve null (caller pula dispatch).
  */
 export async function tryRpcText(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   rpcName: string,
   args: Record<string, unknown> = {},
 ): Promise<string | null> {

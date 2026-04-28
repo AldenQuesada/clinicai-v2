@@ -10,8 +10,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface B2BPartnershipDTO {
   id: string
   clinicId: string
@@ -153,7 +151,7 @@ function last8(phone: string): string {
 }
 
 export class B2BPartnershipRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async list(clinicId: string, filters: { status?: string; tier?: number; pillar?: string } = {}): Promise<B2BPartnershipDTO[]> {
     let q = this.supabase

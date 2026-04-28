@@ -6,8 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface PartnershipHealthSnapshotMetrics {
   days_since_last_voucher: number
   cap_used: number
@@ -31,7 +29,8 @@ export interface PartnershipHealthSnapshot {
 }
 
 export class B2BPartnershipHealthSnapshotRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async byPartnership(partnershipId: string): Promise<PartnershipHealthSnapshot | null> {
     const { data, error } = await this.supabase.rpc('b2b_partnership_health_snapshot', {

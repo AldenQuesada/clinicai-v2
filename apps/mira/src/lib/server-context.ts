@@ -12,11 +12,12 @@
 
 import { cookies } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createServerClient, requireClinicContext, type ClinicContext, type Database } from '@clinicai/supabase'
+import { createServerClient, requireClinicContext, type ClinicContext } from '@clinicai/supabase'
 import { makeMiraRepos, type MiraRepos } from './repos'
 
 interface MiraServerContextResult {
-  supabase: SupabaseClient<Database>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>
   ctx: ClinicContext
   repos: MiraRepos
 }
@@ -33,5 +34,9 @@ export async function loadMiraServerContext(): Promise<MiraServerContextResult> 
     },
   })
   const ctx = await requireClinicContext(supabase)
-  return { supabase, ctx, repos: makeMiraRepos(supabase) }
+  // Cast pra any · evita mismatch generics entre @supabase/ssr (3) e
+  // @supabase/supabase-js@2.103+ (4-5) ao passar pros repos `<any>`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  return { supabase: sb, ctx, repos: makeMiraRepos(sb) }
 }

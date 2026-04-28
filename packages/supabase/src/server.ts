@@ -13,8 +13,15 @@
  */
 
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
+
+// Camada 3 (2026-04-28): tipos derivados das funcoes em vez de
+// `SupabaseClient<Database>` nominal · evita mismatch entre os 3 generics
+// que `@supabase/ssr@0.5.2` retorna e os 4 que `@supabase/supabase-js@2.103+`
+// expande quando `Database` eh um tipo concreto (Camada 3 substituiu `any`).
+type ServerClient = ReturnType<typeof createSSRServerClient<Database>>
+type ServiceClient = ReturnType<typeof createClient<Database>>
 
 interface CookieToSet {
   name: string
@@ -40,7 +47,7 @@ interface CookieMethodsAdapter {
  */
 export function createServerClient(
   cookies: CookieMethodsAdapter,
-): SupabaseClient<Database> {
+): ServerClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {
@@ -98,9 +105,9 @@ export function getSharedCookieDomain(): string | null {
  *
  * NUNCA usar em RSC ou Server Actions de UI · sempre createServerClient acima.
  */
-let _serviceClient: SupabaseClient<Database> | null = null
+let _serviceClient: ServiceClient | null = null
 
-export function createServiceRoleClient(): SupabaseClient<Database> {
+export function createServiceRoleClient(): ServiceClient {
   if (_serviceClient) return _serviceClient
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY

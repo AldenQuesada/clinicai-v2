@@ -31,7 +31,8 @@ export async function AppHeader() {
   let firstName = ''
   let role = ''
   try {
-    const profiles = new ProfileRepository(supabase)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profiles = new ProfileRepository(supabase as any)
     const profile = await profiles.getById(user.id)
     firstName = profile?.firstName ?? ''
     role = profile?.role ?? ''

@@ -19,8 +19,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export type WebhookQueueStatus =
   | 'pending'
   | 'processing'
@@ -137,7 +135,7 @@ function mapPickedItem(raw: any): PickedWebhookItemDTO {
 }
 
 export class WebhookProcessingQueueRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Enfileira 1 webhook · ON CONFLICT (source, wa_message_id) DO NOTHING.

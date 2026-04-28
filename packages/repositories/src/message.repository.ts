@@ -15,15 +15,14 @@ import {
   type SaveInboundMessageInput,
   type SaveOutboundMessageInput,
 } from './types'
-import type { Database } from '@clinicai/supabase'
-
 export interface AIHistoryMessage {
   role: 'user' | 'assistant'
   content: string
 }
 
 export class MessageRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async listByConversation(
     conversationId: string,

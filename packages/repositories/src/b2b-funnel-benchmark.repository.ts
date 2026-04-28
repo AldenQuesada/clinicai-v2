@@ -13,8 +13,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export type B2BFunnelStage =
   | 'delivered'
   | 'opened'
@@ -69,7 +67,7 @@ function mapRow(row: any): B2BFunnelBenchmarkDTO {
 }
 
 export class B2BFunnelBenchmarkRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<any>) {}
 
   /**
    * Lista benchmarks (5 rows · 1 por stage) da clinica · ordenado por

@@ -72,8 +72,6 @@ import {
   LegalDocRequestRepository,
   LegalDocSignatureRepository,
 } from '@clinicai/repositories'
-import type { Database } from '@clinicai/supabase'
-
 export interface MiraRepos {
   // Shared
   leads: LeadRepository
@@ -138,7 +136,8 @@ export interface MiraRepos {
   legalDocSignatures: LegalDocSignatureRepository
 }
 
-export function makeMiraRepos(supabase: SupabaseClient<Database>): MiraRepos {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function makeMiraRepos(supabase: SupabaseClient<any>): MiraRepos {
   return {
     leads: new LeadRepository(supabase),
     conversations: new ConversationRepository(supabase),

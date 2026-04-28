@@ -17,8 +17,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
-import type { Database } from '@clinicai/supabase'
-
 const log = createLogger({ app: 'lara' })
 
 // Fallback pro clinic_id da Mirian · usado SOMENTE se RPC retornar null E
@@ -47,7 +45,8 @@ export interface TenantContext {
  *  - default · log warn + fallback pro UUID Mirian (transição)
  */
 export async function resolveTenantContext(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   phoneNumberId: string | null,
 ): Promise<TenantContext> {
   const failFast = process.env.LARA_TENANT_FAILFAST === 'true'

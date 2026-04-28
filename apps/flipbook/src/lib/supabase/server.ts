@@ -4,9 +4,11 @@
  */
 import { cookies } from 'next/headers'
 import { createServerClient as createSSR } from '@clinicai/supabase/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 
-export async function createServerClient(): Promise<SupabaseClient> {
+// Camada 3 (2026-04-28): inferimos retorno em vez de declarar
+// `SupabaseClient` nominal · evita mismatch de generics quando
+// @clinicai/supabase passa Database tipado (3 vs 4 generics).
+export async function createServerClient() {
   const store = await cookies()
   return createSSR({
     getAll: () => store.getAll(),

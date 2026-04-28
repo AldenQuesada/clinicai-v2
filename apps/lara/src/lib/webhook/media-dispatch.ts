@@ -27,8 +27,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger, hashPhone } from '@clinicai/logger'
-import type { Database } from '@clinicai/supabase'
-
 const log = createLogger({ app: 'lara' })
 
 export type PhotoTag =
@@ -90,7 +88,8 @@ export interface MediaDispatchResult {
 }
 
 interface ResolveOpts {
-  supabase: SupabaseClient<Database>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>
   clinic_id: string
   phone: string
   aiResponse: string
@@ -178,7 +177,8 @@ function pickTwoFromDifferentPeople(photos: BankPhoto[]): BankPhoto[] {
  * categorizadas com nomes/captions. Retorna [] em caso de erro ou bank vazio.
  */
 async function fetchFromBank(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   funnel: string | null,
   queixa: string | null,
 ): Promise<BankPhoto[]> {
@@ -214,7 +214,8 @@ async function fetchFromBank(
  * Fallback legacy · lista bucket direto. Sem captions reais (caller usa default).
  */
 async function fallbackBucketList(
-  supabase: SupabaseClient<Database>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
   basePath: string,
 ): Promise<BankPhoto[]> {
   try {

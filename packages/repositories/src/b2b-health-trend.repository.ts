@@ -6,8 +6,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@clinicai/supabase'
-
 export interface HealthTrendHistoryEntry {
   color: 'green' | 'yellow' | 'red' | 'unknown'
   previous: 'green' | 'yellow' | 'red' | 'unknown' | null
@@ -28,7 +26,8 @@ export interface HealthTrend {
 }
 
 export class B2BHealthTrendRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(private supabase: SupabaseClient<any>) {}
 
   async byPartnership(partnershipId: string, days = 90): Promise<HealthTrend | null> {
     const { data, error } = await this.supabase.rpc('b2b_health_trend', {
