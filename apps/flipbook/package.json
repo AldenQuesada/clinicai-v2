@@ -15,6 +15,7 @@
     "@clinicai/utils": "workspace:*",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
+    "bcryptjs": "^3.0.3",
     "canvas": "^3.2.3",
     "clsx": "catalog:",
     "dompurify": "^3.4.1",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@clinicai/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
+    "@types/bcryptjs": "^3.0.0",
     "@types/dompurify": "^3.2.0",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

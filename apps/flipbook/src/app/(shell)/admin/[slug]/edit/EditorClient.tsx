@@ -1306,7 +1306,7 @@ function BgAudioPanel({ book }: { book: Flipbook }) {
 
 function renderSettingsPanel(id: Section, book: Flipbook): React.ReactNode {
   switch (id) {
-    case 'password':    return <PasswordPanel />
+    case 'password':    return <PasswordPanel book={book} />
     case 'lead':        return <LeadPanel />
     case 'replace-pdf': return <ReplacePdfPanel book={book} />
     case 'copy':        return <CopyPanel book={book} />
@@ -1315,28 +1315,160 @@ function renderSettingsPanel(id: Section, book: Flipbook): React.ReactNode {
   }
 }
 
-function PasswordPanel() {
-  const [mode, setMode] = useState('none')
+function PasswordPanel({ book }: { book: Flipbook }) {
+  const ctx = useEditorSettingsContext()
+  const [mode, setMode] = useState<'none' | 'single' | 'user' | 'magic' | 'google'>(
+    () => (((ctx.settings.password as { mode?: string })?.mode) ?? 'none') as 'none' | 'single' | 'user' | 'magic' | 'google',
+  )
+  const [password, setPassword] = useState('')
+  const [loginMessage, setLoginMessage] = useState<string>(
+    () => ((ctx.settings.password as { login_message?: string })?.login_message ?? ''),
+  )
+  const [protectedNow, setProtectedNow] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const isDirty = password.length > 0
+  usePanelDirty('password', isDirty)
+
+  // Carrega estado atual de proteção (sem hash exposto)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/flipbooks/${book.id}/password`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j) setProtectedNow(!!j.protected) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [book.id])
+
+  function patchSettings(next: Partial<{ mode: string; login_message: string }>) {
+    const current = (ctx.settings.password as Record<string, unknown>) ?? {}
+    ctx.update('password', { ...current, ...next })
+  }
+
+  async function savePassword() {
+    if (!password) return
+    setSaving(true); setError(null); setSuccess(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      patchSettings({ mode: 'single', login_message: loginMessage })
+      setProtectedNow(true)
+      setPassword('')
+      setSuccess('Senha definida ·  livro agora exige acesso')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erro ao salvar senha')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeProtection() {
+    setSaving(true); setError(null); setSuccess(null)
+    try {
+      const res = await fetch(`/api/flipbooks/${book.id}/password`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      patchSettings({ mode: 'none' })
+      setMode('none')
+      setProtectedNow(false)
+      setSuccess('Proteção removida · livro público novamente')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erro ao remover')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-2.5 mt-2">
       <Field label="Modo">
-        <select value={mode} onChange={(e) => setMode(e.target.value)} className={INPUT_CLS}>
+        <select
+          value={mode}
+          onChange={(e) => {
+            const m = e.target.value as typeof mode
+            setMode(m)
+            if (m === 'none' && protectedNow) {
+              // não persiste settings agora · só com clique em Remover
+            } else {
+              patchSettings({ mode: m })
+            }
+          }}
+          className={INPUT_CLS}
+        >
           <option value="none">Sem senha</option>
           <option value="single">Senha única</option>
-          <option value="user">Usuário + senha</option>
-          <option value="email-otp">Email + senha por usuário</option>
-          <option value="magic">Magic link</option>
-          <option value="otp">One-time password</option>
-          <option value="google">Login Google</option>
+          <option value="user" disabled>Usuário + senha (em breve)</option>
+          <option value="magic" disabled>Magic link (em breve)</option>
+          <option value="google" disabled>Login Google (em breve)</option>
         </select>
       </Field>
-      {mode !== 'none' && (
+
+      {mode === 'single' && (
         <>
-          <Field label="Senha"><input type="password" className={INPUT_CLS} /></Field>
-          <Field label="Mensagem login"><input type="text" placeholder="Acesso restrito" className={INPUT_CLS} /></Field>
+          {protectedNow && (
+            <div className="bg-gold/10 border border-gold/40 rounded p-2 text-[10px] text-gold-light">
+              ✓ Livro protegido por senha
+            </div>
+          )}
+          <Field label={protectedNow ? 'Trocar senha' : 'Definir senha'}>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="mínimo 4 caracteres"
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Field label="Mensagem na tela de login">
+            <input
+              type="text"
+              value={loginMessage}
+              onChange={(e) => {
+                setLoginMessage(e.target.value)
+                patchSettings({ login_message: e.target.value })
+              }}
+              placeholder="Acesso restrito"
+              className={INPUT_CLS}
+            />
+          </Field>
+
+          {error && <div className="text-red-400 text-xs">{error}</div>}
+          {success && <div className="text-gold-light text-xs">{success}</div>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={savePassword}
+              disabled={saving || password.length < 4}
+              className="flex-1 font-meta bg-gold text-bg py-2 rounded hover:bg-gold-light transition flex items-center justify-center gap-1.5 text-xs disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lock className="w-3 h-3" />}
+              {protectedNow ? 'Atualizar senha' : 'Proteger livro'}
+            </button>
+            {protectedNow && (
+              <button
+                onClick={removeProtection}
+                disabled={saving}
+                className="font-meta border border-red-500/50 text-red-400 px-3 py-2 rounded hover:bg-red-500/10 transition text-[10px] disabled:opacity-50"
+              >
+                Remover
+              </button>
+            )}
+          </div>
         </>
       )}
-      <SoonNote />
+
+      {mode !== 'none' && mode !== 'single' && <SoonNote />}
     </div>
   )
 }
