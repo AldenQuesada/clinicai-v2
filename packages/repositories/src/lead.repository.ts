@@ -13,9 +13,20 @@ import { v4 as uuidv4 } from 'uuid'
 import { phoneVariants } from '@clinicai/utils'
 import {
   mapLeadRow,
+  mapRpcResult,
   type CreateLeadInput,
   type DedupHit,
   type LeadDTO,
+  type LeadCreateRpcInput,
+  type LeadCreateResult,
+  type LeadToAppointmentRpcInput,
+  type LeadToAppointmentResult,
+  type LeadToOrcamentoRpcInput,
+  type LeadToOrcamentoResult,
+  type LeadToPacienteResult,
+  type LeadLostResult,
+  type SdrChangePhaseResult,
+  type LeadPhase,
 } from './types'
 export class LeadRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -374,5 +385,206 @@ export class LeadRepository {
       phone: String(r.phone ?? ''),
       birthday: r.birthday ?? null,
     }))
+  }
+
+  // ── CRM core reads (Camada 4) ──────────────────────────────────────────────
+
+  /**
+   * Busca lead por id (soft-delete-aware). Quando `includeDeleted=true`,
+   * pega ate registros promovidos (paciente/orcamento) · util pra timeline.
+   */
+  async getById(leadId: string, opts: { includeDeleted?: boolean } = {}): Promise<LeadDTO | null> {
+    let q = this.supabase.from('leads').select('*').eq('id', leadId).limit(1)
+    if (!opts.includeDeleted) q = q.is('deleted_at', null)
+    const { data } = await q.maybeSingle()
+    return data ? mapLeadRow(data) : null
+  }
+
+  /**
+   * Lista leads ativos da clinica filtrados por phase + paginados.
+   * Usado pelo Kanban (1 chamada por coluna) e pela Lista (filter dropdown).
+   */
+  async listByPhase(
+    clinicId: string,
+    phase: LeadPhase,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<LeadDTO[]> {
+    const limit = Math.min(opts.limit ?? 100, 500)
+    const offset = opts.offset ?? 0
+    const { data } = await this.supabase
+      .from('leads')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('phase', phase)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+    return ((data ?? []) as unknown[]).map(mapLeadRow)
+  }
+
+  /**
+   * Snapshot pro Kanban · uma query por phase em paralelo. Limite por
+   * coluna (cards visiveis); UI faz "carregar mais" se precisar de mais.
+   */
+  async kanbanSnapshot(
+    clinicId: string,
+    phases: LeadPhase[],
+    perColumn = 50,
+  ): Promise<Record<string, LeadDTO[]>> {
+    const entries = await Promise.all(
+      phases.map(
+        async (p) => [p, await this.listByPhase(clinicId, p, { limit: perColumn })] as const,
+      ),
+    )
+    return Object.fromEntries(entries)
+  }
+
+  // ── CRM core RPC wrappers (Camada 4) ───────────────────────────────────────
+  //
+  // Convencao: cada wrapper aceita input camelCase, traduz pra parametros
+  // p_<nome> snake_case esperados pelo PG, chama supabase.rpc<>(), e retorna
+  // o discriminated union (`{ ok, ... }`) ja com chaves camelCase via
+  // mapRpcResult. Erros de transporte viram `{ ok:false, error:'rpc_error' }`.
+
+  /**
+   * Wrapper de `lead_create()` RPC · idempotente por (clinic_id, phone).
+   * Usado por: UI manual, Webhook Lara, B2B voucher emitido, VPI referral,
+   * quiz/landing submit. Falha explicita se phone bate com lead soft-deleted
+   * (modelo excludente ADR-001).
+   */
+  async createViaRpc(input: LeadCreateRpcInput): Promise<LeadCreateResult> {
+    const { data, error } = await this.supabase.rpc('lead_create', {
+      p_phone: input.phone,
+      p_name: input.name ?? null,
+      p_source: input.source ?? 'manual',
+      p_source_type: input.sourceType ?? 'manual',
+      p_funnel: input.funnel ?? 'procedimentos',
+      p_email: input.email ?? null,
+      p_metadata: input.metadata ?? {},
+      p_assigned_to: input.assignedTo ?? null,
+      p_temperature: input.temperature ?? 'warm',
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadCreateResult
+    }
+    return mapRpcResult<LeadCreateResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_appointment()` · cria appointment + atualiza
+   * leads.phase=agendado em transacao atomica. Valida matriz canonica.
+   */
+  async toAppointment(input: LeadToAppointmentRpcInput): Promise<LeadToAppointmentResult> {
+    const { data, error } = await this.supabase.rpc('lead_to_appointment', {
+      p_lead_id: input.leadId,
+      p_scheduled_date: input.scheduledDate,
+      p_start_time: input.startTime,
+      p_end_time: input.endTime,
+      p_professional_id: input.professionalId ?? null,
+      p_professional_name: input.professionalName ?? '',
+      p_procedure_name: input.procedureName ?? '',
+      p_consult_type: input.consultType ?? null,
+      p_eval_type: input.evalType ?? null,
+      p_value: input.value ?? 0,
+      p_origem: input.origem ?? 'manual',
+      p_obs: input.obs ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToAppointmentResult
+    }
+    return mapRpcResult<LeadToAppointmentResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_paciente()` · promove lead pra patients (UUID
+   * compartilhado · soft-delete em leads · re-mapeia appointments/orcamentos).
+   * Idempotente. Exige phase=compareceu (pre-condicao validada na RPC).
+   */
+  async toPaciente(
+    leadId: string,
+    opts: {
+      totalRevenue?: number | null
+      firstAt?: string | null
+      lastAt?: string | null
+      notes?: string | null
+    } = {},
+  ): Promise<LeadToPacienteResult> {
+    const { data, error } = await this.supabase.rpc('lead_to_paciente', {
+      p_lead_id: leadId,
+      p_total_revenue: opts.totalRevenue ?? null,
+      p_first_at: opts.firstAt ?? null,
+      p_last_at: opts.lastAt ?? null,
+      p_notes: opts.notes ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToPacienteResult
+    }
+    return mapRpcResult<LeadToPacienteResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_to_orcamento()` · cria orcamento + soft-delete em leads
+   * + phase=orcamento. Exige phase=compareceu. Items convertidos pra shape
+   * snake_case esperado pela RPC.
+   */
+  async toOrcamento(input: LeadToOrcamentoRpcInput): Promise<LeadToOrcamentoResult> {
+    const itemsForDb = input.items.map((it) => ({
+      name: it.name,
+      qty: it.qty,
+      unit_price: it.unitPrice,
+      subtotal: it.subtotal,
+      ...(it.procedureCode ? { procedure_code: it.procedureCode } : {}),
+    }))
+    const { data, error } = await this.supabase.rpc('lead_to_orcamento', {
+      p_lead_id: input.leadId,
+      p_subtotal: input.subtotal,
+      p_items: itemsForDb,
+      p_discount: input.discount ?? 0,
+      p_notes: input.notes ?? null,
+      p_title: input.title ?? null,
+      p_valid_until: input.validUntil ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadToOrcamentoResult
+    }
+    return mapRpcResult<LeadToOrcamentoResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_lost()` · marca perdido (reason obrigatorio · CHECK
+   * constraint chk_leads_lost_consistency). Idempotente.
+   */
+  async markLost(leadId: string, reason: string): Promise<LeadLostResult> {
+    const { data, error } = await this.supabase.rpc('lead_lost', {
+      p_lead_id: leadId,
+      p_reason: reason,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadLostResult
+    }
+    return mapRpcResult<LeadLostResult>(data)
+  }
+
+  /**
+   * Wrapper generico de mudanca de phase · roteia pra RPC especifica quando
+   * aplicavel (lead_lost / lead_to_paciente). Para fases simples
+   * (lead/agendado/reagendado/compareceu) faz UPDATE direto. orcamento
+   * exige RPC especifica (items+subtotal) · retorna erro
+   * `use_lead_to_orcamento_directly` se chamado com to_phase='orcamento'.
+   */
+  async changePhase(
+    leadId: string,
+    toPhase: LeadPhase,
+    reason?: string | null,
+  ): Promise<SdrChangePhaseResult> {
+    const { data, error } = await this.supabase.rpc('sdr_change_phase', {
+      p_lead_id: leadId,
+      p_to_phase: toPhase,
+      p_reason: reason ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as SdrChangePhaseResult
+    }
+    return mapRpcResult<SdrChangePhaseResult>(data)
   }
 }
