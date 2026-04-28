@@ -1,7 +1,7 @@
 /**
  * Editor visual de regras (prompts) da Lara · Server Component.
  *
- * 17 layers em 4 grupos · DB override via clinic_data.lara_prompt_*.
+ * 19 layers em 5 grupos · DB override via clinic_data.lara_*.
  * Empty value = volta pro filesystem default.
  *
  * ADR-012 · repos.clinicData.getSettings (batch · 1 query pra todos os layers).
@@ -31,6 +31,28 @@ interface LayerGroup {
 }
 
 const LAYER_GROUPS: readonly LayerGroup[] = [
+  {
+    title: 'Mensagens fixas (zero token)',
+    emoji: '💬',
+    description:
+      'Primeiras 2 mensagens da Lara · texto fixo · sem chamada na IA · economia total · {firstName} é interpolado dinamicamente',
+    layers: [
+      {
+        key: 'lara_fixed_msg_0',
+        label: 'Msg 0 · primeira mensagem (pede nome)',
+        file: ['src', 'prompt', 'fixed', 'msg-0.md'],
+        description:
+          'Saudação inicial · texto enviado quando paciente manda a 1ª mensagem · pede o nome dele.',
+      },
+      {
+        key: 'lara_fixed_msg_1',
+        label: 'Msg 1 · após o nome (sem funil claro)',
+        file: ['src', 'prompt', 'fixed', 'msg-1.md'],
+        description:
+          'Mensagem de apresentação · usa {firstName} interpolado · injeta [FOTO:geral] (Lara mandará 2 fotos antes/depois). Pulada quando NLP já carimbou funil olheiras/fullface.',
+      },
+    ],
+  },
   {
     title: 'Base & regras',
     emoji: '📌',

@@ -38,6 +38,9 @@ const PROMPT_KEYS = {
   persona_closer: 'lara_prompt_persona_closer',
   persona_recuperador: 'lara_prompt_persona_recuperador',
   persona_agendador: 'lara_prompt_persona_agendador',
+  // Mensagens fixas (zero token · primeiras interacoes) · suportam {firstName}
+  fixed_msg_0: 'lara_fixed_msg_0',
+  fixed_msg_1: 'lara_fixed_msg_1',
 } as const;
 
 const FILE_PATHS = {
@@ -52,6 +55,8 @@ const FILE_PATHS = {
   persona_closer: ['src', 'prompt', 'personas', 'closer.md'],
   persona_recuperador: ['src', 'prompt', 'personas', 'recuperador.md'],
   persona_agendador: ['src', 'prompt', 'personas', 'agendador.md'],
+  fixed_msg_0: ['src', 'prompt', 'fixed', 'msg-0.md'],
+  fixed_msg_1: ['src', 'prompt', 'fixed', 'msg-1.md'],
 } as const;
 
 /**
@@ -408,25 +413,36 @@ ${leadContext.is_audio_message ? '- MENSAGEM DE ÁUDIO: O lead enviou um áudio 
 
 /**
  * Generate fixed responses for first interactions (zero token cost).
+ *
+ * Texto fonte:
+ *   1. clinic_data override (lara_fixed_msg_0 / lara_fixed_msg_1) editavel via UI /prompts
+ *   2. Filesystem default (apps/lara/src/prompt/fixed/msg-{0,1}.md)
+ *
+ * msg-1 interpola {firstName}. Quando funnel ja esta definido (olheiras/fullface)
+ * pula msg-1 pra Lara responder com o flow especifico (audit gap A9 logic).
  */
-export function getFixedResponse(
+export async function getFixedResponse(
   messageCount: number,
   firstName: string,
-  funnel?: string
-): string | null {
+  clinicId: string | null,
+  funnel?: string,
+): Promise<string | null> {
   if (messageCount === 0) {
-    return 'Que bom ter voce aqui! Sou a Lara, assessora da Dra. Mirian de Paula.\n\nFico muito feliz que tenha tomado essa decisao. Vai ser um prazer te acompanhar nesse primeiro contato com a clinica.\n\nPra comecarmos, me conta seu nome?';
+    const tpl = await readPromptLayer(clinicId, 'fixed_msg_0');
+    return tpl ? tpl.trim() : null;
   }
+
   if (messageCount === 1 && firstName) {
-    // Inteligência Condicional: Se o paciente já destrinchou o problema logo no "Oi" 
-    // e o NLP já carimbou um funil super específico, ignoramos a mensagem engessada e pulamos pro combate do Claude.
+    // Inteligência Condicional: Se o paciente já destrinchou o problema logo no "Oi"
+    // e o NLP já carimbou um funil super específico, ignoramos a mensagem engessada
+    // e pulamos pro combate do Claude.
     if (funnel === 'olheiras' || funnel === 'fullface') {
       return null;
     }
-    // Caso contrário (ele apenas disse um "Oi" limpo ou seu nome), soltamos a ancoragem inicial
-    // com [FOTO:geral] · audit gap A9 · paridade com Lara legacy n8n workflow.
-    // media-dispatch.ts detecta a tag e envia 2 fotos (antes/depois).
-    return `Prazer, ${firstName}!\n\nOlha o tipo de resultado que a Dra. Mirian entrega:\n\n[FOTO:geral]\n\nMe conta: o que mais te incomoda hoje? O que voce gostaria de melhorar?`;
+    const tpl = await readPromptLayer(clinicId, 'fixed_msg_1');
+    if (!tpl) return null;
+    return tpl.trim().replace(/\{firstName\}/g, firstName);
   }
+
   return null;
 }

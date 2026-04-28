@@ -405,7 +405,12 @@ async function processInboundMessage(
 
     // 9. Fixed responses · zero tokens
     const firstName = (lead.name || pushName || '').split(' ')[0];
-    const fixedResponse = getFixedResponse(currentMsgCount - 1, firstName, leadFunnel ?? undefined);
+    const fixedResponse = await getFixedResponse(
+      currentMsgCount - 1,
+      firstName,
+      clinic_id,
+      leadFunnel ?? undefined,
+    );
 
     let aiResponse: string;
 

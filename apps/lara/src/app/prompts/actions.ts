@@ -9,6 +9,9 @@ import { revalidatePath } from 'next/cache'
 import { loadServerReposContext } from '@/lib/repos'
 
 const ALLOWED_KEYS = [
+  // Mensagens fixas (zero token)
+  'lara_fixed_msg_0',
+  'lara_fixed_msg_1',
   // Base & regras
   'lara_prompt_base',
   'lara_prompt_compact',
