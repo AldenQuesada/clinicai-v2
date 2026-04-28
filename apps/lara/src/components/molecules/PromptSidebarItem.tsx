@@ -1,13 +1,9 @@
 'use client'
 
 /**
- * PromptSidebarItem · molecula · linha clicavel da sidebar de prompts.
- *
- * Compoe atoms: <DotIndicator>, <DiffBadge>.
- * Estado active: bg primary/10, border-left primary.
+ * PromptSidebarItem · linha clicavel da sidebar de prompts · padrao Mira.
+ * Active: bg champagne 8%, border-left champagne, color ivory.
  */
-
-import { DotIndicator } from '@/components/atoms/DotIndicator'
 
 export function PromptSidebarItem({
   label,
@@ -24,7 +20,6 @@ export function PromptSidebarItem({
   active: boolean
   onClick: () => void
 }) {
-  // Calcula delta % pra cor do dot · so usado pra title agora
   const deltaPct =
     hasOverride && defaultLength > 0
       ? Math.round((Math.abs(overrideLength - defaultLength) / defaultLength) * 100)
@@ -34,21 +29,46 @@ export function PromptSidebarItem({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-2.5 ${
-        active
-          ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--foreground))]'
-          : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))]'
-      }`}
       title={hasOverride ? `Override · ${deltaPct}% diff vs default` : 'Padrão (filesystem)'}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 12px',
+        marginBottom: 1,
+        borderRadius: 4,
+        background: active ? 'rgba(201, 169, 110, 0.08)' : 'transparent',
+        border: 'none',
+        borderLeft: active ? '2px solid var(--b2b-champagne)' : '2px solid transparent',
+        color: active ? 'var(--b2b-ivory)' : 'var(--b2b-text-dim)',
+        fontSize: 12,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        transition: 'background 0.15s, color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = 'var(--b2b-bg-2)'
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = 'transparent'
+      }}
     >
-      {active && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-[hsl(var(--primary))]"
-        />
-      )}
-      <DotIndicator state={hasOverride ? 'override' : 'default'} size="xs" />
-      <span className="text-xs leading-snug flex-1 truncate">{label}</span>
+      <span
+        aria-hidden
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          flexShrink: 0,
+          background: hasOverride ? 'var(--b2b-champagne)' : 'transparent',
+          border: hasOverride ? 'none' : '1px solid var(--b2b-border-strong)',
+        }}
+      />
+      <span style={{ flex: 1, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
     </button>
   )
 }

@@ -286,33 +286,51 @@ export default async function PromptsPage() {
   )
 
   return (
-    <main className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--chat-bg))]">
-      <header className="px-6 lg:px-10 pt-10 lg:pt-12 pb-8 border-b border-[hsl(var(--chat-border))]">
-        <div className="max-w-5xl">
-          <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-4">
-            Painel · Lara
-          </p>
-          <h1 className="font-[family-name:var(--font-cursive)] text-4xl lg:text-5xl font-light leading-[0.95] tracking-[-0.02em] text-[hsl(var(--foreground))]">
-            Prompts em{' '}
-            <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
-              camadas
-            </em>
-          </h1>
-          <div className="mt-5 flex items-center gap-6 text-[11px] font-display-uppercase tracking-[0.2em]">
-            <span className="text-[hsl(var(--muted-foreground))]">
-              <span className="text-[hsl(var(--foreground))] tabular-nums">{totalLayers}</span>{' '}
-              layers
-            </span>
-            <span className="w-px h-4 bg-[hsl(var(--chat-border))]" />
-            <span className="text-[hsl(var(--muted-foreground))]">
-              <span className="text-[hsl(var(--primary))] tabular-nums">{totalOverrides}</span>{' '}
-              overrides ativos
-            </span>
-            <span className="w-px h-4 bg-[hsl(var(--chat-border))]" />
-            <span className="text-[hsl(var(--muted-foreground))] normal-case tracking-normal text-[12px] font-sans">
-              Esvaziar campo e salvar restaura o padrão do repo
-            </span>
-          </div>
+    <main className="flex-1 flex flex-col overflow-hidden bg-[var(--b2b-bg-0)]">
+      <header
+        style={{
+          padding: '32px 40px 20px',
+          borderBottom: '1px solid var(--b2b-border)',
+        }}
+      >
+        <p className="eyebrow" style={{ marginBottom: 8 }}>
+          Painel · Lara
+        </p>
+        <h1
+          className="font-display"
+          style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
+        >
+          Prompts em <em>camadas</em>
+        </h1>
+        <div
+          style={{
+            display: 'flex',
+            gap: 16,
+            marginTop: 12,
+            fontSize: 11,
+            letterSpacing: 1.5,
+            textTransform: 'uppercase',
+            color: 'var(--b2b-text-muted)',
+            fontWeight: 600,
+          }}
+        >
+          <span>
+            <span style={{ color: 'var(--b2b-ivory)', fontVariantNumeric: 'tabular-nums' }}>
+              {totalLayers}
+            </span>{' '}
+            layers
+          </span>
+          <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
+          <span>
+            <span style={{ color: 'var(--b2b-champagne)', fontVariantNumeric: 'tabular-nums' }}>
+              {totalOverrides}
+            </span>{' '}
+            overrides ativos
+          </span>
+          <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
+          <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, fontStyle: 'italic', color: 'var(--b2b-text-dim)' }}>
+            esvaziar campo e salvar restaura o padrão do repo
+          </span>
         </div>
       </header>
 

@@ -1,46 +1,39 @@
 /**
  * ConfigSection · organismo · card de secao em /configuracoes.
+ * CLONE do padrao Mira: .luxury-card + .b2b-form-sec header.
  *
- * Spec brandbook:
- *   - card border-radius: 8px (--radius-lg, nao 20px do tailwind rounded-card)
- *   - sem emoji em headers institucionais
- *   - eyebrow uppercase + titulo cormorant 300
- *
- * Cols controla densidade dos fields filhos.
+ * Cols controla densidade dos fields filhos via .b2b-grid-2 ou b2b-grid-3.
  */
-
-import { SectionHeader } from '@/components/molecules/SectionHeader'
 
 export function ConfigSection({
   eyebrow,
   title,
-  italicAnchor,
   description,
   cols = 2,
   children,
 }: {
-  eyebrow: string
+  eyebrow?: string
   title: string
-  italicAnchor?: string
   description?: string
   cols?: 1 | 2 | 3
   children: React.ReactNode
 }) {
-  const colClass = {
-    1: 'grid-cols-1',
-    2: 'grid-cols-1 md:grid-cols-2',
-    3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-  }[cols]
+  const gridClass = cols === 1 ? '' : cols === 2 ? 'b2b-grid-2' : 'b2b-grid-3'
 
   return (
-    <section className="rounded-[8px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-7 lg:p-8">
-      <SectionHeader
-        eyebrow={eyebrow}
-        title={title}
-        italicAnchor={italicAnchor}
-        description={description}
-      />
-      <div className={`grid gap-6 ${colClass}`}>{children}</div>
+    <section className="luxury-card" style={{ padding: '20px 24px 24px' }}>
+      <header style={{ marginBottom: 14 }}>
+        {eyebrow && <div className="b2b-form-sec" style={{ borderBottom: 'none', padding: '0 0 4px' }}>{eyebrow}</div>}
+        <h2 className="b2b-sec-title" style={{ marginBottom: description ? 4 : 0 }}>
+          {title}
+        </h2>
+        {description && (
+          <p style={{ fontSize: 12, color: 'var(--b2b-text-dim)', fontStyle: 'italic', marginTop: 4 }}>
+            {description}
+          </p>
+        )}
+      </header>
+      <div className={gridClass}>{children}</div>
     </section>
   )
 }

@@ -1,22 +1,19 @@
 'use client'
 
 /**
- * PromptEditor · organismo · pane de edicao do prompt selecionado.
- * Brandbook-aligned · sem emoji, eyebrow Montserrat tracking 4px gold,
- * radius 8px (cards) / 4px (inputs) / 2px (botoes).
+ * PromptEditor · pane de edicao do prompt · padrao Mira.
+ * Header eyebrow + font-display · body textarea (b2b-input variation pra mono) ·
+ * footer b2b-form-actions com b2b-btn b2b-btn-primary.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { savePromptAction } from '@/app/prompts/actions'
-import { DiffBadge } from '@/components/atoms/DiffBadge'
-import { DotIndicator } from '@/components/atoms/DotIndicator'
-import { Button } from '@/components/atoms/Button'
 
 export interface EditorPrompt {
   key: string
   label: string
   description: string
-  groupEmoji: string  // mantido por backwards-compat · nao renderizado
+  groupEmoji: string
   groupTitle: string
   filesystem_default: string
   override: string | null
@@ -56,94 +53,140 @@ export function PromptEditor({ prompt, onSaved }: { prompt: EditorPrompt; onSave
   }
 
   return (
-    <section className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--chat-bg))]">
-      {/* Header · eyebrow tracking 4px gold + cormorant 300 */}
-      <header className="px-8 lg:px-10 py-7 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]">
-        <div className="flex items-start gap-6">
-          <div className="flex-1 min-w-0">
-            <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-2.5">
+    <section
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: 'var(--b2b-bg-0)',
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          padding: '24px 32px',
+          borderBottom: '1px solid var(--b2b-border)',
+          background: 'var(--b2b-bg-1)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p className="eyebrow" style={{ marginBottom: 6 }}>
               {prompt.groupTitle}
             </p>
-            <h2 className="font-[family-name:var(--font-cursive)] text-3xl font-light leading-[1.08] tracking-[-0.01em] text-[hsl(var(--foreground))]">
+            <h2
+              className="font-display"
+              style={{ fontSize: 26, color: 'var(--b2b-ivory)', lineHeight: 1.1, margin: 0 }}
+            >
               {prompt.label}
             </h2>
-            <p className="text-[13px] text-[hsl(var(--muted-foreground))] mt-3 leading-[1.7] max-w-3xl">
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--b2b-text-dim)',
+                marginTop: 8,
+                lineHeight: 1.6,
+                fontStyle: 'italic',
+              }}
+            >
               {prompt.description}
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2 mt-1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 4 }}>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] font-display-uppercase text-[9px] tracking-[0.25em] ${
-                prompt.hasOverride
-                  ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]'
-                  : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-              }`}
+              className={prompt.hasOverride ? 'b2b-pill b2b-pill-tier' : 'b2b-pill'}
             >
-              <DotIndicator state={prompt.hasOverride ? 'override' : 'default'} size="xs" />
               {prompt.hasOverride ? 'Override' : 'Padrão'}
             </span>
-            {prompt.hasOverride && (
-              <DiffBadge
-                overrideLength={prompt.override?.length ?? 0}
-                defaultLength={prompt.filesystem_default.length}
-              />
-            )}
           </div>
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-hidden p-8 lg:p-10 pb-4">
+      <form
+        onSubmit={handleSubmit}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
+        <div style={{ flex: 1, overflow: 'hidden', padding: '24px 32px 12px' }}>
           <textarea
             ref={textareaRef}
             name="content"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             spellCheck={false}
-            className="w-full h-full px-5 py-4 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--foreground))] text-[13px] font-mono leading-[1.7] focus:outline-none focus:border-[hsl(var(--primary))] resize-none custom-scrollbar transition-colors"
+            className="b2b-input custom-scrollbar"
+            style={{
+              width: '100%',
+              height: '100%',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: 13,
+              lineHeight: 1.65,
+              resize: 'none',
+              padding: '14px 16px',
+            }}
           />
         </div>
 
-        <footer className="px-8 lg:px-10 py-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between gap-4">
-          <div className="flex items-center gap-5 text-[10px] font-display-uppercase tracking-[0.25em] text-[hsl(var(--muted-foreground))] tabular-nums">
+        <footer
+          style={{
+            padding: '14px 32px',
+            borderTop: '1px solid var(--b2b-border)',
+            background: 'var(--b2b-bg-1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              fontSize: 10,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-text-muted)',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             <span>{kbCount} KB</span>
-            <span className="opacity-40">·</span>
+            <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
             <span>{charCount} chars</span>
-            <span className="opacity-40">·</span>
+            <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
             <span>{lineCount} linhas</span>
             {dirty && (
-              <span className="inline-flex items-center gap-2 text-[hsl(var(--warning))]">
-                <DotIndicator state="active" size="xs" className="!bg-[hsl(var(--warning))]" />
-                não salvo
-              </span>
+              <>
+                <span style={{ color: 'var(--b2b-border-strong)' }}>·</span>
+                <span style={{ color: 'var(--b2b-amber)' }}>não salvo</span>
+              </>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', gap: 8 }}>
             {prompt.hasOverride && (
-              <Button
+              <button
                 type="submit"
                 name="action"
                 value="reset"
                 disabled={pending}
-                variant="danger"
-                size="sm"
+                className="b2b-btn"
+                style={{ borderColor: 'rgba(217, 122, 122, 0.4)', color: 'var(--b2b-red)' }}
                 title="Remove o override · volta pro filesystem default"
               >
                 Restaurar padrão
-              </Button>
+              </button>
             )}
-            <Button
+            <button
               type="submit"
               name="action"
               value="save"
               disabled={pending || !dirty}
-              variant="gold"
-              size="sm"
+              className="b2b-btn b2b-btn-primary"
             >
-              {pending ? 'Salvando' : 'Salvar'}
-            </Button>
+              {pending ? 'Salvando...' : 'Salvar'}
+            </button>
           </div>
         </footer>
       </form>

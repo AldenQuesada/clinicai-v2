@@ -1,11 +1,7 @@
 /**
- * NumericField · molecula · input numerico com prefix/suffix + helper.
- *
- * Compoe atoms: <label>, <input>, <HelperText>.
- * Usado em /configuracoes pros 6 knobs.
+ * NumericField · molecula · input numerico padrao Mira (.b2b-field/.b2b-input).
+ * Suffix opcional inline (ex: "msgs", "min", "USD") · prefix idem ($).
  */
-
-import { HelperText } from '@/components/atoms/HelperText'
 
 export function NumericField({
   name,
@@ -31,17 +27,25 @@ export function NumericField({
   required?: boolean
 }) {
   return (
-    <div className="space-y-2">
-      <label
-        htmlFor={`field-${name}`}
-        className="block font-display-uppercase text-[10px] tracking-[0.25em] text-[hsl(var(--muted-foreground))]"
-      >
+    <div className="b2b-field">
+      <label htmlFor={`field-${name}`} className="b2b-field-lbl">
         {label}
+        {required && <em> *</em>}
       </label>
-
-      <div className="relative flex items-stretch rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] focus-within:border-[hsl(var(--primary))] transition-colors">
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
         {prefix && (
-          <span className="flex items-center pl-3 pr-1 text-xs text-[hsl(var(--muted-foreground))] font-mono select-none">
+          <span
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 12,
+              color: 'var(--b2b-text-muted)',
+              fontFamily: 'ui-monospace, monospace',
+              pointerEvents: 'none',
+            }}
+          >
             {prefix}
           </span>
         )}
@@ -54,16 +58,36 @@ export function NumericField({
           max={max}
           step={step}
           required={required}
-          className="flex-1 bg-transparent px-3 py-2.5 text-sm text-[hsl(var(--foreground))] tabular-nums focus:outline-none"
+          className="b2b-input"
+          style={{
+            paddingLeft: prefix ? 26 : undefined,
+            paddingRight: suffix ? 56 : undefined,
+            fontVariantNumeric: 'tabular-nums',
+          }}
         />
         {suffix && (
-          <span className="flex items-center pr-3 pl-1 text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider select-none">
+          <span
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 10,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: 'var(--b2b-text-muted)',
+              pointerEvents: 'none',
+            }}
+          >
             {suffix}
           </span>
         )}
       </div>
-
-      {helper && <HelperText>{helper}</HelperText>}
+      {helper && (
+        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+          {helper}
+        </div>
+      )}
     </div>
   )
 }

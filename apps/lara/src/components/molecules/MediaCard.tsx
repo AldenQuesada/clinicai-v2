@@ -72,8 +72,13 @@ export function MediaCard({
         }
       }}
     >
-      {/* Imagem · aspect 4:5 retrato */}
-      <div className="relative aspect-[4/5] bg-[var(--b2b-bg-2)] overflow-hidden">
+      {/* Imagem · aspect 1:1 (square · fits faces sem cortar muito) ·
+          object-contain pra mostrar a foto inteira (letterboxing minimo
+          quando a foto nao for square · evita cortar testa/queixo) */}
+      <div
+        className="relative bg-[var(--b2b-bg-2)] overflow-hidden"
+        style={{ aspectRatio: '1 / 1' }}
+      >
         {imgError ? (
           <div className="absolute inset-0 flex items-center justify-center text-[var(--b2b-text-muted)]">
             <ImageIcon className="w-8 h-8 opacity-50" />
@@ -85,7 +90,8 @@ export function MediaCard({
             alt={cap.primary}
             loading="lazy"
             onError={() => setImgError(true)}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+            className="absolute inset-0 w-full h-full transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+            style={{ objectFit: 'contain', objectPosition: 'center' }}
           />
         )}
 
@@ -127,25 +133,45 @@ export function MediaCard({
         )}
       </div>
 
-      {/* Footer · caption Cormorant + meta */}
-      <div className="p-4">
-        <p className="font-display text-[20px] leading-tight text-[var(--b2b-ivory)] italic font-normal">
+      {/* Footer · caption + meta · padding compacto */}
+      <div style={{ padding: '10px 12px 12px' }}>
+        <p
+          className="font-display"
+          style={{
+            fontSize: 16,
+            lineHeight: 1.15,
+            color: 'var(--b2b-ivory)',
+            fontStyle: 'italic',
+            fontWeight: 400,
+            margin: 0,
+          }}
+        >
           {cap.primary}
         </p>
         {cap.secondary && (
-          <p className="text-[11px] text-[var(--b2b-text-muted)] uppercase tracking-[1.5px] mt-1.5">
+          <p
+            style={{
+              fontSize: 10,
+              color: 'var(--b2b-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: 1.2,
+              marginTop: 4,
+            }}
+          >
             {cap.secondary}
           </p>
         )}
         {media.queixas.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {media.queixas.slice(0, 4).map((q) => (
-              <span key={q} className="b2b-pill">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+            {media.queixas.slice(0, 3).map((q) => (
+              <span key={q} className="b2b-pill" style={{ fontSize: 9, padding: '1px 6px' }}>
                 {q}
               </span>
             ))}
-            {media.queixas.length > 4 && (
-              <span className="b2b-pill">+{media.queixas.length - 4}</span>
+            {media.queixas.length > 3 && (
+              <span className="b2b-pill" style={{ fontSize: 9, padding: '1px 6px' }}>
+                +{media.queixas.length - 3}
+              </span>
             )}
           </div>
         )}

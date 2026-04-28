@@ -1,10 +1,6 @@
 /**
- * SelectField · molecula · select com label + helper.
- * Compoe atoms: <label>, <select>, <HelperText>.
+ * SelectField · molecula · select padrao Mira (.b2b-field/.b2b-input).
  */
-
-import { ChevronDown } from 'lucide-react'
-import { HelperText } from '@/components/atoms/HelperText'
 
 export interface SelectOption {
   value: string
@@ -28,36 +24,30 @@ export function SelectField({
   required?: boolean
 }) {
   return (
-    <div className="space-y-2">
-      <label
-        htmlFor={`field-${name}`}
-        className="block font-display-uppercase text-[10px] tracking-[0.25em] text-[hsl(var(--muted-foreground))]"
-      >
+    <div className="b2b-field">
+      <label htmlFor={`field-${name}`} className="b2b-field-lbl">
         {label}
+        {required && <em> *</em>}
       </label>
-
-      <div className="relative">
-        <select
-          id={`field-${name}`}
-          name={name}
-          defaultValue={defaultValue}
-          required={required}
-          className="w-full appearance-none rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] px-3 pr-9 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-              {opt.description ? ` · ${opt.description}` : ''}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          aria-hidden
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--muted-foreground))]"
-        />
-      </div>
-
-      {helper && <HelperText>{helper}</HelperText>}
+      <select
+        id={`field-${name}`}
+        name={name}
+        defaultValue={defaultValue}
+        required={required}
+        className="b2b-input"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+            {opt.description ? ` · ${opt.description}` : ''}
+          </option>
+        ))}
+      </select>
+      {helper && (
+        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+          {helper}
+        </div>
+      )}
     </div>
   )
 }
