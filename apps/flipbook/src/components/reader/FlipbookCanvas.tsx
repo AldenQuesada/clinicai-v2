@@ -1,12 +1,21 @@
 'use client'
 
-import { forwardRef, useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import HTMLFlipBook from 'react-pageflip'
 import { Document, Page } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { trackPageView } from '@/lib/utils/trackView'
 import { ReaderSkeleton } from '@/components/ui/Skeleton'
+import { usePdfPrefetch } from '@/lib/pdf/prefetch'
+
+// Cap do device-pixel-ratio passado pro <Page>. Telas retina (DPR=2-3)
+// renderizam canvas 4-9× maior em pixels — cappar em 1.5 economiza
+// ~44% de CPU/memory sem perda visual perceptível.
+const MAX_DPR = 1.5
+
+// Options do <Document> · referência estável, evita re-fetch do PDF.
+const PDF_OPTIONS = { cMapUrl: '/pdfjs/cmaps/', cMapPacked: true }
 
 interface Props {
   pdfUrl: string
@@ -14,6 +23,8 @@ interface Props {
   onTotalPages: (n: number) => void
   flipbookId: string
   coverUrl?: string | null
+  /** Desativa trackPageView (usado no editor pra não poluir analytics). */
+  noTrack?: boolean
 }
 
 /**
@@ -26,13 +37,45 @@ interface Props {
  * Mobile-first: width < 768 → single-page (sem double spread).
  */
 export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas(
-  { pdfUrl, onPageChange, onTotalPages, flipbookId, coverUrl },
+  { pdfUrl, onPageChange, onTotalPages, flipbookId, coverUrl, noTrack },
   ref,
 ) {
   const [numPages, setNumPages] = useState(0)
   const [size, setSize] = useState({ width: 600, height: 840 })
   const [isMobile, setIsMobile] = useState(false)
+  const [activePage, setActivePage] = useState(1)
+  const [pageAspect, setPageAspect] = useState(1.4) // height/width · default A4-ish
+  const [pdfDoc, setPdfDoc] = useState<{
+    numPages: number
+    getPage: (n: number) => Promise<{
+      getOperatorList: () => Promise<unknown>
+      getViewport: (opts: { scale: number }) => { width: number; height: number }
+    }>
+  } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Mede o aspect ratio nativo da primeira página · todas usam essa
+  // referência pra manter altura uniforme no spread (sem invasão lateral).
+  useEffect(() => {
+    if (!pdfDoc) return
+    let cancelled = false
+    pdfDoc.getPage(1).then((page) => {
+      if (cancelled) return
+      const vp = page.getViewport({ scale: 1 })
+      if (vp.width > 0) setPageAspect(vp.height / vp.width)
+    }).catch(() => { /* mantém default */ })
+    return () => { cancelled = true }
+  }, [pdfDoc])
+
+  // Prefetch das páginas próximas em background · cache do pdfjs worker
+  // fica quente, virada percebida instantânea. Usa o doc do react-pdf direto.
+  usePdfPrefetch(pdfDoc, activePage)
+
+  // DPR cap (uma vez no mount · não muda entre renders)
+  const dpr = useMemo(() => {
+    if (typeof window === 'undefined') return 1
+    return Math.min(window.devicePixelRatio || 1, MAX_DPR)
+  }, [])
 
   useEffect(() => {
     if (!wrapRef.current) return
@@ -46,8 +89,8 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
       const mobile = window.innerWidth < 768
       setIsMobile(mobile)
 
-      // Aspect ratio padrão livro: 1.4
-      const ratio = 1.4
+      // Aspect ratio do PDF real (height/width) · medido na 1ª página
+      const ratio = pageAspect
       let pageW: number
       let pageH: number
 
@@ -68,29 +111,53 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
         }
       }
 
-      setSize({ width: Math.floor(pageW), height: Math.floor(pageH) })
+      // Garante que size.height = size.width * ratio EXATAMENTE.
+      // Sem isso, Math.floor pode causar diferença de 1px que se acumula
+      // entre página esquerda e direita do spread → invasão lateral.
+      const newW = Math.floor(pageW)
+      const newH = Math.round(newW * ratio)
+      setSize((prev) => (prev.width === newW && prev.height === newH ? prev : { width: newW, height: newH }))
+    }
+
+    // Debounce resize · evita re-render de TODAS as páginas a cada pixel
+    // arrastado durante drag do fullscreen ou resize de janela.
+    let debounceId: ReturnType<typeof setTimeout> | null = null
+    const debouncedUpdate = () => {
+      if (debounceId) clearTimeout(debounceId)
+      debounceId = setTimeout(update, 120)
     }
 
     update()
-    const ro = new ResizeObserver(update)
+    const ro = new ResizeObserver(debouncedUpdate)
     ro.observe(wrap)
-    document.addEventListener('fullscreenchange', update)
+    document.addEventListener('fullscreenchange', debouncedUpdate)
     return () => {
+      if (debounceId) clearTimeout(debounceId)
       ro.disconnect()
-      document.removeEventListener('fullscreenchange', update)
+      document.removeEventListener('fullscreenchange', debouncedUpdate)
     }
-  }, [])
+    // pageAspect só muda quando 1ª página do PDF mede · re-roda update()
+  }, [pageAspect])
 
-  const onDocLoad = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages)
-    onTotalPages(numPages)
+  const onDocLoad = (doc: {
+    numPages: number
+    getPage: (n: number) => Promise<{
+      getOperatorList: () => Promise<unknown>
+      getViewport: (opts: { scale: number }) => { width: number; height: number }
+    }>
+  }) => {
+    setNumPages(doc.numPages)
+    onTotalPages(doc.numPages)
+    setPdfDoc(doc)
   }
 
   const lastPageEnter = useRef<{ page: number; t: number } | null>(null)
 
   const onFlip = (e: { data: number }) => {
     const newPage = e.data + 1
+    setActivePage(newPage)
     onPageChange(newPage)
+    if (noTrack) return
     const now = Date.now()
     if (lastPageEnter.current) {
       const prev = lastPageEnter.current
@@ -106,6 +173,7 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
     <div ref={wrapRef} className="w-full h-full flex items-center justify-center overflow-hidden">
       <Document
         file={pdfUrl}
+        options={PDF_OPTIONS}
         onLoadSuccess={onDocLoad}
         loading={<CoverLoading coverUrl={coverUrl} size={size} />}
         error={<div className="text-red-400 text-center p-8 font-display italic text-xl">Falha ao carregar o PDF.</div>}
@@ -126,7 +194,7 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
             usePortrait={isMobile}
             startZIndex={0}
             autoSize={false}
-            maxShadowOpacity={0.5}
+            maxShadowOpacity={0.2}
             showCover
             mobileScrollSupport
             clickEventForward
@@ -144,8 +212,10 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
                 <Page
                   pageNumber={i + 1}
                   width={size.width}
+                  devicePixelRatio={dpr}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
+                  loading={<PageLoading size={size} />}
                 />
               </div>
             ))}
@@ -155,6 +225,28 @@ export const FlipbookCanvas = forwardRef<unknown, Props>(function FlipbookCanvas
     </div>
   )
 })
+
+/**
+ * Skeleton individual de página · mostrado enquanto o canvas do react-pdf
+ * ainda não terminou de renderizar. Shimmer dourado suave em vez de área
+ * branca piscando.
+ */
+function PageLoading({ size }: { size: { width: number; height: number } }) {
+  return (
+    <div
+      className="relative bg-bg-elevated"
+      style={{ width: size.width, height: size.height }}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(110deg, transparent 30%, rgba(232,177,74,0.08) 50%, transparent 70%)',
+          animation: 'shimmer 2.4s infinite',
+        }}
+      />
+    </div>
+  )
+}
 
 /**
  * Loading state · mostra a capa real (se tiver) com shimmer suave em vez

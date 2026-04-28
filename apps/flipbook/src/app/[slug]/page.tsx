@@ -1,7 +1,5 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import type { Metadata } from 'next'
-import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase/server'
 import { getFlipbookBySlug, getSignedPdfUrl } from '@/lib/supabase/flipbooks'
 import { Reader } from './Reader'
@@ -85,52 +83,27 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-bg flex flex-col">
+    <main className="h-screen bg-bg overflow-hidden">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
-        <Link href="/" className="font-meta text-text-muted hover:text-gold transition flex items-center gap-2">
-          <ArrowLeft className="w-3 h-3" /> Catálogo
-        </Link>
-        <div className="text-center min-w-0 flex-1 px-4">
-          <div className="font-display text-text text-base md:text-lg truncate">{book.title}</div>
-          {book.subtitle && (
-            <div className="font-display italic text-text-muted text-xs md:text-sm truncate">{book.subtitle}</div>
-          )}
-        </div>
-        {book.amazon_asin ? (
-          <a
-            href={`https://www.amazon.com/dp/${book.amazon_asin}`}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="font-meta text-gold hover:text-gold-light transition flex items-center gap-1.5"
-          >
-            Amazon <ExternalLink className="w-3 h-3" />
-          </a>
-        ) : (
-          <span className="w-20" />
-        )}
-      </header>
-
-      <div className="flex-1">
-        <Reader
-          pdfUrl={signedUrl}
-          pdfPath={book.pdf_url}
-          flipbookId={book.id}
-          pageCount={book.page_count}
-          format={book.format}
-          title={book.title}
-          subtitle={book.subtitle}
-          author={book.author}
-          edition={book.edition}
-          coverUrl={book.cover_url}
-          slug={book.slug}
-          initialPage={initialPage}
-        />
-      </div>
+      <Reader
+        pdfUrl={signedUrl}
+        pdfPath={book.pdf_url}
+        flipbookId={book.id}
+        pageCount={book.page_count}
+        format={book.format}
+        title={book.title}
+        subtitle={book.subtitle}
+        author={book.author}
+        edition={book.edition}
+        coverUrl={book.cover_url}
+        slug={book.slug}
+        initialPage={initialPage}
+        amazonAsin={book.amazon_asin}
+      />
     </main>
   )
 }
