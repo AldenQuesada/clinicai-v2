@@ -110,3 +110,73 @@ export async function getActiveOffer(
   if (!data) return null
   return OfferSchema.parse(data)
 }
+
+/**
+ * Match flipbook_id → product → oferta vigente (sem cupom). Pra exibir preço
+ * em listagens públicas (carousel, BookCard). Mostra apenas livros que têm
+ * produto kind='book' ativo + oferta vigente sem cupom.
+ *
+ * Retorna Map<flipbook_id, { offer, productId }>.
+ */
+export type BookOffer = { offer: Offer; productId: string }
+
+export async function listActiveOffersByBook(
+  supabase: SupabaseClient,
+): Promise<Map<string, BookOffer>> {
+  // Busca produtos book ativos + ofertas ativas no mesmo round trip
+  const [productsRes, offersRes] = await Promise.all([
+    supabase
+      .from('flipbook_products')
+      .select('id, flipbook_id')
+      .eq('kind', 'book')
+      .eq('active', true)
+      .not('flipbook_id', 'is', null),
+    supabase
+      .from('flipbook_offers')
+      .select('*')
+      .eq('active', true)
+      .is('coupon_code', null)
+      .lte('valid_from', new Date().toISOString())
+      .order('priority', { ascending: false }),
+  ])
+
+  if (productsRes.error || offersRes.error) {
+    return new Map()
+  }
+
+  const offersByProduct = new Map<string, Offer[]>()
+  for (const row of offersRes.data ?? []) {
+    const offer = OfferSchema.parse(row)
+    // Filter window manually (pgrst RLS já fez parte, mas garantimos aqui)
+    const validUntil = offer.valid_until ? new Date(offer.valid_until) : null
+    const inCapacity =
+      offer.max_purchases === null || offer.current_purchases < offer.max_purchases
+    if ((!validUntil || validUntil > new Date()) && inCapacity) {
+      const list = offersByProduct.get(offer.product_id) ?? []
+      list.push(offer)
+      offersByProduct.set(offer.product_id, list)
+    }
+  }
+
+  const result = new Map<string, BookOffer>()
+  for (const row of (productsRes.data ?? []) as Array<{ id: string; flipbook_id: string }>) {
+    const offers = offersByProduct.get(row.id)
+    if (offers && offers.length > 0) {
+      // Já vem ordenado por priority desc; pega o primeiro
+      result.set(row.flipbook_id, { offer: offers[0], productId: row.id })
+    }
+  }
+
+  return result
+}
+
+export function formatOfferPrice(offer: Offer): string {
+  const reais = offer.price_cents / 100
+  const formatted = reais.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: offer.currency,
+  })
+  if (offer.billing === 'monthly') return `${formatted}/mês`
+  if (offer.billing === 'yearly') return `${formatted}/ano`
+  return formatted
+}

@@ -5,11 +5,16 @@ import useEmblaCarousel from 'embla-carousel-react'
 import Autoplay from 'embla-carousel-autoplay'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
+import type { BookOffer } from '@/lib/supabase/products'
 import { BookCarouselSlide } from './BookCarouselSlide'
 import { BookPreviewModal } from './BookPreviewModal'
 
 interface Props {
   books: Flipbook[]
+  /** Map de flipbook_id → oferta vigente (só pra livros com produto+offer ativos) */
+  offersByBookId?: Map<string, BookOffer>
+  /** Click em "Comprar agora" no modal · Fase 8 abre BuyModal */
+  onBuyRequest?: (book: Flipbook, offer: BookOffer) => void
   /** Auto-play em ms · default 5000. 0 = desabilita */
   autoplayMs?: number
 }
@@ -26,7 +31,7 @@ interface Props {
  * Acessibilidade: keyboard nav (← →), aria-roledescription="carousel",
  * dots indicator com aria-current.
  */
-export function BookCarousel({ books, autoplayMs = 5000 }: Props) {
+export function BookCarousel({ books, offersByBookId, onBuyRequest, autoplayMs = 5000 }: Props) {
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
       loop: true,
@@ -150,7 +155,12 @@ export function BookCarousel({ books, autoplayMs = 5000 }: Props) {
         )}
       </section>
 
-      <BookPreviewModal book={previewBook} onClose={() => setPreviewBook(null)} />
+      <BookPreviewModal
+        book={previewBook}
+        bookOffer={previewBook ? offersByBookId?.get(previewBook.id) ?? null : null}
+        onBuyRequest={onBuyRequest}
+        onClose={() => setPreviewBook(null)}
+      />
     </>
   )
 }

@@ -7,13 +7,28 @@ import { motion } from 'framer-motion'
 import {
   Play, ArrowRight, ChevronLeft, ChevronRight,
   Maximize2, Minimize2, Volume2, VolumeX, Download,
+  ShoppingCart,
 } from 'lucide-react'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 
+/**
+ * CTA comercial opcional · quando o livro tem oferta vigente, o slide final
+ * troca de "Continue lendo · Abrir leitor" para "Ler mais + Comprar agora".
+ */
+export interface CommerceCta {
+  priceLabel: string                       // "R$ 47,00" ou "R$ 19/mês"
+  productId: string
+  offerId: string
+  /** Click no "Comprar agora" · normalmente abre BuyModal */
+  onBuy: () => void
+}
+
 interface Props {
   book: Flipbook
   previewBaseUrl?: string
+  /** Se passado, slide final mostra CTAs comerciais. Se omitido, mantém UX legacy */
+  commerceCta?: CommerceCta
 }
 
 interface FlipApi {
@@ -34,7 +49,7 @@ interface FlipApi {
  * pelo lado esquerdo recém-revelado pela expansão do wrapper. Fade-out
  * 200ms quando currentPage > 0 sincroniza com o assentamento do spread.
  */
-export function MiniFlipbook({ book, previewBaseUrl }: Props) {
+export function MiniFlipbook({ book, previewBaseUrl, commerceCta }: Props) {
   const [size, setSize] = useState({ width: 380, height: 532 })
   const [currentPage, setCurrentPage] = useState(0)
   const [isFlipping, setIsFlipping] = useState(false)
@@ -288,22 +303,52 @@ export function MiniFlipbook({ book, previewBaseUrl }: Props) {
                   </div>
                 ))}
 
-                {/* CTA final */}
+                {/* CTA final · 2 modos: comercial (com offer) ou legacy ("abrir leitor") */}
                 <div className="bg-bg-elevated overflow-hidden flex flex-col items-center justify-center text-center p-6 relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-gold/10 via-transparent to-transparent" />
-                  <Play className="w-10 h-10 text-gold mb-4 relative" fill="currentColor" />
-                  <div className="font-display italic text-text text-2xl md:text-3xl mb-2 leading-tight relative">
-                    Continue<br/>lendo
-                  </div>
-                  <div className="font-meta text-text-muted text-[10px] mb-6 relative">
-                    {book.page_count ? `${book.page_count} páginas no total` : 'livro completo'}
-                  </div>
-                  <Link
-                    href={`/${book.slug}`}
-                    className="font-meta bg-gold text-bg px-4 py-2.5 rounded hover:bg-gold-light transition flex items-center gap-2 text-xs relative"
-                  >
-                    Abrir leitor <ArrowRight className="w-3 h-3" />
-                  </Link>
+
+                  {commerceCta ? (
+                    <>
+                      <ShoppingCart className="w-10 h-10 text-gold mb-4 relative" />
+                      <div className="font-display italic text-text text-xl md:text-2xl mb-1 leading-tight relative">
+                        Quer ler<br/>o livro inteiro?
+                      </div>
+                      <div className="font-display italic text-gold-light text-3xl md:text-4xl mb-1 relative">
+                        {commerceCta.priceLabel}
+                      </div>
+                      <div className="font-meta text-text-muted text-[10px] mb-5 relative">
+                        {book.page_count ? `${book.page_count} páginas · acesso pra sempre` : 'acesso pra sempre'}
+                      </div>
+                      <button
+                        onClick={commerceCta.onBuy}
+                        className="font-meta bg-gold text-bg px-4 py-2.5 rounded hover:bg-gold-light transition flex items-center gap-2 text-xs relative w-full max-w-[220px] justify-center mb-2"
+                      >
+                        Comprar agora <ArrowRight className="w-3 h-3" />
+                      </button>
+                      <Link
+                        href={`/livros/${book.slug}`}
+                        className="font-meta text-text-muted hover:text-gold transition text-[11px] relative"
+                      >
+                        Ler mais sobre o livro →
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-10 h-10 text-gold mb-4 relative" fill="currentColor" />
+                      <div className="font-display italic text-text text-2xl md:text-3xl mb-2 leading-tight relative">
+                        Continue<br/>lendo
+                      </div>
+                      <div className="font-meta text-text-muted text-[10px] mb-6 relative">
+                        {book.page_count ? `${book.page_count} páginas no total` : 'livro completo'}
+                      </div>
+                      <Link
+                        href={`/${book.slug}`}
+                        className="font-meta bg-gold text-bg px-4 py-2.5 rounded hover:bg-gold-light transition flex items-center gap-2 text-xs relative"
+                      >
+                        Abrir leitor <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </>
+                  )}
                 </div>
               </HTMLFlipBook>
             </div>

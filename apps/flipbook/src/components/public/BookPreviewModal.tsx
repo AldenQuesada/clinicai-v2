@@ -4,19 +4,25 @@ import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { Flipbook } from '@/lib/supabase/flipbooks'
 import { MiniFlipbook } from './MiniFlipbook'
+import { formatOfferPrice, type BookOffer } from '@/lib/supabase/products'
 
 interface Props {
   book: Flipbook | null
+  /** Oferta vigente do livro (se houver). Quando passada, slide final mostra "Comprar agora" */
+  bookOffer?: BookOffer | null
+  /** Click em "Comprar agora" · Fase 8 conecta com BuyModal (string ID, fluxo) */
+  onBuyRequest?: (book: Flipbook, offer: BookOffer) => void
   onClose: () => void
 }
 
 /**
- * Modal de preview · embeda MiniFlipbook (capa + N páginas + slide CTA).
+ * Modal de preview · embeda MiniFlipbook + propaga CTA comercial quando há oferta.
  * Fecha por: ESC, click no backdrop, botão X.
  *
- * Stub mínimo · Fase 7 expande com lógica de offer (CTA dinâmico baseado em preço).
+ * Quando `bookOffer` é null → fluxo legacy ("Abrir leitor").
+ * Quando preenchida → slide final mostra preço + "Comprar agora" + "Ler mais".
  */
-export function BookPreviewModal({ book, onClose }: Props) {
+export function BookPreviewModal({ book, bookOffer, onBuyRequest, onClose }: Props) {
   useEffect(() => {
     if (!book) return
     function onKey(e: KeyboardEvent) {
@@ -32,12 +38,21 @@ export function BookPreviewModal({ book, onClose }: Props) {
 
   if (!book) return null
 
+  const commerceCta = bookOffer && onBuyRequest
+    ? {
+        priceLabel: formatOfferPrice(bookOffer.offer),
+        productId: bookOffer.productId,
+        offerId: bookOffer.offer.id,
+        onBuy: () => onBuyRequest(book, bookOffer),
+      }
+    : undefined
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`Preview de ${book.title}`}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 md:p-8 animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 md:p-8"
       onClick={onClose}
     >
       <button
@@ -52,7 +67,7 @@ export function BookPreviewModal({ book, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-5xl max-h-full overflow-y-auto"
       >
-        <MiniFlipbook book={book} />
+        <MiniFlipbook book={book} commerceCta={commerceCta} />
       </div>
     </div>
   )
