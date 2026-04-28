@@ -24,6 +24,8 @@ export const FlipbookSchema = z.object({
   tags: z.array(z.string()).default([]),
   metadata: z.record(z.unknown()).default({}),
   settings: z.record(z.unknown()).default({}),
+  /** bcrypt hash · presente = livro privado (gating por senha). nullable. */
+  access_password_hash: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 })

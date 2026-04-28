@@ -10,23 +10,53 @@ interface Props {
   author: string
   edition: string | null
   onDismiss: () => void
+  /**
+   * Se preenchido, persiste "já vi capa" em localStorage por slug. Visitas
+   * futuras pulam a animação imediatamente (zero fricção pro leitor recorrente).
+   * Reader passa `book.slug` quando integrar.
+   */
+  slug?: string
 }
+
+const SEEN_KEY = (slug: string) => `flipbook:cover-seen:${slug}`
 
 /**
  * Capa cinematográfica antes do flipbook abrir · efeito wow.
  * - Fade-in da capa + glow + parallax leve no hover
  * - Texto sobreposto com staggered reveal
  * - Skip click ou auto-dismiss em 4s
+ * - Se `slug` passado: dismissa instantâneo na 2ª+ visita do mesmo browser
  */
-export function CinematicCover({ coverUrl, title, subtitle, author, edition, onDismiss }: Props) {
+export function CinematicCover({ coverUrl, title, subtitle, author, edition, onDismiss, slug }: Props) {
   const [mouseX, setMouseX] = useState(0)
   const [mouseY, setMouseY] = useState(0)
 
+  // Skip imediato se já viu antes (mesmo browser/device)
   useEffect(() => {
-    const auto = setTimeout(onDismiss, 4500)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') onDismiss() }
+    if (!slug || typeof window === 'undefined') return
+    try {
+      if (window.localStorage.getItem(SEEN_KEY(slug)) === '1') {
+        // microtask delay pra não atualizar state durante render do pai
+        const t = setTimeout(onDismiss, 0)
+        return () => clearTimeout(t)
+      }
+    } catch {}
+  }, [slug, onDismiss])
+
+  // Marca "viu" + chama dismiss original (todas as vias: click, key, auto)
+  function dismissAndRemember() {
+    if (slug && typeof window !== 'undefined') {
+      try { window.localStorage.setItem(SEEN_KEY(slug), '1') } catch {}
+    }
+    onDismiss()
+  }
+
+  useEffect(() => {
+    const auto = setTimeout(dismissAndRemember, 4500)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') dismissAndRemember() }
     window.addEventListener('keydown', onKey)
     return () => { clearTimeout(auto); window.removeEventListener('keydown', onKey) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onDismiss])
 
   function onMove(e: React.MouseEvent) {
@@ -44,7 +74,7 @@ export function CinematicCover({ coverUrl, title, subtitle, author, edition, onD
         exit={{ opacity: 0, scale: 1.08 }}
         transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
         className="absolute inset-0 z-40 flex items-center justify-center overflow-hidden bg-bg cursor-pointer"
-        onClick={onDismiss}
+        onClick={dismissAndRemember}
         onMouseMove={onMove}
       >
         {/* Glow background */}

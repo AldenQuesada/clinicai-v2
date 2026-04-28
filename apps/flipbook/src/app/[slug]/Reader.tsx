@@ -12,8 +12,13 @@ import { CinematicCover } from '@/components/reader/CinematicCover'
 import { ResumeBanner } from '@/components/reader/ResumeBanner'
 import { SearchPanel } from '@/components/reader/SearchPanel'
 import { TocSidebar } from '@/components/reader/TocSidebar'
+import { PaginationFooter } from '@/components/reader/PaginationFooter'
 import { useReadingSound } from '@/lib/utils/useReadingSound'
 import { useProgress } from '@/lib/utils/useProgress'
+import { readControls, readPagination, readBackground, readPageEffect, readLogo, readBgAudio, readToc, readLeadCapture } from '@/lib/editor/settings-shapes'
+import { LogoOverlay } from '@/components/reader/LogoOverlay'
+import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
+import { LeadCaptureModal } from '@/components/reader/LeadCaptureModal'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -35,6 +40,7 @@ interface Props {
   pdfPath: string
   flipbookId: string
   pageCount: number | null
+  previewCount?: number
   format: Format
   title: string
   subtitle: string | null
@@ -44,6 +50,8 @@ interface Props {
   slug: string
   initialPage: number
   amazonAsin: string | null
+  /** jsonb `flipbooks.settings` · merge raso · validado via settings-shapes. */
+  settings?: Record<string, unknown> | null
 }
 
 const REFRESH_INTERVAL_MS = 50 * 60 * 1000
@@ -54,9 +62,20 @@ interface CanvasHandle {
 }
 
 export function Reader({
-  pdfUrl: initialUrl, pdfPath, flipbookId, pageCount, format,
+  pdfUrl: initialUrl, pdfPath, flipbookId, pageCount, previewCount = 0, format,
   title, subtitle, author, edition, coverUrl, slug, initialPage, amazonAsin,
+  settings,
 }: Props) {
+  const controls = readControls(settings ?? null)
+  const paginationStyle = readPagination(settings ?? null).style ?? 'numbers'
+  const background = readBackground(settings ?? null)
+  const pageEffect = readPageEffect(settings ?? null)
+  const logo = readLogo(settings ?? null)
+  const bgAudio = readBgAudio(settings ?? null)
+  const toc = readToc(settings ?? null)
+  const customTocEntries = toc.enabled && toc.entries && toc.entries.length > 0 ? toc.entries : undefined
+  const leadCapture = readLeadCapture(settings ?? null)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const [pdfUrl, setPdfUrl] = useState(initialUrl)
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [totalPages, setTotalPages] = useState(pageCount ?? 0)
@@ -71,6 +90,7 @@ export function Reader({
   const [searchOpen, setSearchOpen] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
   const [amazonCtaDismissed, setAmazonCtaDismissed] = useState(false)
+  const [leadDismissed, setLeadDismissed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<CanvasHandle | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -133,6 +153,21 @@ export function Reader({
     try { window.localStorage.setItem(`flipbook:cta-dismissed:${slug}`, '1') } catch {}
   }
 
+  // Lead capture · dismiss persiste por slug
+  useEffect(() => {
+    if (!leadCapture) return
+    try {
+      if (window.localStorage.getItem(`flipbook:lead-dismissed:${slug}`) === '1') {
+        setLeadDismissed(true)
+      }
+    } catch {}
+  }, [leadCapture, slug])
+
+  function dismissLeadCapture() {
+    setLeadDismissed(true)
+    try { window.localStorage.setItem(`flipbook:lead-dismissed:${slug}`, '1') } catch {}
+  }
+
   useEffect(() => { if (format === 'pdf') setupPdfWorker() }, [format])
 
   // Refresh signed URL antes do TTL
@@ -182,7 +217,8 @@ export function Reader({
 
   const onPageChange = (n: number) => {
     setCurrentPage(n)
-    sound.play()
+    // pageEffect.sound default true · só silencia se explicitamente false
+    if (pageEffect.sound !== false) sound.play()
   }
 
   const toggleFullscreen = () => {
@@ -279,6 +315,7 @@ export function Reader({
     <div
       ref={containerRef}
       className={`relative h-screen w-full bg-bg flex flex-col ${cursorHidden ? 'cursor-none' : ''}`}
+      style={background.color ? { background: background.color } : undefined}
     >
       {coverShown && (
         <CinematicCover
@@ -324,6 +361,41 @@ export function Reader({
           {renderCanvas()}
         </motion.div>
 
+        {/* Logo overlay configurável (4 cantos) · esconde em fullscreen */}
+        {logo && (
+          <LogoOverlay
+            url={logo.url}
+            position={logo.position}
+            size={logo.size}
+            href={logo.href}
+            isFullscreen={isFullscreen}
+          />
+        )}
+
+        {/* Trilha sonora opcional · só aparece quando settings.bg_audio.url existir */}
+        {bgAudio && (
+          <BgAudioPlayer
+            url={bgAudio.url}
+            pageStart={bgAudio.page_start}
+            pageEnd={bgAudio.page_end}
+            volume={bgAudio.volume}
+            loop={bgAudio.loop ?? true}
+            currentPage={currentPage}
+            isFullscreen={isFullscreen}
+          />
+        )}
+
+        {/* Lead capture · dispara em settings.lead_capture.page · dismiss persiste por slug */}
+        {leadCapture && currentPage === leadCapture.page && !leadDismissed && (
+          <LeadCaptureModal
+            flipbookId={flipbookId}
+            currentPage={currentPage}
+            title={leadCapture.title}
+            dismissible={leadCapture.dismissible !== false}
+            onClose={dismissLeadCapture}
+          />
+        )}
+
         {/* Overlay top-left · voltar + título + Amazon */}
         {showControls && (
           <div className={`absolute top-4 left-4 z-20 flex items-center gap-2 bg-bg-elevated/85 backdrop-blur-md border border-border rounded-md p-1 shadow-lg transition-opacity max-w-[calc(100%-280px)] ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -362,42 +434,52 @@ export function Reader({
         {/* Overlay top-right · controles Heyzine-style */}
         {showControls && (
           <div className={`absolute top-4 right-4 z-20 flex items-center gap-1 bg-bg-elevated/85 backdrop-blur-md border border-border rounded-md p-1 shadow-lg transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <OverlayBtn
-              Icon={ListOrdered}
-              title="Índice de páginas (I)"
-              active={tocOpen}
-              onClick={() => setTocOpen((v) => !v)}
-            />
-            <OverlayBtn
-              Icon={Search}
-              title="Buscar texto (/ ou Ctrl+F)"
-              active={searchOpen}
-              onClick={() => setSearchOpen((v) => !v)}
-            />
+            {controls.thumbnails !== false && (
+              <OverlayBtn
+                Icon={ListOrdered}
+                title="Índice de páginas (I)"
+                active={tocOpen}
+                onClick={() => setTocOpen((v) => !v)}
+              />
+            )}
+            {controls.search !== false && (
+              <OverlayBtn
+                Icon={Search}
+                title="Buscar texto (/ ou Ctrl+F)"
+                active={searchOpen}
+                onClick={() => setSearchOpen((v) => !v)}
+              />
+            )}
             <OverlayBtn
               Icon={theme === 'normal' ? Sun : theme === 'sepia' ? Coffee : Moon}
               title={`Tema · ${theme === 'normal' ? 'normal' : theme === 'sepia' ? 'sépia' : 'escuro'} (T)`}
               active={theme !== 'normal'}
               onClick={() => setTheme((t) => t === 'normal' ? 'sepia' : t === 'sepia' ? 'dark' : 'normal')}
             />
-            <OverlayBtn
-              Icon={ZoomIn}
-              title={zoomLevel === 0 ? 'Zoom (Z)' : `Zoom ${100 + zoomLevel * 25}% · clique pra ${zoomLevel === 2 ? 'voltar' : 'aumentar'}`}
-              active={zoomLevel > 0}
-              onClick={() => setZoomLevel((z) => (z + 1) % 3)}
-            />
-            <OverlayBtn
-              Icon={isFullscreen ? Minimize2 : Maximize2}
-              title="Tela cheia (F)"
-              active={isFullscreen}
-              onClick={toggleFullscreen}
-            />
-            <OverlayBtn
-              Icon={sound.enabled ? Volume2 : VolumeX}
-              title={`Som ${sound.enabled ? 'ligado' : 'desligado'} (M)`}
-              active={sound.enabled}
-              onClick={sound.toggle}
-            />
+            {controls.zoom !== false && (
+              <OverlayBtn
+                Icon={ZoomIn}
+                title={zoomLevel === 0 ? 'Zoom (Z)' : `Zoom ${100 + zoomLevel * 25}% · clique pra ${zoomLevel === 2 ? 'voltar' : 'aumentar'}`}
+                active={zoomLevel > 0}
+                onClick={() => setZoomLevel((z) => (z + 1) % 3)}
+              />
+            )}
+            {controls.fullscreen !== false && (
+              <OverlayBtn
+                Icon={isFullscreen ? Minimize2 : Maximize2}
+                title="Tela cheia (F)"
+                active={isFullscreen}
+                onClick={toggleFullscreen}
+              />
+            )}
+            {controls.sound !== false && (
+              <OverlayBtn
+                Icon={sound.enabled ? Volume2 : VolumeX}
+                title={`Som ${sound.enabled ? 'ligado' : 'desligado'} (M)`}
+                active={sound.enabled}
+                onClick={sound.toggle}
+              />
+            )}
           </div>
         )}
 
@@ -418,6 +500,7 @@ export function Reader({
             totalPages={totalPages}
             onClose={() => setTocOpen(false)}
             onJump={(p) => { flipTo(p); setTocOpen(false) }}
+            customEntries={customTocEntries}
           />
         )}
       </div>
@@ -445,15 +528,21 @@ export function Reader({
         </button>
       )}
 
-      {showControls && (
+      {showControls && paginationStyle !== 'hidden' && (
         <div className={`border-t border-border bg-bg-elevated/80 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-4 transition-opacity ${cursorHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <button onClick={flipPrev} aria-label="Página anterior" className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition">
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          <div className="font-meta text-text-muted text-xs">
-            {currentPage} <span className="text-text-dim">/</span> {totalPages || '—'}
-          </div>
+          <PaginationFooter
+            style={paginationStyle}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            slug={slug}
+            previewCount={previewCount}
+            supabaseUrl={supabaseUrl}
+            onJump={(p) => flipTo(p)}
+          />
 
           {/* CTA Amazon · só aparece após pág 3 (engajamento mínimo) e enquanto não dispensado */}
           {amazonAsin && currentPage >= 3 && !amazonCtaDismissed && !isFullscreen && (
@@ -480,14 +569,16 @@ export function Reader({
           )}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={copyDeepLink}
-              aria-label="Compartilhar página"
-              title={`Copiar link desta página · /${slug}?p=${currentPage}`}
-              className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition"
-            >
-              {linkCopied ? <Check className="w-5 h-5 text-gold" /> : <Link2 className="w-5 h-5" />}
-            </button>
+            {controls.share !== false && (
+              <button
+                onClick={copyDeepLink}
+                aria-label="Compartilhar página"
+                title={`Copiar link desta página · /${slug}?p=${currentPage}`}
+                className="p-2 rounded hover:bg-gold/10 text-text-muted hover:text-gold transition"
+              >
+                {linkCopied ? <Check className="w-5 h-5 text-gold" /> : <Link2 className="w-5 h-5" />}
+              </button>
+            )}
             <button
               onClick={() => setCoverShown(true)}
               aria-label="Ver capa"

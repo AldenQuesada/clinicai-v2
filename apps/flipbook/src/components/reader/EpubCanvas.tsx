@@ -10,8 +10,23 @@ interface Props {
   flipbookId: string
 }
 
+export interface EpubMatch {
+  cfi: string
+  excerpt: string
+  spineLabel: string
+}
+
+/**
+ * Handle exposto via ref. `pageFlip` é o subset usado pelo Reader (igual ao
+ * CanvasHandle do PDF). `search` e `displayCfi` são extensões EPUB-only —
+ * opcionais no tipo pra Reader.tsx continuar usando CanvasHandle genérico,
+ * mas sempre presentes em runtime nesta implementação. EpubSearchPanel faz
+ * cast/check pra invocar essas extensões.
+ */
 export interface EpubHandle {
-  pageFlip: () => { flipNext: () => void; flipPrev: () => void }
+  pageFlip: () => { flipNext: () => void; flipPrev: () => void; turnToPage?: (n: number) => void }
+  search?: (query: string, opts?: { maxResults?: number }) => Promise<EpubMatch[]>
+  displayCfi?: (cfi: string) => Promise<void> | void
 }
 
 /**
@@ -33,6 +48,37 @@ export const EpubCanvas = forwardRef<EpubHandle, Props>(function EpubCanvas(
       flipNext: () => renditionRef.current?.next(),
       flipPrev: () => renditionRef.current?.prev(),
     }),
+    search: async (query, opts) => {
+      const book = bookRef.current
+      if (!book || !query.trim()) return []
+      const max = opts?.maxResults ?? 30
+      const results: EpubMatch[] = []
+      // Itera spine items · cada um pode ter matches independentes
+      const spineItems = (book.spine as unknown as { each: (cb: (item: { href: string; load: (req: unknown) => Promise<unknown>; find: (q: string) => Array<{ cfi: string; excerpt: string }>; unload: () => void }) => void) => void }).each
+      const found: EpubMatch[] = []
+      const spineCalls: Promise<void>[] = []
+      spineItems.call(book.spine, (item) => {
+        spineCalls.push((async () => {
+          try {
+            await item.load(book.load.bind(book))
+            const matches = item.find(query) ?? []
+            for (const m of matches) {
+              found.push({ cfi: m.cfi, excerpt: m.excerpt, spineLabel: item.href })
+              if (found.length >= max) break
+            }
+            try { item.unload() } catch {}
+          } catch {
+            // item indisponível · ignora
+          }
+        })())
+      })
+      await Promise.all(spineCalls)
+      results.push(...found.slice(0, max))
+      return results
+    },
+    displayCfi: (cfi) => {
+      return renditionRef.current?.display(cfi)
+    },
   }))
 
   useEffect(() => {
