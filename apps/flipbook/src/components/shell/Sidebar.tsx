@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Library, Upload, BarChart3, Settings, BookOpen } from 'lucide-react'
+import { Library, Upload, BarChart3, Settings, BookOpen, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UserMenu } from './UserMenu'
 
@@ -14,14 +14,22 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: '/',       label: 'Catálogo', Icon: Library },
-  { href: '/admin',  label: 'Admin',    Icon: Upload, adminOnly: true },
-  { href: '/stats',  label: 'Estatísticas', Icon: BarChart3, adminOnly: true },
-  { href: '/settings', label: 'Configurações', Icon: Settings, adminOnly: true },
+  { href: '/',                 label: 'Catálogo',     Icon: Library },
+  { href: '/admin',            label: 'Admin',        Icon: Upload, adminOnly: true },
+  { href: '/admin/products',   label: 'Produtos',     Icon: Tag, adminOnly: true },
+  { href: '/stats',            label: 'Estatísticas', Icon: BarChart3, adminOnly: true },
+  { href: '/settings',         label: 'Configurações', Icon: Settings, adminOnly: true },
 ]
 
 export function Sidebar({ user }: { user: { email: string; isAdmin: boolean } | null }) {
   const pathname = usePathname()
+
+  // Longest-prefix-wins: o item mais específico que casa o pathname é o ativo.
+  // Evita que /admin marque ativo quando user tá em /admin/products.
+  const visibleItems = NAV.filter(({ adminOnly }) => !adminOnly || user?.isAdmin)
+  const activeHref = visibleItems
+    .filter((item) => (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)))
+    .reduce<string | null>((best, item) => (best && best.length >= item.href.length ? best : item.href), null)
 
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-[240px] flex-col border-r border-border bg-bg-elevated z-30">
@@ -36,9 +44,8 @@ export function Sidebar({ user }: { user: { email: string; isAdmin: boolean } | 
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-6 space-y-1">
-        {NAV.map(({ href, label, Icon, adminOnly }) => {
-          if (adminOnly && !user?.isAdmin) return null
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href)
+        {visibleItems.map(({ href, label, Icon }) => {
+          const active = activeHref === href
           return (
             <Link
               key={href}
