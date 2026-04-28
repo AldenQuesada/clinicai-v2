@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createServerClient } from '@/lib/supabase/server'
 import { getFlipbookBySlug, getSignedPdfUrl } from '@/lib/supabase/flipbooks'
+import { readRedirectUrl } from '@/lib/editor/settings-shapes'
 import { Reader } from './Reader'
 
 export const dynamic = 'force-dynamic'
@@ -85,6 +86,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   } catch {
     notFound()
   }
+
+  // settings.redirect_url · pre-render redirect (server-side, antes de qualquer html)
+  // Útil pra livros depreciados ou que viraram landing externa.
+  const redirectUrl = readRedirectUrl(book.settings ?? null)
+  if (redirectUrl) redirect(redirectUrl)
 
   // Schema.org Book JSON-LD
   const jsonLd = {
