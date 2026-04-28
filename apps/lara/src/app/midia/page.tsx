@@ -1,37 +1,21 @@
 /**
  * Banco de mídias da Lara · Server Component.
  *
- * CRUD completo do `wa_media_bank`:
- *   - upload de novas fotos (Storage bucket 'media' · before-after/<funnel>/)
- *   - edicao inline (caption, queixas, funnel, fase, ordem)
- *   - toggle ativo/inativo (soft hide · audit-safe)
+ * UX redesign 2026-04-28 (design-squad spec): grid de cards 4:5 com filtros
+ * de funnel + queixas, edit em drawer right-side, upload em drawer right-side.
  *
- * Lara consome via RPC wa_get_media (lib/webhook/media-dispatch.ts) ·
- * mudancas aqui aplicam imediatamente no proximo [FOTO:tag].
+ * Lara consome via RPC wa_get_media (lib/webhook/media-dispatch.ts).
  */
 
 import { redirect } from 'next/navigation'
-import { Image as ImageIcon, Upload, AlertTriangle } from 'lucide-react'
+import { Image as ImageIcon, AlertTriangle } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
-import { uploadMediaAction } from './actions'
-import { MediaRow } from './MediaRow'
+import { MediaGallery, type GalleryMediaItem } from '@/components/organisms/MediaGallery'
 import type { WaMediaBankDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
 
-interface MediaView {
-  id: string
-  filename: string
-  url: string
-  funnel: string | null
-  queixas: string[]
-  caption: string | null
-  phase: string | null
-  sort_order: number
-  is_active: boolean
-}
-
-function toView(m: WaMediaBankDTO): MediaView {
+function toView(m: WaMediaBankDTO): GalleryMediaItem {
   return {
     id: m.id,
     filename: m.filename,
@@ -45,7 +29,7 @@ function toView(m: WaMediaBankDTO): MediaView {
   }
 }
 
-async function loadMedia(): Promise<{ media: MediaView[]; canManage: boolean }> {
+async function loadMedia(): Promise<{ media: GalleryMediaItem[]; canManage: boolean }> {
   const { ctx, repos } = await loadServerReposContext()
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
   const dtos = await repos.mediaBank.listAll(ctx.clinic_id)
@@ -59,205 +43,44 @@ export default async function MediaPage() {
     redirect('/dashboard')
   }
 
-  const olheiras = media.filter((m) => m.funnel === 'olheiras')
-  const fullface = media.filter((m) => m.funnel === 'fullface')
-  const outros = media.filter((m) => m.funnel !== 'olheiras' && m.funnel !== 'fullface')
-
   const activeCount = media.filter((m) => m.is_active).length
+  const overrideCount = activeCount  // semantica: ativas = "no banco em uso"
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
+      <div className="max-w-6xl mx-auto px-6 lg:px-8 py-8 lg:py-10">
+        {/* ─── Page header ──────────────────────────────────────────── */}
+        <header className="mb-8 flex items-start gap-4">
+          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
             <ImageIcon className="w-6 h-6" />
           </div>
           <div className="flex-1">
-            <h1 className="text-2xl font-light">
+            <h1 className="text-3xl font-light leading-tight">
               <span className="font-cursive-italic text-[hsl(var(--primary))]">
                 Banco de mídias
               </span>
             </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              Fotos antes/depois enviadas pela Lara · {media.length} no banco ·{' '}
-              <span className="text-[hsl(var(--primary))]">{activeCount} ativas</span>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2 leading-relaxed">
+              Fotos antes/depois enviadas pela Lara ·{' '}
+              <span className="text-[hsl(var(--foreground))] tabular-nums">{media.length}</span> no
+              banco ·{' '}
+              <span className="text-[hsl(var(--primary))] tabular-nums">{overrideCount}</span>{' '}
+              ativas
             </p>
           </div>
-        </div>
+        </header>
 
-        <div className="rounded-card border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-4 mb-8 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-[hsl(var(--warning))] shrink-0 mt-0.5" />
-          <div className="text-sm text-[hsl(var(--foreground))]">
-            <strong>Lara escolhe foto pela tag</strong> [FOTO:queixa] que ela mesma escreve.
-            Se queixa não tiver foto cadastrada, ela pega qualquer ativa do funnel. Caption
-            ideal: <em>nome + idade + assinatura</em> (ex: &quot;Miriam Poppi, 52 anos · Resultado
-            real Dra. Mirian de Paula&quot;).
+        {/* Helper · como Lara escolhe foto */}
+        <div className="rounded-card border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-4 py-3 mb-8 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-[hsl(var(--warning))] shrink-0 mt-0.5" />
+          <div className="text-xs text-[hsl(var(--foreground))] leading-relaxed">
+            Lara escolhe foto pela tag <code className="px-1 rounded bg-[hsl(var(--muted))] text-[hsl(var(--accent))] font-mono text-[11px]">[FOTO:queixa]</code> que ela mesma escreve. Caption ideal:{' '}
+            <em>nome + idade + assinatura</em> (ex: <q>Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula</q>).
           </div>
         </div>
 
-        <details className="mb-8 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]">
-          <summary className="cursor-pointer px-5 py-4 flex items-center gap-2 text-sm font-display-uppercase tracking-widest text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))] rounded-card transition-colors">
-            <Upload className="w-4 h-4" />
-            Subir nova foto
-          </summary>
-          <form
-            action={uploadMediaAction}
-            encType="multipart/form-data"
-            className="p-5 space-y-4 border-t border-[hsl(var(--chat-border))]"
-          >
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                Arquivo (jpg/png/webp · max 5MB)
-              </label>
-              <input
-                type="file"
-                name="file"
-                accept="image/jpeg,image/png,image/webp"
-                required
-                className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] file:mr-3 file:px-3 file:py-1 file:rounded-pill file:border-0 file:bg-[hsl(var(--primary))] file:text-[hsl(var(--primary-foreground))] file:text-[10px] file:uppercase file:tracking-widest file:cursor-pointer"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                  Funnel
-                </label>
-                <select
-                  name="funnel"
-                  required
-                  defaultValue=""
-                  className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-                >
-                  <option value="" disabled>
-                    selecionar...
-                  </option>
-                  <option value="olheiras">olheiras</option>
-                  <option value="fullface">fullface</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                  Ordem
-                </label>
-                <input
-                  type="number"
-                  name="sort_order"
-                  defaultValue={0}
-                  className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                Caption (nome + idade · vai como legenda da foto pro paciente)
-              </label>
-              <input
-                name="caption"
-                placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
-                className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                Queixas (separadas por vírgula · só entram tags válidas)
-              </label>
-              <input
-                name="queixas"
-                placeholder="olheiras, sulcos, flacidez, contorno..."
-                className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))]"
-              />
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                válidas: geral, olheiras, sulcos, flacidez, contorno, papada, textura, rugas,
-                rejuvenescimento, fullface, firmeza, manchas, mandibula, perfil, bigode_chines
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                Fase (opcional · ex: agendamento, fechamento)
-              </label>
-              <input
-                name="phase"
-                className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-pill font-display-uppercase text-xs tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
-            >
-              Subir foto
-            </button>
-          </form>
-        </details>
-
-        <div className="space-y-8">
-          {fullface.length > 0 && (
-            <FunnelSection
-              title="Full Face"
-              emoji="✨"
-              media={fullface}
-              canManage={canManage}
-            />
-          )}
-          {olheiras.length > 0 && (
-            <FunnelSection
-              title="Olheiras"
-              emoji="👁️"
-              media={olheiras}
-              canManage={canManage}
-            />
-          )}
-          {outros.length > 0 && (
-            <FunnelSection
-              title="Sem funnel"
-              emoji="📸"
-              media={outros}
-              canManage={canManage}
-            />
-          )}
-          {media.length === 0 && (
-            <div className="text-center py-16 text-[hsl(var(--muted-foreground))] text-sm">
-              Banco vazio · use o formulário acima pra subir a primeira foto
-            </div>
-          )}
-        </div>
+        <MediaGallery items={media} canManage={canManage} />
       </div>
     </main>
-  )
-}
-
-function FunnelSection({
-  title,
-  emoji,
-  media,
-  canManage,
-}: {
-  title: string
-  emoji: string
-  media: MediaView[]
-  canManage: boolean
-}) {
-  const activeCount = media.filter((m) => m.is_active).length
-  return (
-    <section>
-      <div className="flex items-center gap-3 mb-3">
-        <span className="text-xl">{emoji}</span>
-        <h2 className="font-display-uppercase text-sm tracking-widest text-[hsl(var(--foreground))]">
-          {title}
-        </h2>
-        <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-          {media.length} · {activeCount} ativa{activeCount === 1 ? '' : 's'}
-        </span>
-      </div>
-      <div className="space-y-3">
-        {media.map((m) => (
-          <MediaRow key={m.id} media={m} canManage={canManage} />
-        ))}
-      </div>
-    </section>
   )
 }
