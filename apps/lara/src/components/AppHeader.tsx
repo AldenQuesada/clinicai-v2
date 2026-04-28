@@ -1,13 +1,25 @@
 /**
- * AppHeader · top bar com brand + user menu.
- * Server Component · pega user via cookies do Supabase.
+ * AppHeader · top bar Lara · vocabulario b2b-* (espelho Mira).
+ *
+ * Layout: bg b2b-bg-1, border-bottom b2b-border, height 56px.
+ * Brand left + nav center + actions right (notificacoes / Painel CRM / user).
+ * Active nav: champagne color + underline 1px champagne (estilo subtab Mira).
  */
 
 import Link from 'next/link'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@clinicai/supabase'
 import { ProfileRepository } from '@clinicai/repositories'
-import { LogOut, ExternalLink, LayoutDashboard, MessageSquare, Settings, FileText, Sparkles, Image as ImageIcon } from 'lucide-react'
+import {
+  LogOut,
+  ExternalLink,
+  LayoutDashboard,
+  MessageSquare,
+  Settings,
+  FileText,
+  Sparkles,
+  Image as ImageIcon,
+} from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 import { NotificationToggle } from '@/components/NotificationToggle'
 
@@ -24,10 +36,11 @@ export async function AppHeader() {
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Tenta resolver nome via profiles · graceful fallback se profile nao existir
   let firstName = ''
   let role = ''
   try {
@@ -37,13 +50,12 @@ export async function AppHeader() {
     firstName = profile?.firstName ?? ''
     role = profile?.role ?? ''
   } catch {
-    // ignore · profile pode nao existir em dev
+    /* ignore */
   }
 
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
 
-  // Detecta rota atual via headers (server-side · pra highlight do nav ativo)
   const headerStore = await headers()
   const pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
   const isOnDashboard = pathname.startsWith('/dashboard')
@@ -55,41 +67,111 @@ export async function AppHeader() {
   const canManageConfig = !role || ['owner', 'admin'].includes(role)
 
   return (
-    <header className="h-14 shrink-0 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-5 z-20">
-      <div className="flex items-center gap-6">
-        <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="w-8 h-8 rounded-pill bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold text-sm shadow-luxury-sm">
+    <header
+      style={{
+        height: 56,
+        flexShrink: 0,
+        background: 'var(--b2b-bg-1)',
+        borderBottom: '1px solid var(--b2b-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        zIndex: 20,
+      }}
+    >
+      {/* Brand + Nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+        <Link
+          href="/dashboard"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}
+          className="group"
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'var(--b2b-champagne)',
+              color: 'var(--b2b-bg-0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: 13,
+              fontFamily: 'Cormorant Garamond, serif',
+            }}
+          >
             L
           </div>
-          <div className="flex flex-col leading-none">
-            <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+            <span
+              className="font-display"
+              style={{
+                fontSize: 18,
+                fontWeight: 400,
+                color: 'var(--b2b-ivory)',
+                fontStyle: 'italic',
+              }}
+            >
               Lara
             </span>
-            <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            <span
+              style={{
+                fontSize: 9,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                color: 'var(--b2b-text-muted)',
+              }}
+            >
               Clínica AI
             </span>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1">
-          <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} active={isOnDashboard}>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <NavLink
+            href="/dashboard"
+            icon={<LayoutDashboard className="w-3.5 h-3.5" />}
+            active={isOnDashboard}
+          >
             Dashboard
           </NavLink>
-          <NavLink href="/conversas" icon={<MessageSquare className="w-4 h-4" />} active={isOnConversas}>
+          <NavLink
+            href="/conversas"
+            icon={<MessageSquare className="w-3.5 h-3.5" />}
+            active={isOnConversas}
+          >
             Conversas
           </NavLink>
-          <NavLink href="/templates" icon={<FileText className="w-4 h-4" />} active={isOnTemplates}>
+          <NavLink
+            href="/templates"
+            icon={<FileText className="w-3.5 h-3.5" />}
+            active={isOnTemplates}
+          >
             Templates
           </NavLink>
           {canManageConfig && (
             <>
-              <NavLink href="/prompts" icon={<Sparkles className="w-4 h-4" />} active={isOnPrompts}>
+              <NavLink
+                href="/prompts"
+                icon={<Sparkles className="w-3.5 h-3.5" />}
+                active={isOnPrompts}
+              >
                 Prompts
               </NavLink>
-              <NavLink href="/midia" icon={<ImageIcon className="w-4 h-4" />} active={isOnMidia}>
+              <NavLink
+                href="/midia"
+                icon={<ImageIcon className="w-3.5 h-3.5" />}
+                active={isOnMidia}
+              >
                 Mídias
               </NavLink>
-              <NavLink href="/configuracoes" icon={<Settings className="w-4 h-4" />} active={isOnConfig}>
+              <NavLink
+                href="/configuracoes"
+                icon={<Settings className="w-3.5 h-3.5" />}
+                active={isOnConfig}
+              >
                 Configurações
               </NavLink>
             </>
@@ -97,27 +179,59 @@ export async function AppHeader() {
         </nav>
       </div>
 
-      <div className="flex items-center gap-3">
+      {/* Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <NotificationToggle />
 
         <Link
           href={PAINEL_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] uppercase tracking-widest border border-[hsl(var(--chat-border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:border-[hsl(var(--primary))] transition-colors"
+          className="b2b-btn"
+          style={{ padding: '6px 12px', fontSize: 11, gap: 6 }}
         >
           Painel CRM
           <ExternalLink className="w-3 h-3" />
         </Link>
 
-        <div className="flex items-center gap-2 pl-3 border-l border-[hsl(var(--chat-border))]">
-          <div className="w-8 h-8 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] flex items-center justify-center text-xs font-bold">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            paddingLeft: 12,
+            borderLeft: '1px solid var(--b2b-border)',
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'var(--b2b-bg-3)',
+              color: 'var(--b2b-ivory)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
             {initials}
           </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-xs font-medium text-[hsl(var(--foreground))]">{displayName}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--b2b-ivory)' }}>
+              {displayName}
+            </span>
             {role && (
-              <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+              <span
+                style={{
+                  fontSize: 9,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  color: 'var(--b2b-text-muted)',
+                }}
+              >
                 {role}
               </span>
             )}
@@ -127,7 +241,23 @@ export async function AppHeader() {
             <button
               type="submit"
               title="Sair"
-              className="ml-2 p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))]/10 transition-colors cursor-pointer"
+              style={{
+                marginLeft: 8,
+                padding: 6,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--b2b-text-muted)',
+                cursor: 'pointer',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--b2b-red)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--b2b-text-muted)'
+              }}
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -152,14 +282,36 @@ function NavLink({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs uppercase tracking-widest transition-colors ${
-        active
-          ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]'
-          : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
-      }`}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '8px 12px',
+        fontSize: 11,
+        letterSpacing: 1.5,
+        textTransform: 'uppercase',
+        fontWeight: 600,
+        color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
+        transition: 'color 0.15s',
+        textDecoration: 'none',
+      }}
     >
       {icon}
       {children}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: 12,
+            right: 12,
+            bottom: -1,
+            height: 2,
+            background: 'var(--b2b-champagne)',
+          }}
+        />
+      )}
     </Link>
   )
 }

@@ -56,101 +56,119 @@ export default async function TemplatesPage() {
   const inactive = templates.filter((t) => t.is_active === false || t.active === false)
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-              <FileText className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-light">
-                <span className="font-cursive-italic text-[hsl(var(--primary))]">Templates</span>
-              </h1>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                Respostas rápidas pra colar nas conversas · {active.length} ativos
-              </p>
-            </div>
-          </div>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+      <div className="b2b-page-container">
+        <div style={{ marginBottom: 24 }}>
+          <p className="eyebrow" style={{ marginBottom: 8 }}>
+            Painel · Lara
+          </p>
+          <h1
+            className="font-display"
+            style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
+          >
+            Templates de <em>resposta rápida</em>
+          </h1>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--b2b-text-dim)',
+              fontStyle: 'italic',
+              marginTop: 6,
+            }}
+          >
+            Respostas rápidas pra colar nas conversas · {active.length} ativos
+          </p>
         </div>
 
         {canManage && (
-          <details className="mb-8 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]">
-            <summary className="cursor-pointer px-5 py-4 flex items-center gap-2 text-sm font-display-uppercase tracking-widest text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))] rounded-card transition-colors">
-              <Plus className="w-4 h-4" />
+          <details className="luxury-card" style={{ marginBottom: 24 }}>
+            <summary
+              style={{
+                cursor: 'pointer',
+                listStyle: 'none',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                color: 'var(--b2b-champagne)',
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
               Novo template
             </summary>
-            <form action={createTemplateAction} className="p-5 space-y-4 border-t border-[hsl(var(--chat-border))]">
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                  Nome (curto · ex: &quot;Saudação manhã&quot;)
+            <form
+              action={createTemplateAction}
+              style={{ padding: '8px 18px 18px', borderTop: '1px solid var(--b2b-border)' }}
+            >
+              <div className="b2b-form-sec">Identificação</div>
+              <div className="b2b-field">
+                <label className="b2b-field-lbl">
+                  Nome (curto · ex: &quot;Saudação manhã&quot;) <em>*</em>
                 </label>
-                <input
-                  name="name"
-                  required
-                  maxLength={80}
-                  className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))]"
-                />
+                <input name="name" required maxLength={80} className="b2b-input" />
               </div>
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                  Mensagem (texto a enviar)
-                </label>
-                <textarea
-                  name="content"
-                  required
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] resize-y"
-                />
+              <div className="b2b-field">
+                <label className="b2b-field-lbl">Mensagem (texto a enviar) <em>*</em></label>
+                <textarea name="content" required rows={4} className="b2b-input" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                    Categoria
-                  </label>
+              <div className="b2b-grid-2">
+                <div className="b2b-field">
+                  <label className="b2b-field-lbl">Categoria</label>
                   <input
                     name="category"
                     placeholder="ex: saudacao, agendamento, fechamento..."
-                    className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))]"
+                    className="b2b-input"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                    Ordem (menor = topo)
-                  </label>
-                  <input
-                    type="number"
-                    name="sort_order"
-                    defaultValue={0}
-                    className="w-full px-3 py-2 rounded-md border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))]"
-                  />
+                <div className="b2b-field">
+                  <label className="b2b-field-lbl">Ordem (menor = topo)</label>
+                  <input type="number" name="sort_order" defaultValue={0} className="b2b-input" />
                 </div>
               </div>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-pill font-display-uppercase text-xs tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-all"
-              >
-                Criar template
-              </button>
+              <div className="b2b-form-actions">
+                <button type="submit" className="b2b-btn b2b-btn-primary">
+                  Criar template
+                </button>
+              </div>
             </form>
           </details>
         )}
 
         {active.length === 0 && inactive.length === 0 ? (
-          <div className="text-center py-16 text-[hsl(var(--muted-foreground))] text-sm">
-            Nenhum template criado ainda · use o formulário acima
-          </div>
+          <div className="b2b-empty">Nenhum template criado ainda · use o formulário acima</div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {active.map((t) => (
               <TemplateRow key={t.id} template={t} canManage={canManage} />
             ))}
             {inactive.length > 0 && (
-              <details className="mt-8">
-                <summary className="cursor-pointer text-xs uppercase tracking-widest text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] py-3">
+              <details style={{ marginTop: 24 }}>
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    color: 'var(--b2b-text-muted)',
+                    padding: '10px 0',
+                  }}
+                >
                   Inativos ({inactive.length})
                 </summary>
-                <div className="space-y-3 mt-2 opacity-50">
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    marginTop: 8,
+                    opacity: 0.5,
+                  }}
+                >
                   {inactive.map((t) => (
                     <TemplateRow key={t.id} template={t} canManage={canManage} />
                   ))}

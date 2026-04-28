@@ -41,34 +41,51 @@ export function TemplateRow({
   }
 
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-4 hover:border-[hsl(var(--primary))]/40 transition-colors group">
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-display-uppercase text-xs tracking-widest text-[hsl(var(--foreground))]">
+    <div className="luxury-card group" style={{ padding: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+            <span
+              className="font-display"
+              style={{ fontSize: 16, color: 'var(--b2b-ivory)' }}
+            >
               {template.name}
             </span>
-            {template.category && (
-              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-                {template.category}
-              </span>
-            )}
+            {template.category && <span className="b2b-pill">{template.category}</span>}
             {template.trigger_phase && (
-              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-                {template.trigger_phase}
-              </span>
+              <span className="b2b-pill b2b-pill-tier">{template.trigger_phase}</span>
             )}
           </div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">{text}</p>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--b2b-text-dim)',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.6,
+            }}
+          >
+            {text}
+          </p>
         </div>
 
-        <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+        <div style={{ display: 'flex', gap: 4, opacity: 0.6, flexShrink: 0 }} className="group-hover:opacity-100 transition-opacity">
           <button
             onClick={copyToClipboard}
             title={copied ? 'Copiado' : 'Copiar pro clipboard'}
-            className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))] transition-colors cursor-pointer"
+            style={{
+              padding: 6,
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--b2b-text-muted)',
+              cursor: 'pointer',
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--b2b-champagne)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--b2b-text-muted)')}
           >
-            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4" style={{ color: 'var(--b2b-sage)' }} /> : <Copy className="w-4 h-4" />}
           </button>
           {canManage && (
             <form
@@ -80,7 +97,18 @@ export function TemplateRow({
               <button
                 type="submit"
                 title="Excluir"
-                className="p-2 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))]/10 transition-colors cursor-pointer"
+                style={{
+                  padding: 6,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--b2b-text-muted)',
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--b2b-red)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--b2b-text-muted)')}
               >
                 <Trash2 className="w-4 h-4" />
               </button>

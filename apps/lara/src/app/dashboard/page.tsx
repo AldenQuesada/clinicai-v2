@@ -107,15 +107,26 @@ export default async function DashboardPage() {
   const msgs7dTotal = stats.msgs_7d_in + stats.msgs_7d_out
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8 bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-light text-[hsl(var(--foreground))]">
-            <span className="font-cursive-italic text-[hsl(var(--primary))]">
-              Visão geral
-            </span>
+    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
+      <div className="b2b-page-container">
+        <div style={{ marginBottom: 24 }}>
+          <p className="eyebrow" style={{ marginBottom: 8 }}>
+            Painel · Lara
+          </p>
+          <h1
+            className="font-display"
+            style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
+          >
+            Visão <em>geral</em>
           </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--b2b-text-dim)',
+              fontStyle: 'italic',
+              marginTop: 6,
+            }}
+          >
             Saúde da Lara · métricas de hoje + últimos 7 dias
           </p>
         </div>
@@ -168,18 +179,34 @@ export default async function DashboardPage() {
                 }
                 return (
                   <div key={funnel}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-[hsl(var(--foreground))]">
-                        {labels[funnel] ?? funnel}
-                      </span>
-                      <span className="text-[hsl(var(--muted-foreground))]">
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 12,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span style={{ color: 'var(--b2b-ivory)' }}>{labels[funnel] ?? funnel}</span>
+                      <span style={{ color: 'var(--b2b-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                         {count} ({pct}%)
                       </span>
                     </div>
-                    <div className="h-2 bg-[hsl(var(--muted))] rounded-pill overflow-hidden">
+                    <div
+                      style={{
+                        height: 6,
+                        background: 'var(--b2b-bg-3)',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                      }}
+                    >
                       <div
-                        className="h-full bg-[hsl(var(--primary))] rounded-pill transition-all"
-                        style={{ width: `${pct}%` }}
+                        style={{
+                          height: '100%',
+                          background: 'var(--b2b-champagne)',
+                          width: `${pct}%`,
+                          transition: 'width 0.3s ease',
+                        }}
                       />
                     </div>
                   </div>
@@ -204,7 +231,16 @@ export default async function DashboardPage() {
         </div>
 
         {/* Footer info */}
-        <div className="mt-8 text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest">
+        <div
+          style={{
+            marginTop: 32,
+            fontSize: 10,
+            color: 'var(--b2b-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+            fontWeight: 600,
+          }}
+        >
           <Phone className="inline w-3 h-3 mr-1.5" />
           Lara em produção · Meta Cloud API · Sonnet 4.6 · Whisper-large-v3
         </div>
@@ -226,29 +262,52 @@ function StatCard({
   subtitle?: string
   tone?: 'default' | 'warn' | 'success'
 }) {
-  const toneClasses =
+  const toneColor =
     tone === 'warn'
-      ? 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
+      ? 'var(--b2b-amber)'
       : tone === 'success'
-      ? 'border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5'
-      : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]'
-  const iconTone =
+        ? 'var(--b2b-sage)'
+        : 'var(--b2b-champagne)'
+  const toneBg =
     tone === 'warn'
-      ? 'text-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10'
+      ? 'rgba(245, 158, 11, 0.08)'
       : tone === 'success'
-      ? 'text-[hsl(var(--success))] bg-[hsl(var(--success))]/10'
-      : 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+        ? 'rgba(138, 158, 136, 0.08)'
+        : 'rgba(201, 169, 110, 0.06)'
   return (
-    <div className={`rounded-card border p-4 ${toneClasses}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className={`p-2 rounded-md ${iconTone}`}>{icon}</div>
+    <div
+      className="luxury-card"
+      style={{ padding: 16, borderColor: tone === 'default' ? undefined : `${toneColor}40` }}
+    >
+      <div
+        style={{
+          display: 'inline-flex',
+          padding: 6,
+          borderRadius: 4,
+          background: toneBg,
+          color: toneColor,
+          marginBottom: 10,
+        }}
+      >
+        {icon}
       </div>
-      <div className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+      <div className="eyebrow" style={{ fontSize: 10, marginBottom: 4 }}>
         {label}
       </div>
-      <div className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{value}</div>
+      <div
+        className="font-display"
+        style={{
+          fontSize: 28,
+          fontWeight: 500,
+          color: 'var(--b2b-ivory)',
+          lineHeight: 1.1,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
       {subtitle && (
-        <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{subtitle}</div>
+        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)', marginTop: 4 }}>{subtitle}</div>
       )}
     </div>
   )
@@ -264,8 +323,22 @@ function SectionCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-5">
-      <h3 className="flex items-center gap-2 text-xs font-display-uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
+    <div className="luxury-card" style={{ padding: 20 }}>
+      <h3
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 10,
+          letterSpacing: 2,
+          textTransform: 'uppercase',
+          color: 'var(--b2b-champagne)',
+          fontWeight: 600,
+          marginBottom: 16,
+          paddingBottom: 8,
+          borderBottom: '1px solid var(--b2b-border)',
+        }}
+      >
         {icon}
         {title}
       </h3>
@@ -276,12 +349,32 @@ function SectionCard({
 
 function Row({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="flex justify-between items-start py-2 border-b border-[hsl(var(--chat-border))] last:border-0">
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        padding: '8px 0',
+        borderBottom: '1px solid var(--b2b-border)',
+      }}
+    >
       <div>
-        <div className="text-[hsl(var(--foreground))]">{label}</div>
-        {hint && <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</div>}
+        <div style={{ color: 'var(--b2b-ivory)', fontSize: 13 }}>{label}</div>
+        {hint && (
+          <div style={{ fontSize: 10, color: 'var(--b2b-text-muted)', marginTop: 2 }}>{hint}</div>
+        )}
       </div>
-      <div className="font-bold text-[hsl(var(--primary))]">{value}</div>
+      <div
+        className="font-display"
+        style={{
+          fontSize: 18,
+          fontWeight: 500,
+          color: 'var(--b2b-champagne)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
     </div>
   )
 }

@@ -11,7 +11,7 @@ export default function TemplatesLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))]">
+    <div className="flex flex-col h-screen w-full overflow-hidden bg-[var(--b2b-bg-0)] text-[var(--b2b-text)]">
       <AppHeader />
       <div className="flex flex-1 min-h-0">{children}</div>
     </div>
