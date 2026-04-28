@@ -19,6 +19,9 @@ import { readControls, readPagination, readBackground, readPageEffect, readLogo,
 import { LogoOverlay } from '@/components/reader/LogoOverlay'
 import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
 import { LeadCaptureModal } from '@/components/reader/LeadCaptureModal'
+import { PrintTrechoButton } from '@/components/reader/PrintTrechoButton'
+import { EpubSearchPanel } from '@/components/reader/EpubSearchPanel'
+import type { EpubHandle } from '@/components/reader/EpubCanvas'
 import { trackEvent } from '@/lib/utils/trackEvent'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
@@ -516,12 +519,18 @@ export function Reader({
           </div>
         )}
 
-        {/* Search panel */}
+        {/* Search panel · PDF usa indexação pdfjs, EPUB usa book.spine */}
         {searchOpen && format === 'pdf' && (
           <SearchPanel
             pdfUrl={pdfUrl}
             onClose={() => setSearchOpen(false)}
             onJump={(p) => { flipTo(p); setSearchOpen(false) }}
+          />
+        )}
+        {searchOpen && format === 'epub' && (
+          <EpubSearchPanel
+            epubRef={canvasRef as React.RefObject<EpubHandle | null>}
+            onClose={() => setSearchOpen(false)}
           />
         )}
 
@@ -603,6 +612,13 @@ export function Reader({
           )}
 
           <div className="flex items-center gap-2">
+            {format === 'pdf' && controls.print !== false && (
+              <PrintTrechoButton
+                pdfUrl={pdfUrl}
+                pageNumber={currentPage}
+                title={title}
+              />
+            )}
             {controls.share !== false && (
               <button
                 onClick={copyDeepLink}
