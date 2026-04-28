@@ -11,35 +11,54 @@ interface Props {
   searchParams: Promise<{ p?: string }>
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params
+  const { p } = await searchParams
+  const targetPage = p ? Math.max(1, parseInt(p, 10) || 1) : 1
   try {
     const supabase = await createServerClient()
     const book = await getFlipbookBySlug(supabase, slug)
     if (!book || book.status !== 'published') return { title: 'Livro · Flipbook' }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3333'
-    const url = `${baseUrl}/${book.slug}`
-    const desc = book.subtitle ?? `${book.title} · ${book.author} · leia online em flipbook digital`
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const url = targetPage > 1 ? `${baseUrl}/${book.slug}?p=${targetPage}` : `${baseUrl}/${book.slug}`
+
+    // OG image dinâmica: se compartilhou ?p=N e temos preview JPEG dessa página,
+    // mostra ela. Caso contrário, capa.
+    const previewCount = book.preview_count ?? 0
+    const hasPreviewForPage = supabaseUrl && targetPage > 1 && targetPage <= previewCount
+    const ogImageUrl = hasPreviewForPage
+      ? `${supabaseUrl}/storage/v1/object/public/flipbook-previews/${book.slug}/page-${targetPage}.jpg`
+      : (book.cover_url ?? null)
+
+    // Title/description dinâmicos por página
+    const baseTitle = `${book.title} · ${book.author}`
+    const title = targetPage > 1
+      ? `Página ${targetPage}${book.page_count ? ` de ${book.page_count}` : ''} · ${book.title}`
+      : baseTitle
+    const desc = targetPage > 1
+      ? `Trecho da página ${targetPage} de "${book.title}" — leia online em flipbook digital.`
+      : (book.subtitle ?? `${book.title} · ${book.author} · leia online em flipbook digital`)
 
     return {
-      title: `${book.title} · ${book.author}`,
+      title,
       description: desc,
       alternates: { canonical: url },
       openGraph: {
         type: 'book',
         url,
-        title: book.title,
+        title,
         description: desc,
         siteName: 'Flipbook',
         locale: book.language === 'en' ? 'en_US' : book.language === 'es' ? 'es_ES' : 'pt_BR',
-        images: book.cover_url ? [{ url: book.cover_url, width: 600, height: 840, alt: book.title }] : [],
+        images: ogImageUrl ? [{ url: ogImageUrl, width: 600, height: 840, alt: title }] : [],
       },
       twitter: {
-        card: book.cover_url ? 'summary_large_image' : 'summary',
-        title: book.title,
+        card: ogImageUrl ? 'summary_large_image' : 'summary',
+        title,
         description: desc,
-        images: book.cover_url ? [book.cover_url] : [],
+        images: ogImageUrl ? [ogImageUrl] : [],
       },
     }
   } catch {
