@@ -26,6 +26,11 @@ import {
   useEditorSettings,
   useEditorSettingsContext,
 } from '@/lib/editor/useEditorSettings'
+import {
+  EditorDirtyProvider,
+  useEditorDirty,
+  usePanelDirty,
+} from '@/lib/editor/dirty-context'
 
 interface Props {
   book: Flipbook
@@ -79,7 +84,9 @@ export function EditorClient({ book, pdfUrl }: Props) {
   const settingsCtx = useEditorSettings(book.id, (book.settings as Record<string, unknown>) ?? {})
   return (
     <EditorSettingsProvider value={settingsCtx}>
-      <EditorClientInner book={book} pdfUrl={pdfUrl} />
+      <EditorDirtyProvider>
+        <EditorClientInner book={book} pdfUrl={pdfUrl} />
+      </EditorDirtyProvider>
     </EditorSettingsProvider>
   )
 }
@@ -305,15 +312,25 @@ function EditorToolbar({
   const [, startTransition] = useTransition()
   const [shareOpen, setShareOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const settingsCtx = useEditorSettingsContext()
+  const { dirtyPanels } = useEditorDirty()
 
+  // Save real: flush imediato do useEditorSettings (settings.* persisted) +
+  // refresh server data. Painéis com save próprio (Title/Copy/ReplacePdf)
+  // continuam responsáveis pelos seus saves — o badge "● N painéis" sinaliza.
   async function saveAll() {
-    // No-op por ora · cada panel salva independente. Trigger refresh.
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 300))
-    setSaving(false)
-    onSaved()
-    startTransition(() => router.refresh())
+    try {
+      await settingsCtx.flushNow()
+      onSaved()
+      startTransition(() => router.refresh())
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const dirtyCount = dirtyPanels.size
+  const settingsDirty = settingsCtx.saving || (settingsCtx.error !== null)
 
   return (
     <div className="h-12 shrink-0 border-b border-border bg-bg-elevated/80 backdrop-blur-md flex items-center px-4 gap-2">
@@ -327,14 +344,29 @@ function EditorToolbar({
 
       <button
         onClick={saveAll}
-        disabled={saving}
+        disabled={saving || settingsCtx.saving}
         className="font-meta text-xs bg-gold text-bg px-3 py-1.5 rounded hover:bg-gold-light transition flex items-center gap-1.5 disabled:opacity-50"
       >
-        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+        {(saving || settingsCtx.saving) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
         Save
       </button>
 
-      {savedAt && (
+      {dirtyCount > 0 && (
+        <span
+          className="font-meta text-[10px] text-orange-300 bg-orange-500/10 border border-orange-500/30 px-2 py-1 rounded"
+          title={`Painéis com mudanças não salvas: ${Array.from(dirtyPanels).join(', ')}`}
+        >
+          ● {dirtyCount} {dirtyCount === 1 ? 'painel' : 'painéis'} sem salvar
+        </span>
+      )}
+
+      {settingsDirty && settingsCtx.error && (
+        <span className="font-meta text-[10px] text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded" title={settingsCtx.error}>
+          ⚠ erro ao salvar settings
+        </span>
+      )}
+
+      {savedAt && dirtyCount === 0 && !settingsCtx.error && (
         <span className="font-meta text-[10px] text-gold-dark">
           salvo {savedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </span>
@@ -667,6 +699,26 @@ function TitlePanel({ book, onSaved }: { book: Flipbook; onSaved: (d: Date) => v
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  // Snapshot do último salvo · serve de baseline pra comparação dirty.
+  // Não usa book direto pq router.refresh não re-monta o painel.
+  const [savedSnapshot, setSavedSnapshot] = useState({
+    title: book.title,
+    subtitle: book.subtitle ?? '',
+    edition: book.edition ?? '',
+    language: book.language,
+    amazonAsin: book.amazon_asin ?? '',
+    status: book.status,
+  })
+
+  const isDirty =
+    title !== savedSnapshot.title ||
+    subtitle !== savedSnapshot.subtitle ||
+    edition !== savedSnapshot.edition ||
+    language !== savedSnapshot.language ||
+    amazonAsin !== savedSnapshot.amazonAsin ||
+    status !== savedSnapshot.status
+
+  usePanelDirty('title', isDirty)
 
   async function save() {
     setSaving(true); setError(null)
@@ -680,6 +732,7 @@ function TitlePanel({ book, onSaved }: { book: Flipbook; onSaved: (d: Date) => v
     })
     setSaving(false)
     if (!res.ok) { setError('Falha ao salvar'); return }
+    setSavedSnapshot({ title, subtitle, edition, language, amazonAsin, status })
     onSaved(new Date())
     startTransition(() => router.refresh())
   }
