@@ -9,6 +9,7 @@ const PatchSchema = z.object({
   edition: z.string().max(64).nullable().optional(),
   amazon_asin: z.string().max(20).nullable().optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
+  tags: z.array(z.string().min(1).max(48)).max(32).optional(),
 })
 
 async function requireAdmin() {
