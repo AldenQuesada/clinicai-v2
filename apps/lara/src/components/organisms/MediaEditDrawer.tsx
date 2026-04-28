@@ -12,6 +12,7 @@ import { X, Save } from 'lucide-react'
 import { updateMediaAction } from '@/app/midia/actions'
 import { FunnelChip } from '@/components/atoms/FunnelChip'
 import { HelperText } from '@/components/atoms/HelperText'
+import { Button } from '@/components/atoms/Button'
 
 export interface MediaEditData {
   id: string
@@ -91,12 +92,13 @@ export function MediaEditDrawer({
         {/* Header */}
         <header className="flex items-start justify-between p-5 border-b border-[hsl(var(--chat-border))]">
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-light leading-tight">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">
-                Editar mídia
-              </span>
+            <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-1.5">
+              Editar
+            </p>
+            <h3 className="font-[family-name:var(--font-cursive)] text-2xl font-light leading-tight tracking-[-0.01em] text-[hsl(var(--foreground))]">
+              {media.caption?.split(',')[0] || 'mídia'}
             </h3>
-            <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] mt-1 truncate">
+            <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] mt-1.5 truncate">
               {media.filename}
             </p>
           </div>
@@ -112,14 +114,14 @@ export function MediaEditDrawer({
 
         {/* Imagem preview */}
         <div className="p-5 border-b border-[hsl(var(--chat-border))]">
-          <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-card overflow-hidden bg-[hsl(var(--muted))] relative">
+          <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-[4px] overflow-hidden bg-[hsl(var(--muted))] relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={media.url}
               alt={media.caption || media.filename}
               className="w-full h-full object-cover"
             />
-            <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/40 backdrop-blur-sm">
+            <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-[2px] bg-black/40 backdrop-blur-sm">
               <FunnelChip funnel={media.funnel} />
             </div>
           </div>
@@ -141,7 +143,7 @@ export function MediaEditDrawer({
               name="caption"
               defaultValue={media.caption ?? ''}
               placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
-              className="w-full px-3 py-2.5 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
             />
             <HelperText>
               Vai como legenda da foto pro paciente · padrão: <em>nome + idade + assinatura</em>.
@@ -161,7 +163,7 @@ export function MediaEditDrawer({
                 id="drawer-funnel"
                 name="funnel"
                 defaultValue={media.funnel ?? ''}
-                className="w-full px-2 py-2 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
+                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
               >
                 <option value="">—</option>
                 <option value="olheiras">olheiras</option>
@@ -180,7 +182,7 @@ export function MediaEditDrawer({
                 name="phase"
                 defaultValue={media.phase ?? ''}
                 placeholder="opcional"
-                className="w-full px-2 py-2 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))]"
+                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs focus:outline-none focus:border-[hsl(var(--primary))]"
               />
             </div>
             <div className="space-y-2">
@@ -195,7 +197,7 @@ export function MediaEditDrawer({
                 type="number"
                 name="sort_order"
                 defaultValue={media.sort_order}
-                className="w-full px-2 py-2 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
+                className="w-full px-2 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-xs tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
               />
             </div>
           </div>
@@ -213,7 +215,7 @@ export function MediaEditDrawer({
               name="queixas"
               defaultValue={queixasStr}
               placeholder="olheiras, sulcos, flacidez..."
-              className="w-full px-3 py-2.5 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
             />
             <HelperText>
               Separadas por vírgula · só entram tags válidas: {VALID_QUEIXAS.join(', ')}.
@@ -222,21 +224,13 @@ export function MediaEditDrawer({
         </div>
 
         {/* Footer · acoes */}
-        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-xs uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-          >
+        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-3">
+          <Button type="button" onClick={onClose} variant="text" size="sm">
             Cancelar
-          </button>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-pill text-xs uppercase tracking-widest font-display-uppercase bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 shadow-luxury-sm"
-          >
-            <Save className="w-3.5 h-3.5" />
+          </Button>
+          <Button type="submit" variant="gold" size="sm" icon={<Save className="w-3.5 h-3.5" />}>
             Salvar
-          </button>
+          </Button>
         </footer>
       </form>
     </div>

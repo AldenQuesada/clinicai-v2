@@ -14,11 +14,11 @@ import { QueixaTag } from '@/components/atoms/QueixaTag'
 
 export type FunnelFilter = 'all' | 'fullface' | 'olheiras' | 'none'
 
-const FUNNEL_TABS: { value: FunnelFilter; label: string; emoji: string }[] = [
-  { value: 'all', label: 'Todos', emoji: '📸' },
-  { value: 'fullface', label: 'Full Face', emoji: '✨' },
-  { value: 'olheiras', label: 'Olheiras', emoji: '👁️' },
-  { value: 'none', label: 'Sem funnel', emoji: '○' },
+const FUNNEL_TABS: { value: FunnelFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'fullface', label: 'Full Face' },
+  { value: 'olheiras', label: 'Olheiras' },
+  { value: 'none', label: 'Sem funnel' },
 ]
 
 export function MediaFilters({
@@ -50,8 +50,8 @@ export function MediaFilters({
 
   return (
     <div className="space-y-3">
-      {/* Funnel tabs */}
-      <div className="flex flex-wrap items-center gap-1 p-1 rounded-card bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] w-fit">
+      {/* Funnel tabs · brandbook style: underline-on-active, sem botoes pill */}
+      <div className="flex flex-wrap items-center gap-6 border-b border-[hsl(var(--chat-border))] pb-2">
         {FUNNEL_TABS.map((tab) => {
           const active = funnel === tab.value
           return (
@@ -59,21 +59,23 @@ export function MediaFilters({
               key={tab.value}
               type="button"
               onClick={() => onFunnelChange(tab.value)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-display-uppercase transition-colors ${
+              className={`relative inline-flex items-center gap-2 pb-2 -mb-2.5 font-display-uppercase text-[11px] tracking-[0.25em] transition-colors ${
                 active
-                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                  ? 'text-[hsl(var(--primary))]'
                   : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               }`}
             >
-              <span aria-hidden>{tab.emoji}</span>
               {tab.label}
               <span
-                className={`ml-1 tabular-nums text-[10px] ${
-                  active ? 'opacity-80' : 'opacity-60'
+                className={`tabular-nums text-[10px] font-mono ${
+                  active ? 'text-[hsl(var(--primary))]/70' : 'text-[hsl(var(--muted-foreground))]/60'
                 }`}
               >
                 {counts[tab.value]}
               </span>
+              {active && (
+                <span className="absolute -bottom-[1px] left-0 right-0 h-px bg-[hsl(var(--primary))]" />
+              )}
             </button>
           )
         })}

@@ -88,11 +88,8 @@ export function PromptSidebar({
             const overrideCount = group.prompts.filter((p) => p.hasOverride).length
             return (
               <div key={group.title} className="space-y-0.5">
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <span aria-hidden className="text-sm leading-none">
-                    {group.emoji}
-                  </span>
-                  <h3 className="font-display-uppercase text-[10px] tracking-widest text-[hsl(var(--muted-foreground))] flex-1">
+                <div className="flex items-center gap-2 px-3 py-2 mt-2">
+                  <h3 className="font-display-uppercase text-[10px] tracking-[0.3em] text-[hsl(var(--primary))]/80 flex-1">
                     {group.title}
                   </h3>
                   {overrideCount > 0 && (

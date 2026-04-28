@@ -19,6 +19,7 @@ import { MediaCard } from '@/components/molecules/MediaCard'
 import { MediaFilters, type FunnelFilter } from '@/components/molecules/MediaFilters'
 import { MediaEditDrawer, type MediaEditData } from '@/components/organisms/MediaEditDrawer'
 import { MediaUploadDrawer } from '@/components/organisms/MediaUploadDrawer'
+import { Button } from '@/components/atoms/Button'
 import { toggleMediaActiveAction } from '@/app/midia/actions'
 
 export interface GalleryMediaItem {
@@ -99,21 +100,22 @@ export function MediaGallery({
         />
 
         {canManage && (
-          <button
+          <Button
             type="button"
             onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-pill text-xs uppercase tracking-widest font-display-uppercase bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 shadow-luxury-sm hover:shadow-luxury-md transition-all hover:-translate-y-px"
+            variant="gold"
+            size="md"
+            icon={<Plus className="w-3.5 h-3.5" />}
           >
-            <Plus className="w-4 h-4" />
             Nova foto
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Grid */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-pill bg-[hsl(var(--muted))] flex items-center justify-center text-[hsl(var(--muted-foreground))]">
+          <div className="w-12 h-12 mx-auto rounded-[2px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center text-[hsl(var(--muted-foreground))]">
             <ImageOff className="w-5 h-5" />
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">

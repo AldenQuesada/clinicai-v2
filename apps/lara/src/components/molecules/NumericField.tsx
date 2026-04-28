@@ -34,12 +34,12 @@ export function NumericField({
     <div className="space-y-2">
       <label
         htmlFor={`field-${name}`}
-        className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
+        className="block font-display-uppercase text-[10px] tracking-[0.25em] text-[hsl(var(--muted-foreground))]"
       >
         {label}
       </label>
 
-      <div className="relative flex items-stretch rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] focus-within:border-[hsl(var(--primary))] transition-colors">
+      <div className="relative flex items-stretch rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] focus-within:border-[hsl(var(--primary))] transition-colors">
         {prefix && (
           <span className="flex items-center pl-3 pr-1 text-xs text-[hsl(var(--muted-foreground))] font-mono select-none">
             {prefix}

@@ -104,7 +104,7 @@ export function PromptsWorkspace({ groups }: { groups: WorkspaceGroup[] }) {
         type="button"
         onClick={() => setMobileOpen(true)}
         aria-label="Abrir lista de layers"
-        className="lg:hidden fixed bottom-6 right-6 z-30 p-3 rounded-pill bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-luxury-md"
+        className="lg:hidden fixed bottom-6 right-6 z-30 p-3 rounded-[2px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-luxury-md border border-[hsl(var(--primary))]"
       >
         <Menu className="w-4 h-4" />
       </button>

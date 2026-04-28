@@ -1,21 +1,27 @@
 /**
  * ConfigSection · organismo · card de secao em /configuracoes.
- * Header emoji+titulo + grid de fields filhos.
  *
- * Cols controla densidade: 1 (full width), 2 (lado a lado), 3 (3-col).
+ * Spec brandbook:
+ *   - card border-radius: 8px (--radius-lg, nao 20px do tailwind rounded-card)
+ *   - sem emoji em headers institucionais
+ *   - eyebrow uppercase + titulo cormorant 300
+ *
+ * Cols controla densidade dos fields filhos.
  */
 
 import { SectionHeader } from '@/components/molecules/SectionHeader'
 
 export function ConfigSection({
-  emoji,
+  eyebrow,
   title,
+  italicAnchor,
   description,
   cols = 2,
   children,
 }: {
-  emoji: string
+  eyebrow: string
   title: string
+  italicAnchor?: string
   description?: string
   cols?: 1 | 2 | 3
   children: React.ReactNode
@@ -27,9 +33,14 @@ export function ConfigSection({
   }[cols]
 
   return (
-    <section className="rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-6 shadow-luxury-sm">
-      <SectionHeader emoji={emoji} title={title} description={description} />
-      <div className={`grid gap-5 ${colClass}`}>{children}</div>
+    <section className="rounded-[8px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-7 lg:p-8">
+      <SectionHeader
+        eyebrow={eyebrow}
+        title={title}
+        italicAnchor={italicAnchor}
+        description={description}
+      />
+      <div className={`grid gap-6 ${colClass}`}>{children}</div>
     </section>
   )
 }

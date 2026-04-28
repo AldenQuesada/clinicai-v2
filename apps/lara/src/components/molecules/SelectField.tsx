@@ -31,7 +31,7 @@ export function SelectField({
     <div className="space-y-2">
       <label
         htmlFor={`field-${name}`}
-        className="block text-[10px] uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))]"
+        className="block font-display-uppercase text-[10px] tracking-[0.25em] text-[hsl(var(--muted-foreground))]"
       >
         {label}
       </label>
@@ -42,7 +42,7 @@ export function SelectField({
           name={name}
           defaultValue={defaultValue}
           required={required}
-          className="w-full appearance-none rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] px-3 pr-9 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
+          className="w-full appearance-none rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] px-3 pr-9 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
         >
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>

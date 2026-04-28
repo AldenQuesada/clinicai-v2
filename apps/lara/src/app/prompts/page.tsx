@@ -10,7 +10,6 @@
 import { redirect } from 'next/navigation'
 import * as fs from 'fs'
 import * as path from 'path'
-import { Sparkles, AlertTriangle } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { PromptsWorkspace } from '@/components/organisms/PromptsWorkspace'
 
@@ -288,33 +287,31 @@ export default async function PromptsPage() {
 
   return (
     <main className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--chat-bg))]">
-      {/* ─── Page header ──────────────────────────────────────────── */}
-      <header className="px-6 lg:px-8 pt-6 lg:pt-8 pb-5 border-b border-[hsl(var(--chat-border))]">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl lg:text-3xl font-light leading-tight">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">
-                Prompts da Lara
-              </span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2 leading-relaxed">
-              Editor em camadas · DB override sem rebuild ·{' '}
+      <header className="px-6 lg:px-10 pt-10 lg:pt-12 pb-8 border-b border-[hsl(var(--chat-border))]">
+        <div className="max-w-5xl">
+          <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-4">
+            Painel · Lara
+          </p>
+          <h1 className="font-[family-name:var(--font-cursive)] text-4xl lg:text-5xl font-light leading-[0.95] tracking-[-0.02em] text-[hsl(var(--foreground))]">
+            Prompts em{' '}
+            <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
+              camadas
+            </em>
+          </h1>
+          <div className="mt-5 flex items-center gap-6 text-[11px] font-display-uppercase tracking-[0.2em]">
+            <span className="text-[hsl(var(--muted-foreground))]">
               <span className="text-[hsl(var(--foreground))] tabular-nums">{totalLayers}</span>{' '}
-              layers ·{' '}
+              layers
+            </span>
+            <span className="w-px h-4 bg-[hsl(var(--chat-border))]" />
+            <span className="text-[hsl(var(--muted-foreground))]">
               <span className="text-[hsl(var(--primary))] tabular-nums">{totalOverrides}</span>{' '}
               overrides ativos
-            </p>
-          </div>
-
-          <div className="hidden md:flex items-start gap-2 max-w-sm rounded-card border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-[hsl(var(--warning))] shrink-0 mt-0.5" />
-            <p className="text-[11px] text-[hsl(var(--foreground))]/90 leading-snug">
-              Mudanças aplicam imediatamente. Para reverter, esvazie o campo e salve · cai no
-              padrão do repo.
-            </p>
+            </span>
+            <span className="w-px h-4 bg-[hsl(var(--chat-border))]" />
+            <span className="text-[hsl(var(--muted-foreground))] normal-case tracking-normal text-[12px] font-sans">
+              Esvaziar campo e salvar restaura o padrão do repo
+            </span>
           </div>
         </div>
       </header>

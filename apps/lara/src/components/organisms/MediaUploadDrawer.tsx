@@ -8,9 +8,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Upload, Image as ImageIcon, AlertCircle } from 'lucide-react'
+import { X, Upload, AlertCircle } from 'lucide-react'
 import { uploadMediaAction } from '@/app/midia/actions'
 import { HelperText } from '@/components/atoms/HelperText'
+import { Button } from '@/components/atoms/Button'
 
 const VALID_QUEIXAS = [
   'geral',
@@ -108,13 +109,17 @@ export function MediaUploadDrawer({
         {/* Header */}
         <header className="flex items-start justify-between p-5 border-b border-[hsl(var(--chat-border))]">
           <div>
-            <h3 className="text-lg font-light leading-tight">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">
-                Subir nova foto
-              </span>
+            <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-1.5">
+              Nova mídia
+            </p>
+            <h3 className="font-[family-name:var(--font-cursive)] text-2xl font-light leading-tight tracking-[-0.01em] text-[hsl(var(--foreground))]">
+              Subir{' '}
+              <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
+                imagem
+              </em>
             </h3>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-              Antes/depois categorizada · vai pro banco da Lara
+            <p className="text-[12px] text-[hsl(var(--muted-foreground))] mt-2 leading-snug">
+              Antes/depois categorizada para o banco da Lara
             </p>
           </div>
           <button
@@ -131,7 +136,7 @@ export function MediaUploadDrawer({
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
           {/* Dropzone */}
           <div
-            className={`relative rounded-card border-2 border-dashed transition-colors ${
+            className={`relative rounded-[4px] border-2 border-dashed transition-colors ${
               previewUrl
                 ? 'border-[hsl(var(--primary))]/40 bg-[hsl(var(--primary))]/5'
                 : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] hover:border-[hsl(var(--primary))]/40'
@@ -148,13 +153,13 @@ export function MediaUploadDrawer({
             />
 
             {previewUrl ? (
-              <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-card overflow-hidden">
+              <div className="aspect-[4/5] max-h-[280px] mx-auto rounded-[4px] overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
               </div>
             ) : (
               <div className="py-12 px-6 text-center space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-pill bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))]">
+                <div className="w-12 h-12 mx-auto rounded-[2px] bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))]">
                   <Upload className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
@@ -176,7 +181,7 @@ export function MediaUploadDrawer({
           )}
 
           {error && (
-            <div className="flex items-start gap-2 p-3 rounded-card border border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5">
+            <div className="flex items-start gap-2 p-3 rounded-[4px] border border-[hsl(var(--danger))]/30 bg-[hsl(var(--danger))]/5">
               <AlertCircle className="w-4 h-4 text-[hsl(var(--danger))] shrink-0 mt-0.5" />
               <p className="text-xs text-[hsl(var(--danger))]">{error}</p>
             </div>
@@ -194,7 +199,7 @@ export function MediaUploadDrawer({
               id="up-caption"
               name="caption"
               placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
-              className="w-full px-3 py-2.5 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
+              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
             />
             <HelperText>Vai como legenda da foto pro paciente.</HelperText>
           </div>
@@ -213,7 +218,7 @@ export function MediaUploadDrawer({
                 name="funnel"
                 required
                 defaultValue=""
-                className="w-full px-3 py-2 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
+                className="w-full px-3 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))] cursor-pointer"
               >
                 <option value="" disabled>
                   selecionar...
@@ -234,7 +239,7 @@ export function MediaUploadDrawer({
                 type="number"
                 name="sort_order"
                 defaultValue={0}
-                className="w-full px-3 py-2 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
+                className="w-full px-3 py-2 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm tabular-nums focus:outline-none focus:border-[hsl(var(--primary))]"
               />
             </div>
           </div>
@@ -251,7 +256,7 @@ export function MediaUploadDrawer({
               id="up-queixas"
               name="queixas"
               placeholder="olheiras, sulcos, flacidez..."
-              className="w-full px-3 py-2.5 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))]"
+              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm font-mono focus:outline-none focus:border-[hsl(var(--primary))]"
             />
             <HelperText>
               Separadas por vírgula · válidas: {VALID_QUEIXAS.join(', ')}.
@@ -270,28 +275,25 @@ export function MediaUploadDrawer({
               id="up-phase"
               name="phase"
               placeholder="agendamento, fechamento..."
-              className="w-full px-3 py-2.5 rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
+              className="w-full px-3 py-2.5 rounded-[4px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))] text-[hsl(var(--foreground))] text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="px-4 py-2 rounded-md text-xs uppercase tracking-widest font-display-uppercase text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-          >
+        <footer className="p-5 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/40 flex items-center justify-end gap-3">
+          <Button type="button" onClick={handleClose} variant="text" size="sm">
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={!previewUrl}
-            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-pill text-xs uppercase tracking-widest font-display-uppercase bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 shadow-luxury-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            variant="gold"
+            size="sm"
+            icon={<Upload className="w-3.5 h-3.5" />}
           >
-            <Upload className="w-3.5 h-3.5" />
             Subir foto
-          </button>
+          </Button>
         </footer>
       </form>
     </div>

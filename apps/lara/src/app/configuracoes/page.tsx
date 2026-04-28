@@ -5,17 +5,19 @@
  * Multi-tenant ADR-028 · escopa por clinic_id (JWT).
  * ADR-012 · loadServerReposContext + repos.clinicData.getSetting<T>.
  *
- * UX redesign 2026-04-28 (design-squad spec): 6 knobs agrupados por intencao
- * em 3 secoes (Custo, Limites operacionais, Performance).
+ * UX brandbook-aligned 2026-04-28: tipografia cormorant 300 + eyebrow Montserrat
+ * uppercase letter-spacing 4px gold · radius 8px (cards) / 4px (inputs) ·
+ * sem emoji em headers institucionais (anti-padrao secao 22) · sem cursive-italic
+ * em titulos inteiros (so palavra-ancora · secao 12.2).
  */
 
-import { Settings, AlertTriangle } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { loadServerReposContext } from '@/lib/repos'
 import { ConfigSection } from '@/components/organisms/ConfigSection'
 import { NumericField } from '@/components/molecules/NumericField'
 import { SelectField } from '@/components/molecules/SelectField'
+import { Button } from '@/components/atoms/Button'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,28 +60,30 @@ export default async function ConfiguracoesPage() {
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8 lg:py-10">
-        {/* ─── Page header ──────────────────────────────────────────── */}
-        <header className="mb-10 flex items-start gap-4">
-          <div className="p-3 rounded-card bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] shadow-luxury-sm">
-            <Settings className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-3xl font-light leading-tight">
-              <span className="font-cursive-italic text-[hsl(var(--primary))]">Configurações</span>
-            </h1>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2 leading-relaxed">
-              Comportamento da IA · cost control · limites operacionais
-            </p>
-          </div>
+      <div className="max-w-4xl mx-auto px-6 lg:px-10 py-12 lg:py-16">
+        {/* ─── Page header · brandbook spec: eyebrow + cormorant 300 + italic anchor ── */}
+        <header className="mb-12 lg:mb-16">
+          <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-4">
+            Painel · Lara
+          </p>
+          <h1 className="font-[family-name:var(--font-cursive)] text-5xl lg:text-6xl font-light leading-[0.95] tracking-[-0.02em] text-[hsl(var(--foreground))]">
+            Configurações da{' '}
+            <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
+              clínica
+            </em>
+          </h1>
+          <p className="text-[14px] text-[hsl(var(--muted-foreground))] mt-5 leading-[1.7] max-w-xl">
+            Comportamento da IA, controle de custo e limites operacionais. Mudanças aplicam
+            imediatamente, sem rebuild.
+          </p>
         </header>
 
-        <form action={saveLaraConfigAction} className="space-y-6">
-          {/* ─── Custo ─────────────────────────────────────────────── */}
+        <form action={saveLaraConfigAction} className="space-y-7">
           <ConfigSection
-            emoji="💸"
-            title="Custo"
-            description="Modelo Claude e teto diário em USD · quando atingido, IA bloqueia até 00:00 UTC"
+            eyebrow="Custo"
+            title="Modelo e teto"
+            italicAnchor="diário"
+            description="Modelo Claude usado nas conversas e teto diário em USD. Quando atingido, IA bloqueia novas chamadas até 00:00 UTC."
             cols={2}
           >
             <SelectField
@@ -87,7 +91,7 @@ export default async function ConfiguracoesPage() {
               label="Modelo Claude"
               defaultValue={config.model}
               options={MODEL_OPTIONS}
-              helper="Sonnet 4.6 é o padrão recomendado · custo médio, qualidade alta. Haiku usa ~5× menos tokens mas pode ser menos consistente em scripts complexos."
+              helper="Sonnet 4.6 é o padrão recomendado · custo médio, qualidade alta. Haiku usa cerca de 5× menos tokens, mas pode ser menos consistente em scripts complexos."
             />
             <NumericField
               name="daily_budget_usd"
@@ -98,15 +102,15 @@ export default async function ConfiguracoesPage() {
               step={0.5}
               prefix="$"
               suffix="USD"
-              helper="Padrão $5/dia · suficiente pra ~80 conversas Sonnet 4.6."
+              helper="Padrão $5/dia · suficiente para cerca de 80 conversas Sonnet 4.6."
             />
           </ConfigSection>
 
-          {/* ─── Limites operacionais ─────────────────────────────── */}
           <ConfigSection
-            emoji="🛡️"
-            title="Limites operacionais"
-            description="Anti-loop, comportamento quando humano assume e cooldown pós-disparo de campanha"
+            eyebrow="Limites operacionais"
+            title="Anti-loop e"
+            italicAnchor="cooldown"
+            description="Anti-loop por conversa, comportamento quando atendente humano assume e cooldown pós-disparo de campanha."
             cols={3}
           >
             <NumericField
@@ -117,7 +121,7 @@ export default async function ConfiguracoesPage() {
               max={200}
               step={5}
               suffix="msgs"
-              helper="Anti-loop · se Lara passar disso pra UMA conversa em 24h, IA é desligada automaticamente (paused_by=auto_limit). Padrão 45 cobre 99% dos casos."
+              helper="Anti-loop · se Lara passar disso para uma conversa em 24h, IA é desligada automaticamente. Padrão 45 cobre 99% dos casos."
             />
             <NumericField
               name="auto_pause_minutes"
@@ -127,7 +131,7 @@ export default async function ConfiguracoesPage() {
               max={1440}
               step={5}
               suffix="min"
-              helper="Após atendente clicar &quot;Assumir&quot; ou enviar mensagem manual. IA volta automaticamente após o tempo expirar."
+              helper="Após atendente clicar Assumir ou enviar mensagem manual. IA volta automaticamente após o tempo expirar."
             />
             <NumericField
               name="disparo_cooldown_minutes"
@@ -137,46 +141,38 @@ export default async function ConfiguracoesPage() {
               max={1440}
               step={5}
               suffix="min"
-              helper="Após disparo de campanha (aniversário, broadcast), Lara espera antes de processar mensagens dessa conversa · evita sobreposição de assuntos."
+              helper="Após disparo de campanha, Lara espera antes de processar mensagens dessa conversa · evita sobreposição de assuntos."
             />
           </ConfigSection>
 
-          {/* ─── Performance ──────────────────────────────────────── */}
           <ConfigSection
-            emoji="⚡"
-            title="Performance"
-            description="Otimizações de tokens em conversas longas · paridade com Lara legacy n8n"
+            eyebrow="Performance"
+            title="Compact prompt"
+            italicAnchor="threshold"
+            description="Após N mensagens trocadas, Lara troca para um prompt compacto · cerca de 70% menos tokens · paridade com Lara legacy n8n."
             cols={1}
           >
             <NumericField
               name="compact_after"
-              label="Compact prompt após N msgs"
+              label="Após N mensagens trocadas"
               defaultValue={config.compact_after}
               min={2}
               max={50}
               step={1}
               suffix="msgs"
-              helper="Após N mensagens trocadas, Lara troca pro prompt compact (~70% menor) · economia em conversas longas. Padrão 6. Diminuir = econômico mas pode perder contexto · aumentar = mais tokens por chamada na fase tardia."
+              helper="Padrão 6. Diminuir = mais econômico, mas pode perder contexto · aumentar = mais tokens por chamada na fase tardia."
             />
           </ConfigSection>
 
-          {/* ─── Save bar (sticky) ────────────────────────────────── */}
-          <div className="sticky bottom-0 -mx-6 lg:-mx-8 -mb-8 lg:-mb-10 px-6 lg:px-8 py-4 backdrop-blur-md bg-[hsl(var(--chat-bg))]/80 border-t border-[hsl(var(--chat-border))] flex items-center justify-between gap-4">
-            <div className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-[hsl(var(--warning))]" />
-              Mudanças aplicam imediatamente · sem rebuild
-            </div>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-pill font-display-uppercase text-xs tracking-widest bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))]/90 transition-all hover:-translate-y-px shadow-luxury-sm hover:shadow-luxury-md"
-            >
+          {/* Save bar */}
+          <div className="sticky bottom-0 -mx-6 lg:-mx-10 -mb-12 lg:-mb-16 px-6 lg:px-10 py-5 backdrop-blur-md bg-[hsl(var(--chat-bg))]/85 border-t border-[hsl(var(--chat-border))] flex items-center justify-end gap-3">
+            <Button type="submit" variant="gold" size="md">
               Salvar configurações
-            </button>
+            </Button>
           </div>
         </form>
 
-        {/* Settings client-side · per-device · localStorage */}
-        <div className="mt-10">
+        <div className="mt-16">
           <NotificationSettingsPanel />
         </div>
       </div>

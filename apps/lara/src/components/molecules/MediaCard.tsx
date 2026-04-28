@@ -52,7 +52,7 @@ export function MediaCard({
 
   return (
     <article
-      className={`group relative rounded-card border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] overflow-hidden transition-all hover:border-[hsl(var(--primary))]/40 hover:shadow-luxury-md cursor-pointer ${
+      className={`group relative rounded-[8px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] overflow-hidden transition-all duration-[350ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[hsl(var(--primary))]/40 hover:shadow-luxury-md hover:-translate-y-0.5 cursor-pointer ${
         media.is_active ? '' : 'opacity-60'
       }`}
       onClick={() => onEdit(media.id)}
@@ -82,10 +82,10 @@ export function MediaCard({
           />
         )}
 
-        {/* Top-right · status dot */}
-        <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/40 backdrop-blur-sm">
+        {/* Top-right · status dot · pequeno eyebrow chip · pill OK aqui (brandbook .mode-pill) */}
+        <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] bg-black/45 backdrop-blur-sm border border-white/10">
           <DotIndicator state={media.is_active ? 'active' : 'inactive'} size="xs" />
-          <span className="text-[9px] uppercase tracking-widest font-display-uppercase text-white/90">
+          <span className="font-display-uppercase text-[9px] tracking-[0.25em] text-white/90">
             {media.is_active ? 'ativa' : 'inativa'}
           </span>
         </div>
@@ -96,7 +96,7 @@ export function MediaCard({
             <button
               type="button"
               onClick={handleEdit}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[10px] uppercase tracking-widest font-display-uppercase bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 shadow-luxury-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[2px] font-display-uppercase text-[10px] tracking-[0.18em] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] border border-[hsl(var(--primary))] hover:bg-[#DFC5A0] hover:border-[#DFC5A0] transition-all duration-[350ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
             >
               <Pencil className="w-3 h-3" />
               Editar
@@ -105,7 +105,7 @@ export function MediaCard({
               type="button"
               onClick={handleToggle}
               disabled={pending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[10px] uppercase tracking-widest font-display-uppercase bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 disabled:opacity-50 border border-white/20"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-[2px] font-display-uppercase text-[10px] tracking-[0.18em] bg-white/10 backdrop-blur-sm text-white border border-white/20 hover:bg-white/20 disabled:opacity-50 transition-all duration-[350ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
               title={media.is_active ? 'Desativar' : 'Ativar'}
             >
               {media.is_active ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
