@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
-import { getFlipbookBySlug } from '@/lib/supabase/flipbooks'
+import { getFlipbookBySlug, getSignedPdfUrl } from '@/lib/supabase/flipbooks'
 import { EditorClient } from './EditorClient'
 
 export const dynamic = 'force-dynamic'
@@ -15,5 +15,15 @@ export default async function EditorPage({ params }: Props) {
   const book = await getFlipbookBySlug(supabase, slug)
   if (!book) notFound()
 
-  return <EditorClient book={book} />
+  // Signed URL pro PDF (se for formato PDF)
+  let pdfUrl: string | null = null
+  if (book.format === 'pdf' && book.pdf_url) {
+    try {
+      pdfUrl = await getSignedPdfUrl(supabase, book.pdf_url)
+    } catch {
+      pdfUrl = null
+    }
+  }
+
+  return <EditorClient book={book} pdfUrl={pdfUrl} />
 }
