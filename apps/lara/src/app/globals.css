@@ -54,9 +54,113 @@
 
 @layer base {
   body {
-    background-color: hsl(var(--chat-bg));
+    background-color: #0F0D0A;
     color: hsl(var(--foreground));
   }
+}
+
+/* ─── Atmosfera editorial · brandbook v2.0 ──────────────────────────
+ * Noise sutil + gradient mesh imperceptivel no canto superior · cria
+ * profundidade em vez de bg chapado (brandbook §22 anti-padrao "solid
+ * colors that lack atmosphere"). Aplicado via .editorial-atmosphere
+ * que envolve a pagina inteira. */
+
+.editorial-atmosphere {
+  position: relative;
+  background-color: #0F0D0A;
+  background-image:
+    /* Mesh gradient · champagne 3% no canto superior direito */
+    radial-gradient(
+      ellipse 1200px 800px at 90% 0%,
+      rgba(201, 169, 110, 0.045),
+      transparent 60%
+    ),
+    /* Mesh gradient · warm tone bottom-left */
+    radial-gradient(
+      ellipse 800px 600px at 0% 100%,
+      rgba(212, 184, 148, 0.025),
+      transparent 50%
+    );
+}
+
+/* Noise texture overlay · 4% opacity · adiciona granulosidade subtle
+ * que faz a tela parecer "papel" em vez de tela digital chapada. */
+.editorial-atmosphere::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Signature gold line · 1px vertical no canto esquerdo · marca da Mirian
+ * de Paula (eyebrow assinatura). Brandbook §10: wordmark + emblem.
+ * Aqui usamos uma linha discreta como signature recorrente da marca. */
+.editorial-atmosphere::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(201, 169, 110, 0.35) 20%,
+    rgba(201, 169, 110, 0.45) 50%,
+    rgba(201, 169, 110, 0.35) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Reveal stagger animation · brandbook §14: opacity 0→1 + translateY 32→0
+ * em 1.1s cubic-bezier(.2,.8,.2,1). Aplicar com classe .reveal e variavel
+ * --reveal-delay pra escalonar entradas (header, body, footer, etc). */
+@keyframes editorialReveal {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  animation: editorialReveal 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Hover · champagne underline expand · pra links e CTAs sutis */
+.editorial-link {
+  position: relative;
+  display: inline-block;
+  transition: color 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.editorial-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: rgba(201, 169, 110, 0.6);
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.editorial-link:hover::after {
+  transform-origin: left;
+  transform: scaleX(1);
+}
+.editorial-link:hover {
+  color: hsl(var(--primary));
 }
 
 /* Scrollbar custom da Lara · re-tematizada */

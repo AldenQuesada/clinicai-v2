@@ -1,11 +1,18 @@
 /**
- * Banco de mídias da Lara · Server Component.
- * Brandbook-aligned 2026-04-28 · sem emoji, sem cursive-italic full title.
+ * Banco de mídias · Server Component editorial.
+ *
+ * Brandbook v2.0 + frontend-design skill (Anthropic):
+ *   - Atmosfera com noise + gradient mesh subtle (wraps em .editorial-atmosphere)
+ *   - Masthead estilo capa de revista (Cormorant 5xl + italic anchor + deck italic)
+ *   - Grid assimetrico magazine-style (hero/wide/tall/sm spans)
+ *   - Stagger reveal 1.1s · brandbook §14
+ *   - Signature gold line vertical na borda esquerda (no body via globals.css)
  */
 
 import { redirect } from 'next/navigation'
 import { loadServerReposContext } from '@/lib/repos'
 import { MediaGallery, type GalleryMediaItem } from '@/components/organisms/MediaGallery'
+import { EditorialMasthead } from '@/components/molecules/EditorialMasthead'
 import type { WaMediaBankDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -41,34 +48,23 @@ export default async function MediaPage() {
   const activeCount = media.filter((m) => m.is_active).length
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
-      <div className="max-w-6xl mx-auto px-6 lg:px-10 py-12 lg:py-16">
-        {/* ─── Page header · brandbook spec ────────────────────── */}
-        <header className="mb-12 lg:mb-14">
-          <p className="font-display-uppercase text-[10px] tracking-[0.4em] text-[hsl(var(--primary))]/80 mb-4">
-            Painel · Lara
-          </p>
-          <h1 className="font-[family-name:var(--font-cursive)] text-5xl lg:text-6xl font-light leading-[0.95] tracking-[-0.02em] text-[hsl(var(--foreground))]">
-            Banco de{' '}
-            <em className="font-[family-name:var(--font-cursive)] italic font-light text-[hsl(var(--primary))]">
-              imagens
-            </em>
-          </h1>
-          <p className="text-[14px] text-[hsl(var(--muted-foreground))] mt-5 leading-[1.7] max-w-xl">
-            Resultados antes/depois enviados pela Lara. Caption ideal traz nome, idade e
-            assinatura — Lara escolhe a foto pela tag que ela mesma escreve.
-          </p>
-          <div className="mt-6 flex items-center gap-6 text-[11px] font-display-uppercase tracking-[0.2em]">
-            <span className="text-[hsl(var(--muted-foreground))]">
-              <span className="text-[hsl(var(--foreground))] tabular-nums">{media.length}</span>{' '}
-              no banco
-            </span>
-            <span className="w-px h-4 bg-[hsl(var(--chat-border))]" />
-            <span className="text-[hsl(var(--muted-foreground))]">
-              <span className="text-[hsl(var(--primary))] tabular-nums">{activeCount}</span> ativas
-            </span>
-          </div>
-        </header>
+    <main className="editorial-atmosphere flex-1 overflow-y-auto custom-scrollbar">
+      <div className="relative z-10 max-w-7xl mx-auto px-8 lg:px-16 py-16 lg:py-24">
+        <EditorialMasthead
+          eyebrow="Banco de imagens · Lara"
+          title="Resultados"
+          italicAnchor="da clínica"
+          deck="Fotos antes-depois enviadas pela Lara durante as conversas. Caption com nome, idade e assinatura · Lara escolhe pela tag que ela mesma escreve."
+          meta={[
+            { label: 'imagens', value: media.length, tone: 'foreground' },
+            { label: 'em uso', value: activeCount, tone: 'primary' },
+            {
+              label: 'arquivadas',
+              value: media.length - activeCount,
+              tone: 'foreground',
+            },
+          ]}
+        />
 
         <MediaGallery items={media} canManage={canManage} />
       </div>

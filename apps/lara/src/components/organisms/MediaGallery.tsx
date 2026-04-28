@@ -1,25 +1,23 @@
 'use client'
 
 /**
- * MediaGallery · organismo · gallery + filters + drawers state.
+ * MediaGallery · organismo · gallery editorial assimetrica.
  *
- * Hold:
- *  - filtro de funnel (single)
- *  - filtros de queixas (multi · AND logic)
- *  - drawer de edit (qual id selecionado)
- *  - drawer de upload (open/close)
+ * Layout:
+ *   - Grid 4 colunas em xl, 3 cols em lg, 2 cols em md, 1 col em sm
+ *   - Pattern de spans: hero (2x2), tall (1x2), wide (2x1), sm (1x1)
+ *   - Padrao ritmico repete a cada 6 cards · 1 hero + 1 tall + 4 sm
  *
- * Componente mestre do /midia que costura MediaCard, MediaFilters,
- * MediaEditDrawer, MediaUploadDrawer.
+ * Filtros editoriais (chips substituem tabs admin), upload + edit drawers
+ * mantidos.
  */
 
 import { useMemo, useState } from 'react'
 import { Plus, ImageOff } from 'lucide-react'
-import { MediaCard } from '@/components/molecules/MediaCard'
+import { MediaCard, type MediaCardSize } from '@/components/molecules/MediaCard'
 import { MediaFilters, type FunnelFilter } from '@/components/molecules/MediaFilters'
 import { MediaEditDrawer, type MediaEditData } from '@/components/organisms/MediaEditDrawer'
 import { MediaUploadDrawer } from '@/components/organisms/MediaUploadDrawer'
-import { Button } from '@/components/atoms/Button'
 import { toggleMediaActiveAction } from '@/app/midia/actions'
 
 export interface GalleryMediaItem {
@@ -32,6 +30,23 @@ export interface GalleryMediaItem {
   phase: string | null
   sort_order: number
   is_active: boolean
+}
+
+/**
+ * Padrao ritmico editorial · cada bloco de 6 imagens segue:
+ *   [hero=2x2] [sm] [sm]
+ *              [sm] [sm]
+ *   [tall=1x2] [wide=2x1] [sm]
+ *              [sm]       [sm]
+ *
+ * Resultado: ritmo visual variado em vez de grid uniforme tedioso.
+ */
+function pickSize(idx: number): MediaCardSize {
+  const mod = idx % 7
+  if (mod === 0) return 'hero' // primeira de cada bloco
+  if (mod === 5) return 'wide' // 6a posicao
+  if (mod === 6) return 'tall' // 7a posicao
+  return 'sm'
 }
 
 export function MediaGallery({
@@ -82,14 +97,19 @@ export function MediaGallery({
 
   const editingItem = useMemo<MediaEditData | null>(() => {
     if (!editingId) return null
-    const found = items.find((m) => m.id === editingId)
-    return found ?? null
+    return items.find((m) => m.id === editingId) ?? null
   }, [editingId, items])
 
   return (
     <>
-      {/* Toolbar */}
-      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+      {/* Toolbar editorial · filtros + nova foto · separados por dotted divider */}
+      <div
+        className="reveal flex items-end justify-between gap-6 mb-12 pb-6 flex-wrap border-b border-dotted"
+        style={{
+          ['--reveal-delay' as string]: '480ms',
+          borderColor: 'rgba(201, 169, 110, 0.25)',
+        }}
+      >
         <MediaFilters
           funnel={funnelFilter}
           onFunnelChange={setFunnelFilter}
@@ -100,37 +120,41 @@ export function MediaGallery({
         />
 
         {canManage && (
-          <Button
+          <button
             type="button"
             onClick={() => setUploadOpen(true)}
-            variant="gold"
-            size="md"
-            icon={<Plus className="w-3.5 h-3.5" />}
+            className="group inline-flex items-center gap-2 font-[family-name:var(--font-cursive)] italic text-xl font-light text-[hsl(var(--primary))] hover:opacity-80 transition-opacity"
           >
-            Nova foto
-          </Button>
+            <Plus className="w-4 h-4 -translate-y-px transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:rotate-90" />
+            <span className="border-b border-dotted border-[hsl(var(--primary))]/60 pb-px">
+              nova foto
+            </span>
+          </button>
         )}
       </div>
 
-      {/* Grid */}
+      {/* Grid editorial assimetrico */}
       {filtered.length === 0 ? (
-        <div className="text-center py-20 space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-[2px] border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center text-[hsl(var(--muted-foreground))]">
-            <ImageOff className="w-5 h-5" />
-          </div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+        <div className="reveal text-center py-32" style={{ ['--reveal-delay' as string]: '600ms' }}>
+          <ImageOff className="w-8 h-8 mx-auto text-[hsl(var(--muted-foreground))]/40 mb-4" />
+          <p className="font-[family-name:var(--font-cursive)] italic text-2xl font-light text-[hsl(var(--muted-foreground))]">
             {items.length === 0
-              ? 'Banco vazio · use "Nova foto" pra subir a primeira'
-              : 'Nenhuma foto bate com os filtros atuais'}
+              ? 'O banco está em branco.'
+              : 'Nenhuma imagem para esses filtros.'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((m) => (
+        <div
+          className="grid gap-x-6 gap-y-12 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          style={{ gridAutoRows: '180px' }}
+        >
+          {filtered.map((m, idx) => (
             <MediaCard
               key={m.id}
               media={m}
               canManage={canManage}
+              size={pickSize(idx)}
+              revealDelay={600 + idx * 50}
               onEdit={setEditingId}
               onToggleActive={toggleMediaActiveAction}
             />
@@ -138,7 +162,6 @@ export function MediaGallery({
         </div>
       )}
 
-      {/* Drawers */}
       <MediaEditDrawer media={editingItem} onClose={() => setEditingId(null)} />
       <MediaUploadDrawer open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </>
