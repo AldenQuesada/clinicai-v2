@@ -124,19 +124,16 @@ export function ClinicSettingsClient({
 
   return (
     <div>
-      {/* Sub-nav · tabs em UMA linha só (paridade legado linha 776 ·
-          flex-wrap removido · scroll horizontal em mobile) */}
+      {/* Sub-nav · tabs em UMA linha (container wide=1320px cabe os 7 tabs sem
+          wrap nem scroll). Em viewport pequeno (<900px) flex-wrap quebra
+          natural · sem scroll horizontal. */}
       <nav
-        className="custom-scrollbar"
         style={{
           display: 'flex',
           gap: 2,
+          flexWrap: 'wrap',
           marginBottom: 32,
           borderBottom: '1px solid var(--b2b-border)',
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          whiteSpace: 'nowrap',
-          scrollSnapType: 'x proximity',
         }}
         aria-label="Seções de configuração"
       >
@@ -153,19 +150,17 @@ export function ClinicSettingsClient({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '10px 12px',
+                padding: '10px 14px',
                 background: 'transparent',
                 color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
                 border: 'none',
                 fontSize: 11,
                 fontWeight: 600,
-                letterSpacing: 0.8,
+                letterSpacing: 1,
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 transition: 'color 0.15s',
                 fontFamily: 'inherit',
-                flexShrink: 0,
-                scrollSnapAlign: 'start',
               }}
             >
               <Icon size={12} strokeWidth={1.75} />

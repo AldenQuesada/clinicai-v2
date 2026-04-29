@@ -2,7 +2,7 @@
  * PageContainer · wrapper canônico de toda página authed da Lara.
  *
  * Substitui `b2b-page-container` (1640px canto-a-canto) pelo padrão
- * narrow "longform" (980px central, padding generoso, gradient sutil).
+ * narrow "longform" (1100px) ou wide (1320px), padding generoso, gradient sutil.
  *
  * Usar em TODAS as pages após o PageHero.
  *   <main className="...">
@@ -12,7 +12,9 @@
  *     </PageContainer>
  *   </main>
  *
- * Variant `wide` (1200px) pra páginas com tabela densa tipo /leads.
+ * Variants:
+ *   narrow (1100px) · forms simples, observacao
+ *   wide   (1320px) · tabelas densas, forms com sub-nav longo (configuracoes/clinica)
  */
 
 import type { ReactNode } from 'react'
@@ -22,10 +24,10 @@ export function PageContainer({
   variant = 'narrow',
 }: {
   children: ReactNode
-  /** narrow=980 (forms/configs) · wide=1280 (tabelas/listas densas) */
+  /** narrow=1100 (forms simples) · wide=1320 (tabelas + sub-nav longo) */
   variant?: 'narrow' | 'wide'
 }) {
-  const maxWidth = variant === 'wide' ? 1280 : 980
+  const maxWidth = variant === 'wide' ? 1320 : 1100
   return (
     <main
       className="flex-1 overflow-y-auto custom-scrollbar"

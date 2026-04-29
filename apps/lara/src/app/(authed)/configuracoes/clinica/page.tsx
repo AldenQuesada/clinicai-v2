@@ -63,7 +63,7 @@ export default async function ConfiguracoesClinicaPage() {
   const canEditOwner = can(role, 'settings:clinic-data')
 
   return (
-    <PageContainer>
+    <PageContainer variant="wide">
       <PageHero
         kicker="Painel · Configurações"
         title={<>Dados da <em>clínica</em></>}
