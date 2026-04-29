@@ -303,24 +303,53 @@ async function sendWhatsAppAudio(
 // referencia "olha o link aqui em cima" — sem esse texto, convidada recebe
 // audio sem destino de agendamento. Best-effort: se falhar, nao bloqueia
 // o fluxo do voucher (audio ja foi entregue).
+//
+// Template canonico: b2b_comm_templates voucher_issued_beneficiary/text.
+// Memory feedback_event_dispatch_trio.md: template DB e contrato canonico.
+// Fallback hardcoded so se template foi desativado/apagado por engano (defensivo).
 const VOUCHER_LINK_BASE = 'https://painel.miriandpaula.com.br/voucher.html'
 
 async function sendVoucherLinkText(
   phone: string, token: string, recipientName: string, partnerName: string, combo: string,
+  validUntil: string | null, validityDays: number | null,
   ch: { instance: string; apiUrl: string; apiKey: string }
-): Promise<{ waId: string | null; err?: string }> {
+): Promise<{ waId: string | null; err?: string; via?: 'template' | 'fallback' }> {
   const first = firstName(recipientName)
-  const text = [
-    `${first}, aqui está seu voucher cortesia 💛`,
-    ``,
-    `🎟️ *${combo}*`,
-    `Presente da ${partnerName || 'parceria'}`,
-    ``,
-    `Abre o presente completo aqui (com validade e próximos passos):`,
-    `${VOUCHER_LINK_BASE}?t=${encodeURIComponent(token)}`,
-    ``,
-    `Quando quiser marcar, me responde por aqui que eu te encaixo na agenda da Dra. Mirian. Um beijo!`,
-  ].join('\n')
+  const link = `${VOUCHER_LINK_BASE}?t=${encodeURIComponent(token)}`
+
+  // 1. Tenta template oficial DB
+  const tpl = await fetchTemplate('voucher_issued_beneficiary', 'text').catch(() => null)
+  let text: string
+  let via: 'template' | 'fallback' = 'fallback'
+
+  if (tpl?.text_template) {
+    const expira = validityDays ?? (validUntil
+      ? Math.max(0, Math.ceil((new Date(validUntil).getTime() - Date.now()) / 86_400_000))
+      : 30)
+    text = renderTemplate(tpl.text_template, {
+      convidada: recipientName || 'você',
+      convidada_first: first,
+      parceira: partnerName || 'uma parceira',
+      combo,
+      link,
+      token,
+      expira_em: expira,
+    })
+    via = 'template'
+  } else {
+    // Fallback hardcoded · ultimo recurso se template foi removido por engano
+    text = [
+      `${first}, aqui está seu voucher cortesia 💛`,
+      ``,
+      `🎟️ *${combo}*`,
+      `Presente da ${partnerName || 'parceria'}`,
+      ``,
+      `Abre o presente completo aqui (com validade e próximos passos):`,
+      link,
+      ``,
+      `Quando quiser marcar, me responde por aqui que eu te encaixo na agenda da Dra. Mirian. Um beijo!`,
+    ].join('\n')
+  }
 
   try {
     const r = await fetch(`${ch.apiUrl}/message/sendText/${ch.instance}`, {
@@ -330,12 +359,12 @@ async function sendVoucherLinkText(
     })
     if (!r.ok) {
       const body = await r.text()
-      return { waId: null, err: `send_link ${r.status}: ${body.slice(0, 200)}` }
+      return { waId: null, err: `send_link ${r.status}: ${body.slice(0, 200)}`, via }
     }
     const d = await r.json().catch(() => null)
-    return { waId: d?.key?.id || null }
+    return { waId: d?.key?.id || null, via }
   } catch (e) {
-    return { waId: null, err: (e as Error).message.slice(0, 200) }
+    return { waId: null, err: (e as Error).message.slice(0, 200), via }
   }
 }
 
@@ -478,16 +507,30 @@ Deno.serve(async (req) => {
       ])
       waId = sendRes.waId
       storagePath = stored
+
+      // Delay pra garantir que o WhatsApp termine de processar o audio (1.4MB)
+      // antes do texto com link. Sem isso, texto chega ANTES do audio na cliente
+      // (Evolution faz upload do mp3 enquanto texto e instantaneo) — quebra o
+      // script "olha o link aqui em cima". Reportado por Alden 2026-04-29
+      // (Debora Aghetoni recebeu fora de ordem). 3s cobre a maioria dos casos.
+      if (waId) await new Promise((res) => setTimeout(res, 3000))
     }
 
     // Envia texto com link do voucher logo apos o audio (mesma Lara/canal).
+    // Usa template DB voucher_issued_beneficiary/text · fallback hardcoded.
     // Fire-and-forget: se falhar, audio ja foi — nao derruba o flow.
+    const validityDays = voucher.valid_until
+      ? Math.max(0, Math.ceil((new Date(voucher.valid_until).getTime() - Date.now()) / 86_400_000))
+      : null
     const linkRes = await sendVoucherLinkText(
       voucher.recipient_phone, voucher.token,
-      voucher.recipient_name, partnership?.name || '', combo, channel,
+      voucher.recipient_name, partnership?.name || '', combo,
+      voucher.valid_until || null, validityDays, channel,
     )
     if (linkRes.err) {
       console.error('[voucher-audio] link text falhou:', linkRes.err)
+    } else {
+      console.log(`[voucher-audio] text via=${linkRes.via}`)
     }
 
     // Confirmacao pro parceiro via Mira (partner_response) — fecha o loop
