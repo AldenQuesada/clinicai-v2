@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-04-28T19:58:00.723Z
+ * Ultima geracao: 2026-04-29T14:14:50.213Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -7518,6 +7518,84 @@ export type Database = {
         }
         Relationships: []
       }
+      lp_book_orders: {
+        Row: {
+          block_id: string | null
+          buy_button_variant: string | null
+          buyer_status_snapshot: string | null
+          created_at: string
+          flipbook_buyer_id: string | null
+          flipbook_id: string | null
+          id: number
+          invoice_url: string | null
+          lp_id: string
+          offer_id: string | null
+          product_id: string | null
+        }
+        Insert: {
+          block_id?: string | null
+          buy_button_variant?: string | null
+          buyer_status_snapshot?: string | null
+          created_at?: string
+          flipbook_buyer_id?: string | null
+          flipbook_id?: string | null
+          id?: number
+          invoice_url?: string | null
+          lp_id: string
+          offer_id?: string | null
+          product_id?: string | null
+        }
+        Update: {
+          block_id?: string | null
+          buy_button_variant?: string | null
+          buyer_status_snapshot?: string | null
+          created_at?: string
+          flipbook_buyer_id?: string | null
+          flipbook_id?: string | null
+          id?: number
+          invoice_url?: string | null
+          lp_id?: string
+          offer_id?: string | null
+          product_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lp_book_orders_flipbook_buyer_id_fkey"
+            columns: ["flipbook_buyer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lp_book_orders_flipbook_id_fkey"
+            columns: ["flipbook_id"]
+            isOneToOne: false
+            referencedRelation: "flipbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lp_book_orders_lp_id_fkey"
+            columns: ["lp_id"]
+            isOneToOne: false
+            referencedRelation: "lp_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lp_book_orders_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lp_book_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "flipbook_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lp_consents: {
         Row: {
           clinic_id: string
@@ -14007,6 +14085,10 @@ export type Database = {
         Args: { p_appt_id: string; p_lead_id: string }
         Returns: string
       }
+      _appointment_status_transition_allowed: {
+        Args: { p_from: string; p_to: string }
+        Returns: boolean
+      }
       _appt_professional_phone: {
         Args: { p_appt: Record<string, unknown> }
         Returns: string
@@ -14432,6 +14514,14 @@ export type Database = {
       app_role: { Args: never; Returns: string }
       appointment_attend: {
         Args: { p_appointment_id: string; p_chegada_em?: string }
+        Returns: Json
+      }
+      appointment_change_status: {
+        Args: {
+          p_appointment_id: string
+          p_new_status: string
+          p_reason?: string
+        }
         Returns: Json
       }
       appointment_finalize: {
@@ -15939,6 +16029,7 @@ export type Database = {
       list_unlinked_professionals: { Args: never; Returns: Json }
       list_visible_professionals: { Args: never; Returns: Json }
       lp_analytics_global: { Args: { p_period_days?: number }; Returns: Json }
+      lp_book_detail: { Args: { p_slug: string }; Returns: Json }
       lp_consent_list: {
         Args: { p_limit?: number; p_slug?: string }
         Returns: Json
@@ -15995,6 +16086,27 @@ export type Database = {
         Returns: Json
       }
       lp_leads_timeseries: { Args: { p_days?: number }; Returns: Json }
+      lp_list_books_for_carousel: {
+        Args: { p_limit?: number; p_slugs?: string[] }
+        Returns: {
+          author: string
+          billing: string
+          cover_url: string
+          currency: string
+          edition: string
+          has_offer: boolean
+          id: string
+          language: string
+          offer_id: string
+          page_count: number
+          preview_count: number
+          price_cents: number
+          product_id: string
+          slug: string
+          subtitle: string
+          title: string
+        }[]
+      }
       lp_metrics_dashboard: { Args: { p_days?: number }; Returns: Json }
       lp_page_clear_schedule: { Args: { p_id: string }; Returns: Json }
       lp_page_delete: {
