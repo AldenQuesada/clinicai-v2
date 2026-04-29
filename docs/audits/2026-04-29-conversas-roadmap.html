@@ -180,7 +180,7 @@
       <span><strong>Data:</strong> 2026-04-29</span>
       <span><strong>App:</strong> apps/lara</span>
       <span><strong>Rota:</strong> /conversas</span>
-      <span><strong>Status atual:</strong> commit 1d93fba · <span style="color: var(--gold);">Sprint A 100% done</span></span>
+      <span><strong>Status atual:</strong> commit 3f2eb43 · <span style="color: var(--gold);">Sprint A + Sprint B done</span></span>
     </div>
 
     <nav class="toc">
@@ -193,13 +193,13 @@
     </nav>
 
     <div class="tldr">
-      <h3>TL;DR estratégico · <span style="color: var(--green);">Sprint A 100% done</span></h3>
+      <h3>TL;DR estratégico · <span style="color: var(--green);">Sprint A + B done</span></h3>
       <ul>
-        <li><strong>O que está sólido:</strong> arquitetura 3-painéis, SSE multi-tenant scoped, otimismo nas mutações, dedup robusto, 4 status × 4 abas × filtros avançados, badge cloud, atalhos pro CRM.</li>
-        <li><strong>Sprint A · 2026-04-29 · entregue:</strong> <span style="color: var(--green);">✓ 7 tasks + 1 bonus</span> — polling adaptativo SSE-aware (P-01), paginação cursor + scroll infinito (P-02), KPIs globais (P-03 + P-04), sendMessage retry/discard (P-06), transfer dra dinâmica multi-tenant (P-08), pipeline visual 5 fases (W-04), timeline phase_history (W-07). 4 commits: 090967c, 26fa560, 7af8fb2, 1d93fba.</li>
-        <li><strong>Restante de fraquezas:</strong> P-05 (✓✓ leitura), P-07 (upload mídia), P-09..P-15. Top: P-05/P-07 são P1.</li>
-        <li><strong>O que vira wow (Sprint B):</strong> Auto-summary + Smart replies + Next Best Action — <em class="gold">3 features que compartilham 1 chamada Anthropic</em> e mudam a percepção do produto inteiro.</li>
-        <li><strong>Recomendação:</strong> Próximo passo é <em class="gold">Sprint B</em>. Sprint A nivelou a base — efeito wow agora não compete com bugs.</li>
+        <li><strong>Sprint A · entregue:</strong> <span style="color: var(--green);">✓ 7 tasks + 1 bonus</span> — polling adaptativo SSE-aware (P-01), paginação cursor (P-02), KPIs globais (P-03 + P-04), sendMessage retry/discard (P-06), transfer dra dinâmica (P-08), pipeline visual (W-04), timeline phase_history (W-07).</li>
+        <li><strong>Sprint B · entregue:</strong> <span style="color: var(--green);">✓ 3 wow features</span> compartilhando 1 chamada Anthropic Opus 4.7 — Auto-summary do lead (W-02), Next Best Action (W-01), Smart replies (W-03). Cache server-side com TTL 10min · degrada graciosamente sem mig 85.</li>
+        <li><strong>Pendentes:</strong> Sprint A · P-05 (✓✓ leitura), P-07 (upload mídia), P-09..P-15 (P3 polish). Sprint B · SB-04 (sentiment badges). Sprint C · paridade WhatsApp.</li>
+        <li><strong>Action item operacional:</strong> aplicar mig <code>20260800000085_clinicai_v2_wa_conversations_ai_copilot.sql</code> em prod via Mgmt API pra ativar cache (sem ela, regenera every time · custa Anthropic).</li>
+        <li><strong>Recomendação:</strong> validar com Mirian em prod antes de Sprint C. UX wow agora · paridade WhatsApp se Mirian pedir.</li>
       </ul>
     </div>
   </header>
@@ -582,10 +582,10 @@
     <div class="section-body">
       <div class="section-desc">Priorizadas por <strong>impacto perceptível</strong> e <strong>esforço</strong>. Marcadas com 🌟 as que entregam efeito wow imediato.</div>
 
-      <div class="item" data-id="W-01">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-01">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-01 · 🌟 Wow imediato</div>
+          <div class="id">W-01 · 🌟 ✓ done · commit 3f2eb43</div>
           <div class="title">Next Best Action — IA gera próxima ação no painel direito</div>
           <div class="desc">"📞 Agendar avaliação" / "💰 Enviar Smooth Eyes (R$2.4k)" / "📸 Pedir foto frente-perfil" baseado em phase + queixas + score. 1 clique cumpre. Atendente sai do "o que falo agora?".</div>
         </div>
@@ -595,10 +595,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-02">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-02">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-02 · 🌟 Wow imediato</div>
+          <div class="id">W-02 · 🌟 ✓ done · commit 3f2eb43</div>
           <div class="title">Auto-summary do lead — TLDR no topo do chat</div>
           <div class="desc">"Maria · 32a · olheiras · score 75 · pediu data próxima semana · 12 msgs · última 14:32". Substitui ler o histórico todo antes de responder. Mesmo prompt da W-01.</div>
         </div>
@@ -608,10 +608,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-03">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-03">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-03 · 🌟 Wow imediato</div>
+          <div class="id">W-03 · 🌟 ✓ done · commit 3f2eb43</div>
           <div class="title">Smart replies — 3 chips clicáveis acima do textarea</div>
           <div class="desc">Sugestões contextuais. Click → preenche → editar → enviar. Reduz tempo de resposta humano em 80%. Mesma chamada Anthropic da W-01/W-02 — 3 features compartilham 1 RPC.</div>
         </div>
@@ -885,32 +885,32 @@
           <div class="sprint-goal">3 features que compartilham 1 chamada Anthropic e mudam a percepção do produto inteiro. Atendente vai chamar de "o ChatGPT da clínica".</div>
 
           <div class="sprint-tasks">
-            <div class="item" data-id="SB-01">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SB-01">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SB-01 · ref W-02</div>
+                <div class="id">SB-01 · ref W-02 · ✓ done · 3f2eb43</div>
                 <div class="title">Auto-summary do lead (TLDR no topo do chat)</div>
-                <div class="desc">Gerado uma vez ao abrir conversa, cacheado em <code>conversations.ai_summary</code>. Re-gera se &gt;5 msgs novas desde último.</div>
+                <div class="desc">Gerado uma vez ao abrir conversa, cacheado em <code>wa_conversations.ai_copilot</code> (jsonb). Re-gera se &gt;10min desde último OU nova mensagem entrou.</div>
               </div>
               <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
             </div>
 
-            <div class="item" data-id="SB-02">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SB-02">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SB-02 · ref W-01</div>
+                <div class="id">SB-02 · ref W-01 · ✓ done · 3f2eb43</div>
                 <div class="title">Next Best Action no painel direito</div>
-                <div class="desc">3 ações sugeridas (verbo + objeto). 1 clique cumpre (envia template / abre cal / pede foto). Mesma chamada da SB-01.</div>
+                <div class="desc">3 ações sugeridas (verb + target + rationale). 1 clique preenche textarea com template "{verb} {target}". Mesma chamada Opus 4.7.</div>
               </div>
               <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
             </div>
 
-            <div class="item" data-id="SB-03">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SB-03">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SB-03 · ref W-03</div>
+                <div class="id">SB-03 · ref W-03 · ✓ done · 3f2eb43</div>
                 <div class="title">Smart replies (3 chips acima do textarea)</div>
-                <div class="desc">Click preenche, edita, envia. Reduz tempo de resposta em 60-80%. Mesma RPC.</div>
+                <div class="desc">Click preenche, edita, envia. 3 chips com estratégias diferentes (responder/aprofundar/CTA). Mesma chamada Opus 4.7.</div>
               </div>
               <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
             </div>
@@ -918,7 +918,7 @@
             <div class="item" data-id="SB-04">
               <div class="check"><input type="checkbox" /></div>
               <div class="body">
-                <div class="id">SB-04 · ref W-05</div>
+                <div class="id">SB-04 · ref W-05 · pendente</div>
                 <div class="title">Sentiment + intent badges</div>
                 <div class="desc">Classifier no inbound, cache em wa_messages. Atendente prioriza a-quente sem ler.</div>
               </div>
@@ -926,7 +926,7 @@
             </div>
           </div>
 
-          <div class="sprint-impact"><strong>Resultado esperado:</strong> tempo médio de resposta cai 60-80%. Lara deixa de ser "bot" e vira "copiloto".</div>
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> tempo médio de resposta cai 60-80%. Lara deixa de ser "bot" e vira "copiloto".<br/><strong style="color: var(--gold);">2026-04-29 · 3 de 4 entregues:</strong> SB-01 (auto-summary) + SB-02 (next best action) + SB-03 (smart replies) compartilham 1 chamada Opus 4.7 · cache server-side em wa_conversations.ai_copilot · TTL 10min · pendente SB-04 (sentiment badges).</div>
         </div>
 
         <!-- SPRINT C -->
