@@ -255,12 +255,12 @@ export function MessageArea({
 
   return (
     <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full">
-      {/* Header */}
-      <div className="h-[72px] border-b border-[hsl(var(--chat-border))] flex items-center px-6 gap-3 shrink-0">
-        <UserCircle className="h-10 w-10 text-[hsl(var(--muted-foreground))]" />
-        <div>
-          <h2 className="font-medium text-sm text-[hsl(var(--foreground))]">{selectedConversation.lead_name}</h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">{selectedConversation.phone}</p>
+      {/* Header · v2 design contract */}
+      <div className="h-16 border-b border-white/[0.06] flex items-center px-6 gap-3 shrink-0">
+        <UserCircle className="h-9 w-9 text-[hsl(var(--muted-foreground))]" strokeWidth={1.25} />
+        <div className="flex-1 min-w-0">
+          <h2 className="font-display text-[16px] text-[hsl(var(--foreground))] leading-tight truncate">{selectedConversation.lead_name}</h2>
+          <p className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5">{selectedConversation.phone}</p>
         </div>
       </div>
 

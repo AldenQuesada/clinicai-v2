@@ -18,13 +18,13 @@ export function SmartReplies({ replies, isLoading, onPick }: Props) {
   if (!isLoading && replies.length === 0) return null
 
   return (
-    <div className="flex items-center gap-1.5 mb-2 overflow-x-auto custom-scrollbar pb-1">
-      <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0" />
+    <div className="flex items-center gap-2 mb-2.5 overflow-x-auto custom-scrollbar pb-1">
+      <Sparkles className="w-3 h-3 text-[hsl(var(--primary))] shrink-0" strokeWidth={1.5} />
       {isLoading && replies.length === 0 ? (
         <>
-          <div className="h-7 w-32 rounded-full bg-[hsl(var(--chat-bg))] animate-pulse shrink-0" />
-          <div className="h-7 w-40 rounded-full bg-[hsl(var(--chat-bg))] animate-pulse shrink-0" />
-          <div className="h-7 w-36 rounded-full bg-[hsl(var(--chat-bg))] animate-pulse shrink-0" />
+          <div className="h-6 w-32 rounded-full bg-white/[0.04] animate-pulse shrink-0" />
+          <div className="h-6 w-40 rounded-full bg-white/[0.04] animate-pulse shrink-0" />
+          <div className="h-6 w-36 rounded-full bg-white/[0.04] animate-pulse shrink-0" />
         </>
       ) : (
         replies.map((reply, i) => (
@@ -33,7 +33,7 @@ export function SmartReplies({ replies, isLoading, onPick }: Props) {
             type="button"
             onClick={() => onPick(reply)}
             title={reply}
-            className="shrink-0 px-3 py-1.5 rounded-full text-[11px] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] border border-[hsl(var(--primary))]/20 hover:bg-[hsl(var(--primary))]/20 hover:border-[hsl(var(--primary))]/40 transition-colors max-w-[260px] truncate"
+            className="shrink-0 px-3 py-1.5 rounded-full text-[11px] bg-[hsl(var(--primary))]/[0.08] text-[hsl(var(--primary))] border border-[hsl(var(--primary))]/[0.18] hover:bg-[hsl(var(--primary))]/15 hover:border-[hsl(var(--primary))]/30 transition-colors max-w-[260px] truncate font-normal"
           >
             {reply}
           </button>

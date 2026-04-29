@@ -11,6 +11,7 @@ import { useMessages } from './hooks/useMessages';
 import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
 import { useCopilot } from './hooks/useCopilot';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -172,56 +173,67 @@ export default function ChatPage() {
     }
   };
 
+  // P-15 · Atalhos de teclado (j/k navegar · r resolver · a assumir)
+  // Desabilitado quando modal aberto pra nao competir com Enter/Esc.
+  const isModalOpen = !!modalConfig?.isOpen || isNewConvOpen;
+  useKeyboardShortcuts({
+    conversations,
+    selectedConversation,
+    setSelectedConversation,
+    dispatchAction: handleAction,
+    disabled: isModalOpen,
+  });
+
   // P-03/P-04: KPIs vem do useInsights global · nao calculados do array filtrado
   const { urgentes, aguardando, laraAtiva, resolvidosHoje } = insights;
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
-      {/* Barra de Insights (Top Bar) */}
-      <div className="h-16 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 gap-8 shrink-0 shadow-sm z-10">
+      {/* Barra de Insights (Top Bar) · v2 design contract */}
+      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 gap-8 shrink-0 z-10">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>
-            <AlertCircle className="w-5 h-5" />
+          <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
+            <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Urgentes</p>
-            <p className={`text-lg font-bold leading-none mt-0.5 ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
+            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Urgentes</p>
+            <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
           </div>
         </div>
 
-        <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
+        <div className="w-px h-9 bg-white/[0.06]" />
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
-            <Clock className="w-5 h-5" />
+          <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
+            <Clock className="w-4 h-4" strokeWidth={1.5} />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Aguardando Você</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{aguardando}</p>
+            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Aguardando você</p>
+            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
           </div>
         </div>
 
-        <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
+        <div className="w-px h-9 bg-white/[0.06]" />
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-            <MessageCircle className="w-5 h-5" />
+          <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+            <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Lara Ativa</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{laraAtiva}</p>
+            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Lara ativa</p>
+            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
           </div>
         </div>
 
-        <div className="w-px h-8 bg-[hsl(var(--chat-border))]"></div>
+        <div className="w-px h-9 bg-white/[0.06]" />
 
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
-            <CheckCircle2 className="w-5 h-5" />
+          <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
+            <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Resolvidos Hoje</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
+            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Resolvidos hoje</p>
+            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
           </div>
         </div>
       </div>
@@ -239,6 +251,17 @@ export default function ChatPage() {
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
           onNewConversation={() => setIsNewConvOpen(true)}
+          footerHint={
+            !isModalOpen ? (
+              <span>
+                <span className="text-[hsl(var(--foreground))]">j/k</span> navegar
+                <span className="mx-1.5 opacity-40">·</span>
+                <span className="text-[hsl(var(--foreground))]">r</span> resolver
+                <span className="mx-1.5 opacity-40">·</span>
+                <span className="text-[hsl(var(--foreground))]">a</span> assumir
+              </span>
+            ) : undefined
+          }
         />
 
         {/* 2. Coluna Central: Chat */}

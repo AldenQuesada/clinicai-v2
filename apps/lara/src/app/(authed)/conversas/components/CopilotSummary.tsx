@@ -6,6 +6,8 @@
 
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 
+const STROKE = 1.5;
+
 interface Props {
   summary: string
   isLoading: boolean
@@ -26,20 +28,20 @@ export function CopilotSummary({
   if (!summary && !isLoading && !error) return null
 
   return (
-    <div className="border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--primary))]/5 px-6 py-2.5 flex items-start gap-3">
-      <Sparkles className="w-4 h-4 text-[hsl(var(--primary))] mt-0.5 shrink-0" />
+    <div className="border-b border-white/[0.06] bg-[hsl(var(--primary))]/[0.04] px-6 py-3 flex items-start gap-3">
+      <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] mt-[3px] shrink-0" strokeWidth={STROKE} />
       <div className="flex-1 min-w-0">
         {error ? (
-          <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--danger))]">
-            <AlertCircle className="w-3 h-3" />
+          <div className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--danger))]">
+            <AlertCircle className="w-3 h-3" strokeWidth={STROKE} />
             <span className="truncate">{error}</span>
           </div>
         ) : isLoading && !summary ? (
-          <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
+          <span className="text-[11px] text-[hsl(var(--muted-foreground))] italic font-display">
             Lara analisando o lead...
           </span>
         ) : (
-          <span className="text-xs text-[hsl(var(--foreground))] leading-relaxed">
+          <span className="text-[12px] text-[hsl(var(--foreground))] leading-relaxed">
             {summary}
           </span>
         )}
@@ -56,9 +58,9 @@ export function CopilotSummary({
               })} · clique pra regenerar`
             : 'Regenerar análise'
         }
-        className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-50 shrink-0"
+        className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-50 shrink-0 mt-0.5"
       >
-        <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+        <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} strokeWidth={STROKE} />
       </button>
     </div>
   )

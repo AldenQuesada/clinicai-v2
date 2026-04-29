@@ -1,10 +1,57 @@
 import { usePauseStatus } from '../hooks/usePauseStatus';
-import { Pause, Play, Clock, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { Pause, Play, Clock, ChevronDown, Sunrise, Calendar as CalendarIcon } from 'lucide-react';
+import { useState, useMemo } from 'react';
+
+/**
+ * Calcula minutos ate "amanha 09:00 BRT".
+ * Se hoje for sexta/sabado/domingo, retorna minutos ate proxima segunda 09:00 BRT.
+ * BRT = UTC-3 (sem horario de verao desde 2019).
+ */
+function minutesUntilNextWorkdayMorning(): { minutes: number; label: string } {
+  const now = new Date();
+  // Trabalhamos em horario local do navegador (BRT pra Maringa).
+  const target = new Date(now);
+  target.setHours(9, 0, 0, 0);
+
+  // Comeca com "amanha"
+  target.setDate(target.getDate() + 1);
+
+  // Se cair em sabado (6) ou domingo (0), pula pra segunda.
+  // Se HOJE for sexta (5), amanha e sabado -> pula 2 dias = segunda.
+  // Se HOJE for sabado (6), amanha e domingo -> pula 1 dia = segunda.
+  // Se HOJE for domingo (0), amanha e segunda -> nao pula.
+  while (target.getDay() === 0 || target.getDay() === 6) {
+    target.setDate(target.getDate() + 1);
+  }
+
+  const diffMs = target.getTime() - now.getTime();
+  const minutes = Math.max(1, Math.ceil(diffMs / 60000));
+
+  const isTomorrow = target.getDate() === new Date(now.getTime() + 86400000).getDate();
+  const label = isTomorrow ? 'Amanhã 9h' : 'Segunda 9h';
+  return { minutes, label };
+}
+
+/** Formata Date como string "YYYY-MM-DDTHH:mm" para input datetime-local. */
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export function AgentPauseSection({ conversationId, onStatusChange }: { conversationId: string, onStatusChange?: () => void }) {
   const { pauseStatus, isLoading, pauseAgent, reactivateAgent } = usePauseStatus(conversationId);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customValue, setCustomValue] = useState('');
+  const [customError, setCustomError] = useState<string | null>(null);
+
+  // Min do datetime-local: agora + 1 minuto
+  const minDatetime = useMemo(() => {
+    const d = new Date(Date.now() + 60000);
+    return toDatetimeLocalValue(d);
+  }, [customOpen]); // recalcula ao abrir
+
+  const tomorrow9 = useMemo(() => minutesUntilNextWorkdayMorning(), [dropdownOpen]);
 
   const handleReactivate = async () => {
     console.log('[UI] Botão Reativar Assistente clicado');
@@ -13,6 +60,31 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
     if (ok && onStatusChange) {
       onStatusChange();
     }
+  };
+
+  const handleCustomConfirm = async () => {
+    if (!customValue) {
+      setCustomError('Escolha um horário no futuro');
+      return;
+    }
+    const selected = new Date(customValue);
+    const now = new Date();
+    if (isNaN(selected.getTime()) || selected.getTime() <= now.getTime()) {
+      setCustomError('Escolha um horário no futuro');
+      return;
+    }
+    const minutes = Math.ceil((selected.getTime() - now.getTime()) / 60000);
+    setCustomError(null);
+    await pauseAgent(minutes);
+    setCustomOpen(false);
+    setCustomValue('');
+    setDropdownOpen(false);
+  };
+
+  const closeAll = () => {
+    setDropdownOpen(false);
+    setCustomOpen(false);
+    setCustomError(null);
   };
 
   const { isPaused, remainingTime } = pauseStatus;
@@ -46,7 +118,13 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
 
         <div className="relative">
           <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
+            onClick={() => {
+              if (dropdownOpen) {
+                closeAll();
+              } else {
+                setDropdownOpen(true);
+              }
+            }}
             disabled={isLoading}
             className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] rounded-md text-[hsl(var(--foreground))] hover:bg-[hsl(var(--chat-border))] transition-colors"
           >
@@ -54,20 +132,96 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
             <ChevronDown className="h-3 w-3" />
           </button>
 
-          {dropdownOpen && (
-            <div className="absolute right-0 bottom-full mb-2 w-40 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md overflow-hidden z-10">
+          {dropdownOpen && !customOpen && (
+            <div className="absolute right-0 bottom-full mb-2 w-52 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md overflow-hidden z-10">
+              {/* Preset destacado · Amanha 9h (ou Segunda 9h se sex/sab/dom) */}
+              <button
+                onClick={() => {
+                  pauseAgent(tomorrow9.minutes);
+                  closeAll();
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 flex items-center gap-2 font-medium transition-colors"
+              >
+                <Sunrise className="h-3.5 w-3.5" />
+                {tomorrow9.label}
+              </button>
+
+              {/* Divider categorial · separa snooze inteligente dos presets fixos */}
+              <div className="h-px bg-[hsl(var(--chat-border))]" />
+
               {[15, 30, 60, 120, 1440].map((mins) => (
                 <button
                   key={mins}
                   onClick={() => {
                     pauseAgent(mins);
-                    setDropdownOpen(false);
+                    closeAll();
                   }}
-                  className="w-full text-left px-4 py-2 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--chat-bg))] border-b border-[hsl(var(--chat-border))] last:border-0"
+                  className="w-full text-left px-4 py-2 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--chat-bg))] transition-colors"
                 >
                   {mins === 1440 ? '24 horas' : mins >= 60 ? `${mins/60} hora(s)` : `${mins} minutos`}
                 </button>
               ))}
+
+              {/* Divider · custom em categoria propria */}
+              <div className="h-px bg-[hsl(var(--chat-border))]" />
+
+              {/* Personalizar · abre datetime-local picker */}
+              <button
+                onClick={() => {
+                  setCustomOpen(true);
+                  setCustomError(null);
+                  // pre-popula com agora + 1h
+                  const initial = new Date(Date.now() + 60 * 60000);
+                  setCustomValue(toDatetimeLocalValue(initial));
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 flex items-center gap-2 font-medium transition-colors"
+              >
+                <CalendarIcon className="h-3.5 w-3.5" />
+                Personalizar...
+              </button>
+            </div>
+          )}
+
+          {dropdownOpen && customOpen && (
+            <div className="absolute right-0 bottom-full mb-2 w-64 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md p-3.5 z-10">
+              <label className="block text-[10px] font-bold text-[hsl(var(--primary))] uppercase tracking-[1.2px] mb-2 flex items-center gap-1.5">
+                <CalendarIcon className="h-3 w-3" />
+                Pausar até
+              </label>
+              <input
+                type="datetime-local"
+                value={customValue}
+                min={minDatetime}
+                onChange={(e) => {
+                  setCustomValue(e.target.value);
+                  setCustomError(null);
+                }}
+                className="w-full px-2.5 py-2 text-xs bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] rounded-md text-[hsl(var(--foreground))] focus:outline-none focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]/30 transition-colors"
+              />
+              {customError && (
+                <p className="text-[10px] text-[hsl(var(--danger))] mt-1.5 flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-[hsl(var(--danger))]" />
+                  {customError}
+                </p>
+              )}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    setCustomOpen(false);
+                    setCustomError(null);
+                  }}
+                  className="flex-1 px-2 py-1.5 text-[11px] bg-transparent border border-[hsl(var(--chat-border))] rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:border-[hsl(var(--foreground))]/30 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCustomConfirm}
+                  disabled={isLoading}
+                  className="flex-1 px-2 py-1.5 text-[11px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md font-bold uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  Confirmar
+                </button>
+              </div>
             </div>
           )}
         </div>
