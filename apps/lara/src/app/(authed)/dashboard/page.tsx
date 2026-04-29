@@ -21,6 +21,8 @@ import {
   Clock,
 } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,29 +135,12 @@ export default async function DashboardPage() {
   const msgs7dTotal = stats.msgs_7d_in + stats.msgs_7d_out
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div style={{ marginBottom: 24 }}>
-          <p className="eyebrow" style={{ marginBottom: 8 }}>
-            Painel · Lara
-          </p>
-          <h1
-            className="font-display"
-            style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
-          >
-            Visão <em>geral</em>
-          </h1>
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--b2b-text-dim)',
-              fontStyle: 'italic',
-              marginTop: 6,
-            }}
-          >
-            Saúde da Lara · métricas de hoje + últimos 7 dias
-          </p>
-        </div>
+    <PageContainer variant="wide">
+      <PageHero
+        kicker="Painel · Lara"
+        title={<>Visão <em>geral</em></>}
+        lede="Saúde da Lara · métricas de hoje + últimos 7 dias"
+      />
 
         {/* Stat cards principais */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -270,8 +255,7 @@ export default async function DashboardPage() {
           <Phone className="inline w-3 h-3 mr-1.5" />
           Lara em produção · Meta Cloud API · Sonnet 4.6 · Whisper-large-v3
         </div>
-      </div>
-    </main>
+    </PageContainer>
   )
 }
 

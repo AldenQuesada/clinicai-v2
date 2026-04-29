@@ -9,6 +9,8 @@ import { Plus } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { MediaGallery, type GalleryMediaItem } from '@/components/organisms/MediaGallery'
 import type { WaMediaBankDTO } from '@clinicai/repositories'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,38 +54,30 @@ export default async function MediaPage() {
   const activeCount = media.filter((m) => m.is_active).length
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        {/* Page heading · Cormorant + eyebrow (padrão Mira) */}
-        <div className="mb-8">
-          <p className="eyebrow mb-3">Painel · Lara</p>
-          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
-            Banco de <em>imagens</em>
-          </h1>
-          <p className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl">
-            Resultados antes-depois enviados pela Lara durante as conversas.
-            Caption com nome, idade e assinatura — Lara escolhe pela tag que ela mesma escreve.
-          </p>
-        </div>
+    <PageContainer variant="narrow">
+      <PageHero
+        kicker="Painel · Lara"
+        title={<>Banco de <em>mídias</em></>}
+        lede="Imagens e áudios que a Lara consome durante as conversas."
+        actions={
+          canManage ? (
+            <Link href="#upload" className="b2b-btn b2b-btn-primary">
+              <Plus className="w-3.5 h-3.5" />
+              Nova foto
+            </Link>
+          ) : undefined
+        }
+      />
 
-        {/* Head: count + actions */}
-        <div className="b2b-list-head">
-          <div className="b2b-list-count">
-            {media.length} {noun(media.length)} ·{' '}
-            <span style={{ color: 'var(--b2b-champagne)' }}>{activeCount} em uso</span>
-          </div>
-          {canManage && (
-            <div className="b2b-list-head-acts">
-              <Link href="#upload" className="b2b-btn b2b-btn-primary">
-                <Plus className="w-3.5 h-3.5" />
-                Nova foto
-              </Link>
-            </div>
-          )}
+      {/* Head: count */}
+      <div className="b2b-list-head">
+        <div className="b2b-list-count">
+          {media.length} {noun(media.length)} ·{' '}
+          <span style={{ color: 'var(--b2b-champagne)' }}>{activeCount} em uso</span>
         </div>
-
-        <MediaGallery items={media} canManage={canManage} />
       </div>
-    </main>
+
+      <MediaGallery items={media} canManage={canManage} />
+    </PageContainer>
   )
 }

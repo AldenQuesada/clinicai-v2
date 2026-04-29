@@ -16,6 +16,8 @@ import type {
   StaffMemberDTO,
   ModulePermissionRow,
 } from '@clinicai/repositories'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 import { PermissionsMatrixClient } from './PermissionsMatrixClient'
 
 export const dynamic = 'force-dynamic'
@@ -68,31 +70,27 @@ export default async function PermissoesPage() {
     })
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div className="mb-8">
+    <PageContainer variant="narrow">
+      <PageHero
+        kicker="Configurações · Equipe"
+        title={<>Matriz de <em>permissões</em></>}
+        lede="Configure quais módulos cada role acessa. Owner sempre tem acesso total."
+        actions={
           <Link
             href="/configuracoes/usuarios"
-            className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.18em] uppercase text-[var(--b2b-text-muted)] hover:text-[var(--b2b-champagne)] transition-colors mb-4"
+            className="b2b-btn"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <ArrowLeft className="w-3 h-3" />
-            Voltar para usuários
+            Voltar
           </Link>
-          <p className="eyebrow mb-3">Painel · Lara</p>
-          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
-            Permissões por <em>módulo</em>
-          </h1>
-          <p className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl">
-            Controle quais funcionalidades cada nível de acesso pode ver. Mudanças aplicam ao
-            recarregar. Overrides por usuário sobrepõem a matriz por role.
-          </p>
-        </div>
+        }
+      />
 
-        <PermissionsMatrixClient
-          initialOverrides={overrides}
-          editableMembers={editableMembers}
-        />
-      </div>
-    </main>
+      <PermissionsMatrixClient
+        initialOverrides={overrides}
+        editableMembers={editableMembers}
+      />
+    </PageContainer>
   )
 }

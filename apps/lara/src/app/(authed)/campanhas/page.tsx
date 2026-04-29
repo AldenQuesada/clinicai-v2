@@ -12,6 +12,8 @@ import { redirect } from 'next/navigation'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
 import type { BroadcastDTO } from '@clinicai/repositories'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 import { BroadcastsClient } from './BroadcastsClient'
 import { BroadcastDashboard } from './BroadcastDashboard'
 
@@ -48,24 +50,15 @@ export default async function CampanhasPage() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div className="mb-8">
-          <p className="eyebrow mb-3">Painel · Lara</p>
-          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
-            Campanhas e <em>disparos</em>
-          </h1>
-          <p
-            className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl"
-          >
-            Disparos manuais para grupos de leads · agendamento, segmentação por fase
-            e controle de lote para evitar bloqueio do WhatsApp.
-          </p>
-        </div>
+    <PageContainer variant="wide">
+      <PageHero
+        kicker="Painel · Lara"
+        title={<>Campanhas de <em>disparo</em></>}
+        lede="Broadcasts manuais · agendamento · dashboard de envio"
+      />
 
-        <BroadcastDashboard broadcasts={broadcasts} />
-        <BroadcastsClient broadcasts={broadcasts} />
-      </div>
-    </main>
+      <BroadcastDashboard broadcasts={broadcasts} />
+      <BroadcastsClient broadcasts={broadcasts} />
+    </PageContainer>
   )
 }

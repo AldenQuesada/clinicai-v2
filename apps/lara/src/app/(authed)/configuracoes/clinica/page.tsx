@@ -17,6 +17,8 @@ import { can, type StaffRole } from '@/lib/permissions'
 import { loadClinicSettingsAction } from './actions'
 import { emptyClinicSettings, type ClinicSettingsData } from './types'
 import { ClinicSettingsClient } from './ClinicSettingsClient'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,52 +63,14 @@ export default async function ConfiguracoesClinicaPage() {
   const canEditOwner = can(role, 'settings:clinic-data')
 
   return (
-    <main
-      className="flex-1 overflow-y-auto custom-scrollbar"
-      style={{
-        background: 'var(--b2b-bg-0)',
-        backgroundImage:
-          'radial-gradient(circle at 20% 0%, rgba(201,169,110,0.04), transparent 60%), radial-gradient(circle at 90% 80%, rgba(201,169,110,0.02), transparent 50%)',
-      }}
-    >
-      {/* Container narrow tipo "longform" · max-width 980px (estilo flipbook-auditoria) */}
-      <div style={{ maxWidth: 980, margin: '0 auto', padding: '40px 28px 72px' }}>
-        {/* Hero compacto · kicker + h1 + lede sem cards */}
-        <header style={{ marginBottom: 36 }}>
-          <p
-            className="eyebrow"
-            style={{ marginBottom: 10, fontSize: 10, letterSpacing: 3 }}
-          >
-            Painel · Configurações
-          </p>
-          <h1
-            className="font-display"
-            style={{
-              fontSize: 'clamp(32px, 4vw, 44px)',
-              lineHeight: 1.05,
-              color: 'var(--b2b-ivory)',
-              marginBottom: 12,
-              fontWeight: 300,
-            }}
-          >
-            Dados da <em>clínica</em>
-          </h1>
-          <p
-            className="font-display"
-            style={{
-              fontSize: 16,
-              fontStyle: 'italic',
-              color: 'var(--b2b-text-dim)',
-              maxWidth: 620,
-              lineHeight: 1.5,
-            }}
-          >
-            Cadastrais, fiscais, atendimento, identidade visual, horários e
-            notificações. Tudo o que aparece pro paciente e o que regula a operação.
-          </p>
-        </header>
+    <PageContainer>
+      <PageHero
+        kicker="Painel · Configurações"
+        title={<>Dados da <em>clínica</em></>}
+        lede="Cadastrais, fiscais, atendimento, identidade visual, horários e notificações. Tudo o que aparece pro paciente e o que regula a operação."
+      />
 
-        {errorMsg && (
+      {errorMsg && (
           <div
             style={{
               marginBottom: 16,
@@ -142,8 +106,7 @@ export default async function ConfiguracoesClinicaPage() {
           </div>
         )}
 
-        <ClinicSettingsClient initialData={data} canEdit={canEdit} canEditOwner={canEditOwner} />
-      </div>
-    </main>
+      <ClinicSettingsClient initialData={data} canEdit={canEdit} canEditOwner={canEditOwner} />
+    </PageContainer>
   )
 }

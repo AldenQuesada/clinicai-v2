@@ -21,7 +21,8 @@ import type {
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
-import { KpiCards } from './KpiCards'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 import { LeadsClient } from './LeadsClient'
 
 export const dynamic = 'force-dynamic'
@@ -181,57 +182,22 @@ export default async function LeadsPage({
   }
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div style={{ marginBottom: 24 }}>
-          <p className="eyebrow" style={{ marginBottom: 8 }}>
-            Painel · Lara
-          </p>
-          <h1
-            className="font-display"
-            style={{ fontSize: 36, lineHeight: 1.05, color: 'var(--b2b-ivory)' }}
-          >
-            Lista de <em>leads</em>
-          </h1>
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--b2b-text-dim)',
-              fontStyle: 'italic',
-              marginTop: 6,
-            }}
-          >
-            Pessoas em contato · {data.total} {data.total === 1 ? 'registro' : 'registros'}
-          </p>
-        </div>
+    <PageContainer variant="wide">
+      <PageHero
+        kicker="Painel · Lara"
+        title={<>Lista de <em>leads</em></>}
+        lede="Pessoas em contato com a clínica · filtros, KPIs reativos e ações por linha."
+      />
 
-        {/* KPI cards (server, paralelo) */}
-        <KpiCards />
-
-        {/* Tabela + filtros (client) */}
-        <LeadsClient
-          rows={data.rows}
-          total={data.total}
-          page={data.page}
-          pageSize={PAGE_SIZE}
-          initialFilter={{
-            search: data.filter.search ?? '',
-            funnel: data.filter.funnel ?? '',
-            phase: data.filter.phase ?? '',
-            temperature: data.filter.temperature ?? '',
-            sourceType: data.filter.sourceType ?? '',
-            status:
-              (Array.isArray(sp.status) ? sp.status[0] : (sp.status as string)) || 'active',
-            noResponseDays: Number(
-              Array.isArray(sp.no_resp_days)
-                ? sp.no_resp_days[0]
-                : sp.no_resp_days || 0,
-            ),
-          }}
-          canEdit={data.canEdit}
-          canDelete={data.canDelete}
-        />
-      </div>
-    </main>
+      <LeadsClient
+        rows={data.rows}
+        total={data.total}
+        page={data.page}
+        pageSize={PAGE_SIZE}
+        canEdit={data.canEdit}
+        canDelete={data.canDelete}
+        canCreate={data.canEdit}
+      />
+    </PageContainer>
   )
 }

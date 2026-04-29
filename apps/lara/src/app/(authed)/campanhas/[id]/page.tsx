@@ -10,6 +10,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 import { BroadcastDetailClient } from './BroadcastDetailClient'
 
 export const dynamic = 'force-dynamic'
@@ -39,32 +41,37 @@ export default async function BroadcastDetailPage({ params }: PageProps) {
 
   const stats = statsRes.ok ? statsRes.data : null
 
+  // Lede com status + scheduled_at (italic via PageHero)
+  const statusTxt = broadcast.status || ''
+  const scheduledTxt = broadcast.scheduled_at
+    ? new Date(broadcast.scheduled_at).toLocaleString('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      })
+    : ''
+  const ledeBits = [statusTxt && `status: ${statusTxt}`, scheduledTxt && `agendado: ${scheduledTxt}`]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div className="mb-6">
+    <PageContainer variant="narrow">
+      <PageHero
+        kicker="Campanha · detalhes"
+        title={<><em>{broadcast.name || 'sem nome'}</em></>}
+        lede={ledeBits || undefined}
+        actions={
           <Link
             href="/campanhas"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: 'var(--b2b-text-muted)',
-              textDecoration: 'none',
-              marginBottom: 12,
-            }}
+            className="b2b-btn"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <ArrowLeft className="w-3 h-3" />
-            Voltar para campanhas
+            Voltar
           </Link>
-          <p className="eyebrow mb-3">Painel · Lara</p>
-        </div>
+        }
+      />
 
-        <BroadcastDetailClient broadcast={broadcast} stats={stats} />
-      </div>
-    </main>
+      <BroadcastDetailClient broadcast={broadcast} stats={stats} />
+    </PageContainer>
   )
 }

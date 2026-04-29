@@ -22,6 +22,8 @@ import type {
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
 import { LeadDetailClient } from './LeadDetailClient'
 
 export const dynamic = 'force-dynamic'
@@ -138,38 +140,47 @@ export default async function LeadDetailPage({
   }
   if (!data.lead) notFound()
 
-  return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        {/* Header · breadcrumb + acoes rapidas */}
-        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link
-            href="/leads"
-            className="b2b-btn"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <ArrowLeft size={14} />
-            Voltar
-          </Link>
-          <Link
-            href={`/conversas?lead=${data.lead.id}`}
-            className="b2b-btn"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <MessageSquare size={14} />
-            Abrir conversa
-          </Link>
-        </div>
+  const leadName = data.lead.name?.trim() || 'sem nome'
+  const phoneTxt = data.lead.phone || ''
+  const emailTxt = data.lead.email || ''
+  const ledeBits = [phoneTxt, emailTxt].filter(Boolean).join(' · ')
 
-        <LeadDetailClient
-          lead={data.lead}
-          history={data.history}
-          orcamentos={data.orcamentos}
-          appointments={data.appointments}
-          canEdit={data.canEdit}
-          canDelete={data.canDelete}
-        />
-      </div>
-    </main>
+  return (
+    <PageContainer variant="narrow">
+      <PageHero
+        kicker="Lead · detalhes"
+        title={<><em>{leadName}</em></>}
+        lede={ledeBits || undefined}
+        actions={
+          <>
+            <Link
+              href="/leads"
+              className="b2b-btn"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <ArrowLeft size={14} />
+              Voltar
+            </Link>
+            <Link
+              href={`/conversas?lead=${data.lead.id}`}
+              className="b2b-btn b2b-btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <MessageSquare size={14} />
+              Abrir conversa
+            </Link>
+          </>
+        }
+      />
+
+      <LeadDetailClient
+        lead={data.lead}
+        history={data.history}
+        orcamentos={data.orcamentos}
+        appointments={data.appointments}
+        canEdit={data.canEdit}
+        canDelete={data.canDelete}
+      />
+    </PageContainer>
   )
 }
