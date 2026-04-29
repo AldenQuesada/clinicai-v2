@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-04-29T14:46:59.809Z
+ * Ultima geracao: 2026-04-29T14:58:22.747Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -14519,11 +14519,11 @@ export type Database = {
       anatomy_quiz_lara_dispatch_mark: {
         Args: {
           p_dispatch_id: string
+          p_message_text?: string
           p_status: string
-          p_message_text?: string | null
-          p_template_id?: string | null
-          p_template_version?: number | null
-          p_template_variant?: string | null
+          p_template_id?: string
+          p_template_variant?: string
+          p_template_version?: number
         }
         Returns: boolean
       }
@@ -15141,13 +15141,13 @@ export type Database = {
       b2b_playbook_template_upsert: { Args: { p_payload: Json }; Returns: Json }
       b2b_refer_lead_safe: {
         Args: {
-          p_partnership_id: string
           p_clinic_id: string
-          p_phone: string
-          p_name?: string | null
-          p_email?: string | null
-          p_partner_slug?: string | null
+          p_email?: string
           p_metadata?: Json
+          p_name?: string
+          p_partner_slug?: string
+          p_partnership_id: string
+          p_phone: string
         }
         Returns: Json
       }
