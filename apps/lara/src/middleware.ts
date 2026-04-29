@@ -22,6 +22,7 @@ import { createMiddlewareClient } from '@clinicai/supabase'
 const PUBLIC_PATHS = [
   '/login',
   '/join', // landing pra aceitar convite · valida token via RPC
+  '/orcamento', // pagina publica do orcamento · share_token serve de auth
   '/api/auth',
   '/api/webhook',
   '/api/cron',

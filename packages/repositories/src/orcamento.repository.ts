@@ -84,8 +84,68 @@ export class OrcamentoRepository {
   }
 
   /**
+   * Busca por share_token SEM clinic_id · USAR SO com service_role (BYPASSA
+   * RLS). Pra pagina publica /orcamento/<token> onde o caller eh anonimo e o
+   * proprio token serve de auth. Token gerado como UUID v4 · colisao
+   * praticamente impossivel; index UNIQUE (clinic_id, share_token) nao
+   * impede dois clinics com mesmo token (raro), entao .limit(1) defensivo.
+   *
+   * `markViewed` move sent→viewed na primeira leitura (idempotente).
+   */
+  async getByShareTokenGlobal(
+    token: string,
+    opts: { markViewed?: boolean } = {},
+  ): Promise<OrcamentoDTO | null> {
+    if (!token || token.length < 8) return null
+    const { data } = await this.supabase
+      .from('orcamentos')
+      .select(ORC_COLUMNS)
+      .eq('share_token', token)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (!data) return null
+    const dto = mapOrcamentoRow(data)
+
+    if (opts.markViewed && !dto.viewedAt) {
+      await this.supabase
+        .from('orcamentos')
+        .update({ viewed_at: new Date().toISOString(), status: 'viewed' })
+        .eq('id', dto.id)
+        .eq('status', 'sent')
+    }
+    return dto
+  }
+
+  /**
+   * Garante share_token presente · idempotente. Se ja tem, retorna
+   * existente (nao gera novo, evita revogacao acidental). Senao gera UUID
+   * v4 e UPDATEa. Token vai pra URL publica `/orcamento/<token>`.
+   */
+  async ensureShareToken(id: string): Promise<string | null> {
+    const current = await this.getById(id)
+    if (!current) return null
+    if (current.shareToken) return current.shareToken
+
+    const newToken = crypto.randomUUID()
+    const { error } = await this.supabase
+      .from('orcamentos')
+      .update({ share_token: newToken })
+      .eq('id', id)
+      .is('share_token', null) // race-safe: so seta se ainda null
+    if (error) return null
+
+    // Re-fetch caso outra request tenha setado entre o getById e o UPDATE
+    const refetch = await this.getById(id)
+    return refetch?.shareToken ?? null
+  }
+
+  /**
    * Lista orcamentos da clinica · paginada, ordenada por created_at desc.
    * Filtro por status opcional. `openOnly=true` exclui approved/lost.
+   * Filtros adicionais: createdFrom/createdTo (YYYY-MM-DD inclusive),
+   * search (case-insensitive em title).
    */
   async list(
     clinicId: string,
@@ -94,6 +154,9 @@ export class OrcamentoRepository {
       offset?: number
       status?: OrcamentoStatus
       openOnly?: boolean
+      createdFrom?: string
+      createdTo?: string
+      search?: string
     } = {},
   ): Promise<OrcamentoDTO[]> {
     const limit = Math.min(opts.limit ?? 50, 500)
@@ -108,6 +171,13 @@ export class OrcamentoRepository {
 
     if (opts.status) q = q.eq('status', opts.status)
     if (opts.openOnly) q = q.not('status', 'in', `(${TERMINAL_STATUSES.join(',')})`)
+    if (opts.createdFrom) q = q.gte('created_at', `${opts.createdFrom}T00:00:00`)
+    if (opts.createdTo) q = q.lte('created_at', `${opts.createdTo}T23:59:59`)
+    if (opts.search && opts.search.trim().length > 0) {
+      // ilike percent-escape · ` % _ \ ` quebrariam o pattern
+      const safe = opts.search.replace(/([\\%_])/g, '\\$1').trim()
+      q = q.ilike('title', `%${safe}%`)
+    }
 
     const { data } = await q
     return ((data ?? []) as unknown[]).map(mapOrcamentoRow)
