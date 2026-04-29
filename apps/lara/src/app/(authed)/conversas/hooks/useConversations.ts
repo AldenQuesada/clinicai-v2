@@ -195,27 +195,62 @@ export function useConversations() {
     // 1. Carga inicial
     fetchConversations();
 
-    // 2. SSE: Escuta atualizações em tempo real do banco (silencioso)
+    // 2. SSE com reconnect automatico · backoff exponencial
+    //    1s → 2s → 4s → 8s → 16s → 30s (cap) · reset em sucesso (onmessage).
+    //    Se browser nao suporta ou falha definitivamente, polling 30s segura.
     let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource('/api/conversations/sse');
-      eventSource.onmessage = () => {
-        // Atualiza a lista silenciosamente sem recarregar a página
-        fetchConversations();
-      };
-      eventSource.onerror = () => {
-        eventSource?.close();
-        eventSource = null;
-      };
-    } catch {
-      // SSE não suportado — fallback silencioso
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempt = 0;
+    let stopped = false;
+    const MAX_BACKOFF_MS = 30000;
+
+    function scheduleReconnect() {
+      if (stopped) return;
+      reconnectAttempt += 1;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), MAX_BACKOFF_MS);
+      if (typeof console !== 'undefined') {
+        console.info(
+          `[SSE] reconnect attempt ${reconnectAttempt} em ${delay}ms`,
+        );
+      }
+      reconnectTimer = setTimeout(connect, delay);
     }
 
-    // 3. Fallback: polling relaxado a cada 30s para economizar banda do servidor
+    function connect() {
+      if (stopped) return;
+      try {
+        eventSource = new EventSource('/api/conversations/sse');
+        eventSource.onmessage = () => {
+          // SSE entregou evento · conexao saudavel · reseta backoff
+          reconnectAttempt = 0;
+          fetchConversations();
+        };
+        eventSource.onopen = () => {
+          // Conectou com sucesso · reseta contador de tentativas
+          reconnectAttempt = 0;
+        };
+        eventSource.onerror = () => {
+          // Browser detectou erro · fecha e reagenda
+          eventSource?.close();
+          eventSource = null;
+          scheduleReconnect();
+        };
+      } catch {
+        // SSE nao suportado · agenda reconnect (vai falhar de novo
+        // mas nao trava) · polling 30s vai cobrir mesmo assim
+        scheduleReconnect();
+      }
+    }
+
+    connect();
+
+    // 3. Fallback: polling relaxado a cada 30s · cobre caso SSE estar morto
     const interval = setInterval(fetchConversations, 30000);
 
     return () => {
+      stopped = true;
       clearInterval(interval);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       eventSource?.close();
     };
   }, [fetchConversations]);

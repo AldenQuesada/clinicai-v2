@@ -10,6 +10,7 @@ interface ConversationListProps {
   onSelectConversation: (c: Conversation) => void;
   statusFilter: 'active' | 'archived' | 'resolved' | 'dra';
   onStatusFilterChange: (status: 'active' | 'archived' | 'resolved' | 'dra') => void;
+  onNewConversation?: () => void;
 }
 
 export function ConversationList({
@@ -18,7 +19,8 @@ export function ConversationList({
   isLoading,
   onSelectConversation,
   statusFilter,
-  onStatusFilterChange
+  onStatusFilterChange,
+  onNewConversation,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('Todas');
@@ -110,9 +112,16 @@ export function ConversationList({
           >
             <ArrowUpDown className="h-4 w-4" />
           </button>
-          {/* MessageSquarePlus removido · era placebo (sem onClick).
-              Quando feature 'iniciar conversa manual' for implementada,
-              re-ativar com modal de busca de lead/phone. */}
+          {onNewConversation && (
+            <button
+              type="button"
+              onClick={onNewConversation}
+              title="Nova conversa manual"
+              className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors"
+            >
+              <MessageSquarePlus className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
       

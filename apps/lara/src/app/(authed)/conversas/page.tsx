@@ -5,6 +5,7 @@ import { ConversationList } from './components/ConversationList';
 import { MessageArea } from './components/MessageArea';
 import { LeadInfoPanel } from './components/LeadInfoPanel';
 import { ConfirmModal } from './components/ConfirmModal';
+import { NewConversationModal } from './components/NewConversationModal';
 import { useConversations } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
@@ -21,6 +22,7 @@ export default function ChatPage() {
   } = useConversations();
 
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(true);
+  const [isNewConvOpen, setIsNewConvOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -210,6 +212,7 @@ export default function ChatPage() {
           onSelectConversation={setSelectedConversation}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
+          onNewConversation={() => setIsNewConvOpen(true)}
         />
 
         {/* 2. Coluna Central: Chat */}
@@ -244,6 +247,23 @@ export default function ChatPage() {
           cancelText={modalConfig.cancelText}
           onConfirm={modalConfig.onConfirm}
           onCancel={() => setModalConfig(null)}
+        />
+      )}
+
+      {/* Modal Nova Conversa Manual */}
+      {isNewConvOpen && (
+        <NewConversationModal
+          onClose={() => setIsNewConvOpen(false)}
+          onCreated={async (convId) => {
+            setIsNewConvOpen(false);
+            // Refresh lista · busca a conversa nova
+            await refreshConversations();
+            // Aguarda 1 tick pra state atualizar e seleciona
+            setTimeout(() => {
+              const found = conversations.find(c => c.conversation_id === convId);
+              if (found) setSelectedConversation(found);
+            }, 200);
+          }}
         />
       )}
     </div>
