@@ -115,8 +115,25 @@ export function LeadInfoPanel({
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-6 flex flex-col items-center border-b border-white/[0.06]">
           <UserCircle className="h-16 w-16 text-[hsl(var(--muted-foreground))] mb-3" strokeWidth={1.25} />
-          <h3 className="font-display text-[19px] text-[hsl(var(--foreground))] leading-tight text-center">{selectedConversation.lead_name}</h3>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-1">{selectedConversation.phone}</p>
+          {(() => {
+            const phoneOnly = !selectedConversation.lead_name ||
+              selectedConversation.lead_name === selectedConversation.phone ||
+              /^\d+$/.test(selectedConversation.lead_name);
+            if (phoneOnly) {
+              return (
+                <>
+                  <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] text-center">Lead sem cadastro</p>
+                  <p className="text-[13px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-1.5 text-center">{selectedConversation.phone}</p>
+                </>
+              );
+            }
+            return (
+              <>
+                <h3 className="font-display text-[19px] text-[hsl(var(--foreground))] leading-tight text-center break-words max-w-full">{selectedConversation.lead_name}</h3>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-1">{selectedConversation.phone}</p>
+              </>
+            );
+          })()}
         </div>
 
         {/* Action Buttons Bar · cores semanticas · linhas finas */}

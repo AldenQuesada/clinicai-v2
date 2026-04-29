@@ -159,18 +159,19 @@ export function ConversationList({
       </div>
 
       <div className="p-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
-        {/* Abas de Status Principal · pills com tracking maior */}
-        <div className="flex gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
+        {/* Abas de Status Principal · 4 labels que cabem em 320px */}
+        <div className="grid grid-cols-4 gap-1">
           {[
             { id: 'active', label: 'Abertas' },
-            { id: 'dra', label: 'Dra. Mirian' },
-            { id: 'resolved', label: 'Resolvidas' },
-            { id: 'archived', label: 'Arquivadas' }
+            { id: 'dra', label: 'Dra.' },
+            { id: 'resolved', label: 'Feitas' },
+            { id: 'archived', label: 'Arq.' }
           ].map(s => (
             <button
               key={s.id}
               onClick={() => onStatusFilterChange(s.id as any)}
-              className={`px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.15em] rounded-md transition-all whitespace-nowrap ${
+              title={s.id === 'dra' ? 'Dra. Mirian' : s.id === 'resolved' ? 'Resolvidas' : s.id === 'archived' ? 'Arquivadas' : 'Abertas'}
+              className={`px-2 py-1.5 text-[10px] font-semibold rounded-md transition-all ${
                 statusFilter === s.id
                   ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                   : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
@@ -338,16 +339,17 @@ export function ConversationList({
                   </div>
                   <p className="text-[11.5px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 leading-snug">{conv.last_message_text || 'Sem mensagens'}</p>
 
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {conv.phase && (
-                      <div className="text-[9.5px] uppercase tracking-[0.12em] bg-[hsl(var(--primary))]/[0.08] text-[hsl(var(--primary))] px-2 py-0.5 rounded-full inline-block font-medium">
+                      <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] bg-[hsl(var(--primary))]/[0.08] text-[hsl(var(--primary))] px-1.5 py-[2px] rounded-full font-medium leading-tight">
                         {conv.phase}
-                      </div>
+                      </span>
                     )}
                     {conv.is_urgent && (
-                      <div className="text-[9.5px] uppercase tracking-[0.12em] bg-[hsl(var(--danger))]/[0.10] text-[hsl(var(--danger))] px-2 py-0.5 rounded-full inline-block font-medium">
+                      <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] bg-[hsl(var(--danger))]/[0.10] text-[hsl(var(--danger))] px-1.5 py-[2px] rounded-full font-medium leading-tight">
+                        <span className="inline-block w-1 h-1 rounded-full bg-[hsl(var(--danger))]" />
                         Urgente
-                      </div>
+                      </span>
                     )}
                   </div>
 

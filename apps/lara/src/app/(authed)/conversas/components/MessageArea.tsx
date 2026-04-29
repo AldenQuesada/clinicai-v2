@@ -255,14 +255,30 @@ export function MessageArea({
 
   return (
     <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full">
-      {/* Header · v2 design contract */}
-      <div className="h-16 border-b border-white/[0.06] flex items-center px-6 gap-3 shrink-0">
-        <UserCircle className="h-9 w-9 text-[hsl(var(--muted-foreground))]" strokeWidth={1.25} />
-        <div className="flex-1 min-w-0">
-          <h2 className="font-display text-[16px] text-[hsl(var(--foreground))] leading-tight truncate">{selectedConversation.lead_name}</h2>
-          <p className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5">{selectedConversation.phone}</p>
-        </div>
-      </div>
+      {/* Header · v2 design contract · trata caso lead_name === phone */}
+      {(() => {
+        const phoneOnly = !selectedConversation.lead_name ||
+          selectedConversation.lead_name === selectedConversation.phone ||
+          /^\d+$/.test(selectedConversation.lead_name);
+        return (
+          <div className="h-16 border-b border-white/[0.06] flex items-center px-6 gap-3 shrink-0">
+            <UserCircle className="h-9 w-9 text-[hsl(var(--muted-foreground))]" strokeWidth={1.25} />
+            <div className="flex-1 min-w-0">
+              {phoneOnly ? (
+                <>
+                  <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] leading-tight">Sem nome</p>
+                  <p className="text-[13px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-0.5">{selectedConversation.phone}</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-display text-[16px] text-[hsl(var(--foreground))] leading-tight truncate">{selectedConversation.lead_name}</h2>
+                  <p className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5">{selectedConversation.phone}</p>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Sprint B · W-02: Copiloto AI · TLDR do lead */}
       {onRefreshCopilot && (
@@ -417,8 +433,9 @@ export function MessageArea({
         isNoteMode ? 'bg-[#FBBF24]/5' : 'bg-[hsl(var(--chat-bg))]'
       }`}>
         {selectedConversation.ai_enabled && !isNoteMode && (
-           <div className="mb-2 text-xs text-[hsl(var(--primary))] flex items-center justify-center bg-[hsl(var(--primary))]/10 py-1 rounded-md">
-             A Inteligência Artificial está ativa nesta conversa. Ao enviar mensagem, ela será pausada por 30m.
+           <div className="mb-2.5 text-[10.5px] text-[hsl(var(--primary))] flex items-center justify-center gap-1.5 py-1 opacity-80">
+             <span className="inline-block w-1 h-1 rounded-full bg-[hsl(var(--primary))] animate-pulse" />
+             <span>Lara ativa · enviar mensagem pausa por 30min</span>
            </div>
         )}
         {isNoteMode && (

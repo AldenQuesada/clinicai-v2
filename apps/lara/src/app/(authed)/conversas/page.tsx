@@ -190,51 +190,61 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
       {/* Barra de Insights (Top Bar) · v2 design contract */}
-      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 gap-8 shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
-            <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
+      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 shrink-0 z-10 justify-between">
+        <div className="flex items-center gap-7">
+          <div className="flex items-center gap-3">
+            <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
+              <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Urgentes</p>
+              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Urgentes</p>
-            <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
+
+          <div className="w-px h-9 bg-white/[0.06]" />
+
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
+              <Clock className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Aguardando você</p>
+              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
+            </div>
+          </div>
+
+          <div className="w-px h-9 bg-white/[0.06]" />
+
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+              <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Lara ativa</p>
+              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
+            </div>
+          </div>
+
+          <div className="w-px h-9 bg-white/[0.06]" />
+
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
+              <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Resolvidos hoje</p>
+              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
+            </div>
           </div>
         </div>
 
-        <div className="w-px h-9 bg-white/[0.06]" />
-
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
-            <Clock className="w-4 h-4" strokeWidth={1.5} />
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Aguardando você</p>
-            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
-          </div>
-        </div>
-
-        <div className="w-px h-9 bg-white/[0.06]" />
-
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-            <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Lara ativa</p>
-            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
-          </div>
-        </div>
-
-        <div className="w-px h-9 bg-white/[0.06]" />
-
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
-            <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Resolvidos hoje</p>
-            <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
-          </div>
+        {/* Bloco direito · contexto temporal pra balancear · evita topbar com 60% vazio */}
+        <div className="hidden md:flex flex-col items-end gap-0.5 pl-6 border-l border-white/[0.04]">
+          <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Hoje</p>
+          <p className="font-display text-[15px] leading-none text-[hsl(var(--foreground))] italic">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })}
+          </p>
         </div>
       </div>
 
