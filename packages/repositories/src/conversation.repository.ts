@@ -256,6 +256,55 @@ export class ConversationRepository {
     }
   }
 
+  /**
+   * Sprint B (2026-04-29): Copiloto AI cache.
+   * getCopilot le ai_copilot + ai_copilot_at + last_message_at pra decidir
+   * se cache esta fresco. Tolerante a coluna ausente (migration pode nao
+   * ter sido aplicada ainda) · retorna null sem propagar erro.
+   */
+  async getCopilot(conversationId: string): Promise<{
+    aiCopilot: unknown | null
+    aiCopilotAt: string | null
+    lastMessageAt: string | null
+  } | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from('wa_conversations')
+        .select('ai_copilot, ai_copilot_at, last_message_at')
+        .eq('id', conversationId)
+        .maybeSingle()
+      if (error || !data) return null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row = data as any
+      return {
+        aiCopilot: row.ai_copilot ?? null,
+        aiCopilotAt: row.ai_copilot_at ?? null,
+        lastMessageAt: row.last_message_at ?? null,
+      }
+    } catch {
+      // Coluna ainda nao existe (migration pendente) · degrada silencioso
+      return null
+    }
+  }
+
+  /**
+   * Sprint B: Persiste output do copiloto AI no cache. Idempotente · sobrescreve
+   * versao anterior. Tolerante a coluna ausente.
+   */
+  async updateCopilot(conversationId: string, copilot: unknown): Promise<void> {
+    try {
+      await this.supabase
+        .from('wa_conversations')
+        .update({
+          ai_copilot: copilot,
+          ai_copilot_at: new Date().toISOString(),
+        })
+        .eq('id', conversationId)
+    } catch {
+      // Coluna ausente · ignora silencioso · proxima request re-gera
+    }
+  }
+
   async setReactivationSent(conversationId: string, value = true): Promise<void> {
     await this.supabase
       .from('wa_conversations')

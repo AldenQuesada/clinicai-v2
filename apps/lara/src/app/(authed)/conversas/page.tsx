@@ -10,6 +10,7 @@ import { useConversations, updateTabTitle } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
 import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
+import { useCopilot } from './hooks/useCopilot';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -57,6 +58,15 @@ export default function ChatPage() {
   // P-08: nome da responsavel pro transfer (multi-tenant) · evita "Dra. Mirian"
   // hardcoded · le de clinics.settings.responsible_name (jsonb).
   const { displayResponsible } = useClinicInfo();
+
+  // Sprint B (W-01 + W-02 + W-03): copiloto AI · 1 chamada Anthropic ·
+  // summary, next_actions, smart_replies em 1 hook.
+  const {
+    copilot,
+    isLoading: isCopilotLoading,
+    error: copilotError,
+    refresh: refreshCopilot,
+  } = useCopilot(selectedConversation?.conversation_id || null);
 
   // Wrapper · em mutacoes (assume/resolve/archive/transfer + new conv) refresh
   // tanto a lista quanto os insights pra UI ficar consistente sem esperar 30s.
@@ -242,6 +252,13 @@ export default function ChatPage() {
           onDiscardMessage={discardMessage}
           sendStatus={sendStatus}
           messagesEndRef={messagesEndRef}
+          copilotSummary={copilot?.summary || ''}
+          copilotSummaryLoading={isCopilotLoading}
+          copilotSummaryError={copilotError}
+          copilotGeneratedAt={copilot?.generated_at || ''}
+          copilotCached={copilot?.cached ?? false}
+          copilotSmartReplies={copilot?.smart_replies || []}
+          onRefreshCopilot={() => refreshCopilot(true)}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}
@@ -252,6 +269,13 @@ export default function ChatPage() {
           onAction={handleAction}
           onStatusChange={refreshAll}
           responsavelLabel={displayResponsible()}
+          copilotActions={copilot?.next_actions || []}
+          copilotActionsLoading={isCopilotLoading}
+          onPickAction={(action) => {
+            // Sprint B · W-01: click em next action preenche textarea
+            // com template "{verb} {target}" pra atendente editar e enviar.
+            setNewMessage(`${action.verb} ${action.target}`);
+          }}
         />
       </div>
 

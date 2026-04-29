@@ -3,9 +3,16 @@ import type { Conversation } from '../hooks/useConversations';
 import { AgentPauseSection } from './AgentPauseSection';
 import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
+import { NextActions } from './NextActions';
 
 // URL do painel CRM legacy (clinic-dashboard) · usado pra abrir lead/agenda em nova aba
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
+
+interface NextActionItem {
+  verb: string;
+  target: string;
+  rationale: string;
+}
 
 interface LeadInfoPanelProps {
   selectedConversation: Conversation | null;
@@ -15,6 +22,10 @@ interface LeadInfoPanelProps {
   onStatusChange?: () => void;
   /** P-08: nome dinamico da responsavel (ex: "Dra. Mirian", "a doutora") */
   responsavelLabel?: string;
+  /** Sprint B · W-01: 3 acoes sugeridas pelo copiloto AI */
+  copilotActions?: NextActionItem[];
+  copilotActionsLoading?: boolean;
+  onPickAction?: (action: NextActionItem) => void;
 }
 
 export function LeadInfoPanel({
@@ -24,6 +35,9 @@ export function LeadInfoPanel({
   onAction,
   onStatusChange,
   responsavelLabel = 'a doutora',
+  copilotActions = [],
+  copilotActionsLoading = false,
+  onPickAction,
 }: LeadInfoPanelProps) {
   if (!isExpanded) {
     return (
@@ -83,6 +97,15 @@ export function LeadInfoPanel({
         <PipelineBar phase={selectedConversation.phase} />
 
         <div className="p-6 space-y-6">
+          {/* Sprint B · W-01: Próxima ação sugerida pelo copiloto AI */}
+          {(copilotActions.length > 0 || copilotActionsLoading) && (
+            <NextActions
+              actions={copilotActions}
+              isLoading={copilotActionsLoading}
+              onPick={(action) => onPickAction?.(action)}
+            />
+          )}
+
           {/* Tags / Pipeline Data */}
           <div>
             <h4 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider flex items-center gap-2 mb-3">

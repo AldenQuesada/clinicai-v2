@@ -2,6 +2,8 @@
 
 import { Send, Loader, UserCircle, AlertTriangle, RotateCw, X } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
+import { CopilotSummary } from './CopilotSummary';
+import { SmartReplies } from './SmartReplies';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
 import { format } from 'date-fns';
@@ -19,6 +21,15 @@ interface MessageAreaProps {
   onDiscardMessage?: (tempId: string) => void;
   sendStatus: 'idle' | 'sending' | 'error';
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  /** Sprint B · W-02: TLDR do lead no topo */
+  copilotSummary?: string;
+  copilotSummaryLoading?: boolean;
+  copilotSummaryError?: string | null;
+  copilotGeneratedAt?: string;
+  copilotCached?: boolean;
+  /** Sprint B · W-03: 3 chips clicaveis acima do textarea */
+  copilotSmartReplies?: string[];
+  onRefreshCopilot?: () => void;
 }
 
 export function MessageArea({
@@ -31,7 +42,14 @@ export function MessageArea({
   onRetryMessage,
   onDiscardMessage,
   sendStatus,
-  messagesEndRef
+  messagesEndRef,
+  copilotSummary = '',
+  copilotSummaryLoading = false,
+  copilotSummaryError = null,
+  copilotGeneratedAt = '',
+  copilotCached = false,
+  copilotSmartReplies = [],
+  onRefreshCopilot,
 }: MessageAreaProps) {
   if (!selectedConversation) {
     return (
@@ -51,6 +69,18 @@ export function MessageArea({
           <p className="text-xs text-[hsl(var(--muted-foreground))]">{selectedConversation.phone}</p>
         </div>
       </div>
+
+      {/* Sprint B · W-02: Copiloto AI · TLDR do lead */}
+      {onRefreshCopilot && (
+        <CopilotSummary
+          summary={copilotSummary}
+          isLoading={copilotSummaryLoading}
+          error={copilotSummaryError}
+          generatedAt={copilotGeneratedAt}
+          cached={copilotCached}
+          onRefresh={onRefreshCopilot}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
@@ -135,6 +165,13 @@ export function MessageArea({
              A Inteligência Artificial está ativa nesta conversa. Ao enviar mensagem, ela será pausada por 30m.
            </div>
         )}
+
+        {/* Sprint B · W-03: smart replies acima do textarea */}
+        <SmartReplies
+          replies={copilotSmartReplies}
+          isLoading={copilotSummaryLoading}
+          onPick={(text) => onNewMessageChange(text)}
+        />
 
         <div className="flex items-end gap-3 rounded-lg border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] p-2 focus-within:ring-1 ring-[hsl(var(--ring))]">
           <textarea

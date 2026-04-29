@@ -6,3 +6,8 @@ export {
   type BudgetCheckResult,
   type UsageRecord,
 } from './budget'
+export {
+  generateCopilot,
+  type CopilotInput,
+  type CopilotOutput,
+} from './copilot'
