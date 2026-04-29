@@ -796,8 +796,6 @@ interface PageEffectSettings {
 function PageEffectPanel() {
   const ctx = useEditorSettingsContext()
   const current = (ctx.settings.page_effect as PageEffectSettings) ?? {}
-  const effect = current.effect ?? 'magazine'
-  const disposition = current.disposition ?? 'adaptive'
   const sound = current.sound ?? true
 
   function patch(next: Partial<PageEffectSettings>) {
@@ -806,26 +804,10 @@ function PageEffectPanel() {
 
   return (
     <div className="space-y-2.5 mt-2">
-      <Field label="Efeito de virada">
-        <select value={effect} onChange={(e) => patch({ effect: e.target.value })} className={INPUT_CLS}>
-          <option value="magazine">Magazine</option>
-          <option value="book">Book</option>
-          <option value="album">Album</option>
-          <option value="notebook">Notebook</option>
-          <option value="slider">Slider</option>
-          <option value="cards">Cards</option>
-          <option value="coverflow">Coverflow</option>
-          <option value="onepage">One page</option>
-        </select>
-      </Field>
-      <Field label="Disposição">
-        <select value={disposition} onChange={(e) => patch({ disposition: e.target.value })} className={INPUT_CLS}>
-          <option value="adaptive">Adaptativo</option>
-          <option value="single">Single page</option>
-          <option value="double">Double page</option>
-        </select>
-      </Field>
       <Toggle label="Som ao virar página" value={sound} onChange={(v) => patch({ sound: v })} />
+      <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+        Disposição (single/double) é detectada automaticamente pelo dispositivo · efeito alternativo (book/album/etc) chega na próxima fase.
+      </p>
     </div>
   )
 }
@@ -838,7 +820,6 @@ interface BackgroundSettings {
 
 function BackgroundPanel() {
   const ctx = useEditorSettingsContext()
-  const [tab, setTab] = useState<'image' | 'color' | 'style'>('color')
   const current = (ctx.settings.background as BackgroundSettings) ?? {}
   const color = current.color ?? '#0F0D0A'
 
@@ -848,58 +829,30 @@ function BackgroundPanel() {
 
   return (
     <div className="space-y-2.5 mt-2">
-      <div className="flex gap-1 border border-border rounded p-0.5">
-        {(['image', 'color', 'style'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'flex-1 py-1 font-meta text-[10px] uppercase rounded transition',
-              tab === t ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-text',
-            )}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      {tab === 'image' && (
-        <>
-          <FileDropArea label="Imagem de fundo (.jpg/.png)" />
-          <SoonNote />
-        </>
-      )}
-      {tab === 'color' && (
-        <Field label="Cor">
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-10 h-8 rounded border border-border bg-bg-panel cursor-pointer"
-            />
-            <input
-              type="text"
-              value={color}
-              onChange={(e) => {
-                const v = e.target.value
-                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColor(v)
-              }}
-              maxLength={7}
-              placeholder="#0F0D0A"
-              className={INPUT_CLS}
-            />
-          </div>
-        </Field>
-      )}
-      {tab === 'style' && (
-        <>
-          <Field label="Tamanho"><select className={INPUT_CLS}><option>Cover</option><option>Stretch</option><option>Contain</option></select></Field>
-          <Field label="Posição"><select className={INPUT_CLS}><option>Center center</option><option>Top left</option><option>Bottom right</option></select></Field>
-          <Field label="Transparência"><input type="range" className="w-full" /></Field>
-          <Field label="Blur"><input type="range" className="w-full" /></Field>
-          <SoonNote />
-        </>
-      )}
+      <Field label="Cor">
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="w-10 h-8 rounded border border-border bg-bg-panel cursor-pointer"
+          />
+          <input
+            type="text"
+            value={color}
+            onChange={(e) => {
+              const v = e.target.value
+              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColor(v)
+            }}
+            maxLength={7}
+            placeholder="#0F0D0A"
+            className={INPUT_CLS}
+          />
+        </div>
+      </Field>
+      <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+        Imagem de fundo e ajustes de estilo (tamanho/posição/blur) chegam na próxima fase.
+      </p>
     </div>
   )
 }
@@ -1035,16 +988,14 @@ function LogoPanel({ book }: { book: Flipbook }) {
 
 function ControlsPanel() {
   const ctx = useEditorSettingsContext()
+  // Apenas botões que o Reader realmente renderiza (download/print/first_last virão na próxima fase)
   const controls: Array<{ key: string; label: string; defaultValue: boolean }> = [
-    { key: 'download',   label: 'Download',        defaultValue: true },
-    { key: 'share',      label: 'Share',           defaultValue: true },
-    { key: 'fullscreen', label: 'Fullscreen',      defaultValue: true },
-    { key: 'zoom',       label: 'Zoom',            defaultValue: true },
-    { key: 'first_last', label: 'First/Last page', defaultValue: true },
-    { key: 'print',      label: 'Print',           defaultValue: false },
-    { key: 'thumbnails', label: 'Thumbnails',      defaultValue: true },
-    { key: 'search',     label: 'Search',          defaultValue: true },
-    { key: 'sound',      label: 'Sound',           defaultValue: false },
+    { key: 'share',      label: 'Share',      defaultValue: true },
+    { key: 'fullscreen', label: 'Fullscreen', defaultValue: true },
+    { key: 'zoom',       label: 'Zoom',       defaultValue: true },
+    { key: 'thumbnails', label: 'Thumbnails', defaultValue: true },
+    { key: 'search',     label: 'Search',     defaultValue: true },
+    { key: 'sound',      label: 'Sound',      defaultValue: false },
   ]
   const current = (ctx.settings.controls as Record<string, boolean>) ?? {}
   function toggle(key: string, value: boolean) {
@@ -1184,7 +1135,8 @@ function BgAudioPanel({ book }: { book: Flipbook }) {
   const url = current.url ?? null
   const pageStart = current.page_start ?? 1
   const pageEnd = current.page_end ?? (book.page_count ?? 99)
-  const volume = current.volume ?? 50
+  // Schema Zod e BgAudioPlayer usam 0-1; UI exibe %.
+  const volumePct = Math.round(((current.volume ?? 0.6)) * 100)
   const loop = current.loop ?? true
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1283,14 +1235,14 @@ function BgAudioPanel({ book }: { book: Flipbook }) {
         </Field>
       </div>
 
-      <Field label={`Volume · ${volume}%`}>
+      <Field label={`Volume · ${volumePct}%`}>
         <input
           type="range"
           min={0}
           max={100}
           step={5}
-          value={volume}
-          onChange={(e) => patch({ volume: parseInt(e.target.value) })}
+          value={volumePct}
+          onChange={(e) => patch({ volume: parseInt(e.target.value) / 100 })}
           className="w-full"
         />
       </Field>
@@ -1468,7 +1420,6 @@ function PasswordPanel({ book }: { book: Flipbook }) {
         </>
       )}
 
-      {mode !== 'none' && mode !== 'single' && <SoonNote />}
     </div>
   )
 }
@@ -1481,7 +1432,6 @@ interface LeadCaptureSettings {
 
 function LeadPanel() {
   const ctx = useEditorSettingsContext()
-  const [tab, setTab] = useState<'options' | 'privacy' | 'fields' | 'style'>('options')
   const current = (ctx.settings.lead_capture as LeadCaptureSettings) ?? {}
   const page = current.page ?? 3
   const title = current.title ?? ''
@@ -1493,57 +1443,28 @@ function LeadPanel() {
 
   return (
     <div className="space-y-2.5 mt-2">
-      <div className="flex gap-1 border border-border rounded p-0.5">
-        {(['options', 'privacy', 'fields', 'style'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-1 font-meta text-[9px] uppercase rounded transition',
-            tab === t ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-text')}>{t}</button>
-        ))}
-      </div>
-      {tab === 'options' && (
-        <>
-          <Field label="Página de exibição">
-            <input
-              type="number"
-              min={1}
-              value={page}
-              onChange={(e) => patch({ page: Math.max(1, parseInt(e.target.value) || 1) })}
-              className={INPUT_CLS}
-            />
-          </Field>
-          <Field label="Título">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => patch({ title: e.target.value })}
-              placeholder="Continue lendo"
-              className={INPUT_CLS}
-            />
-          </Field>
-          <Toggle label="Permitir pular" value={dismissible} onChange={(v) => patch({ dismissible: v })} />
-          <p className="font-meta text-[9px] text-text-dim leading-relaxed">
-            Form ainda não é renderizado no reader · só config persistida.
-          </p>
-        </>
-      )}
-      {tab === 'privacy' && (
-        <>
-          <Toggle label="Exigir consent" value={true} onChange={() => {}} />
-          <Field label="Política URL"><input type="url" className={INPUT_CLS} /></Field>
-          <SoonNote />
-        </>
-      )}
-      {tab === 'fields' && (
-        <>
-          <div className="text-text-dim text-xs">Lista repetível de campos (email/text/checkbox/...).</div>
-          <SoonNote />
-        </>
-      )}
-      {tab === 'style' && (
-        <>
-          <Field label="Tema"><select className={INPUT_CLS}><option>Light</option><option>Dark</option></select></Field>
-          <SoonNote />
-        </>
-      )}
+      <Field label="Página de exibição">
+        <input
+          type="number"
+          min={1}
+          value={page}
+          onChange={(e) => patch({ page: Math.max(1, parseInt(e.target.value) || 1) })}
+          className={INPUT_CLS}
+        />
+      </Field>
+      <Field label="Título">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => patch({ title: e.target.value })}
+          placeholder="Continue lendo"
+          className={INPUT_CLS}
+        />
+      </Field>
+      <Toggle label="Permitir pular" value={dismissible} onChange={(v) => patch({ dismissible: v })} />
+      <p className="font-meta text-[9px] text-text-dim leading-relaxed">
+        Modal coleta email + WhatsApp (form fixo) · campos custom, política e tema chegam na próxima fase.
+      </p>
     </div>
   )
 }
@@ -1941,14 +1862,6 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
         <div className="w-3 h-3 rounded-full bg-bg" />
       </div>
     </button>
-  )
-}
-
-function FileDropArea({ label }: { label: string }) {
-  return (
-    <div className="border border-dashed border-border rounded p-3 text-center text-[10px] text-text-dim hover:border-gold/40 transition cursor-not-allowed">
-      📁 {label} · arrastar ou clicar
-    </div>
   )
 }
 
