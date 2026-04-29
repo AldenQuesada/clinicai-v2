@@ -1,360 +1,68 @@
 /**
  * Lara · globals.css.
  *
- * Identidade visual: ESPELHO da Mira (apps/mira/src/app/globals.css) que
- * por sua vez espelha 1:1 o painel B2B antigo (clinic-dashboard/css/b2b.css).
+ * Importa design system compartilhado (@clinicai/ui) · todos os tokens base
+ * vivem em packages/ui/styles/globals.css. Aqui ficam APENAS os mapeamentos
+ * legacy de variáveis CSS que os componentes da Lara (importados do Ivan)
+ * usam · ex: --chat-bg, --chat-msg-user, etc.
  *
- * Tokens b2b-* + utility classes (.luxury-card, .eyebrow, .font-display,
- * .b2b-btn, .b2b-page-container, .b2b-list-head, .b2b-group, .b2b-row, .b2b-pill)
- * mirroram 1:1 o vocabulario que o Alden ja validou na Mira. NAO inventar
- * mais atoms · usar essas classes consistentemente.
- *
- * Decision log: a primeira refatoracao da Lara inventou EditorialMasthead,
- * MagazineCaption, RomanNumeral · removidos depois que o Alden flagou que
- * a UIX da Mira ja esta cravada e deve ser replicada (memory: project_b2b_state.md).
+ * Estratégia de re-skin (Gap 8 do MIGRATION_DOCTRINE): em vez de reescrever
+ * cada componente Lara pra usar tokens da marca direto (`bg-champagne`),
+ * mantemos a estrutura mas remapeamos as variáveis legacy pros tokens
+ * Mirian. Ganha: zero refactor de componente · perdas: 0.
  */
 
 @import "@clinicai/ui/styles/globals.css";
-@import "./b2b-comm.css";
 
+/* ─── Mapeamento legacy do Ivan → tokens Mirian ────────────────── */
 @layer base {
   :root {
-    /* === b2b-* canonical tokens (1:1 com clinic-dashboard/css/b2b.css) === */
+    /* Lara fundo geral · era azul escuro do Ivan · agora luxury Mirian */
+    --chat-bg: 60 5% 7%;              /* #121212 · era 224 71% 4% (azul) */
+    --chat-panel-bg: 30 8% 12%;       /* #1F1C19 · panel elevated com tom warm */
+    --chat-border: 30 5% 18%;         /* #2D2A26 · sutil */
 
-    /* Background layers · profundidade luxury */
-    --b2b-bg-0: #0F0D0A;
-    --b2b-bg-1: #1A1713;
-    --b2b-bg-2: #211D17;
-    --b2b-bg-3: #2A2520;
+    /* Mensagem do paciente (user) · era azul · agora champagne soft */
+    --chat-msg-user: 35 36% 64%;      /* #C8A97E champagne */
+    --chat-msg-user-text: 40 8% 12%;  /* #1F1C19 luxury sobre champagne */
 
-    /* Champagne accent · 3 tons */
-    --b2b-champagne: #C9A96E;
-    --b2b-champagne-light: #DFC5A0;
-    --b2b-champagne-dark: #A8895E;
+    /* Mensagem da Lara (bot) · marfim sobre dark sutil */
+    --chat-msg-bot: 30 5% 18%;        /* #2D2A26 */
+    --chat-msg-bot-text: 38 35% 92%;  /* #F5F0E8 marfim */
 
-    /* Texto warm · NUNCA usar cinza frio (#9CA3AF, #6B7280) */
-    --b2b-ivory: #F5F0E8;
-    --b2b-text: #F5F0E8;
-    --b2b-text-muted: #7A7165;
-    --b2b-text-dim: #B5A894;
+    /* Primary CTA · champagne forte */
+    --primary: 35 36% 64%;            /* #C8A97E */
+    --primary-foreground: 40 8% 12%;  /* dark luxury */
 
-    /* Borders gold-subtle · NUNCA white/8 ou white/10 chapado */
-    --b2b-border: rgba(201, 169, 110, 0.15);
-    --b2b-border-strong: rgba(201, 169, 110, 0.35);
-
-    /* Estados semanticos · sage (success), warm (warn), red luxury */
-    --b2b-sage: #8A9E88;
-    --b2b-amber: #F59E0B;
-    --b2b-red: #D97A7A;
-
-    /* === Tokens shadcn/legacy do Ivan · mantidos pra componentes pre-existentes
-       (AppHeader, NotificationToggle, etc) que ainda referenciam --primary, --chat-bg etc.
-       Quando refatorar esses componentes pra b2b-*, esses tokens podem sair. === */
-    --chat-bg: 60 5% 7%;
-    --chat-panel-bg: 30 8% 12%;
-    --chat-border: 30 5% 18%;
-    --chat-msg-user: 35 36% 64%;
-    --chat-msg-user-text: 40 8% 12%;
-    --chat-msg-bot: 30 5% 18%;
-    --chat-msg-bot-text: 38 35% 92%;
-    --primary: 35 36% 64%;
-    --primary-foreground: 40 8% 12%;
+    /* Border + muted · pra inputs, dropdowns, etc */
     --border: 30 5% 18%;
     --input: 30 5% 18%;
     --muted: 30 5% 14%;
-    --muted-foreground: 38 8% 55%;
+    --muted-foreground: 38 8% 55%;    /* #8A847B · subdued warm */
     --foreground: 38 35% 92%;
-    --ring: 35 36% 64%;
-    --accent: 28 30% 70%;
+    --ring: 35 36% 64%;               /* champagne pra focus rings */
+
+    /* Estados semanticos · HSL pra hsl(var(--x)) funcionar nos componentes legacy.
+       Tons dessaturados luxury · evitam quebrar a paleta dark warm da marca. */
+    --accent: 28 30% 70%;             /* #D4B894 · champagne-soft · queixas/tags acento */
     --accent-foreground: 40 8% 12%;
-    --success: 145 22% 48%;
-    --warning: 35 60% 52%;
-    --danger: 6 60% 55%;
+    --success: 145 22% 48%;           /* #6B8B6A · sage muted · resolvido */
+    --warning: 35 60% 52%;            /* #C2924A · amber luxury · arquivado */
+    --danger: 6 60% 55%;              /* #D14F47 · vermelho terra · urgente/destrutivo */
   }
 }
 
 @layer base {
   body {
-    background-color: var(--b2b-bg-0);
-    color: var(--b2b-text);
-    font-family: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
-    font-weight: 300;
-    line-height: 1.6;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-  }
-
-  /* Cormorant Garamond pra display · 300 (light) como o b2b.css cravou */
-  .font-display {
-    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-    font-weight: 300;
-    line-height: 1.1;
-    letter-spacing: -0.005em;
-  }
-
-  /* Variant italic · usar em palavra-chave do titulo (gold) */
-  .font-display em {
-    font-style: italic;
-    color: var(--b2b-champagne);
-    font-weight: 400;
-  }
-
-  /* Eyebrow · letterspacing 4px (b2b.css cravou) · gold suave */
-  .eyebrow {
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 4px;
-    color: var(--b2b-champagne);
-  }
-
-  /* Card luxury · use em vez de bg-white/[0.02] + border-white/10 */
-  .luxury-card {
-    background-color: var(--b2b-bg-1);
-    border: 1px solid var(--b2b-border);
-    border-radius: 0.5rem;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
-  }
-  .luxury-card:hover {
-    border-color: var(--b2b-border-strong);
-  }
-
-  /* Card gold-tinted · usar em forms/destacados */
-  .luxury-card-gold {
-    background-color: rgba(201, 169, 110, 0.04);
-    border: 1px solid rgba(201, 169, 110, 0.22);
-    border-radius: 0.5rem;
+    background-color: hsl(var(--chat-bg));
+    color: hsl(var(--foreground));
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
- * Componentes b2b-* (replica 1:1 da Mira · que veio do clinic-dashboard)
- *
- * IMPORTANTE: estes nomes/valores sao IDENTICOS aos da Mira ·
- * NAO renomear sem coordenar (vai quebrar a paridade visual entre apps).
- * ═══════════════════════════════════════════════════════════════════ */
-
-/* ── Container e header da pagina ── */
-.b2b-page-container { max-width: 1640px; margin: 0 auto; padding: 40px 40px 80px; }
-
-.b2b-list-head {
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
-}
-.b2b-list-count {
-  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-  color: var(--b2b-text-muted); font-weight: 600;
-}
-.b2b-list-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* ── Buttons ── */
-.b2b-btn {
-  padding: 9px 18px; background: var(--b2b-bg-2); color: var(--b2b-text);
-  border: 1px solid var(--b2b-border-strong); border-radius: 6px;
-  font-size: 12px; font-weight: 500; letter-spacing: 0.3px; cursor: pointer;
-  font-family: inherit; transition: all 0.15s;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.b2b-btn:hover { background: var(--b2b-bg-3); border-color: var(--b2b-champagne); }
-.b2b-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.b2b-btn-primary {
-  background: var(--b2b-champagne); color: var(--b2b-bg-0);
-  border-color: var(--b2b-champagne); font-weight: 600;
-}
-.b2b-btn-primary:hover { background: var(--b2b-champagne-light); }
-.b2b-btn-danger:hover {
-  border-color: var(--b2b-red);
-  color: var(--b2b-red);
-}
-
-/* ── Group / rows (lista de items) ── */
-.b2b-group {
-  margin-bottom: 32px;
-  padding: 14px 16px 16px;
-  border-radius: 8px;
-  background: var(--b2b-bg-1);
-  border: 1px solid var(--b2b-border);
-}
-.b2b-group + .b2b-group { margin-top: 4px; }
-.b2b-group-hdr {
-  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-  padding-bottom: 10px; margin-bottom: 14px;
-  border-bottom: 1px solid var(--b2b-border);
-}
-.b2b-group-hdr-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px; font-weight: 500;
-  color: var(--b2b-champagne);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.b2b-group-hdr-count {
-  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-  color: var(--b2b-text-muted); font-weight: 600;
-}
-.b2b-group-hdr-desc {
-  flex-basis: 100%;
-  font-size: 12px; color: var(--b2b-text-dim);
-  font-style: italic;
-  margin-top: 2px;
-}
-
-.b2b-row {
-  display: flex; align-items: center; gap: 14px; width: 100%;
-  padding: 14px 16px; background: var(--b2b-bg-1);
-  border: 1px solid var(--b2b-border); border-radius: 6px;
-  margin-bottom: 6px; cursor: pointer; text-align: left;
-  font-family: inherit; color: var(--b2b-text); transition: background 0.15s;
-}
-.b2b-row:hover { background: var(--b2b-bg-2); }
-.b2b-row-body { flex: 1; min-width: 0; }
-.b2b-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-.b2b-row-name { font-size: 14px; font-weight: 500; color: var(--b2b-ivory); }
-.b2b-row-meta {
-  font-size: 11px; color: var(--b2b-text-muted);
-  display: flex; flex-wrap: wrap; gap: 12px;
-}
-
-/* ── Pills ── */
-.b2b-pill {
-  padding: 2px 8px; font-size: 10px; font-weight: 500;
-  letter-spacing: 0.5px; border-radius: 10px;
-  background: var(--b2b-bg-3); color: var(--b2b-text-dim);
-}
-.b2b-pill-tier { background: rgba(201, 169, 110, 0.2); color: var(--b2b-champagne); font-weight: 600; }
-.b2b-pill-type { background: rgba(138, 158, 136, 0.15); color: var(--b2b-sage); }
-.b2b-pill-warn { background: rgba(245, 158, 11, 0.15); color: var(--b2b-amber); }
-.b2b-pill-danger { background: rgba(217, 122, 122, 0.15); color: var(--b2b-red); }
-
-/* ── Empty state ── */
-.b2b-empty {
-  padding: 40px; text-align: center; color: var(--b2b-text-muted); font-size: 13px;
-  background: var(--b2b-bg-1); border: 1px dashed var(--b2b-border); border-radius: 6px;
-}
-.b2b-empty-err { color: var(--b2b-red); border-color: rgba(217, 122, 122, 0.3); }
-
-/* ── Section title (Cormorant) ── */
-.b2b-sec-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px; font-weight: 400;
-  color: var(--b2b-ivory);
-}
-
-/* ── Overlay modal (1:1 com Mira globals.css L260-285) ── */
-.b2b-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding: 40px 20px; z-index: 1000; overflow-y: auto;
-}
-.b2b-modal {
-  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
-  border-radius: 10px; max-width: 720px; width: 100%;
-  max-height: calc(100vh - 80px); overflow: hidden;
-  display: flex; flex-direction: column;
-}
-.b2b-modal-hdr {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 18px 24px; border-bottom: 1px solid var(--b2b-border);
-}
-.b2b-modal-hdr h2 {
-  font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400;
-  margin: 0; color: var(--b2b-ivory);
-}
-.b2b-close {
-  background: transparent; border: none; color: var(--b2b-text-muted);
-  font-size: 28px; cursor: pointer; line-height: 1; padding: 0 8px;
-}
-.b2b-close:hover { color: var(--b2b-ivory); }
-.b2b-modal-body { padding: 24px; overflow-y: auto; }
-
-/* ── Form actions (rodape do form dentro do modal · Mira L321-329) ── */
-.b2b-form-actions {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding-top: 20px; border-top: 1px solid var(--b2b-border); margin-top: 16px;
-}
-.b2b-form-err {
-  margin-top: 12px; padding: 10px 14px;
-  background: rgba(217, 122, 122, 0.12); color: var(--b2b-red);
-  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: 5px; font-size: 12px;
-}
-
-/* ── Form (modal/inline) ── */
-.b2b-form-sec {
-  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-  color: var(--b2b-champagne); font-weight: 600;
-  padding: 16px 0 8px; border-bottom: 1px solid var(--b2b-border); margin-bottom: 14px;
-}
-.b2b-form-sec:first-child { margin-top: 0; }
-.b2b-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.b2b-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-.b2b-field { display: block; margin-bottom: 12px; }
-.b2b-field-lbl {
-  display: block; font-size: 11px; color: var(--b2b-text-dim);
-  margin-bottom: 4px; font-weight: 500;
-}
-.b2b-field-lbl em { color: var(--b2b-red); font-style: normal; }
-.b2b-input {
-  width: 100%; padding: 9px 12px;
-  background: var(--b2b-bg-2);
-  border: 1px solid var(--b2b-border); border-radius: 5px;
-  color: var(--b2b-ivory); font-size: 13px; font-family: inherit;
-  color-scheme: dark;
-}
-.b2b-input:focus { outline: none; border-color: var(--b2b-champagne); }
-textarea.b2b-input { resize: vertical; min-height: 60px; }
-select.b2b-input { cursor: pointer; padding-right: 28px; }
-select.b2b-input option {
-  background: var(--b2b-bg-2);
-  color: var(--b2b-ivory);
-  padding: 6px 10px;
-}
-input.b2b-input[type="number"] { -moz-appearance: textfield; }
-input.b2b-input[type="number"]::-webkit-inner-spin-button,
-input.b2b-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none; margin: 0;
-}
-
-/* ── Tabs (subtab pattern) ── */
-.b2b-tab {
-  background: transparent; border: 1px solid var(--b2b-border);
-  color: var(--b2b-text-muted); padding: 6px 14px; font-size: 12px;
-  font-weight: 600; letter-spacing: 0.5px;
-  border-radius: 6px; cursor: pointer; transition: all 150ms ease;
-  font-family: inherit;
-}
-.b2b-tab:hover { color: var(--b2b-champagne); border-color: var(--b2b-champagne); }
-.b2b-tab.active {
-  color: var(--b2b-bg-0); background: var(--b2b-champagne);
-  border-color: var(--b2b-champagne);
-}
-
-/* ── Chips (filtros leves) ── */
-.b2b-chip {
-  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
-  padding: 6px 14px; border-radius: 16px;
-  font-size: 12px; color: var(--b2b-text-dim);
-  cursor: pointer; transition: all 150ms;
-}
-.b2b-chip:hover { border-color: var(--b2b-champagne); color: var(--b2b-ivory); }
-.b2b-chip-active {
-  background: var(--b2b-champagne); border-color: var(--b2b-champagne);
-  color: var(--b2b-bg-0);
-}
-
-/* ── Help icon ── */
-.b2b-help-icon {
-  display: inline-block; width: 16px; height: 16px;
-  border-radius: 50%; background: var(--b2b-border-strong);
-  color: #fff; font-size: 11px; font-weight: 700;
-  line-height: 16px; text-align: center;
-  cursor: help; user-select: none;
-  margin-left: 4px; vertical-align: middle;
-}
-.b2b-help-icon:hover { background: var(--b2b-champagne); }
-
-/* Scrollbar custom · warm thumb */
+/* Scrollbar custom da Lara · re-tematizada */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: var(--b2b-bg-3) transparent;
+  scrollbar-color: hsl(var(--chat-border)) transparent;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -364,9 +72,9 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--b2b-bg-3);
+  background-color: hsl(var(--chat-border));
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--b2b-champagne-dark);
+  background-color: hsl(var(--primary) / 0.6);
 }
