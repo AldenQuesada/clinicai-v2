@@ -8,6 +8,7 @@
 
 import Link from 'next/link'
 import { loadMiraServerContext } from '@/lib/server-context'
+import { ResendAudioButton } from './ResendAudioButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,37 @@ export default async function VouchersPage({ searchParams }: PageProps) {
 
   const partnershipNameById = new Map(allPartnerships.map((p) => [p.id, p.name]))
 
+  // Carrega erros de dispatch nao-resolvidos pra esses vouchers (Fase 1+2)
+  // Map<voucher_id, error_reason> · permite render badge "falha" inline
+  const voucherIds = vouchers.map((v) => v.id)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (repos as any).b2bVouchers?.supabase as
+    | {
+        from: (t: string) => {
+          select: (cols: string) => {
+            in: (col: string, vals: string[]) => {
+              is: (col: string, val: null) => Promise<{ data: Array<{ voucher_id: string; reason: string }> | null }>
+            }
+          }
+        }
+      }
+    | undefined
+  let errorsByVoucher = new Map<string, string>()
+  if (supabase && voucherIds.length > 0) {
+    try {
+      const { data: errors } = await supabase
+        .from('b2b_voucher_dispatch_errors')
+        .select('voucher_id, reason')
+        .in('voucher_id', voucherIds)
+        .is('resolved_at', null)
+      if (errors) {
+        errorsByVoucher = new Map(errors.map((e) => [e.voucher_id, e.reason]))
+      }
+    } catch {
+      /* ignore · UI renderiza sem badge se erros falhar */
+    }
+  }
+
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[hsl(var(--chat-bg))]">
       <div className="max-w-[960px] mx-auto px-6 py-6 flex flex-col gap-3">
@@ -137,10 +169,17 @@ export default async function VouchersPage({ searchParams }: PageProps) {
               const partnerName = partnershipNameById.get(v.partnershipId) ?? '—'
               const pill = STATUS_PILL[v.status] ?? 'bg-white/10 text-[#9CA3AF]'
               const label = STATUS_LABEL[v.status] ?? v.status
+              const audioOk = !!v.audioSentAt
+              const errorReason = errorsByVoucher.get(v.id) || null
+              // Audio status: ok (verde) · pendente <5min (amarelo) · falhou (vermelho)
+              const issuedMs = v.issuedAt ? new Date(v.issuedAt).getTime() : Date.now()
+              const ageMin = (Date.now() - issuedMs) / 60000
+              const audioPending = !audioOk && !errorReason && ageMin < 5
+              const audioFailed = !audioOk && (!!errorReason || ageMin >= 5)
               return (
                 <div
                   key={v.id}
-                  className="grid grid-cols-[auto_1fr_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
+                  className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors"
                 >
                   <span className="font-mono text-[11px] text-[#C9A96E]">{v.token}</span>
 
@@ -162,6 +201,39 @@ export default async function VouchersPage({ searchParams }: PageProps) {
                       </span>
                     )}
                   </div>
+
+                  {/* Audio status badge + retry button (Fase 2 + 3) */}
+                  <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <span
+                      title={
+                        audioOk
+                          ? `Áudio enviado em ${fmt(v.audioSentAt!)}`
+                          : audioPending
+                            ? 'Áudio em fila · aguarde alguns segundos'
+                            : `Áudio falhou${errorReason ? ` · ${errorReason}` : ' · timeout >5min'}`
+                      }
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${
+                        audioOk
+                          ? 'bg-[#10B981]/15 text-[#10B981]'
+                          : audioPending
+                            ? 'bg-[#F59E0B]/15 text-[#F59E0B]'
+                            : 'bg-[#EF4444]/15 text-[#FCA5A5]'
+                      }`}
+                    >
+                      <span
+                        className="inline-block w-1.5 h-1.5 rounded-full"
+                        style={{
+                          background: audioOk
+                            ? '#10B981'
+                            : audioPending
+                              ? '#F59E0B'
+                              : '#EF4444',
+                        }}
+                      />
+                      {audioOk ? 'Áudio OK' : audioPending ? 'Áudio fila' : 'Áudio falhou'}
+                    </span>
+                    {audioFailed && <ResendAudioButton voucherId={v.id} />}
+                  </span>
 
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[1.2px] ${pill}`}
