@@ -180,7 +180,7 @@
       <span><strong>Data:</strong> 2026-04-29</span>
       <span><strong>App:</strong> apps/lara</span>
       <span><strong>Rota:</strong> /conversas</span>
-      <span><strong>Status atual:</strong> commit d6da921 (SSE reconnect + Nova conversa manual)</span>
+      <span><strong>Status atual:</strong> commit 26fa560 · Sprint A · P-01/P-02/P-03/P-04 done</span>
     </div>
 
     <nav class="toc">
@@ -196,9 +196,10 @@
       <h3>TL;DR estratégico</h3>
       <ul>
         <li><strong>O que está sólido:</strong> arquitetura 3-painéis, SSE multi-tenant scoped, otimismo nas mutações, dedup robusto, 4 status × 4 abas × filtros avançados, badge cloud, atalhos pro CRM.</li>
-        <li><strong>O que sangra:</strong> polling 3s redundante mesmo com SSE ativo (P0), lista sem paginação (P0), KPI "Resolvidos hoje" quebrado por design (P0), top bar de Insights muda de número ao trocar filtro (P1), sem ✓✓ de leitura (P1), transfer "Dra. Mirian" hardcoded (P1).</li>
-        <li><strong>O que vira wow:</strong> Auto-summary do lead + Smart replies + Next Best Action — <em class="gold">3 features que compartilham 1 chamada Anthropic</em> e mudam a percepção do produto inteiro. Pipeline visual + Timeline de eventos completam o quadro.</li>
-        <li><strong>Recomendação:</strong> <em class="gold">Sprint A (correções P0/P1 · 1-2 dias)</em> antes de qualquer feature nova. Depois Sprint B (efeito wow · 3-5d). Sprint C (paridade WhatsApp) se houver fôlego.</li>
+        <li><strong>P0 sangrando · STATUS 2026-04-29:</strong> <span style="color: var(--green);">✓ resolvido</span> — polling adaptativo (P-01), paginação cursor (P-02), KPIs globais via /api/conversations/insights (P-03 + P-04). Commits 090967c + 26fa560.</li>
+        <li><strong>Próximas fricções (P1 pendentes):</strong> sem ✓✓ de leitura (P-05), sendMessage falha silenciosa (P-06), sem upload mídia atendente (P-07), transfer "Dra. Mirian" hardcoded (P-08).</li>
+        <li><strong>O que vira wow (Sprint B):</strong> Auto-summary + Smart replies + Next Best Action — <em class="gold">3 features que compartilham 1 chamada Anthropic</em> e mudam a percepção do produto inteiro. Pipeline visual + Timeline de eventos completam o quadro.</li>
+        <li><strong>Recomendação:</strong> <em class="gold">Sprint A parcial entregue.</em> Decidir: terminar SA-04..SA-07 (P1 + W-04 + W-07) antes de Sprint B, ou pular pra B agora?</li>
       </ul>
     </div>
   </header>
@@ -314,19 +315,19 @@
     <div class="section-hdr">
       <h2><em>Fraquezas</em> · priorizadas por impacto</h2>
       <div class="section-meta">
-        <span class="pill danger">3 P0</span>
-        <span class="pill warn">5 P1</span>
+        <span class="pill good">3 P0 done</span>
+        <span class="pill warn">4 P1 (1 done)</span>
         <span class="pill info">4 P2</span>
         <span class="pill">3 P3</span>
       </div>
     </div>
     <div class="section-body">
-      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento.</div>
+      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento. <strong style="color: var(--gold);">Atualização 2026-04-29:</strong> 3 P0 (P-01/P-02/P-03) + 1 P1 (P-04) entregues nos commits 090967c + 26fa560.</div>
 
-      <div class="item" data-id="P-01">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-01">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-01</div>
+          <div class="id">P-01 · ✓ done · commit 090967c</div>
           <div class="title">Polling redundante de 3s mesmo com SSE ativo</div>
           <div class="desc">Toda mudança em <code>wa_messages</code> dispara fetchConversations + setInterval(3000) do useMessages. Cada conversa aberta = 20 req/min/usuário. Custo Supabase + bateria mobile.</div>
           <div class="ref">hooks/useMessages.ts:86-89</div>
@@ -337,10 +338,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-02">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-02">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-02</div>
+          <div class="id">P-02 · ✓ done · commit 26fa560</div>
           <div class="title">Lista sem paginação — retorna TODAS conversas do clinic</div>
           <div class="desc">/api/conversations devolve tudo + N+1 de leads.findByPhones em batch. 1000+ leads = card flood + carga inicial pesada.</div>
           <div class="ref">api/conversations/route.ts:23-54</div>
@@ -351,10 +352,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-03">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-03">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-03</div>
+          <div class="id">P-03 · ✓ done · commit 090967c</div>
           <div class="title">"Resolvidos hoje" só conta quando filtra Resolvidas</div>
           <div class="desc">KPI quebrado por design: a query da lista filtra por status, então <code>c.status==='resolved'</code> zera quando aba é "Abertas". Devia ter endpoint próprio /api/conversations/insights global. (Auto-confessado no comentário do código.)</div>
           <div class="ref">page.tsx:140-153</div>
@@ -365,10 +366,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-04">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-04">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-04</div>
+          <div class="id">P-04 · ✓ done · commit 090967c</div>
           <div class="title">Top bar de Insights muda de número ao trocar de aba</div>
           <div class="desc">Urgentes/Aguardando/Lara Ativa contam só conversas no recorte filtrado. Trocar pra Resolvidas = Urgentes zera. Devia ser global do clinic, calculado server-side.</div>
           <div class="ref">page.tsx:137-153</div>
@@ -800,30 +801,30 @@
           <div class="sprint-goal">Tirar o sangramento dos KPIs e do polling antes de empilhar feature nova. Tudo aqui é "consertar o que está quebrado".</div>
 
           <div class="sprint-tasks">
-            <div class="item" data-id="SA-01">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-01">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-01 · ref P-01</div>
+                <div class="id">SA-01 · ref P-01 · ✓ done · 090967c</div>
                 <div class="title">Polling 3s OFF quando SSE entrega evento</div>
                 <div class="desc">Toggle adaptativo: SSE conectado (onmessage há &lt;30s) → polling 30s. SSE morto → 3s. Reduz req/min em ~85%.</div>
               </div>
               <div class="meta"><span class="priority p0">P0</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-02">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-02">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-02 · ref P-03</div>
+                <div class="id">SA-02 · ref P-03 · ✓ done · 090967c</div>
                 <div class="title">Endpoint /api/conversations/insights global</div>
                 <div class="desc">Server-side count: urgentes / aguardando / lara_ativa / resolvidos_hoje. Independente do filtro ativo.</div>
               </div>
               <div class="meta"><span class="priority p0">P0</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-03">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-03">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-03 · ref P-04</div>
+                <div class="id">SA-03 · ref P-04 · ✓ done · 090967c</div>
                 <div class="title">Top bar consome o endpoint global, não o array filtrado</div>
                 <div class="desc">Insights ficam estáveis ao trocar de aba. Hook próprio useInsights() com cache 30s.</div>
               </div>
@@ -871,7 +872,7 @@
             </div>
           </div>
 
-          <div class="sprint-impact"><strong>Resultado esperado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.</div>
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.<br/><strong style="color: var(--gold);">2026-04-29 · entregues:</strong> SA-01 (polling adaptativo) + SA-02 (insights endpoint) + SA-03 (top bar global) + bonus P-02 (paginação cursor + scroll infinito). Pendentes: SA-04 (sendMessage retry), SA-05 (transfer dra dinâmica), SA-06 (pipeline visual), SA-07 (timeline eventos).</div>
         </div>
 
         <!-- SPRINT B -->
