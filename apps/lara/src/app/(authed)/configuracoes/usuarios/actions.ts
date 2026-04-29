@@ -47,7 +47,26 @@ export async function inviteStaffAction(formData: FormData): Promise<InviteActio
     return { ok: false, error: 'Apenas owner pode convidar admin' }
   }
 
-  const result = await repos.users.inviteStaff(email, role)
+  // Permissoes por modulo · port 1:1 do clinic-dashboard openInviteModal
+  // (linhas 693-697 de users-admin.js). Admin marca/desmarca toggles antes
+  // de enviar · esse override e aplicado quando user aceita convite.
+  // Formato no formData: keys 'perm:<moduleId>' = 'on' (checkbox padrao HTML).
+  const permissions: Array<{ moduleId: string; pageId: null; allowed: boolean }> = []
+  const allModulesRaw = String(formData.get('all_modules') || '').trim()
+  if (allModulesRaw) {
+    const allModules = allModulesRaw.split(',').filter(Boolean)
+    for (const moduleId of allModules) {
+      permissions.push({
+        moduleId,
+        pageId: null,
+        allowed: formData.get(`perm:${moduleId}`) === 'on',
+      })
+    }
+  }
+
+  const result = await repos.users.inviteStaff(email, role, {
+    permissions: permissions.length > 0 ? permissions : undefined,
+  })
   if (!result.ok || !result.rawToken) {
     return { ok: false, error: result.error || 'Falha ao criar convite' }
   }

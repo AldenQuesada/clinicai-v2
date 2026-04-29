@@ -1,7 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+/**
+ * InviteModal · port 1:1 do clinic-dashboard openInviteModal (users-admin.js:614).
+ *
+ * Campos (espelho exato):
+ *   1. Email
+ *   2. Nivel de acesso (radio cards · descricoes nos cards)
+ *   3. Permissoes por modulo (toggles · default = se role tem acesso)
+ *      Admin pode override antes de criar convite · permissoes aplicadas
+ *      quando user aceita o convite (RPC accept_invitation).
+ */
+
+import { useState, useMemo, useEffect } from 'react'
+import { Lock, Folder } from 'lucide-react'
 import { ROLE_LABELS, type StaffRole } from '@/lib/permissions'
+import { MODULES } from './permissoes/lib/modules'
 
 const INVITE_ROLES: ReadonlyArray<{
   value: Exclude<StaffRole, 'owner'>
@@ -32,6 +45,15 @@ const INVITE_ROLES: ReadonlyArray<{
   },
 ]
 
+/** Replica `defaultOn = sRoles.length === 0 || sRoles.indexOf(role) >= 0` (legacy linha 666) */
+function defaultPermsForRole(role: StaffRole): Record<string, boolean> {
+  const out: Record<string, boolean> = {}
+  for (const m of MODULES) {
+    out[m.section] = m.roles.length === 0 || m.roles.includes(role)
+  }
+  return out
+}
+
 export function InviteModal({
   myRole,
   onClose,
@@ -45,6 +67,16 @@ export function InviteModal({
   const [error, setError] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState<StaffRole>('therapist')
   const [email, setEmail] = useState('')
+  const [perms, setPerms] = useState<Record<string, boolean>>(() =>
+    defaultPermsForRole('therapist'),
+  )
+
+  // Recalcula defaults ao mudar role (mesmo comportamento do legacy updateRoleUI)
+  useEffect(() => {
+    setPerms(defaultPermsForRole(selectedRole))
+  }, [selectedRole])
+
+  const allModuleIds = useMemo(() => MODULES.map((m) => m.section).join(','), [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -58,6 +90,10 @@ export function InviteModal({
       const fd = new FormData()
       fd.set('email', email.trim())
       fd.set('role', selectedRole)
+      fd.set('all_modules', allModuleIds)
+      for (const [moduleId, allowed] of Object.entries(perms)) {
+        if (allowed) fd.set(`perm:${moduleId}`, 'on')
+      }
       await onSubmit(fd)
     } catch (err) {
       setError((err as Error).message || 'Erro inesperado')
@@ -66,13 +102,28 @@ export function InviteModal({
     }
   }
 
+  function toggleModule(section: string) {
+    setPerms((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  const selectedRoleConfig = INVITE_ROLES.find((r) => r.value === selectedRole)
+
   return (
     <div className="b2b-overlay" onClick={onClose}>
-      <div className="b2b-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="b2b-modal"
+        style={{ maxWidth: 580 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="b2b-modal-hdr">
-          <h2>
-            Convidar <em style={{ color: 'var(--b2b-champagne)' }}>membro</em>
-          </h2>
+          <div>
+            <h2 style={{ marginBottom: 2 }}>
+              Convidar <em style={{ color: 'var(--b2b-champagne)' }}>membro</em>
+            </h2>
+            <p style={{ fontSize: 11, color: 'var(--b2b-text-muted)', margin: 0 }}>
+              O convite expira em 48h. Permissões já aplicadas ao aceitar.
+            </p>
+          </div>
           <button type="button" className="b2b-close" onClick={onClose} aria-label="Fechar">
             ×
           </button>
@@ -80,7 +131,9 @@ export function InviteModal({
 
         <form onSubmit={handleSubmit}>
           <div className="b2b-modal-body">
-            <div className="b2b-form-sec">Identificação</div>
+            <div className="b2b-form-sec" style={{ marginTop: 0 }}>
+              Identificação
+            </div>
 
             <div className="b2b-field">
               <label className="b2b-field-lbl">
@@ -91,7 +144,7 @@ export function InviteModal({
                 type="email"
                 required
                 autoFocus
-                placeholder="nome@clinica.com"
+                placeholder="colaborador@clinica.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="b2b-input"
@@ -165,9 +218,52 @@ export function InviteModal({
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--b2b-text-dim)' }}>{r.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--b2b-text-dim)' }}>
+                        {r.desc}
+                      </div>
                     </div>
                   </label>
+                )
+              })}
+            </div>
+
+            {/* Permissões de módulos · port 1:1 do legacy linhas 634-637 + 660-674 */}
+            <div className="b2b-form-sec" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Lock className="w-3 h-3" />
+              Permissões de módulos
+            </div>
+            <p
+              style={{
+                fontSize: 11,
+                color: 'var(--b2b-text-muted)',
+                margin: '0 0 10px',
+                fontStyle: 'italic',
+              }}
+            >
+              Defaults baseados no role <strong style={{ color: 'var(--b2b-text-dim)' }}>{selectedRoleConfig?.label}</strong>.
+              Toggle pra customizar antes de enviar.
+            </p>
+
+            <div
+              style={{
+                background: 'var(--b2b-bg-2)',
+                border: '1px solid var(--b2b-border)',
+                borderRadius: 6,
+                padding: '6px 10px',
+                maxHeight: 240,
+                overflowY: 'auto',
+              }}
+              className="custom-scrollbar"
+            >
+              {MODULES.map((m) => {
+                const allowed = perms[m.section] ?? false
+                return (
+                  <ModuleToggleRow
+                    key={m.section}
+                    label={m.label}
+                    allowed={allowed}
+                    onToggle={() => toggleModule(m.section)}
+                  />
                 )
               })}
             </div>
@@ -190,5 +286,81 @@ export function InviteModal({
         </span>
       </div>
     </div>
+  )
+}
+
+function ModuleToggleRow({
+  label,
+  allowed,
+  onToggle,
+}: {
+  label: string
+  allowed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '8px 4px',
+        borderBottom: '1px solid var(--b2b-border)',
+        cursor: 'pointer',
+      }}
+    >
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 500,
+          color: 'var(--b2b-text-dim)',
+        }}
+      >
+        <Folder className="w-3.5 h-3.5" style={{ color: 'var(--b2b-text-muted)' }} />
+        {label}
+      </span>
+      <span
+        style={{
+          position: 'relative',
+          display: 'inline-block',
+          width: 32,
+          height: 18,
+          flexShrink: 0,
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={allowed}
+          onChange={onToggle}
+          style={{ opacity: 0, width: 0, height: 0 }}
+        />
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: allowed ? 'var(--b2b-champagne)' : 'var(--b2b-bg-3)',
+            borderRadius: 9,
+            transition: 'background 0.15s',
+          }}
+        />
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: allowed ? 16 : 2,
+            width: 14,
+            height: 14,
+            borderRadius: '50%',
+            background: allowed ? 'var(--b2b-bg-0)' : 'var(--b2b-text-muted)',
+            transition: 'left 0.15s',
+          }}
+        />
+      </span>
+    </label>
   )
 }
