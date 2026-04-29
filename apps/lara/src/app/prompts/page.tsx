@@ -229,14 +229,31 @@ interface PromptGroup {
 }
 
 async function loadPrompts(): Promise<{ groups: PromptGroup[]; canManage: boolean }> {
-  const { ctx, repos } = await loadServerReposContext()
+  // Defensive · cada step pode falhar em prod (RLS, RPC, fs em standalone)
+  // e o erro precisa virar log + fallback, NUNCA crashar a page.
+  let ctx: Awaited<ReturnType<typeof loadServerReposContext>>['ctx']
+  let repos: Awaited<ReturnType<typeof loadServerReposContext>>['repos']
+  try {
+    const loaded = await loadServerReposContext()
+    ctx = loaded.ctx
+    repos = loaded.repos
+  } catch (e) {
+    console.error('[/prompts] loadServerReposContext failed:', e)
+    return { groups: [], canManage: false }
+  }
+
   const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
 
-  // Batch fetch dos overrides · 1 query pra todos os 17 layers
-  const overrides = await repos.clinicData.getSettings(
-    ctx.clinic_id,
-    ALL_LAYERS.map((l) => l.key),
-  )
+  // Batch fetch dos overrides · 1 query pra todos os 19 layers · catch silencioso
+  let overrides = new Map<string, unknown>()
+  try {
+    overrides = await repos.clinicData.getSettings(
+      ctx.clinic_id,
+      ALL_LAYERS.map((l) => l.key),
+    )
+  } catch (e) {
+    console.error('[/prompts] getSettings failed:', e)
+  }
 
   const buildPrompt = (layer: LayerSpec): PromptData => {
     let fsDefault = ''
@@ -251,7 +268,12 @@ async function loadPrompts(): Promise<{ groups: PromptGroup[]; canManage: boolea
       fsDefault = '(erro lendo arquivo)'
     }
 
-    const override = valueToString(overrides.get(layer.key))
+    let override: string | null = null
+    try {
+      override = valueToString(overrides.get(layer.key))
+    } catch {
+      override = null
+    }
 
     return {
       key: layer.key,
