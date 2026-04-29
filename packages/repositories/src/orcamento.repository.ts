@@ -23,6 +23,27 @@ import {
   type UpdateOrcamentoInput,
 } from './types'
 
+/**
+ * Candidato retornado pelo picker do cron orcamento-followup (mig 82).
+ *
+ * Bucket determina template usado pelo worker:
+ *   - 'expiring_soon' (<=1 dia)  · "ultima chance"
+ *   - 'expiring'      (2-4 dias) · "vence em Xd, fica seu valor?"
+ *   - 'recent'        (5-7 dias) · "tudo bem com a proposta?"
+ */
+export interface OrcamentoFollowupCandidateDTO {
+  orcamentoId: string
+  clinicId: string
+  leadId: string | null
+  patientId: string | null
+  title: string | null
+  total: number
+  validUntil: string // YYYY-MM-DD
+  shareToken: string | null
+  bucket: 'recent' | 'expiring' | 'expiring_soon'
+  daysToExpire: number
+}
+
 const ORC_COLUMNS =
   'id, clinic_id, lead_id, patient_id, number, title, notes, items, ' +
   'subtotal, discount, total, status, sent_at, viewed_at, approved_at, ' +
@@ -382,5 +403,74 @@ export class OrcamentoRepository {
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
     return !error
+  }
+
+  // ── Cron orcamento-followup (mig 82) ────────────────────────────────────
+
+  /**
+   * Pega ate `batchLimit` orcamentos elegiveis pra follow-up automatico.
+   * Atomico via RPC `orcamento_followup_pick` (UPDATE ... FOR UPDATE
+   * SKIP LOCKED + seta `picking_at`). 2 crons concorrentes nao pegam os
+   * mesmos rows.
+   *
+   * Caller deve chamar `markFollowupSent(id)` apos enviar a mensagem
+   * (libera lock + seta `last_followup_at`). Se falhar antes do mark,
+   * `clearStuckFollowups` libera o lock apos 5min.
+   */
+  async pickFollowupCandidates(
+    batchLimit: number = 10,
+  ): Promise<OrcamentoFollowupCandidateDTO[]> {
+    const { data, error } = await this.supabase.rpc('orcamento_followup_pick', {
+      p_batch_limit: batchLimit,
+    })
+    if (error || !data) return []
+    type RpcRow = {
+      orcamento_id: string
+      clinic_id: string
+      lead_id: string | null
+      patient_id: string | null
+      title: string | null
+      total: number | string
+      valid_until: string
+      share_token: string | null
+      bucket: 'recent' | 'expiring' | 'expiring_soon'
+      days_to_expire: number
+    }
+    return (data as RpcRow[]).map((r) => ({
+      orcamentoId: r.orcamento_id,
+      clinicId: r.clinic_id,
+      leadId: r.lead_id,
+      patientId: r.patient_id,
+      title: r.title,
+      total: Number(r.total),
+      validUntil: r.valid_until,
+      shareToken: r.share_token,
+      bucket: r.bucket,
+      daysToExpire: r.days_to_expire,
+    }))
+  }
+
+  /**
+   * Marca follow-up como enviado · libera `picking_at` + seta
+   * `last_followup_at=now()`. Idempotente.
+   */
+  async markFollowupSent(id: string): Promise<boolean> {
+    const { data, error } = await this.supabase.rpc('orcamento_followup_mark_sent', {
+      p_orcamento_id: id,
+    })
+    if (error) return false
+    return data === true
+  }
+
+  /**
+   * Libera locks `picking_at` stuck (cron crashou em execucao anterior).
+   * Retorna numero de rows liberadas. Caller deve logar warn se > 0.
+   */
+  async clearStuckFollowups(maxAgeMinutes: number = 5): Promise<number> {
+    const { data, error } = await this.supabase.rpc('orcamento_followup_clear_stuck', {
+      p_max_age_minutes: maxAgeMinutes,
+    })
+    if (error || typeof data !== 'number') return 0
+    return data
   }
 }

@@ -16,6 +16,8 @@ on:
   schedule:
     # /api/cron/reactivate · D1 reactivation 23h-26h window · de hora em hora
     - cron: '15 * * * *'  # offset 15min pra não esbarrar com mira-voucher-followup
+    # /api/cron/orcamento-followup · 1x/dia 13h UTC = 10h SP · Camada 10a
+    - cron: '0 13 * * *'
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
@@ -25,6 +27,7 @@ on:
         type: choice
         options:
           - reactivate
+          - orcamento-followup
 
 jobs:
   dispatch:
@@ -40,6 +43,7 @@ jobs:
           else
             case "${{ github.event.schedule }}" in
               "15 * * * *") ENDPOINTS="reactivate" ;;
+              "0 13 * * *") ENDPOINTS="orcamento-followup" ;;
               *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
           fi

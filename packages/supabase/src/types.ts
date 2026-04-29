@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-04-29T14:14:50.213Z
+ * Ultima geracao: 2026-04-29T14:46:59.809Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -9469,6 +9469,7 @@ export type Database = {
           discount: number
           id: string
           items: Json
+          last_followup_at: string | null
           lead_id: string | null
           lost_at: string | null
           lost_reason: string | null
@@ -9476,6 +9477,7 @@ export type Database = {
           number: string | null
           patient_id: string | null
           payments: Json
+          picking_at: string | null
           sent_at: string | null
           share_token: string | null
           status: string
@@ -9495,6 +9497,7 @@ export type Database = {
           discount?: number
           id?: string
           items?: Json
+          last_followup_at?: string | null
           lead_id?: string | null
           lost_at?: string | null
           lost_reason?: string | null
@@ -9502,6 +9505,7 @@ export type Database = {
           number?: string | null
           patient_id?: string | null
           payments?: Json
+          picking_at?: string | null
           sent_at?: string | null
           share_token?: string | null
           status?: string
@@ -9521,6 +9525,7 @@ export type Database = {
           discount?: number
           id?: string
           items?: Json
+          last_followup_at?: string | null
           lead_id?: string | null
           lost_at?: string | null
           lost_reason?: string | null
@@ -9528,6 +9533,7 @@ export type Database = {
           number?: string | null
           patient_id?: string | null
           payments?: Json
+          picking_at?: string | null
           sent_at?: string | null
           share_token?: string | null
           status?: string
@@ -16578,6 +16584,29 @@ export type Database = {
       ofx_check_file_hash: { Args: { p_file_hash: string }; Returns: Json }
       ofx_check_fingerprint: { Args: { p_fingerprint: string }; Returns: Json }
       ofx_register_import: { Args: { p_data: Json }; Returns: Json }
+      orcamento_followup_clear_stuck: {
+        Args: { p_max_age_minutes?: number }
+        Returns: number
+      }
+      orcamento_followup_mark_sent: {
+        Args: { p_orcamento_id: string }
+        Returns: boolean
+      }
+      orcamento_followup_pick: {
+        Args: { p_batch_limit?: number }
+        Returns: {
+          bucket: string
+          clinic_id: string
+          days_to_expire: number
+          lead_id: string
+          orcamento_id: string
+          patient_id: string
+          share_token: string
+          title: string
+          total: number
+          valid_until: string
+        }[]
+      }
       page_delete: { Args: { p_id: string }; Returns: Json }
       page_list: { Args: never; Returns: Json }
       page_resolve: { Args: { p_slug: string }; Returns: Json }
