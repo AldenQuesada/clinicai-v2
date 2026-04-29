@@ -49,6 +49,7 @@ export {
   type DataTableColumn,
   type DataTablePagination,
   type DataTableProps,
+  type DataTableBulkSelect,
 } from './components/data-table'
 export {
   PageHeader,

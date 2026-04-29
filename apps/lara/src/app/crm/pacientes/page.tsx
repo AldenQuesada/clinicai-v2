@@ -13,21 +13,14 @@
 
 import Link from 'next/link'
 import { Suspense } from 'react'
-import {
-  PageHeader,
-  DataTable,
-  EmptyState,
-  PatientStatusBadge,
-  Button,
-  type DataTableColumn,
-} from '@clinicai/ui'
-import { Plus, Eye } from 'lucide-react'
+import { PageHeader, Button } from '@clinicai/ui'
+import { Plus } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
-import type { PatientDTO } from '@clinicai/repositories'
 import { KpiCards } from './_components/kpi-cards'
 import { PatientFilters } from './_components/patient-filters'
 import { SortHeader } from './_components/sort-header'
 import { ExportButton } from './_components/export-button'
+import { PatientListTable } from './_components/patient-list-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,61 +37,8 @@ interface PageSearch {
   page?: string
 }
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-})
-
-function formatPhoneDisplay(phone: string | null): string {
-  if (!phone) return '—'
-  const d = phone.replace(/\D/g, '')
-  if (d.length === 13 && d.startsWith('55')) {
-    return `(${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
-  }
-  if (d.length === 11) {
-    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-  }
-  return phone
-}
-
-function formatRelativeDate(iso: string | null): string {
-  if (!iso) return 'sem registro'
-  try {
-    const d = new Date(iso)
-    const days = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24))
-    if (days === 0) return 'hoje'
-    if (days === 1) return 'ontem'
-    if (days < 30) return `${days}d`
-    if (days < 365) return `${Math.floor(days / 30)}m`
-    return `${Math.floor(days / 365)}a`
-  } catch {
-    return '—'
-  }
-}
-
-/**
- * Status de retorno (espelho legacy js/patients.js · churnIndicator).
- *   - 'RISCO'   · sem contato > 180 dias OU sem registro algum (status active)
- *   - 'ATENCAO' · sem contato 90-180 dias
- *   - null      · sem alerta (recente OU paciente nao-active)
- */
-function churnLevel(
-  lastAt: string | null,
-  status: string,
-): 'risco' | 'atencao' | null {
-  if (status !== 'active') return null
-  if (!lastAt) return 'risco'
-  try {
-    const days = Math.floor(
-      (Date.now() - new Date(lastAt).getTime()) / (1000 * 60 * 60 * 24),
-    )
-    if (days > 180) return 'risco'
-    if (days > 90) return 'atencao'
-    return null
-  } catch {
-    return null
-  }
-}
+// Helpers de formatacao de coluna foram movidos pra _components/patient-list-table.tsx
+// (Camada 7.5 · client wrapper precisa render JSX que depende deles).
 
 export default async function PatientsListPage({
   searchParams,
@@ -170,105 +110,6 @@ export default async function PatientsListPage({
 
   const orcSentValue = orcSentRows.reduce((sum, o) => sum + Number(o.total), 0)
 
-  // Colunas da DataTable
-  const columns: ReadonlyArray<DataTableColumn<PatientDTO>> = [
-    {
-      key: 'name',
-      label: 'Paciente', // SortHeader montado abaixo
-      render: (p) => (
-        <div>
-          <div className="text-sm font-medium text-[var(--foreground)]">
-            {p.name || '—'}
-          </div>
-          <div className="text-xs text-[var(--muted-foreground)]">
-            {formatPhoneDisplay(p.phone)}
-          </div>
-          {p.email && (
-            <div className="text-[10px] text-[var(--muted-foreground)]/70">
-              {p.email}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (p) => <PatientStatusBadge status={p.status} />,
-    },
-    {
-      key: 'procedures',
-      label: 'Procedimentos',
-      align: 'right',
-      hideMobile: true,
-      render: (p) => (
-        <span className="text-sm text-[var(--foreground)]">
-          {p.totalProcedures}
-        </span>
-      ),
-    },
-    {
-      key: 'revenue',
-      label: 'Receita',
-      align: 'right',
-      render: (p) => (
-        <span className="text-sm font-medium text-[var(--foreground)]">
-          {p.totalRevenue > 0 ? BRL.format(p.totalRevenue) : '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'last_procedure',
-      label: 'Último atendimento',
-      hideMobile: true,
-      render: (p) => {
-        const level = churnLevel(p.lastProcedureAt, p.status)
-        return (
-          <div>
-            <div className="text-xs text-[var(--muted-foreground)]">
-              {formatRelativeDate(p.lastProcedureAt)}
-            </div>
-            {level === 'risco' && (
-              <div
-                className="mt-0.5 text-[9px] font-display-uppercase tracking-widest text-rose-400"
-                title={
-                  p.lastProcedureAt
-                    ? 'Sem contato há mais de 180 dias'
-                    : 'Sem registro de atendimento'
-                }
-              >
-                Risco
-              </div>
-            )}
-            {level === 'atencao' && (
-              <div
-                className="mt-0.5 text-[9px] font-display-uppercase tracking-widest text-amber-400"
-                title="Sem contato 90-180 dias"
-              >
-                Atenção
-              </div>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      key: 'actions',
-      label: '',
-      align: 'right',
-      render: (p) => (
-        <Link
-          href={`/crm/pacientes/${p.id}`}
-          className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Eye className="h-3 w-3" />
-          Ver
-        </Link>
-      ),
-    },
-  ]
-
   // Sort header em cima da tabela (sem mexer no DataTable existente · UI
   // separada que mostra os 6 sort options + dir)
   const sortOptions: Array<{ field: typeof sortField; label: string }> = [
@@ -278,8 +119,6 @@ export default async function PatientsListPage({
     { field: 'first_procedure_at', label: 'Cadastro' },
     { field: 'updated_at', label: 'Atualizado' },
   ]
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE))
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -332,25 +171,9 @@ export default async function PatientsListPage({
         ))}
       </div>
 
-      <DataTable
-        rows={patients}
-        columns={columns}
-        rowKey={(p) => p.id}
-        ariaLabel="Lista de pacientes"
-        rowHref={(p) => `/crm/pacientes/${p.id}`}
-        emptyState={
-          <EmptyState
-            variant="leads"
-            title={
-              search || status ? 'Nenhum paciente com esses filtros' : 'Sem pacientes ainda'
-            }
-            message={
-              search || status
-                ? 'Tente limpar os filtros para ver outros resultados.'
-                : 'Cadastre o primeiro paciente clicando em "Novo paciente" acima.'
-            }
-          />
-        }
+      <PatientListTable
+        patients={patients}
+        hasFilters={!!(search || status || sp.period || sp.from || sp.to)}
         pagination={{
           page,
           perPage: PER_PAGE,

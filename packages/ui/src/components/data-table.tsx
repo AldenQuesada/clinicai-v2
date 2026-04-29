@@ -56,6 +56,45 @@ export interface DataTableProps<T> {
   className?: string
   /** ARIA label da tabela (a11y · screen readers) · ex: "Lista de pacientes" */
   ariaLabel?: string
+  /**
+   * Bulk-select opcional · injeta coluna checkbox na primeira posicao,
+   * master checkbox no header (selecionar todas as rows visiveis).
+   * Caller mantem state externo (Set<string>) · DataTable so emite onToggle.
+   *
+   * Uso:
+   *   const [selected, setSelected] = useState(new Set<string>())
+   *   <DataTable
+   *     rows={...}
+   *     rowKey={(p) => p.id}
+   *     bulkSelect={{
+   *       selected,
+   *       onToggle: (id) => setSelected(prev => {
+   *         const next = new Set(prev)
+   *         next.has(id) ? next.delete(id) : next.add(id)
+   *         return next
+   *       }),
+   *       onToggleAll: (ids, checked) => setSelected(prev => {
+   *         const next = new Set(prev)
+   *         if (checked) ids.forEach(id => next.add(id))
+   *         else ids.forEach(id => next.delete(id))
+   *         return next
+   *       }),
+   *     }}
+   *   />
+   */
+  bulkSelect?: DataTableBulkSelect
+}
+
+export interface DataTableBulkSelect {
+  /** Set de IDs selecionados (caller-owned) */
+  selected: ReadonlySet<string>
+  /** Callback ao togglear 1 row · recebe rowKey */
+  onToggle: (id: string) => void
+  /**
+   * Callback do master-checkbox · recebe IDs visiveis na pagina + estado alvo.
+   * Caller decide se faz add-todos ou remove-todos.
+   */
+  onToggleAll: (ids: string[], checked: boolean) => void
 }
 
 export interface DataTablePagination {
@@ -81,6 +120,7 @@ export function DataTable<T>({
   pagination,
   className,
   ariaLabel,
+  bulkSelect,
 }: DataTableProps<T>) {
   if (loading) {
     return <div className={className}>{loadingState ?? <DefaultSkeleton />}</div>
@@ -98,12 +138,50 @@ export function DataTable<T>({
     )
   }
 
+  // bulkSelect requer rowKey · sem id estavel nao da pra trackear selecao
+  // entre re-renders. Caller deve passar rowKey OU bulkSelect=undefined.
+  const hasBulk = !!bulkSelect && !!rowKey
+  const visibleIds = hasBulk
+    ? rows.map((r, i) => (rowKey as (r: T, i: number) => string)(r, i))
+    : []
+  const visibleSelectedCount = hasBulk
+    ? visibleIds.filter((id) => bulkSelect!.selected.has(id)).length
+    : 0
+  const allVisibleSelected =
+    hasBulk && visibleIds.length > 0 && visibleSelectedCount === visibleIds.length
+  const someVisibleSelected =
+    hasBulk && visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length
+
   return (
     <div className={cn('w-full', className)}>
       <div className="overflow-x-auto rounded-md border border-[var(--border)]">
         <table className="w-full text-sm" aria-label={ariaLabel}>
           <thead className="bg-[var(--color-border-soft)]/40">
             <tr>
+              {hasBulk && (
+                <th
+                  scope="col"
+                  className="w-10 px-3 py-3 text-left"
+                  aria-label="Selecionar todos os visíveis"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer rounded border-[var(--border)] bg-[var(--card)] accent-[var(--primary)]"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someVisibleSelected
+                    }}
+                    onChange={(e) => {
+                      bulkSelect!.onToggleAll(visibleIds, e.target.checked)
+                    }}
+                    aria-label={
+                      allVisibleSelected
+                        ? 'Desmarcar todos os visíveis'
+                        : 'Selecionar todos os visíveis'
+                    }
+                  />
+                </th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c.key}
@@ -126,6 +204,7 @@ export function DataTable<T>({
             {rows.map((row, idx) => {
               const key = rowKey ? rowKey(row, idx) : String(idx)
               const interactive = !!onRowClick || !!rowHref
+              const isChecked = hasBulk && bulkSelect!.selected.has(key)
               return (
                 <tr
                   key={key}
@@ -134,8 +213,25 @@ export function DataTable<T>({
                     'transition-colors',
                     interactive &&
                       'cursor-pointer hover:bg-[var(--color-border-soft)]/30',
+                    isChecked && 'bg-[var(--primary)]/5',
                   )}
                 >
+                  {hasBulk && (
+                    <td
+                      className="w-10 px-3 py-3"
+                      // Importante: stop click pra nao acionar onRowClick/Link
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer rounded border-[var(--border)] bg-[var(--card)] accent-[var(--primary)]"
+                        checked={isChecked}
+                        onChange={() => bulkSelect!.onToggle(key)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={isChecked ? 'Desmarcar linha' : 'Selecionar linha'}
+                      />
+                    </td>
+                  )}
                   {columns.map((c) => {
                     const content = c.render(row)
                     const cellInner = rowHref ? (
