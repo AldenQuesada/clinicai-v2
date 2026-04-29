@@ -30,9 +30,15 @@ export async function AppHeader() {
   const supabase = createServerClient({
     getAll: () => cookieStore.getAll(),
     setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
+      // Server Components NAO podem mutar cookies em Next.js 15/16 · throw.
+      // Padrao Supabase SSR: silenciar · middleware ja refresh-ou o token.
+      try {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options)
+        })
+      } catch {
+        // ignore · esperado em Server Components
+      }
     },
   })
 

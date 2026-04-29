@@ -26,9 +26,14 @@ export default async function LoginPage({ searchParams }: PageProps) {
   const supabase = createServerClient({
     getAll: () => cookieStore.getAll(),
     setAll: (cookiesToSet) => {
-      cookiesToSet.forEach(({ name, value, options }) => {
-        cookieStore.set(name, value, options)
-      })
+      // Server Components nao podem setar cookies (Next.js 15/16) · silencio
+      try {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options)
+        })
+      } catch {
+        // ignore · esperado em Server Component
+      }
     },
   })
   const { data: { user } } = await supabase.auth.getUser()

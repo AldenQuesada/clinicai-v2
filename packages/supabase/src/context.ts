@@ -47,10 +47,19 @@ function makeSupabase(): Promise<SupabaseServerClient> {
     createServerClient({
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          cookieStore.set(name, value, options as any)
-        })
+        // Server Components NAO podem mutar cookies em Next.js 15/16 ·
+        // cookieStore.set throw 'Cookies can only be modified in a Server
+        // Action or Route Handler'. Padrao Supabase SSR oficial: silenciar.
+        // O middleware Lara/middleware.ts ja refresh-ou o token antes de
+        // chegar aqui · esse setAll so e relevante em Server Actions.
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            cookieStore.set(name, value, options as any)
+          })
+        } catch {
+          // expected in Server Components · ignore
+        }
       },
     }),
   )
