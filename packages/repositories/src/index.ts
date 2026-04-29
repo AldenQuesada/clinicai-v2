@@ -328,7 +328,10 @@ export {
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
 export { PatientRepository } from './patient.repository'
-export { OrcamentoRepository } from './orcamento.repository'
+export {
+  OrcamentoRepository,
+  type OrcamentoFollowupCandidateDTO,
+} from './orcamento.repository'
 export { PhaseHistoryRepository } from './phase-history.repository'
 export {
   WaMediaBankRepository,
