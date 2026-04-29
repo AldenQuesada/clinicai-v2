@@ -135,7 +135,20 @@ export default function ChatPage() {
   const urgentes = conversations.filter(c => c.is_urgent).length;
   const aguardando = conversations.filter(c => !c.ai_enabled && !c.is_urgent).length;
   const laraAtiva = conversations.filter(c => c.ai_enabled).length;
-  const resolvidos = 0; // Implementar lógica real se houver campo resolved_at
+  // Resolvidos hoje · conta status='resolved' E last_message_at >= hoje 00:00.
+  // Quando statusFilter !== 'resolved' a lista nao traz resolvidas, entao
+  // o numero so sera != 0 quando user filtra por "Resolvidas".
+  const resolvidos = (() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return conversations.filter((c) => {
+      if (c.status !== 'resolved') return false;
+      const updated = c.last_message_at;
+      if (!updated) return false;
+      const ts = new Date(updated).getTime();
+      return Number.isFinite(ts) && ts >= todayStart.getTime();
+    }).length;
+  })();
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">

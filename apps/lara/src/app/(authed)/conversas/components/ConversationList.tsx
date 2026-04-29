@@ -110,7 +110,9 @@ export function ConversationList({
           >
             <ArrowUpDown className="h-4 w-4" />
           </button>
-          <MessageSquarePlus className="h-5 w-5 text-[hsl(var(--muted-foreground))] cursor-pointer hover:text-[hsl(var(--foreground))] transition-colors" />
+          {/* MessageSquarePlus removido · era placebo (sem onClick).
+              Quando feature 'iniciar conversa manual' for implementada,
+              re-ativar com modal de busca de lead/phone. */}
         </div>
       </div>
       
