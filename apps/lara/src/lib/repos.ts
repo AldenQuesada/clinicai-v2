@@ -88,10 +88,15 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
  *
  * Fallback de role · 2026-04-29:
  * Quando JWT nao tem `app_role` no claim (sessao antiga, antes do hook
- * patch), enriquece ctx.role lendo de profiles diretamente. Sem isso,
- * permission guards veem role=null e escondem features tipo "Gerenciar
- * usuarios". Custa 1 query extra apenas quando JWT nao tem claim ·
- * gratuito quando hook funcionar.
+ * patch · ou hook offline), enriquece ctx.role via RPC `get_my_profile()`.
+ *
+ * Por que RPC e nao .from('profiles')?
+ * Porque profiles_select policy exige `clinic_id = app_clinic_id() AND is_active`.
+ * Quando JWT nao tem clinic_id, app_clinic_id() = null e a policy retorna
+ * false → getById retorna null silencioso. RPC e SECURITY DEFINER,
+ * bypassa RLS, le direto da tabela usando auth.uid() como gate proprio.
+ *
+ * Custo: 1 RPC extra apenas quando JWT antigo · zero overhead com hook OK.
  */
 export async function loadServerReposContext(): Promise<{
   supabase: LoadedSupabase
@@ -103,14 +108,17 @@ export async function loadServerReposContext(): Promise<{
 
   if (!ctx.role && ctx.user_id) {
     try {
-      const profile = await repos.profiles.getById(ctx.user_id)
-      if (profile?.role) {
-        ctx.role = profile.role as ClinicContext['role']
+      // RPC SECURITY DEFINER · funciona mesmo com JWT sem claims
+      const result = await repos.users.getMyProfile()
+      if (result.ok && result.data?.role) {
+        ctx.role = result.data.role as ClinicContext['role']
+        // Tambem atualiza clinic_id se estava com fallback _default_clinic_id
+        if (result.data.clinicId && !ctx.clinic_id) {
+          ctx.clinic_id = result.data.clinicId
+        }
       }
     } catch {
-      // ignore · ctx.role permanece null · permission guards vao usar
-      // fallback otimista (!role significa staff de confianca em codigo
-      // legado tipo AppHeader)
+      // ignore · ctx.role permanece null · permission guards bloqueiam
     }
   }
 
