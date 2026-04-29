@@ -30,7 +30,8 @@
     "typecheck:flipbook": "turbo run typecheck --filter=@clinicai/flipbook",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
-    "db:types": "node scripts/generate-types.mjs"
+    "db:types": "node scripts/generate-types.mjs",
+    "db:apply": "node scripts/apply-migration.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",
