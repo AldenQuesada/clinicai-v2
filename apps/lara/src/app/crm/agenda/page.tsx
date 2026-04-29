@@ -1,17 +1,19 @@
 /**
- * /crm/agenda · calendario semanal + KPIs do periodo.
+ * /crm/agenda · calendario week/day/month + KPIs do periodo · 8a/8b.
  *
- * RSC · busca appointments da semana via repos.appointments.listByDateRange.
- * URL: ?week=YYYY-MM-DD (domingo · default = hoje arredondado pra dom).
+ * RSC · busca appointments via repos.appointments.listByDateRange.
+ * URL params:
+ *   - ?view=week|day|month (default: week)
+ *   - ?week=YYYY-MM-DD (domingo · default = hoje arredondado pra dom)
+ *   - ?date=YYYY-MM-DD (default = hoje · usado quando view=day)
+ *   - ?month=YYYY-MM (default = mes corrente · usado quando view=month)
+ *   - ?prof=<userId> (filtro profissional · default = todos)
  *
- * Funcionalidades cobertas (Camada 8a):
- *   - Week view (7 dias x slots de 30min)
- *   - 6 KPIs do periodo (status counts + revenue)
- *   - Click em slot vazio → /crm/agenda/novo?date=&time=
- *   - Click em appointment → /crm/agenda/[id]
- *   - Navegacao Prev/Today/Next semana
+ * Funcionalidades cobertas:
+ *   - Camada 8a: week view, KPIs, click-to-create, Prev/Today/Next.
+ *   - Camada 8b: drag-drop (week/day), filtro multi-prof, day/month views.
  *
- * Diferido pra 8b: drag-drop, filtro multi-profissional, day/month views.
+ * Diferido pra 8c+: recurrence wizard, block-time UI, smart-pick.
  */
 
 import { Suspense } from 'react'
@@ -25,7 +27,11 @@ import {
 import { Plus } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { WeekCalendar } from './_components/week-calendar'
-import { WeekNav } from './_components/week-nav'
+import { DayView } from './_components/day-view'
+import { MonthView } from './_components/month-view'
+import { PeriodNav } from './_components/period-nav'
+import { ProfessionalFilter } from './_components/professional-filter'
+import { ViewSwitcher } from './_components/view-switcher'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +39,8 @@ const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 })
+
+type View = 'week' | 'day' | 'month'
 
 /**
  * Resolve domingo da semana referente a `dateStr` (default hoje).
@@ -52,8 +60,51 @@ function addDays(dateStr: string, n: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function todayMonthUtc(): string {
+  return todayUtc().slice(0, 7)
+}
+
+function parseView(v: string | undefined): View {
+  if (v === 'day' || v === 'month') return v
+  return 'week'
+}
+
+/**
+ * Resolve [startDate, endDate] do periodo a buscar baseado em view + anchors.
+ * Para o month view inclui tambem as bordas (semana antes do dia 1 / depois
+ * do ultimo) pra grid de 6 sem ficar consistente com counts.
+ */
+function resolveRange(
+  view: View,
+  weekStart: string,
+  dayDate: string,
+  month: string,
+): { startDate: string; endDate: string } {
+  if (view === 'day') {
+    return { startDate: dayDate, endDate: dayDate }
+  }
+  if (view === 'month') {
+    const [y, m] = month.split('-').map((s) => parseInt(s, 10))
+    const first = new Date(Date.UTC(y, m - 1, 1))
+    first.setUTCDate(first.getUTCDate() - first.getUTCDay())
+    const start = first.toISOString().slice(0, 10)
+    const end = addDays(start, 41) // 6 sem × 7d - 1
+    return { startDate: start, endDate: end }
+  }
+  // week
+  return { startDate: weekStart, endDate: addDays(weekStart, 6) }
+}
+
 interface PageSearch {
+  view?: string
   week?: string
+  date?: string
+  month?: string
+  prof?: string
 }
 
 export default async function AgendaPage({
@@ -62,18 +113,31 @@ export default async function AgendaPage({
   searchParams: Promise<PageSearch>
 }) {
   const sp = await searchParams
+  const view = parseView(sp.view)
+  const todayDate = todayUtc()
+  const todaySunday = resolveWeekStart()
+  const todayMonth = todayMonthUtc()
+
   const weekStart = resolveWeekStart(sp.week)
-  const weekEnd = addDays(weekStart, 6)
+  const dayDate =
+    sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayDate
+  const month =
+    sp.month && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : todayMonth
+  const profFilter = sp.prof && sp.prof.length > 0 ? sp.prof : null
+
+  const { startDate, endDate } = resolveRange(view, weekStart, dayDate, month)
 
   const { ctx, repos } = await loadServerReposContext()
 
-  // Appts da semana + KPIs em paralelo
-  const [appointments, aggregates] = await Promise.all([
+  // Appointments + KPIs + lista de profissionais (paralelo)
+  const [appointments, aggregates, staffList] = await Promise.all([
     repos.appointments
-      .listByDateRange(ctx.clinic_id, weekStart, weekEnd, {})
+      .listByDateRange(ctx.clinic_id, startDate, endDate, {
+        professionalId: profFilter,
+      })
       .catch(() => []),
     repos.appointments
-      .aggregates(ctx.clinic_id, { startDate: weekStart, endDate: weekEnd })
+      .aggregates(ctx.clinic_id, { startDate, endDate })
       .catch(() => ({
         total: 0,
         agendado: 0,
@@ -85,13 +149,41 @@ export default async function AgendaPage({
         revenueTotal: 0,
         revenuePaid: 0,
       })),
+    repos.users.listStaff().catch(() => ({
+      ok: false as const,
+      data: null,
+      error: 'unknown',
+    })),
   ])
+
+  const professionals = (
+    staffList.ok && staffList.data ? staffList.data : []
+  )
+    .filter((s) => s.isActive)
+    .map((s) => ({
+      id: s.id,
+      name: `${s.firstName} ${s.lastName}`.trim() || s.email || s.id.slice(0, 8),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+
+  // Anchor + label do periodo dependem do view
+  const anchor =
+    view === 'week' ? weekStart : view === 'day' ? dayDate : month
+  const todayAnchor =
+    view === 'week' ? todaySunday : view === 'day' ? todayDate : todayMonth
+
+  const periodLabel =
+    view === 'week'
+      ? `Semana de ${weekStart}`
+      : view === 'day'
+        ? `Dia ${dayDate}`
+        : `Mês ${month}`
 
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Agenda"
-        description={`Semana de ${weekStart} · clínica ${ctx.clinic_id.slice(0, 8)}…`}
+        description={`${periodLabel} · clínica ${ctx.clinic_id.slice(0, 8)}…`}
         breadcrumb={[
           { label: 'CRM', href: '/crm' },
           { label: 'Agenda' },
@@ -99,7 +191,25 @@ export default async function AgendaPage({
         actions={
           <>
             <Suspense fallback={null}>
-              <WeekNav weekStart={weekStart} />
+              <ViewSwitcher
+                current={view}
+                todayDate={todayDate}
+                todaySunday={todaySunday}
+                todayMonth={todayMonth}
+              />
+            </Suspense>
+            <Suspense fallback={null}>
+              <PeriodNav
+                view={view}
+                anchor={anchor}
+                todayAnchor={todayAnchor}
+              />
+            </Suspense>
+            <Suspense fallback={null}>
+              <ProfessionalFilter
+                professionals={professionals}
+                current={profFilter}
+              />
             </Suspense>
             <Link href="/crm/agenda/novo">
               <Button size="sm">
@@ -142,27 +252,41 @@ export default async function AgendaPage({
         />
       </div>
 
-      {/* Calendario week */}
-      {appointments.length === 0 ? (
-        <Card className="p-8">
-          <EmptyState
-            variant="generic"
-            title="Sem agendamentos esta semana"
-            message='Clique num slot vazio do calendário ou em "Novo agendamento" pra criar.'
+      {/* Calendario · view switcher */}
+      {view === 'week' && (
+        appointments.length === 0 ? (
+          <Card className="p-8">
+            <EmptyState
+              variant="generic"
+              title="Sem agendamentos esta semana"
+              message='Clique num slot vazio do calendário ou em "Novo agendamento" pra criar.'
+            />
+          </Card>
+        ) : (
+          <WeekCalendar
+            weekStart={weekStart}
+            appointments={appointments}
+            startHour={8}
+            endHour={20}
           />
-        </Card>
-      ) : (
-        <WeekCalendar
-          weekStart={weekStart}
+        )
+      )}
+
+      {view === 'day' && (
+        <DayView
+          date={dayDate}
           appointments={appointments}
           startHour={8}
           endHour={20}
         />
       )}
 
+      {view === 'month' && (
+        <MonthView month={month} appointments={appointments} />
+      )}
+
       <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">
-        Drag-drop, filtro multi-profissional e views day/month → Camada 8b.
-        Smart-pick de slot, multi-procedimento, automations → 8.5+.
+        Recurrence wizard, block-time UI, smart-pick → Camada 8c+.
       </p>
     </div>
   )
