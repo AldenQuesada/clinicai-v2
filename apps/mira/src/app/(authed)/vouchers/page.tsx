@@ -119,12 +119,20 @@ export default async function VouchersPage({ searchParams }: PageProps) {
               {vouchers.length} voucher{vouchers.length === 1 ? '' : 's'} no recorte
             </p>
           </div>
-          <Link
-            href="/vouchers/bulk"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity"
-          >
-            + Lote
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/vouchers/saude"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-[1px] bg-white/[0.04] border border-white/10 text-[#9CA3AF] hover:text-[#F5F0E8] hover:border-white/20 transition-colors"
+            >
+              Saúde
+            </Link>
+            <Link
+              href="/vouchers/bulk"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#0a0a0a] hover:opacity-90 transition-opacity"
+            >
+              + Lote
+            </Link>
+          </div>
         </div>
 
         {/* Filtros · gold tinted form */}
