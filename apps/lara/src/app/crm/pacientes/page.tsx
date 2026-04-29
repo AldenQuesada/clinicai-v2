@@ -23,7 +23,7 @@ import {
 } from '@clinicai/ui'
 import { Plus, Eye } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
-import type { PatientDTO, OrcamentoStatus } from '@clinicai/repositories'
+import type { PatientDTO } from '@clinicai/repositories'
 import { KpiCards } from './_components/kpi-cards'
 import { PatientFilters } from './_components/patient-filters'
 import { SortHeader } from './_components/sort-header'
@@ -76,12 +76,27 @@ function formatRelativeDate(iso: string | null): string {
   }
 }
 
-function isChurned(lastAt: string | null, days = 90): boolean {
-  if (!lastAt) return true
+/**
+ * Status de retorno (espelho legacy js/patients.js · churnIndicator).
+ *   - 'RISCO'   · sem contato > 180 dias OU sem registro algum (status active)
+ *   - 'ATENCAO' · sem contato 90-180 dias
+ *   - null      · sem alerta (recente OU paciente nao-active)
+ */
+function churnLevel(
+  lastAt: string | null,
+  status: string,
+): 'risco' | 'atencao' | null {
+  if (status !== 'active') return null
+  if (!lastAt) return 'risco'
   try {
-    return Date.now() - new Date(lastAt).getTime() > days * 24 * 60 * 60 * 1000
+    const days = Math.floor(
+      (Date.now() - new Date(lastAt).getTime()) / (1000 * 60 * 60 * 24),
+    )
+    if (days > 180) return 'risco'
+    if (days > 90) return 'atencao'
+    return null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -207,17 +222,31 @@ export default async function PatientsListPage({
       label: 'Último atendimento',
       hideMobile: true,
       render: (p) => {
-        const churned = p.status === 'active' && isChurned(p.lastProcedureAt)
+        const level = churnLevel(p.lastProcedureAt, p.status)
         return (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--muted-foreground)]">
+          <div>
+            <div className="text-xs text-[var(--muted-foreground)]">
               {formatRelativeDate(p.lastProcedureAt)}
-            </span>
-            {churned && (
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
-                title="Sem retorno >90 dias (churn)"
-              />
+            </div>
+            {level === 'risco' && (
+              <div
+                className="mt-0.5 text-[9px] font-display-uppercase tracking-widest text-rose-400"
+                title={
+                  p.lastProcedureAt
+                    ? 'Sem contato há mais de 180 dias'
+                    : 'Sem registro de atendimento'
+                }
+              >
+                Risco
+              </div>
+            )}
+            {level === 'atencao' && (
+              <div
+                className="mt-0.5 text-[9px] font-display-uppercase tracking-widest text-amber-400"
+                title="Sem contato 90-180 dias"
+              >
+                Atenção
+              </div>
             )}
           </div>
         )
@@ -346,5 +375,3 @@ export default async function PatientsListPage({
     </div>
   )
 }
-// Auxiliar pra typecheck nao reclamar de OrcamentoStatus nao usado
-type _UnusedOrcamentoStatus = OrcamentoStatus
