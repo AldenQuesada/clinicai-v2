@@ -26,44 +26,61 @@ import { NotificationToggle } from '@/components/NotificationToggle'
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br'
 
 export async function AppHeader() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient({
-    getAll: () => cookieStore.getAll(),
-    setAll: (cookiesToSet) => {
-      // Server Components NAO podem mutar cookies em Next.js 15/16 · throw.
-      // Padrao Supabase SSR: silenciar · middleware ja refresh-ou o token.
-      try {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
-        })
-      } catch {
-        // ignore · esperado em Server Components
-      }
-    },
-  })
+  // Defensive: TUDO em try/catch · se algo throw, render fallback minimo
+  // sem nav · em vez de crashar a layout/page inteira.
+  let user: { id: string; email?: string } | null = null
+  try {
+    const cookieStore = await cookies()
+    const supabase = createServerClient({
+      getAll: () => cookieStore.getAll(),
+      setAll: (cookiesToSet) => {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        } catch {
+          /* ignore · Server Components nao podem mutar cookies */
+        }
+      },
+    })
+    const result = await supabase.auth.getUser()
+    user = result.data.user as { id: string; email?: string } | null
+  } catch (e) {
+    console.error('[AppHeader] auth setup failed:', (e as Error).message)
+    return null
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
   if (!user) return null
 
   let firstName = ''
   let role = ''
   try {
+    const cookieStore = await cookies()
+    const supabase = createServerClient({
+      getAll: () => cookieStore.getAll(),
+      setAll: () => {
+        /* noop · ja autenticou acima */
+      },
+    })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const profiles = new ProfileRepository(supabase as any)
     const profile = await profiles.getById(user.id)
     firstName = profile?.firstName ?? ''
     role = profile?.role ?? ''
-  } catch {
-    /* ignore */
+  } catch (e) {
+    console.error('[AppHeader] profile lookup failed:', (e as Error).message)
   }
 
   const displayName = firstName || user.email?.split('@')[0] || 'Usuário'
   const initials = (firstName || user.email || 'U').slice(0, 1).toUpperCase()
 
-  const headerStore = await headers()
-  const pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
+  let pathname = ''
+  try {
+    const headerStore = await headers()
+    pathname = headerStore.get('x-invoke-path') ?? headerStore.get('x-pathname') ?? ''
+  } catch (e) {
+    console.error('[AppHeader] headers failed:', (e as Error).message)
+  }
   const isOnDashboard = pathname.startsWith('/dashboard')
   const isOnConversas = pathname.startsWith('/conversas')
   const isOnConfig = pathname.startsWith('/configuracoes')
