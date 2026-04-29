@@ -45,6 +45,14 @@ jobs:
         run: pnpm lint
         continue-on-error: true # warnings nao quebram CI · errors quebram via typecheck
 
+      - name: Test (vitest)
+        # Roda vitest em todos packages/apps que tem script `test`. Hoje:
+        # @clinicai/repositories (52 tests · regras de negocio dos repos) +
+        # @clinicai/lara (31 tests · server actions do CRM).
+        # Adicionado em 2026-04-29 · ate aqui os 83 tests existiam mas nao
+        # protegiam regressao em PRs.
+        run: pnpm test
+
       - name: Build
         run: pnpm build
         env:
