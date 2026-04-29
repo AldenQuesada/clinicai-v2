@@ -13,6 +13,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
 import {
   mapAppointmentRow,
   mapRpcResult,
@@ -24,7 +25,12 @@ import {
   type AppointmentFinalizeRpcInput,
   type AppointmentAttendResult,
   type AppointmentFinalizeResult,
+  type RpcResult,
 } from './types'
+import {
+  appointmentsOverlap,
+  BLOCKS_CALENDAR,
+} from './helpers/appointment-state'
 
 const APPT_COLUMNS =
   'id, clinic_id, lead_id, patient_id, subject_name, subject_phone, ' +
@@ -368,5 +374,329 @@ export class AppointmentRepository {
       } as AppointmentFinalizeResult
     }
     return mapRpcResult<AppointmentFinalizeResult>(data)
+  }
+
+  // ── Camada 8a · State machine + conflicts + aggregates + series ─────────
+
+  /**
+   * Wrapper de `appointment_change_status()` RPC (mig 72) · muda status com
+   * matriz canonica + reason quando obrigatorio. NAO usar pra na_clinica
+   * (use attend) ou finalizado (use finalize).
+   */
+  async changeStatus(
+    appointmentId: string,
+    newStatus: AppointmentStatus,
+    reason?: string,
+  ): Promise<
+    RpcResult<{
+      appointmentId: string
+      fromStatus?: AppointmentStatus
+      toStatus?: AppointmentStatus
+      idempotentSkip?: boolean
+      status?: AppointmentStatus
+    }>
+  > {
+    const { data, error } = await this.supabase.rpc('appointment_change_status', {
+      p_appointment_id: appointmentId,
+      p_new_status: newStatus,
+      p_reason: reason ?? null,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return mapRpcResult<any>(data)
+  }
+
+  /**
+   * Verifica conflitos de horario antes de criar/editar appointment.
+   *
+   * Retorna 3 tipos de conflito (vazio = OK):
+   *   - professional · prof ja tem appt no horario sobrepondo
+   *   - room · sala ja ocupada
+   *   - patient · paciente (lead OU patient) ja tem appt no horario
+   *
+   * Caller passa `excludeId` quando esta editando appt existente (nao
+   * conflita consigo mesmo).
+   *
+   * Filtra appointments com status que BLOQUEIAM calendario
+   * (cancelado/no_show/finalizado liberam slot).
+   */
+  async checkConflicts(
+    clinicId: string,
+    candidate: {
+      scheduledDate: string
+      startTime: string
+      endTime: string
+      professionalId?: string | null
+      roomIdx?: number | null
+      leadId?: string | null
+      patientId?: string | null
+    },
+    excludeId?: string,
+  ): Promise<{
+    professional: AppointmentDTO[]
+    room: AppointmentDTO[]
+    patient: AppointmentDTO[]
+  }> {
+    // Busca todos os appts do dia que poderiam conflitar (1 query)
+    const { data } = await this.supabase
+      .from('appointments')
+      .select(APPT_COLUMNS)
+      .eq('clinic_id', clinicId)
+      .eq('scheduled_date', candidate.scheduledDate)
+      .is('deleted_at', null)
+
+    const sameDay = ((data ?? []) as unknown[]).map(mapAppointmentRow)
+
+    // Filtra: status que bloqueia + nao eh o proprio (excludeId)
+    const eligible = sameDay.filter(
+      (a) =>
+        a.id !== excludeId &&
+        BLOCKS_CALENDAR.has(a.status as AppointmentStatus),
+    )
+
+    // Reuse helper appointmentsOverlap pra cada candidato
+    const overlap = (a: AppointmentDTO) =>
+      appointmentsOverlap(
+        { startTime: candidate.startTime, endTime: candidate.endTime },
+        { startTime: a.startTime, endTime: a.endTime },
+      )
+
+    const professional = candidate.professionalId
+      ? eligible.filter(
+          (a) => a.professionalId === candidate.professionalId && overlap(a),
+        )
+      : []
+
+    const room =
+      candidate.roomIdx != null
+        ? eligible.filter((a) => a.roomIdx === candidate.roomIdx && overlap(a))
+        : []
+
+    const patient = (() => {
+      if (candidate.patientId) {
+        return eligible.filter(
+          (a) => a.patientId === candidate.patientId && overlap(a),
+        )
+      }
+      if (candidate.leadId) {
+        return eligible.filter(
+          (a) => a.leadId === candidate.leadId && overlap(a),
+        )
+      }
+      return []
+    })()
+
+    return { professional, room, patient }
+  }
+
+  /**
+   * KPIs agregados pra dashboard da agenda.
+   *
+   * Filtra por scheduledDate range · 6 KPIs em 1 query (count by status).
+   */
+  async aggregates(
+    clinicId: string,
+    range: { startDate: string; endDate: string },
+  ): Promise<{
+    total: number
+    agendado: number
+    confirmado: number
+    finalizado: number
+    cancelado: number
+    noShow: number
+    bloqueado: number
+    revenueTotal: number
+    revenuePaid: number
+  }> {
+    const { data } = await this.supabase
+      .from('appointments')
+      .select('status, value, payment_status')
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .gte('scheduled_date', range.startDate)
+      .lte('scheduled_date', range.endDate)
+
+    const rows = (data ?? []) as Array<{
+      status: string
+      value: number | string | null
+      payment_status: string | null
+    }>
+
+    let agendado = 0
+    let confirmado = 0
+    let finalizado = 0
+    let cancelado = 0
+    let noShow = 0
+    let bloqueado = 0
+    let revenueTotal = 0
+    let revenuePaid = 0
+
+    for (const r of rows) {
+      const v = Number(r.value ?? 0)
+      revenueTotal += v
+      if (r.payment_status === 'pago') revenuePaid += v
+
+      switch (r.status) {
+        case 'agendado':
+        case 'aguardando_confirmacao':
+        case 'pre_consulta':
+          agendado++
+          break
+        case 'confirmado':
+        case 'aguardando':
+        case 'na_clinica':
+        case 'em_consulta':
+        case 'em_atendimento':
+          confirmado++
+          break
+        case 'finalizado':
+          finalizado++
+          break
+        case 'cancelado':
+        case 'remarcado':
+          cancelado++
+          break
+        case 'no_show':
+          noShow++
+          break
+        case 'bloqueado':
+          bloqueado++
+          break
+      }
+    }
+
+    return {
+      total: rows.length,
+      agendado,
+      confirmado,
+      finalizado,
+      cancelado,
+      noShow,
+      bloqueado,
+      revenueTotal,
+      revenuePaid,
+    }
+  }
+
+  /**
+   * Cria N appointments em sequencia (recurrence series).
+   *
+   * Compartilham `recurrence_group_id` (uuid gerado aqui) · cada appt tem
+   * `recurrence_index` (1..N) e `recurrence_total` setado.
+   * Datas calculadas: `firstDate` + `intervalDays` * (i-1).
+   *
+   * Retorna array de DTOs criados (em ordem) · loop sequencial pra detectar
+   * conflitos por appt e parar (ou aceitar partial). Default: para no
+   * primeiro erro · caller decide se faz cleanup.
+   *
+   * Pra serie sem conflict check, caller passa `skipConflictCheck=true`.
+   */
+  async createSeries(
+    clinicId: string,
+    base: CreateAppointmentInput,
+    series: {
+      firstDate: string // YYYY-MM-DD
+      intervalDays: number
+      total: number
+      recurrenceProcedure?: string
+    },
+    opts: { skipConflictCheck?: boolean } = {},
+  ): Promise<{
+    created: AppointmentDTO[]
+    failed: Array<{ index: number; date: string; error: string }>
+  }> {
+    if (series.total < 1 || series.total > 52) {
+      throw new Error('createSeries · total must be 1..52')
+    }
+    if (series.intervalDays < 1 || series.intervalDays > 365) {
+      throw new Error('createSeries · intervalDays must be 1..365')
+    }
+
+    const groupId = uuidv4()
+    const created: AppointmentDTO[] = []
+    const failed: Array<{ index: number; date: string; error: string }> = []
+
+    const firstD = new Date(`${series.firstDate}T00:00:00.000Z`)
+
+    for (let i = 1; i <= series.total; i++) {
+      const d = new Date(firstD)
+      d.setUTCDate(d.getUTCDate() + (i - 1) * series.intervalDays)
+      const scheduledDate = d.toISOString().slice(0, 10)
+
+      // Conflict check opcional · caller decide
+      if (!opts.skipConflictCheck) {
+        const conflicts = await this.checkConflicts(clinicId, {
+          scheduledDate,
+          startTime: base.startTime,
+          endTime: base.endTime,
+          professionalId: base.professionalId,
+          roomIdx: null,
+          leadId: base.leadId,
+          patientId: base.patientId,
+        })
+        const hasConflict =
+          conflicts.professional.length > 0 ||
+          conflicts.patient.length > 0
+        if (hasConflict) {
+          failed.push({ index: i, date: scheduledDate, error: 'conflict' })
+          continue
+        }
+      }
+
+      const item = await this.create(clinicId, {
+        ...base,
+        scheduledDate,
+        recurrenceGroupId: groupId,
+        recurrenceIndex: i,
+        recurrenceTotal: series.total,
+        recurrenceProcedure: series.recurrenceProcedure ?? base.procedureName,
+        recurrenceIntervalDays: series.intervalDays,
+      })
+
+      if (!item) {
+        failed.push({ index: i, date: scheduledDate, error: 'insert_failed' })
+        continue
+      }
+      created.push(item)
+    }
+
+    return { created, failed }
+  }
+
+  /**
+   * Cria slot bloqueado (block time · almoco/ferias/manutencao etc).
+   * Sem subject (lead_id=null, patient_id=null) · status=bloqueado · obs
+   * carrega o motivo do bloqueio.
+   *
+   * chk_appt_subject_xor permite: se status=bloqueado, ambos NULL OK.
+   */
+  async createBlockTime(
+    clinicId: string,
+    input: {
+      scheduledDate: string
+      startTime: string
+      endTime: string
+      professionalId?: string | null
+      reason: string // BlockReason ou texto
+      obs?: string | null
+    },
+  ): Promise<AppointmentDTO | null> {
+    return this.create(clinicId, {
+      subjectName: `Bloqueado · ${input.reason}`,
+      subjectPhone: null,
+      leadId: null,
+      patientId: null,
+      professionalId: input.professionalId ?? null,
+      professionalName: '',
+      scheduledDate: input.scheduledDate,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      procedureName: input.reason,
+      status: 'bloqueado',
+      origem: 'manual',
+      obs: input.obs ?? input.reason,
+    })
   }
 }

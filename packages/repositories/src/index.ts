@@ -328,6 +328,24 @@ export {
 // CRM core utilities (espelho de helpers SQL · pre-validacao client-side)
 export { LEAD_PHASE_TRANSITIONS, isPhaseTransitionAllowed, orcamentoItemsToDbShape } from './types'
 
+// CRM core utilities · Camada 8a · appointment state machine + helpers de tempo
+export {
+  APPOINTMENT_STATE_MACHINE,
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_COLORS,
+  SAME_DAY_ONLY_STATUSES,
+  BLOCKS_CALENDAR,
+  BLOCK_REASONS,
+  PAYMENT_METHODS,
+  isAppointmentTransitionAllowed,
+  isTerminalStatus,
+  timeToMinutes,
+  rangesOverlap,
+  appointmentsOverlap,
+  type BlockReason,
+  type PaymentMethod,
+} from './helpers/appointment-state'
+
 // ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────
 export {
   LegalDocTemplateRepository,
