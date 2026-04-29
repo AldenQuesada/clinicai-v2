@@ -15,10 +15,18 @@ RUN pnpm dlx turbo prune @clinicai/lara --docker
 FROM base AS builder
 WORKDIR /app
 COPY --from=pruner /app/out/json/ .
-RUN pnpm install --frozen-lockfile
+# Cache mount do pnpm store · BuildKit · 30-60s -> 5-10s em rebuilds.
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm turbo run build --filter=@clinicai/lara
+# Build Next.js 16 + transpilePackages + standalone precisa heap 3GB pra
+# nao OOM em container Easypanel default. Mira tem o mesmo · sem isso
+# o build trava silenciosamente em "Compiling..." e demora 4x.
+ENV NODE_OPTIONS="--max-old-space-size=3072"
+# Cache mount do .next/cache · acelera rebuild incremental do Next.
+RUN --mount=type=cache,id=lara-next-cache,target=/app/apps/lara/.next/cache \
+    pnpm turbo run build --filter=@clinicai/lara
 
 # ─── Stage 3: runner (standalone Next.js) ─────────────────────────
 FROM base AS runner
