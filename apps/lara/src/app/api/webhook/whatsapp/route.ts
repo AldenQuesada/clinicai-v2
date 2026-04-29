@@ -451,12 +451,49 @@ async function processInboundMessage(
         messages.push({ role: 'user', content: textContent });
       }
 
+      // 10.0 Quiz context · gap audit 2026-04-29 · busca ultima quiz dispatch
+      // por phone (top 2 com label/protocol/weight, all_areas, lifecycle).
+      // Ajuda Lara em conversas longas a relembrar queixas alem da 1a msg.
+      // Service-role only · nao falha se RPC retornar found=false.
+      let quizContext: Parameters<typeof generateResponse>[0]['quiz_context'] = undefined;
+      try {
+        // RPC nova (mig 853) · types ainda nao regenerados, cast service client
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: qc } = await (supabase as any).rpc('lara_get_quiz_context', {
+          p_phone: phone,
+          p_days: 90,
+        });
+        if (qc && (qc as { found?: boolean }).found) {
+          const ctx = qc as {
+            queixas: unknown;
+            all_areas: unknown;
+            priority: string | null;
+            lifecycle: string | null;
+            days_ago: number;
+            template_key: string;
+          };
+          quizContext = {
+            queixas: Array.isArray(ctx.queixas) ? (ctx.queixas as Array<{
+              key: string; label: string; protocol: string; weight: number; is_priority?: boolean;
+            }>) : [],
+            all_areas: Array.isArray(ctx.all_areas) ? (ctx.all_areas as string[]) : [],
+            priority: ctx.priority,
+            lifecycle: ctx.lifecycle,
+            days_ago: Number(ctx.days_ago) || 0,
+            template_key: ctx.template_key,
+          };
+        }
+      } catch (e) {
+        log.warn({ phone_hash: hashPhone(phone), err: (e as Error).message }, 'quiz_context.fetch.failed');
+      }
+
       log.debug({
         clinic_id,
         phone_hash: hashPhone(phone),
         lead_name: lead.name || pushName,
         funnel: leadFunnel || null,
         msg_count: currentMsgCount,
+        has_quiz_context: !!quizContext,
       }, 'ai.call.start');
 
       aiResponse = await generateResponse(
@@ -464,6 +501,7 @@ async function processInboundMessage(
           name: lead.name || pushName,
           phone,
           queixas_faciais: lead.queixasFaciais,
+          quiz_context: quizContext,
           idade: lead.idade != null ? String(lead.idade) : undefined,
           phase: lead.phase,
           temperature: lead.temperature ?? undefined,

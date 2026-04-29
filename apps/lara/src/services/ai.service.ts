@@ -254,6 +254,18 @@ interface LeadContext {
   image_base64?: string;
   image_media_type?: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
   image_caption?: string; // caption da imagem se paciente mandou junto
+  // Audit gap quiz_context 2026-04-29 · ultima quiz dispatch desse phone
+  // (top 2 com label/protocol/weight, all_areas, lifecycle, days_ago).
+  // Lara usa pra reLembrar contexto em conversa em andamento sem depender
+  // so da memoria da primeira mensagem.
+  quiz_context?: {
+    queixas: Array<{ key: string; label: string; protocol: string; weight: number; is_priority?: boolean }>;
+    all_areas: string[];
+    priority: string | null;
+    lifecycle: string | null;
+    days_ago: number;
+    template_key: string;
+  };
 }
 
 interface ChatMessage {
@@ -345,9 +357,25 @@ REGRAS PRA ESSA CONVERSA (sobrepoem outras):
   // sem isso a Lara aluciaria "São Paulo" quando paciente perguntasse onde fica.
   const clinicBlock = await buildClinicInfoBlock(leadContext.clinic_id || null);
 
+  // Quiz context bloco · gap audit 2026-04-29 · só inclui se webhook populou
+  // via lara_get_quiz_context RPC. Permite Lara lembrar queixas + protocolos
+  // em conversas longas sem depender da primeira mensagem.
+  const quizBlock = leadContext.quiz_context
+    ? `\n\n## Quiz Anatomy (memoria do paciente)
+- Quiz feito ha ${Math.round(leadContext.quiz_context.days_ago)} dia(s)
+- Areas marcadas: ${(leadContext.quiz_context.all_areas || []).join(', ') || 'nenhuma'}
+- Top 2 queixas (importancia comercial): ${leadContext.quiz_context.queixas
+        .map((q) => `${q.label}${q.is_priority ? ' [usuario marcou primeiro]' : ''} → protocolo: ${q.protocol}`)
+        .join('; ')}
+- Lifecycle no quiz: ${leadContext.quiz_context.lifecycle || 'novo'}
+- Cold-open template usado: ${leadContext.quiz_context.template_key}
+
+Use essas queixas + protocolos como ancora · NAO invente queixas que nao estao na lista acima.`
+    : '';
+
   const systemPrompt = `${basePrompt}
 
-${clinicBlock}
+${clinicBlock}${quizBlock}
 
 ${INJECTION_DEFENSE_BLOCK}
 ## Contexto atual do lead:

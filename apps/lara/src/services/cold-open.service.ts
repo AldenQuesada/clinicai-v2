@@ -176,14 +176,20 @@ async function readTemplate(
   return { text: readFromFile(key), fromRpc: null };
 }
 
-function formatQueixas(queixas: QueixaItem[]): { queixasStr: string; protosStr: string } {
+function formatQueixas(queixas: QueixaItem[]): {
+  queixasStr: string;
+  protosStr: string;
+  count: number;
+  isPlural: boolean;
+} {
   const q1 = queixas[0]?.label || '(sem queixa)';
   const q2 = queixas[1]?.label;
   const p1 = queixas[0]?.protocol || '';
   const p2 = queixas[1]?.protocol;
   const queixasStr = q1 + (q2 ? ' e ' + q2 : '');
   const protosStr = p1 + (p2 ? ' / ' + p2 : '');
-  return { queixasStr, protosStr };
+  const count = queixas.filter((q) => q && q.label).length;
+  return { queixasStr, protosStr, count, isPlural: count >= 2 };
 }
 
 export interface ColdOpenResult {
@@ -208,7 +214,10 @@ export async function generateColdOpenMessage(
 ): Promise<ColdOpenResult> {
   const { templateKey, name, queixas, context, clinicId, lifecycle } = input;
   const firstName = (name || '').split(' ')[0] || 'Olá';
-  const { queixasStr, protosStr } = formatQueixas(queixas);
+  const { queixasStr, protosStr, isPlural } = formatQueixas(queixas);
+  // Adapta artigo singular/plural · evita "as queixas: olheiras" quando só 1
+  const queixasArtigo = isPlural ? 'as queixas' : 'a queixa';
+  const protocoloArtigo = isPlural ? 'os protocolos' : 'o protocolo';
 
   // 1. Carrega instructions do template (RPC > clinic_data > FS)
   const resolved = await readTemplate(supabase, clinicId ?? null, templateKey);
@@ -234,11 +243,12 @@ export async function generateColdOpenMessage(
   }
 
   // 3. Compõe system prompt · RPC pode ter system_prompt customizado por variant
+  // Singular/plural adaptado pra 1 queixa só (gap audit 2026-04-29)
   const baseSystem = resolved.fromRpc?.system_prompt || DEFAULT_SYSTEM;
   const system =
     baseSystem +
-    `\n\nMencione SEMPRE as queixas: ${queixasStr}.` +
-    (protosStr ? `\nMencione protocolo quando fizer sentido: ${protosStr}.` : '');
+    `\n\nMencione SEMPRE ${queixasArtigo}: ${queixasStr}.` +
+    (protosStr ? `\nMencione ${protocoloArtigo} quando fizer sentido: ${protosStr}.` : '');
 
   const userPrompt =
     `Contexto: NOME=${firstName} · TEMPLATE=${templateKey}` +
