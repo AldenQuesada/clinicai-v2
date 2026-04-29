@@ -95,19 +95,32 @@ export class ConversationRepository {
   async listByStatus(
     clinicId: string,
     filter: StatusFilter = 'active',
+    opts?: { limit?: number; beforeIso?: string },
   ): Promise<ConversationDTO[]> {
     let statuses: ConversationStatus[] = ['active', 'paused']
     if (filter === 'archived') statuses = ['archived']
     if (filter === 'resolved') statuses = ['resolved']
     if (filter === 'dra') statuses = ['dra']
 
-    const { data } = await this.supabase
+    // P-02 (2026-04-29): paginacao cursor-based em last_message_at desc.
+    // limit default 50 cobre carga inicial · cliente chama com beforeIso pro
+    // proximo lote. Cursor evita pular linhas em concurrent updates (offset
+    // shift bug em workloads write-heavy).
+    const limit = Math.max(1, Math.min(200, opts?.limit ?? 50))
+
+    let q = this.supabase
       .from('wa_conversations')
       .select('*')
       .eq('clinic_id', clinicId)
       .in('status', statuses)
       .order('last_message_at', { ascending: false })
+      .limit(limit)
 
+    if (opts?.beforeIso) {
+      q = q.lt('last_message_at', opts.beforeIso)
+    }
+
+    const { data } = await q
     return (data ?? []).map(mapConversationRow)
   }
 

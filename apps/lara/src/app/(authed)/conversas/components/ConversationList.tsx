@@ -1,5 +1,5 @@
 import { Search, UserCircle, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
 
@@ -7,6 +7,9 @@ interface ConversationListProps {
   conversations: Conversation[];
   selectedConversation: Conversation | null;
   isLoading: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   onSelectConversation: (c: Conversation) => void;
   statusFilter: 'active' | 'archived' | 'resolved' | 'dra';
   onStatusFilterChange: (status: 'active' | 'archived' | 'resolved' | 'dra') => void;
@@ -17,6 +20,9 @@ export function ConversationList({
   conversations,
   selectedConversation,
   isLoading,
+  isLoadingMore = false,
+  hasMore = false,
+  onLoadMore,
   onSelectConversation,
   statusFilter,
   onStatusFilterChange,
@@ -99,6 +105,27 @@ export function ConversationList({
   };
 
   const hasActiveAdvancedFilters = filterFunnel !== 'all' || filterTag !== 'all' || filterDate !== 'all';
+
+  // P-02: Scroll infinito · IntersectionObserver dispara onLoadMore quando
+  // sentinel entra no viewport. rootMargin 200px adianta o trigger antes
+  // de chegar no fim · UX sem "puxar" · sem dependencia externa.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!hasMore || !onLoadMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isLoadingMore) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   return (
     <div className="w-80 border-r border-[hsl(var(--chat-border))] flex flex-col bg-[hsl(var(--chat-panel-bg))] relative">
@@ -329,6 +356,26 @@ export function ConversationList({
               </div>
             </div>
           ))
+        )}
+
+        {/* P-02: Sentinel + indicador de loading infinite scroll */}
+        {!isLoading && filteredConversations.length > 0 && (
+          <>
+            {hasMore && (
+              <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+            )}
+            {isLoadingMore && (
+              <div className="p-4 text-center flex items-center justify-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="w-3 h-3 border-2 border-[hsl(var(--primary))] border-t-transparent rounded-full animate-spin" />
+                Carregando mais...
+              </div>
+            )}
+            {!hasMore && conversations.length >= 50 && (
+              <div className="p-4 text-center text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider opacity-60">
+                · fim da lista ·
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

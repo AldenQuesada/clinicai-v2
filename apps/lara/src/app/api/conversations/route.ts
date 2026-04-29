@@ -3,6 +3,18 @@
  *
  * ADR-012: ConversationRepository.listByStatus + LeadRepository.findByPhones.
  * Multi-tenant ADR-028: clinic_id resolvido via JWT (loadServerContext).
+ *
+ * Query params (P-02 · 2026-04-29):
+ *   ?status=active|archived|resolved|dra (default: active)
+ *   ?limit=N            (default 50, max 200)
+ *   ?before=<ISO>       (cursor · last_message_at < before)
+ *
+ * Resposta:
+ *   {
+ *     items: Array<conversation>,
+ *     nextCursor: string | null  // ISO de last_message_at do ultimo item
+ *                                  ou null se nao tem mais (items < limit)
+ *   }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,6 +24,9 @@ import type { StatusFilter } from '@clinicai/repositories';
 
 export const dynamic = 'force-dynamic';
 
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
 export async function GET(request: NextRequest) {
   try {
     const { supabase, ctx } = await loadServerContext();
@@ -19,14 +34,20 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const statusParam = (searchParams.get('status') || 'active') as StatusFilter;
+    const beforeIso = searchParams.get('before') || undefined;
+    const limitRaw = parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10);
+    const limit = Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(limitRaw) ? limitRaw : DEFAULT_LIMIT));
 
-    const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam);
+    const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam, {
+      limit,
+      beforeIso,
+    });
 
     // Resolve leads em batch (1 query) · evita N+1 e mantem inbox rapido
     const phones = conversations.map((c) => c.phone).filter(Boolean);
     const leadsByPhone = await repos.leads.findByPhones(ctx.clinic_id, phones);
 
-    const enriched = conversations.map((c) => {
+    const items = conversations.map((c) => {
       const lead = leadsByPhone.get(c.phone);
 
       // remote_jid presente = legacy Evolution · null = Cloud (canal novo)
@@ -54,7 +75,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(enriched);
+    // Cursor pra proxima pagina · null quando lote veio menor que limit
+    const nextCursor =
+      items.length === limit ? items[items.length - 1].last_message_at : null;
+
+    return NextResponse.json({ items, nextCursor });
   } catch (err: any) {
     console.error('[API] Conversations error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

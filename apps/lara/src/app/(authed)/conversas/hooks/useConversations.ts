@@ -78,15 +78,25 @@ export const updateTabTitle = (pending: number) => {
   document.title = pending > 0 ? `(${pending}) Central de Atendimento` : 'ClinicAI';
 };
 
+interface ListResponse {
+  items: Conversation[];
+  nextCursor: string | null;
+}
+
+const PAGE_SIZE = 50;
+
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'resolved' | 'dra'>('active');
   const selectedIdRef = useRef<string | null>(null);
   const prevDataRef = useRef<Conversation[]>([]);
   const prevStatusRef = useRef(statusFilter);
   const lastSseEventAtRef = useRef<number>(0);
+  const cursorRef = useRef<string | null>(null);
 
   // Mantém o ID selecionado sem causar re-render
   useEffect(() => {
@@ -98,9 +108,13 @@ export function useConversations() {
 
   const fetchConversations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/conversations?status=${statusFilter}`);
+      // P-02: refresh recarrega so a 1a pagina · cursor reseta
+      const res = await fetch(`/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}`);
       if (res.ok) {
-        const data: Conversation[] = await res.json();
+        const payload: ListResponse = await res.json();
+        const data = payload.items;
+        cursorRef.current = payload.nextCursor;
+        setHasMore(payload.nextCursor !== null);
 
         // P-04: tab title agora vem do useInsights (global) na page · removido daqui
         // pra nao dar valor errado ao trocar de aba (Resolvidas zera urgentes).
@@ -197,6 +211,35 @@ export function useConversations() {
     }
   }, [statusFilter]); // Depende apenas do statusFilter
 
+  /**
+   * P-02: Carrega proxima pagina via cursor (last_message_at < cursor).
+   * Append no array existente · sem mexer em selectedConversation.
+   * No-op se !hasMore ou ja esta carregando.
+   */
+  const loadMore = useCallback(async () => {
+    if (!cursorRef.current || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const url = `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&before=${encodeURIComponent(cursorRef.current)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const payload: ListResponse = await res.json();
+        cursorRef.current = payload.nextCursor;
+        setHasMore(payload.nextCursor !== null);
+        // Append · dedupe por conversation_id pra cobrir overlap em concurrent updates
+        setConversations(prev => {
+          const seen = new Set(prev.map(c => c.conversation_id));
+          const fresh = payload.items.filter(c => !seen.has(c.conversation_id));
+          return [...prev, ...fresh];
+        });
+      }
+    } catch (e) {
+      console.error('Error loading more conversations:', e);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [statusFilter, isLoadingMore]);
+
   useEffect(() => {
     // 1. Carga inicial
     fetchConversations();
@@ -265,11 +308,14 @@ export function useConversations() {
   return {
     conversations,
     isLoading,
+    isLoadingMore,
+    hasMore,
     selectedConversation,
     setSelectedConversation,
     statusFilter,
     setStatusFilter,
     refreshConversations: fetchConversations,
+    loadMore,
     lastSseEventAtRef
   };
 }

@@ -15,11 +15,14 @@ export default function ChatPage() {
   const {
     conversations,
     isLoading: isLoadingConversations,
+    isLoadingMore,
+    hasMore,
     selectedConversation,
     setSelectedConversation,
     statusFilter,
     setStatusFilter,
     refreshConversations,
+    loadMore,
     lastSseEventAtRef,
   } = useConversations();
 
@@ -210,6 +213,9 @@ export default function ChatPage() {
           conversations={conversations}
           selectedConversation={selectedConversation}
           isLoading={isLoadingConversations}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
           onSelectConversation={setSelectedConversation}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
