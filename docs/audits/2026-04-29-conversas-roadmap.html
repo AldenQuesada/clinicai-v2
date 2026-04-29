@@ -24,35 +24,40 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--ivory); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; }
-  .serif { font-family: 'Cormorant Garamond', Georgia, serif; }
   em.gold { color: var(--gold); font-style: italic; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 100px; }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 
   /* Header */
   header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 32px; }
   .eyebrow { font-size: 11px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 10px; }
-  h1 { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 400; margin: 0 0 8px; letter-spacing: -0.5px; }
+  h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; font-weight: 400; margin: 0 0 8px; letter-spacing: -0.5px; }
   h1 em { color: var(--gold); font-style: italic; }
   .lede { font-size: 15px; color: var(--muted); max-width: 780px; line-height: 1.7; }
   .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 12px; color: var(--muted); }
   .meta-row strong { color: var(--ivory); font-weight: 600; }
 
-  /* TLDR card */
+  /* TOC */
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding: 14px 18px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; }
+  .toc a { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px; font-size: 11px; color: var(--ivory); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; transition: all 0.15s; text-decoration: none; }
+  .toc a:hover { border-color: var(--gold); color: var(--gold); }
+  .toc a .count { font-size: 10px; color: var(--gold); font-weight: 700; }
+
+  /* TLDR */
   .tldr { margin-top: 28px; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 12px; padding: 24px 28px; }
-  .tldr h3 { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 500; margin: 0 0 14px; color: var(--gold); font-style: italic; letter-spacing: 0.3px; }
+  .tldr h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18px; font-weight: 500; margin: 0 0 14px; color: var(--gold); font-style: italic; letter-spacing: 0.3px; }
   .tldr ul { margin: 0; padding-left: 20px; }
   .tldr li { margin-bottom: 8px; font-size: 13.5px; color: var(--ivory); line-height: 1.6; }
   .tldr li strong { color: var(--gold); font-weight: 700; }
 
-  /* Sections */
-  section { margin-bottom: 28px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .section-header { padding: 20px 28px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: background 0.15s; }
-  .section-header:hover { background: var(--bg-2); }
-  .section-header h2 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 500; flex: 1; }
-  .section-header h2 em { color: var(--gold); font-style: italic; }
-  .section-header .toggle { color: var(--muted); font-size: 14px; transition: transform 0.2s; }
-  .section.open .section-header .toggle { transform: rotate(90deg); }
-  .section-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  /* Section (sempre aberta agora) */
+  section { margin-bottom: 36px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; scroll-margin-top: 16px; }
+  .section-hdr { padding: 22px 28px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .section-hdr h2 { margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 500; }
+  .section-hdr h2 em { color: var(--gold); font-style: italic; }
+  .section-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .section-meta .pill { padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); font-weight: 600; }
   .pill.danger { background: rgba(239, 68, 68, 0.10); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.3); }
   .pill.warn { background: rgba(245, 158, 11, 0.10); color: #FCD34D; border-color: rgba(245, 158, 11, 0.3); }
@@ -60,100 +65,103 @@
   .pill.info { background: rgba(96, 165, 250, 0.10); color: #93C5FD; border-color: rgba(96, 165, 250, 0.3); }
   .pill.gold { background: var(--gold-soft); color: var(--gold); border-color: var(--border-strong); }
 
-  .section-content { padding: 0 28px 28px; display: none; border-top: 1px solid var(--border); padding-top: 18px; }
-  .section.open .section-content { display: block; }
+  .section-body { padding: 18px 28px 28px; }
   .section-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
 
-  /* Items / cards */
+  /* Items */
   .item { display: grid; grid-template-columns: 32px 1fr 130px; gap: 16px; padding: 16px 0; border-top: 1px solid var(--border); align-items: start; }
   .item:first-of-type { border-top: none; }
   .item .check { padding-top: 3px; }
-  .item .check input { appearance: none; width: 20px; height: 20px; border: 2px solid var(--muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; background: transparent; position: relative; }
+  .item .check input { appearance: none; width: 22px; height: 22px; border: 2px solid var(--muted); border-radius: 5px; cursor: pointer; transition: all 0.15s; background: transparent; position: relative; flex-shrink: 0; }
   .item .check input:hover { border-color: var(--gold); }
   .item .check input:checked { background: var(--gold); border-color: var(--gold); }
-  .item .check input:checked::after { content: '✓'; position: absolute; top: -2px; left: 3px; color: var(--bg-0); font-weight: bold; font-size: 14px; }
+  .item .check input:checked::after { content: '✓'; position: absolute; top: -3px; left: 3px; color: var(--bg-0); font-weight: bold; font-size: 16px; }
   .item.checked .body .title { text-decoration: line-through; opacity: 0.5; }
+  .item.checked .body .desc { opacity: 0.5; }
 
   .item .body .id { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 5px; }
   .item .body .title { font-size: 14.5px; color: var(--ivory); font-weight: 600; margin-bottom: 6px; line-height: 1.45; }
   .item .body .desc { font-size: 12.5px; color: var(--muted); line-height: 1.65; }
   .item .body .desc code { background: rgba(245, 240, 232, 0.06); padding: 1px 6px; border-radius: 3px; font-size: 11px; color: var(--gold); }
   .item .body .ref { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--dim); font-family: 'JetBrains Mono', Consolas, monospace; }
-  .item .body .ref a { color: var(--blue); text-decoration: none; }
-  .item .body .ref a:hover { text-decoration: underline; }
 
   .item .meta { text-align: right; font-size: 10px; letter-spacing: 0.8px; }
-  .item .meta .priority { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .item .meta .priority { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
   .priority.p0 { background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.4); }
   .priority.p1 { background: rgba(245, 158, 11, 0.15); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.4); }
   .priority.p2 { background: rgba(96, 165, 250, 0.12); color: #93C5FD; border: 1px solid rgba(96, 165, 250, 0.3); }
   .priority.p3 { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--border); }
+  .priority.alto { background: rgba(167, 139, 250, 0.15); color: #C4B5FD; border: 1px solid rgba(167, 139, 250, 0.4); }
+  .priority.medio { background: rgba(96, 165, 250, 0.12); color: #93C5FD; border: 1px solid rgba(96, 165, 250, 0.3); }
+  .priority.baixo { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--border); }
   .item .meta .effort { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: 0.5px; }
   .item .meta .effort strong { color: var(--ivory); }
 
-  /* Strengths grid (compact) */
+  /* Strengths grid */
   .strengths { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .strength-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
-  .strength-card .num { font-size: 10px; color: var(--gold); font-weight: 700; letter-spacing: 1.2px; }
-  .strength-card .what { font-size: 13px; color: var(--ivory); margin-top: 4px; line-height: 1.5; }
-  .strength-card .where { font-size: 10.5px; color: var(--dim); font-family: 'JetBrains Mono', Consolas, monospace; margin-top: 6px; }
+  .item.strength { grid-template-columns: 32px 1fr; }
+  .item.strength .body .id { color: var(--green); }
 
-  /* Sprint cards */
-  .sprint-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  .sprint { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; position: relative; }
+  /* Sprints */
+  .sprint-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  .sprint { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 22px 26px; position: relative; }
   .sprint.recommended { border-color: var(--border-strong); box-shadow: 0 0 0 1px var(--gold-soft); }
-  .sprint .sprint-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
-  .sprint .sprint-name { font-family: 'Cormorant Garamond', serif; font-size: 19px; color: var(--ivory); font-weight: 500; }
-  .sprint .sprint-name em { color: var(--gold); font-style: italic; }
-  .sprint .sprint-time { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
-  .sprint .sprint-tag { position: absolute; top: -1px; right: 18px; padding: 4px 10px; border-radius: 0 0 6px 6px; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+  .sprint .sprint-tag { position: absolute; top: -1px; right: 22px; padding: 4px 12px; border-radius: 0 0 6px 6px; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
   .sprint-tag.rec { background: var(--gold); color: var(--bg-0); }
-  .sprint .sprint-goal { font-size: 12.5px; color: var(--muted); line-height: 1.65; margin-bottom: 14px; padding: 10px 14px; background: rgba(0,0,0,0.2); border-left: 2px solid var(--gold); border-radius: 0 4px 4px 0; }
-  .sprint .sprint-items { list-style: none; padding: 0; margin: 0; }
-  .sprint .sprint-items li { padding: 6px 0; font-size: 13px; color: var(--ivory); border-top: 1px solid var(--border); display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: baseline; }
-  .sprint .sprint-items li:first-child { border-top: none; }
-  .sprint .sprint-items code { color: var(--gold); font-weight: 700; font-size: 11px; letter-spacing: 0.5px; }
+  .sprint .sprint-hdr-line { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .sprint .sprint-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; color: var(--ivory); font-weight: 500; }
+  .sprint .sprint-name em { color: var(--gold); font-style: italic; }
+  .sprint .sprint-time { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; padding: 3px 10px; background: rgba(255,255,255,0.04); border-radius: 999px; border: 1px solid var(--border); }
+  .sprint .sprint-goal { font-size: 12.5px; color: var(--muted); line-height: 1.65; margin-bottom: 14px; padding: 10px 14px; background: rgba(0,0,0,0.25); border-left: 2px solid var(--gold); border-radius: 0 4px 4px 0; }
   .sprint .sprint-impact { margin-top: 14px; font-size: 11.5px; color: var(--green); font-style: italic; padding-top: 12px; border-top: 1px dashed var(--border); }
   .sprint .sprint-impact strong { color: var(--ivory); font-style: normal; font-weight: 700; }
+  .sprint .sprint-tasks { margin-top: 6px; }
+  .sprint .sprint-tasks .item { padding: 10px 0; }
+  .sprint .sprint-tasks .item .body .title { font-size: 13px; }
+  .sprint .sprint-tasks .item .body .desc { font-size: 11.5px; }
 
   /* Decision matrix */
-  .decision { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 18px; }
-  .decision-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; cursor: pointer; transition: all 0.15s; }
+  .decision { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .decision-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; transition: all 0.15s; cursor: pointer; }
   .decision-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .decision-card.recommended { border-color: var(--border-strong); box-shadow: 0 0 0 1px var(--gold-soft); }
   .decision-card .label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); font-weight: 700; }
-  .decision-card .name { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--ivory); font-weight: 500; margin: 6px 0 10px; }
+  .decision-card .name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18px; color: var(--ivory); font-weight: 500; margin: 6px 0 10px; }
   .decision-card .name em { color: var(--gold); font-style: italic; }
   .decision-card .desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
-  .decision-card .when { font-size: 11px; color: var(--ivory); padding: 8px 10px; background: rgba(0,0,0,0.25); border-radius: 4px; }
+  .decision-card .when { font-size: 11px; color: var(--ivory); padding: 8px 10px; background: rgba(0,0,0,0.25); border-radius: 4px; line-height: 1.5; }
   .decision-card .when strong { color: var(--gold); }
 
-  /* Action bar */
-  .action-bar { position: sticky; bottom: 16px; margin-top: 32px; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 10px; padding: 14px 20px; display: flex; align-items: center; gap: 16px; backdrop-filter: blur(8px); box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
-  .action-bar .progress-text { font-size: 12px; color: var(--muted); flex: 1; }
-  .action-bar .progress-text strong { color: var(--gold); font-weight: 700; }
-  .action-bar .progress-bar { flex: 2; height: 6px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; }
-  .action-bar .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #E5C893); border-radius: 999px; transition: width 0.4s; }
-  .action-bar .clear-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; transition: all 0.15s; }
-  .action-bar .clear-btn:hover { border-color: var(--gold); color: var(--gold); }
-
-  /* UIX score */
-  .uix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  /* UIX block */
+  .uix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .uix-block { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
-  .uix-block h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+  .uix-block h4 { margin: 0 0 12px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
   .uix-block.works h4 { color: var(--green); }
   .uix-block.fric h4 { color: var(--yellow); }
   .uix-block ul { padding-left: 18px; margin: 0; }
   .uix-block li { font-size: 12.5px; color: var(--ivory); margin-bottom: 6px; line-height: 1.55; }
 
+  /* Action bar */
+  .action-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); width: calc(100% - 48px); max-width: 1100px; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 10px; padding: 14px 20px; display: flex; align-items: center; gap: 16px; backdrop-filter: blur(8px); box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 100; }
+  .action-bar .progress-text { font-size: 12px; color: var(--muted); flex: 1; min-width: 140px; }
+  .action-bar .progress-text strong { color: var(--gold); font-weight: 700; }
+  .action-bar .progress-bar { flex: 2; height: 6px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; min-width: 100px; }
+  .action-bar .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #E5C893); border-radius: 999px; transition: width 0.4s; }
+  .action-bar .clear-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; transition: all 0.15s; flex-shrink: 0; }
+  .action-bar .clear-btn:hover { border-color: var(--gold); color: var(--gold); }
+
   /* Footnote */
-  .footnote { margin-top: 32px; padding: 16px 20px; background: var(--gold-soft); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 12.5px; color: var(--ivory); line-height: 1.7; }
+  .footnote { margin-top: 24px; padding: 16px 20px; background: var(--gold-soft); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 12.5px; color: var(--ivory); line-height: 1.7; }
   .footnote strong { color: var(--gold); }
 
   @media (max-width: 760px) {
     .strengths { grid-template-columns: 1fr; }
     .decision { grid-template-columns: 1fr; }
+    .uix-grid { grid-template-columns: 1fr; }
     .item { grid-template-columns: 28px 1fr; }
     .item .meta { grid-column: 2; text-align: left; margin-top: 6px; }
+    h1 { font-size: 30px; }
+    .container { padding: 28px 16px 100px; }
   }
 </style>
 </head>
@@ -166,7 +174,7 @@
     <p class="lede">
       Auditoria do módulo /conversas da Lara (Next.js 16 · App Router) — forças, fraquezas e os <em class="gold">15 gaps</em>
       que separam um inbox funcional de uma central de atendimento que vende sozinha.
-      Documento de decisão antes da execução.
+      <strong style="color: var(--ivory);">Cada item é um checkbox</strong> — marque conforme for entregando.
     </p>
     <div class="meta-row">
       <span><strong>Data:</strong> 2026-04-29</span>
@@ -174,6 +182,15 @@
       <span><strong>Rota:</strong> /conversas</span>
       <span><strong>Status atual:</strong> commit d6da921 (SSE reconnect + Nova conversa manual)</span>
     </div>
+
+    <nav class="toc">
+      <a href="#forcas">Forças <span class="count">10</span></a>
+      <a href="#fraquezas">Fraquezas <span class="count">15</span></a>
+      <a href="#uix">UIX</a>
+      <a href="#wow">Gaps WOW <span class="count">15</span></a>
+      <a href="#sprints">Sprints A · B · C</a>
+      <a href="#decisao">Decisão</a>
+    </nav>
 
     <div class="tldr">
       <h3>TL;DR estratégico</h3>
@@ -187,90 +204,129 @@
   </header>
 
   <!-- ========== FORÇAS ========== -->
-  <section class="open" id="forcas">
-    <div class="section-header" onclick="toggleSection(this)">
+  <section id="forcas">
+    <div class="section-hdr">
       <h2><em>Forças</em> · o que já é diferencial</h2>
       <div class="section-meta">
-        <span class="pill good">10 pontos</span>
-        <span class="toggle">▶</span>
+        <span class="pill good">10 pontos sólidos</span>
       </div>
     </div>
-    <div class="section-content">
-      <div class="section-desc">Base técnica boa. O que vier por cima multiplica, não compete.</div>
+    <div class="section-body">
+      <div class="section-desc">Base técnica boa. O que vier por cima multiplica, não compete. <em style="color: var(--muted)">(Marque pra confirmar que validou cada um.)</em></div>
+
       <div class="strengths">
-        <div class="strength-card">
-          <div class="num">F-01</div>
-          <div class="what"><strong>SSE com reconnect exponencial</strong> (1s→30s) + polling 30s fallback. Reset do contador em <code>onmessage</code>.</div>
-          <div class="where">hooks/useConversations.ts:198-256</div>
+        <div class="item strength" data-id="F-01">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-01</div>
+            <div class="title">SSE com reconnect exponencial (1s→30s) + polling 30s fallback</div>
+            <div class="desc">Reset do contador em <code>onmessage</code>. Stop flag pra cleanup limpo no unmount.</div>
+            <div class="ref">hooks/useConversations.ts:198-256</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-02</div>
-          <div class="what"><strong>Multi-tenant scope no SSE</strong> · audit fix N22 · filtra por clinic_id em wa_conversations + wa_messages + leads.</div>
-          <div class="where">api/conversations/sse/route.ts:21-80</div>
+        <div class="item strength" data-id="F-02">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-02</div>
+            <div class="title">Multi-tenant scope no SSE (audit fix N22)</div>
+            <div class="desc">Filtra por <code>clinic_id</code> em wa_conversations + wa_messages + leads. Auth via JWT, não query param.</div>
+            <div class="ref">api/conversations/sse/route.ts:21-80</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-03</div>
-          <div class="what"><strong>Notificações em camadas</strong> · som dual-tone WhatsApp-like, browser notification, tab title (N), permission gating via banner.</div>
-          <div class="where">hooks/useConversations.ts:23-69</div>
+        <div class="item strength" data-id="F-03">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-03</div>
+            <div class="title">Notificações em camadas</div>
+            <div class="desc">Som dual-tone WhatsApp-like, browser notification, tab title <code>(N) Central</code>, permission gating via banner.</div>
+            <div class="ref">hooks/useConversations.ts:23-69</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-04</div>
-          <div class="what"><strong>Otimismo nas mutações</strong> · sendMessage adiciona msg na tela antes do server e marca AI pausada por 30min visualmente.</div>
-          <div class="where">page.tsx:45-56 · hooks/useMessages.ts:103-112</div>
+        <div class="item strength" data-id="F-04">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-04</div>
+            <div class="title">Otimismo nas mutações</div>
+            <div class="desc">sendMessage adiciona msg na tela antes do server e marca AI pausada por 30min visualmente.</div>
+            <div class="ref">page.tsx:45-56 · hooks/useMessages.ts:103-112</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-05</div>
-          <div class="what"><strong>Timer local sem fritar API</strong> · AgentPauseSection decrementa por segundo, sync com server só a cada 60s.</div>
-          <div class="where">hooks/usePauseStatus.ts:80-100</div>
+        <div class="item strength" data-id="F-05">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-05</div>
+            <div class="title">Timer local sem fritar API</div>
+            <div class="desc">AgentPauseSection decrementa por segundo, sync com server só a cada 60s.</div>
+            <div class="ref">hooks/usePauseStatus.ts:80-100</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-06</div>
-          <div class="what"><strong>Filtros + busca + sort</strong> · 4 status (active/dra/resolved/archived), 4 abas (Todas/Urgentes/Aguardando/Lara), painel avançado funil/tag/data.</div>
-          <div class="where">components/ConversationList.tsx:46-91</div>
+        <div class="item strength" data-id="F-06">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-06</div>
+            <div class="title">Filtros + busca + sort</div>
+            <div class="desc">4 status (active/dra/resolved/archived), 4 abas (Todas/Urgentes/Aguardando/Lara), painel avançado funil/tag/data.</div>
+            <div class="ref">components/ConversationList.tsx:46-91</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-07</div>
-          <div class="what"><strong>Dedup robusto</strong> · useMessages usa Map&lt;id&gt; pra eliminar repetições do polling/SSE.</div>
-          <div class="where">hooks/useMessages.ts:33-47</div>
+        <div class="item strength" data-id="F-07">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-07</div>
+            <div class="title">Dedup robusto de mensagens</div>
+            <div class="desc">useMessages usa <code>Map&lt;id&gt;</code> pra eliminar repetições do polling/SSE.</div>
+            <div class="ref">hooks/useMessages.ts:33-47</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-08</div>
-          <div class="what"><strong>Detecção de canal</strong> · badge cloud (verde WhatsApp) vs legacy invisível.</div>
-          <div class="where">components/ConversationList.tsx:285-294</div>
+        <div class="item strength" data-id="F-08">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-08</div>
+            <div class="title">Detecção de canal cloud vs legacy</div>
+            <div class="desc">Badge verde WhatsApp na lista quando canal é Cloud API, invisível pra Evolution legacy.</div>
+            <div class="ref">components/ConversationList.tsx:285-294</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-09</div>
-          <div class="what"><strong>Confirmação semântica</strong> · ConfirmModal pra resolver/arquivar/transferir; transferir manda msg "vou encaminhar" + status `dra` num só fluxo.</div>
-          <div class="where">page.tsx:71-133</div>
+        <div class="item strength" data-id="F-09">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-09</div>
+            <div class="title">Confirmação semântica nas ações</div>
+            <div class="desc">ConfirmModal pra resolver/arquivar/transferir; transferir manda msg "vou encaminhar" + status `dra` num só fluxo.</div>
+            <div class="ref">page.tsx:71-133</div>
+          </div>
         </div>
-        <div class="strength-card">
-          <div class="num">F-10</div>
-          <div class="what"><strong>Atalhos pro CRM legacy</strong> · deep links com lead_id e phone para o painel antigo.</div>
-          <div class="where">components/LeadInfoPanel.tsx:138-163</div>
+        <div class="item strength" data-id="F-10">
+          <div class="check"><input type="checkbox" /></div>
+          <div class="body">
+            <div class="id">F-10</div>
+            <div class="title">Atalhos pro CRM legacy</div>
+            <div class="desc">Deep links com lead_id e phone para o painel antigo. Ver lead + abrir agenda direto.</div>
+            <div class="ref">components/LeadInfoPanel.tsx:138-163</div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ========== FRAQUEZAS ========== -->
-  <section class="open" id="fraquezas">
-    <div class="section-header" onclick="toggleSection(this)">
+  <section id="fraquezas">
+    <div class="section-hdr">
       <h2><em>Fraquezas</em> · priorizadas por impacto</h2>
       <div class="section-meta">
         <span class="pill danger">3 P0</span>
         <span class="pill warn">5 P1</span>
         <span class="pill info">4 P2</span>
         <span class="pill">3 P3</span>
-        <span class="toggle">▶</span>
       </div>
     </div>
-    <div class="section-content">
+    <div class="section-body">
       <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento.</div>
 
       <div class="item" data-id="P-01">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-01 · P0</div>
+          <div class="id">P-01</div>
           <div class="title">Polling redundante de 3s mesmo com SSE ativo</div>
           <div class="desc">Toda mudança em <code>wa_messages</code> dispara fetchConversations + setInterval(3000) do useMessages. Cada conversa aberta = 20 req/min/usuário. Custo Supabase + bateria mobile.</div>
           <div class="ref">hooks/useMessages.ts:86-89</div>
@@ -284,7 +340,7 @@
       <div class="item" data-id="P-02">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-02 · P0</div>
+          <div class="id">P-02</div>
           <div class="title">Lista sem paginação — retorna TODAS conversas do clinic</div>
           <div class="desc">/api/conversations devolve tudo + N+1 de leads.findByPhones em batch. 1000+ leads = card flood + carga inicial pesada.</div>
           <div class="ref">api/conversations/route.ts:23-54</div>
@@ -298,9 +354,9 @@
       <div class="item" data-id="P-03">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-03 · P0</div>
-          <div class="title">"Resolvidos hoje" só conta quando filtra Resolvidas (auto-confessado no comentário)</div>
-          <div class="desc">KPI quebrado por design: a query da lista filtra por status, então `c.status==='resolved'` zera quando aba é "Abertas". Devia ter endpoint próprio /api/conversations/insights global.</div>
+          <div class="id">P-03</div>
+          <div class="title">"Resolvidos hoje" só conta quando filtra Resolvidas</div>
+          <div class="desc">KPI quebrado por design: a query da lista filtra por status, então <code>c.status==='resolved'</code> zera quando aba é "Abertas". Devia ter endpoint próprio /api/conversations/insights global. (Auto-confessado no comentário do código.)</div>
           <div class="ref">page.tsx:140-153</div>
         </div>
         <div class="meta">
@@ -312,7 +368,7 @@
       <div class="item" data-id="P-04">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-04 · P1</div>
+          <div class="id">P-04</div>
           <div class="title">Top bar de Insights muda de número ao trocar de aba</div>
           <div class="desc">Urgentes/Aguardando/Lara Ativa contam só conversas no recorte filtrado. Trocar pra Resolvidas = Urgentes zera. Devia ser global do clinic, calculado server-side.</div>
           <div class="ref">page.tsx:137-153</div>
@@ -326,7 +382,7 @@
       <div class="item" data-id="P-05">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-05 · P1</div>
+          <div class="id">P-05</div>
           <div class="title">Sem confirmação de entrega/leitura ✓ ✓✓ azul</div>
           <div class="desc">Cloud API entrega webhooks delivered/read mas o status não persiste em wa_messages e não chega ao UI. Atendente fica no escuro sobre se a msg chegou.</div>
         </div>
@@ -339,7 +395,7 @@
       <div class="item" data-id="P-06">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-06 · P1</div>
+          <div class="id">P-06</div>
           <div class="title">sendMessage falha silenciosa — sem retry, sem rollback do otimismo</div>
           <div class="desc">sendStatus='error' some em 3s. A msg otimística fica visível mas nunca foi enviada. Atendente acha que mandou, paciente nunca recebe.</div>
           <div class="ref">hooks/useMessages.ts:124-130</div>
@@ -353,7 +409,7 @@
       <div class="item" data-id="P-07">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-07 · P1</div>
+          <div class="id">P-07</div>
           <div class="title">Sem upload de imagem/áudio/PDF pelo atendente humano</div>
           <div class="desc">Mirian quer mandar foto de antes/depois ou áudio explicando procedimento → tem que abrir WhatsApp Web fora. Quebra fluxo.</div>
           <div class="ref">components/MessageArea.tsx:103-122</div>
@@ -367,9 +423,9 @@
       <div class="item" data-id="P-08">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-08 · P1</div>
+          <div class="id">P-08</div>
           <div class="title">handleAction(transfer) hardcoded "Dra. Mirian"</div>
-          <div class="desc">Multi-tenant quebra na 1ª clínica nova. Devia vir de clinics.responsible_name (ou clinic_secrets/clinic_settings).</div>
+          <div class="desc">Multi-tenant quebra na 1ª clínica nova. Devia vir de <code>clinics.responsible_name</code> (ou clinic_secrets/clinic_settings).</div>
           <div class="ref">page.tsx:108-122</div>
         </div>
         <div class="meta">
@@ -381,7 +437,7 @@
       <div class="item" data-id="P-09">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-09 · P2</div>
+          <div class="id">P-09</div>
           <div class="title">Sem agrupamento de mensagens por data</div>
           <div class="desc">Msgs corridas sem separadores "Hoje / Ontem / Há 2 dias". Scan visual sofre em conversas de 50+ msgs.</div>
           <div class="ref">components/MessageArea.tsx:50-92</div>
@@ -395,7 +451,7 @@
       <div class="item" data-id="P-10">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-10 · P2</div>
+          <div class="id">P-10</div>
           <div class="title">Sem timeline de eventos do lead</div>
           <div class="desc">"AI pausada às 14:32 por Alden", "assumido por Beatriz às 14:35", "status virou dra às 15:00" perdido. Auditoria zero. Já temos phase_history, falta UI.</div>
         </div>
@@ -408,9 +464,9 @@
       <div class="item" data-id="P-11">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-11 · P2</div>
+          <div class="id">P-11</div>
           <div class="title">Sem nota interna entre atendentes</div>
-          <div class="desc">"@Mirian olha esse lead, tá quente" não existe. Time perde contexto. Solução: col wa_messages.internal_note bool + cor amarela.</div>
+          <div class="desc">"@Mirian olha esse lead, tá quente" não existe. Time perde contexto. Solução: col <code>wa_messages.internal_note</code> bool + cor amarela.</div>
         </div>
         <div class="meta">
           <span class="priority p2">P2</span>
@@ -421,7 +477,7 @@
       <div class="item" data-id="P-12">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-12 · P2</div>
+          <div class="id">P-12</div>
           <div class="title">Sem multi-atendente — quem está vendo? quem assumiu?</div>
           <div class="desc">Sem indicador "Beatriz está vendo essa conversa", sem assign explícito, sem lock. 2 atendentes podem responder ao mesmo tempo.</div>
         </div>
@@ -434,7 +490,7 @@
       <div class="item" data-id="P-13">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-13 · P3</div>
+          <div class="id">P-13</div>
           <div class="title">Pause durations fixas (15/30/60/120/1440 min)</div>
           <div class="desc">Sem datetime custom. Sem snooze "amanhã 9h". Limita follow-up agendado.</div>
           <div class="ref">components/AgentPauseSection.tsx:59</div>
@@ -448,7 +504,7 @@
       <div class="item" data-id="P-14">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-14 · P3</div>
+          <div class="id">P-14</div>
           <div class="title">Lead score em pts crus ("80 pts")</div>
           <div class="desc">Sem visual (estrelas/cor/label quente-morno-frio). Atendente não interpreta de relance.</div>
           <div class="ref">components/LeadInfoPanel.tsx:96</div>
@@ -462,7 +518,7 @@
       <div class="item" data-id="P-15">
         <div class="check"><input type="checkbox" /></div>
         <div class="body">
-          <div class="id">P-15 · P3</div>
+          <div class="id">P-15</div>
           <div class="title">Sem keyboard shortcuts (j/k próx, r resolver, a assumir)</div>
           <div class="desc">Power user sofre. 200 conversas/dia clicando uma a uma é fricção desnecessária.</div>
         </div>
@@ -476,15 +532,14 @@
 
   <!-- ========== UIX ========== -->
   <section id="uix">
-    <div class="section-header" onclick="toggleSection(this)">
+    <div class="section-hdr">
       <h2><em>UIX</em> · leitura geral</h2>
       <div class="section-meta">
         <span class="pill gold">Sólida com fricções</span>
-        <span class="toggle">▶</span>
       </div>
     </div>
-    <div class="section-content">
-      <div class="section-desc">Dark luxo coerente, padrão CRM 3-painéis, mas paineis quentes (pausar AI) ficam fora da área visual de uso.</div>
+    <div class="section-body">
+      <div class="section-desc">Dark luxo coerente, padrão CRM 3-painéis, mas painéis quentes (pausar AI) ficam fora da área visual de uso.</div>
       <div class="uix-grid">
         <div class="uix-block works">
           <h4>O que funciona</h4>
@@ -507,7 +562,7 @@
             <li>Header do MessageArea pobre (só nome+phone) — falta status/fase/CTA</li>
             <li>Sem onboarding visual — atendente novo não sabe o que cor de borda significa</li>
             <li>Imagem em <code>&lt;a target=_blank&gt;</code> sem lightbox modal</li>
-            <li>"Aguardando você" e "Lara Ativa" sem CTA — vê o número e ?</li>
+            <li>"Aguardando você" e "Lara Ativa" sem CTA — vê o número e... ?</li>
           </ul>
         </div>
       </div>
@@ -515,15 +570,14 @@
   </section>
 
   <!-- ========== GAPS WOW ========== -->
-  <section class="open" id="wow">
-    <div class="section-header" onclick="toggleSection(this)">
+  <section id="wow">
+    <div class="section-hdr">
       <h2><em>Gaps WOW</em> · o que separa funcional de mágico</h2>
       <div class="section-meta">
         <span class="pill gold">15 oportunidades</span>
-        <span class="toggle">▶</span>
       </div>
     </div>
-    <div class="section-content">
+    <div class="section-body">
       <div class="section-desc">Priorizadas por <strong>impacto perceptível</strong> e <strong>esforço</strong>. Marcadas com 🌟 as que entregam efeito wow imediato.</div>
 
       <div class="item" data-id="W-01">
@@ -534,7 +588,7 @@
           <div class="desc">"📞 Agendar avaliação" / "💰 Enviar Smooth Eyes (R$2.4k)" / "📸 Pedir foto frente-perfil" baseado em phase + queixas + score. 1 clique cumpre. Atendente sai do "o que falo agora?".</div>
         </div>
         <div class="meta">
-          <span class="priority p1">Alto</span>
+          <span class="priority alto">Alto</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -547,7 +601,7 @@
           <div class="desc">"Maria · 32a · olheiras · score 75 · pediu data próxima semana · 12 msgs · última 14:32". Substitui ler o histórico todo antes de responder. Mesmo prompt da W-01.</div>
         </div>
         <div class="meta">
-          <span class="priority p1">Alto</span>
+          <span class="priority alto">Alto</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -560,7 +614,7 @@
           <div class="desc">Sugestões contextuais. Click → preenche → editar → enviar. Reduz tempo de resposta humano em 80%. Mesma chamada Anthropic da W-01/W-02 — 3 features compartilham 1 RPC.</div>
         </div>
         <div class="meta">
-          <span class="priority p1">Alto</span>
+          <span class="priority alto">Alto</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -573,7 +627,7 @@
           <div class="desc"><code>Quiz ✓ → Orçamento ⏳ → Consulta · → Procedimento</code>. Click numa fase abre histórico daquela etapa. Foto contextual de 1ª olhada.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>S</strong></span>
         </div>
       </div>
@@ -586,7 +640,7 @@
           <div class="desc">😊 contente / 💰 negocia / 📅 quer agendar / 😟 inseguro. Atendente prioriza a-quente sem ler. Classifier no inbound, cache em wa_messages.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -596,10 +650,10 @@
         <div class="body">
           <div class="id">W-06</div>
           <div class="title">Confirmação de entrega/leitura ✓ ✓✓ azul WhatsApp Cloud</div>
-          <div class="desc">Cloud API entrega webhooks delivered/read. Persistir em wa_messages.delivery_status + UI. Paridade visual com WhatsApp/Instagram.</div>
+          <div class="desc">Cloud API entrega webhooks delivered/read. Persistir em <code>wa_messages.delivery_status</code> + UI. Paridade visual com WhatsApp/Instagram.</div>
         </div>
         <div class="meta">
-          <span class="priority p1">Alto</span>
+          <span class="priority alto">Alto</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -612,7 +666,7 @@
           <div class="desc">"AI pausada 14:32 por Alden · Conversa assumida 14:35 · status → dra 15:00 · transferida pra Mirian". Auditoria gratuita pra debug e supervisão. Já tem phase_history.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>S</strong></span>
         </div>
       </div>
@@ -625,7 +679,7 @@
           <div class="desc">"responder amanhã 9h" + push notification. Substitui pause genérico. Follow-up vira processo, não memória do atendente.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>S</strong></span>
         </div>
       </div>
@@ -638,7 +692,7 @@
           <div class="desc"><code>/olheiras</code> ou <code>Cmd+T</code> abre menu, escolhe, preenche {nome}/{valor}/{procedimento}. 10x velocidade em respostas comuns. Base: b2b_comm_templates já existe.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>S</strong></span>
         </div>
       </div>
@@ -651,7 +705,7 @@
           <div class="desc">Slot picker dos próximos 7 dias, gera link de confirmação, manda automático. Elimina hand-off para CRM legacy.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -664,7 +718,7 @@
           <div class="desc">Atendente escreve memo amarelo só visível pro time. "Beatriz @Alden olha esse lead, tá quente". Colab real entre atendentes.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>S</strong></span>
         </div>
       </div>
@@ -677,7 +731,7 @@
           <div class="desc">Mini-gráfico no painel direito: melhor janela pra responder este lead específico. Maximiza taxa de leitura.</div>
         </div>
         <div class="meta">
-          <span class="priority p3">Baixo</span>
+          <span class="priority baixo">Baixo</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -690,7 +744,7 @@
           <div class="desc">MediaRecorder API + upload Supabase. Quebra atrito mobile. Atendente humano grava áudio igual WhatsApp Web.</div>
         </div>
         <div class="meta">
-          <span class="priority p2">Médio</span>
+          <span class="priority medio">Médio</span>
           <span class="effort">Esforço: <strong>M</strong></span>
         </div>
       </div>
@@ -703,7 +757,7 @@
           <div class="desc">IA mostra a jornada de 1 lead que virou paciente com perfil similar. Desvia "como conduzir agora?" pra "isso já funcionou antes".</div>
         </div>
         <div class="meta">
-          <span class="priority p3">Baixo</span>
+          <span class="priority baixo">Baixo</span>
           <span class="effort">Esforço: <strong>L</strong></span>
         </div>
       </div>
@@ -716,95 +770,254 @@
           <div class="desc">"Maria, 32, interesse forte em Smooth Eyes, próximo passo: agendar pra sexta". Hands-free quando dirigindo / em consulta.</div>
         </div>
         <div class="meta">
-          <span class="priority p3">Baixo</span>
+          <span class="priority baixo">Baixo</span>
           <span class="effort">Esforço: <strong>L</strong></span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ========== ROADMAP / SPRINTS ========== -->
-  <section class="open" id="roadmap">
-    <div class="section-header" onclick="toggleSection(this)">
+  <!-- ========== SPRINTS ========== -->
+  <section id="sprints">
+    <div class="section-hdr">
       <h2><em>Roadmap</em> · 3 sprints sequenciais</h2>
       <div class="section-meta">
         <span class="pill gold">A → B → C</span>
-        <span class="toggle">▶</span>
       </div>
     </div>
-    <div class="section-content">
-      <div class="section-desc">Sprints curtos, escopo travado, entrega visível ao fim de cada um. <em class="gold">Sprint A é não-negociável</em> — corrige o sangramento antes de qualquer feature nova.</div>
+    <div class="section-body">
+      <div class="section-desc">Sprints curtos, escopo travado, entrega visível ao fim de cada um. <em class="gold">Sprint A é não-negociável</em> — corrige o sangramento antes de qualquer feature nova. Cada task é um checkbox.</div>
 
       <div class="sprint-grid">
+
+        <!-- SPRINT A -->
         <div class="sprint recommended">
           <span class="sprint-tag rec">Recomendado começar aqui</span>
-          <div class="sprint-hdr">
+          <div class="sprint-hdr-line">
             <div class="sprint-name">Sprint <em>A</em> · Correção de fricção</div>
             <div class="sprint-time">1-2 dias</div>
           </div>
           <div class="sprint-goal">Tirar o sangramento dos KPIs e do polling antes de empilhar feature nova. Tudo aqui é "consertar o que está quebrado".</div>
-          <ul class="sprint-items">
-            <li><code>P-01</code> Polling 3s OFF quando SSE entrega evento (toggle adaptativo: SSE conectado → polling 30s, SSE morto → 3s)</li>
-            <li><code>P-03</code> Endpoint /api/conversations/insights global (urgentes/aguardando/lara_ativa/resolvidos_hoje real)</li>
-            <li><code>P-04</code> Top bar consome o endpoint global, não o array filtrado</li>
-            <li><code>P-06</code> sendMessage com retry button + rollback do otimismo em falha</li>
-            <li><code>P-08</code> Transfer Dra dinâmica (lê <code>clinics.responsible_name</code>)</li>
-            <li><code>W-04</code> Pipeline visual no LeadInfoPanel (data já existe)</li>
-            <li><code>W-07</code> Timeline de eventos (já existe phase_history)</li>
-          </ul>
-          <div class="sprint-impact"><strong>Resultado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.</div>
+
+          <div class="sprint-tasks">
+            <div class="item" data-id="SA-01">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-01 · ref P-01</div>
+                <div class="title">Polling 3s OFF quando SSE entrega evento</div>
+                <div class="desc">Toggle adaptativo: SSE conectado (onmessage há &lt;30s) → polling 30s. SSE morto → 3s. Reduz req/min em ~85%.</div>
+              </div>
+              <div class="meta"><span class="priority p0">P0</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-02">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-02 · ref P-03</div>
+                <div class="title">Endpoint /api/conversations/insights global</div>
+                <div class="desc">Server-side count: urgentes / aguardando / lara_ativa / resolvidos_hoje. Independente do filtro ativo.</div>
+              </div>
+              <div class="meta"><span class="priority p0">P0</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-03">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-03 · ref P-04</div>
+                <div class="title">Top bar consome o endpoint global, não o array filtrado</div>
+                <div class="desc">Insights ficam estáveis ao trocar de aba. Hook próprio useInsights() com cache 30s.</div>
+              </div>
+              <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-04">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-04 · ref P-06</div>
+                <div class="title">sendMessage com retry button + rollback do otimismo</div>
+                <div class="desc">Em falha: msg vira "vermelha" com botão "tentar de novo". Se cancelar, remove do array. Não some silenciosa.</div>
+              </div>
+              <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-05">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-05 · ref P-08</div>
+                <div class="title">Transfer Dra dinâmica</div>
+                <div class="desc">Lê <code>clinics.responsible_name</code> (ou clinic_secrets). Modal e texto se adaptam. Multi-tenant safe.</div>
+              </div>
+              <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-06">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-06 · ref W-04</div>
+                <div class="title">Pipeline visual no LeadInfoPanel</div>
+                <div class="desc">Barra horizontal: <code>Quiz → Contato → Orçamento → Consulta → Procedimento</code>. Data já existe (phase + funnel).</div>
+              </div>
+              <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SA-07">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SA-07 · ref W-07</div>
+                <div class="title">Timeline de eventos do lead</div>
+                <div class="desc">Lê phase_history + audit logs. Renderiza coluna de timestamps no painel direito.</div>
+              </div>
+              <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+          </div>
+
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.</div>
         </div>
 
+        <!-- SPRINT B -->
         <div class="sprint">
-          <div class="sprint-hdr">
+          <div class="sprint-hdr-line">
             <div class="sprint-name">Sprint <em>B</em> · Efeito Wow</div>
             <div class="sprint-time">3-5 dias</div>
           </div>
           <div class="sprint-goal">3 features que compartilham 1 chamada Anthropic e mudam a percepção do produto inteiro. Atendente vai chamar de "o ChatGPT da clínica".</div>
-          <ul class="sprint-items">
-            <li><code>W-02</code> Auto-summary do lead (TLDR no topo do chat, gerado uma vez e cacheado em <code>conversations.ai_summary</code>)</li>
-            <li><code>W-01</code> Next Best Action no painel direito (3 ações sugeridas, 1 clique cumpre)</li>
-            <li><code>W-03</code> Smart replies (3 chips clicáveis acima do textarea)</li>
-            <li><code>W-05</code> Sentiment + intent badges (classifier inbound)</li>
-          </ul>
-          <div class="sprint-impact"><strong>Resultado:</strong> tempo médio de resposta cai 60-80%. Lara deixa de ser "bot" e vira "copiloto".</div>
+
+          <div class="sprint-tasks">
+            <div class="item" data-id="SB-01">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SB-01 · ref W-02</div>
+                <div class="title">Auto-summary do lead (TLDR no topo do chat)</div>
+                <div class="desc">Gerado uma vez ao abrir conversa, cacheado em <code>conversations.ai_summary</code>. Re-gera se &gt;5 msgs novas desde último.</div>
+              </div>
+              <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SB-02">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SB-02 · ref W-01</div>
+                <div class="title">Next Best Action no painel direito</div>
+                <div class="desc">3 ações sugeridas (verbo + objeto). 1 clique cumpre (envia template / abre cal / pede foto). Mesma chamada da SB-01.</div>
+              </div>
+              <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SB-03">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SB-03 · ref W-03</div>
+                <div class="title">Smart replies (3 chips acima do textarea)</div>
+                <div class="desc">Click preenche, edita, envia. Reduz tempo de resposta em 60-80%. Mesma RPC.</div>
+              </div>
+              <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SB-04">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SB-04 · ref W-05</div>
+                <div class="title">Sentiment + intent badges</div>
+                <div class="desc">Classifier no inbound, cache em wa_messages. Atendente prioriza a-quente sem ler.</div>
+              </div>
+              <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+          </div>
+
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> tempo médio de resposta cai 60-80%. Lara deixa de ser "bot" e vira "copiloto".</div>
         </div>
 
+        <!-- SPRINT C -->
         <div class="sprint">
-          <div class="sprint-hdr">
+          <div class="sprint-hdr-line">
             <div class="sprint-name">Sprint <em>C</em> · Paridade WhatsApp + colab</div>
             <div class="sprint-time">2-3 dias</div>
           </div>
           <div class="sprint-goal">Fechar a sensação de "central séria" — WhatsApp Web nivelado + multi-atendente real.</div>
-          <ul class="sprint-items">
-            <li><code>W-06</code> ✓ ✓✓ azul (Cloud API webhooks → wa_messages.delivery_status → UI)</li>
-            <li><code>W-09</code> Templates rápidos com variáveis (/olheiras, Cmd+T)</li>
-            <li><code>W-11</code> Nota interna com @mention</li>
-            <li><code>P-07</code> Upload imagem/áudio/PDF pelo atendente</li>
-            <li><code>P-09</code> Agrupamento de msgs por data (Hoje/Ontem)</li>
-            <li><code>W-08</code> Snooze inteligente + lembrete</li>
-          </ul>
-          <div class="sprint-impact"><strong>Resultado:</strong> atendente fecha o WhatsApp Web. Tudo vive no /conversas.</div>
+
+          <div class="sprint-tasks">
+            <div class="item" data-id="SC-01">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-01 · ref W-06</div>
+                <div class="title">✓ ✓✓ azul (delivered/read)</div>
+                <div class="desc">Cloud API webhooks → <code>wa_messages.delivery_status</code> → UI ícones.</div>
+              </div>
+              <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SC-02">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-02 · ref W-09</div>
+                <div class="title">Templates rápidos com variáveis</div>
+                <div class="desc">/olheiras, Cmd+T → menu → escolhe → preenche {nome}/{valor}.</div>
+              </div>
+              <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SC-03">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-03 · ref W-11</div>
+                <div class="title">Nota interna com @mention</div>
+                <div class="desc">Memo amarelo só visível pro time. Mention notifica.</div>
+              </div>
+              <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SC-04">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-04 · ref P-07</div>
+                <div class="title">Upload imagem/áudio/PDF pelo atendente</div>
+                <div class="desc">Botão paperclip no MessageArea. Upload Supabase storage + envia via Cloud API.</div>
+              </div>
+              <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>M</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SC-05">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-05 · ref P-09</div>
+                <div class="title">Agrupamento de msgs por data</div>
+                <div class="desc">Separadores Hoje / Ontem / dd/mm.</div>
+              </div>
+              <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+
+            <div class="item" data-id="SC-06">
+              <div class="check"><input type="checkbox" /></div>
+              <div class="body">
+                <div class="id">SC-06 · ref W-08</div>
+                <div class="title">Snooze inteligente + lembrete</div>
+                <div class="desc">"responder amanhã 9h" + push notification. Substitui pause genérico.</div>
+              </div>
+              <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
+            </div>
+          </div>
+
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> atendente fecha o WhatsApp Web. Tudo vive no /conversas.</div>
         </div>
+
       </div>
     </div>
   </section>
 
   <!-- ========== DECISÃO ========== -->
-  <section class="open" id="decisao">
-    <div class="section-header" onclick="toggleSection(this)">
+  <section id="decisao">
+    <div class="section-hdr">
       <h2><em>Decisão</em> · 3 caminhos pra escolher</h2>
       <div class="section-meta">
         <span class="pill gold">Pick one</span>
-        <span class="toggle">▶</span>
       </div>
     </div>
-    <div class="section-content">
+    <div class="section-body">
       <div class="section-desc">Cada caminho tem prazo diferente e momento de "wow" diferente. Escolher antes de começar.</div>
 
       <div class="decision">
-        <div class="decision-card">
-          <div class="label">Caminho 1</div>
+        <div class="decision-card recommended">
+          <div class="label">Caminho 1 · Recomendado</div>
           <div class="name">Conserva, depois <em>encanta</em></div>
           <div class="desc">Sprint A (1-2d) → Sprint B (3-5d) → Sprint C (2-3d). Total 6-10 dias.</div>
           <div class="when"><strong>Quando escolher:</strong> se hoje tem usuário ativo e os P0 estão te custando confiança.</div>
@@ -832,84 +1045,95 @@
     </div>
   </section>
 
-  <!-- ========== ACTION BAR (sticky) ========== -->
-  <div class="action-bar" id="actionBar">
-    <div class="progress-text">
-      Marcado <strong id="checkedCount">0</strong> de <strong id="totalCount">0</strong>
-    </div>
-    <div class="progress-bar">
-      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-    </div>
-    <button class="clear-btn" onclick="clearAll()">Limpar</button>
-  </div>
+</div>
 
+<!-- Action bar (sticky) -->
+<div class="action-bar">
+  <div class="progress-text">
+    Marcado <strong id="checkedCount">0</strong> de <strong id="totalCount">0</strong>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <button class="clear-btn" type="button" id="clearBtn">Limpar</button>
 </div>
 
 <script>
-  // Toggle de seções
-  function toggleSection(header) {
-    header.parentElement.classList.toggle('open');
-  }
+(function() {
+  var STORAGE_KEY = 'conversas-roadmap-2026-04-29';
 
-  // Persistência local + progress bar
-  const STORAGE_KEY = 'conversas-roadmap-2026-04-29';
+  function items() { return document.querySelectorAll('.item'); }
 
   function saveState() {
-    const state = {};
-    document.querySelectorAll('.item').forEach(item => {
-      const id = item.dataset.id;
-      const checked = item.querySelector('input[type="checkbox"]').checked;
-      if (checked) state[id] = true;
+    var state = {};
+    items().forEach(function(item) {
+      var id = item.getAttribute('data-id');
+      if (!id) return;
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb && cb.checked) state[id] = true;
     });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
   }
 
   function loadState() {
+    var state = {};
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const state = JSON.parse(raw);
-      document.querySelectorAll('.item').forEach(item => {
-        const id = item.dataset.id;
-        if (state[id]) {
-          item.querySelector('input[type="checkbox"]').checked = true;
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) state = JSON.parse(raw) || {};
+    } catch (e) {}
+    items().forEach(function(item) {
+      var id = item.getAttribute('data-id');
+      if (id && state[id]) {
+        var cb = item.querySelector('input[type="checkbox"]');
+        if (cb) {
+          cb.checked = true;
           item.classList.add('checked');
         }
-      });
-    } catch (e) {}
+      }
+    });
   }
 
   function updateProgress() {
-    const items = document.querySelectorAll('.item');
-    const total = items.length;
-    const checked = document.querySelectorAll('.item input[type="checkbox"]:checked').length;
+    var all = items();
+    var total = all.length;
+    var checked = 0;
+    all.forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb && cb.checked) checked++;
+    });
     document.getElementById('checkedCount').textContent = checked;
     document.getElementById('totalCount').textContent = total;
-    document.getElementById('progressFill').style.width = total > 0 ? (checked / total * 100) + '%' : '0%';
+    var pct = total > 0 ? (checked / total * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
   }
 
   function clearAll() {
     if (!confirm('Desmarcar todos os itens?')) return;
-    document.querySelectorAll('.item input[type="checkbox"]').forEach(cb => {
-      cb.checked = false;
-      cb.closest('.item').classList.remove('checked');
+    items().forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = false;
+      item.classList.remove('checked');
     });
     saveState();
     updateProgress();
   }
 
-  // Wire up checkboxes
-  document.querySelectorAll('.item input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', e => {
-      const item = e.target.closest('.item');
-      item.classList.toggle('checked', e.target.checked);
+  // Bind checkboxes
+  items().forEach(function(item) {
+    var cb = item.querySelector('input[type="checkbox"]');
+    if (!cb) return;
+    cb.addEventListener('change', function() {
+      item.classList.toggle('checked', cb.checked);
       saveState();
       updateProgress();
     });
   });
 
+  document.getElementById('clearBtn').addEventListener('click', clearAll);
+
   loadState();
   updateProgress();
+})();
 </script>
 
 </body>
