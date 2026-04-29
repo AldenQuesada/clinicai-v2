@@ -264,6 +264,7 @@ export async function AppHeader() {
             <button
               type="submit"
               title="Sair"
+              className="lara-logout-btn"
               style={{
                 marginLeft: 8,
                 padding: 6,
@@ -274,12 +275,7 @@ export async function AppHeader() {
                 borderRadius: 4,
                 display: 'flex',
                 alignItems: 'center',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--b2b-red)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--b2b-text-muted)'
+                transition: 'color 0.15s',
               }}
             >
               <LogOut className="w-4 h-4" />

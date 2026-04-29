@@ -78,3 +78,10 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--primary) / 0.6);
 }
+
+/* AppHeader logout button · :hover via CSS porque AppHeader e Server
+   Component e Next.js 16 nao permite event handlers (onMouseEnter/Leave)
+   em SC. Migrado de inline JS handlers em 2026-04-29. */
+.lara-logout-btn:hover {
+  color: var(--b2b-red, #D14F47) !important;
+}
