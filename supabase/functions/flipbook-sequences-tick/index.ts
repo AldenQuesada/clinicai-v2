@@ -19,12 +19,10 @@
  *      step despachado
  *
  * Deploy: supabase functions deploy flipbook-sequences-tick --no-verify-jwt
- * Schedule: criar pg_cron job que faz POST a cada 15min
- *   SELECT cron.schedule('flipbook-sequences', '*/15 * * * *',
- *     $$ SELECT net.http_post(
- *          url := '<SB_URL>/functions/v1/flipbook-sequences-tick',
- *          headers := jsonb_build_object('Authorization','Bearer <SERVICE_KEY>')
- *        ); $$);
+ * Schedule: criar pg_cron job que faz POST a cada 15min via cron expression
+ * "x/15 x x x x" (substituir x por asterisco). Body do job invoca esta edge
+ * com Authorization Bearer SERVICE_KEY. Ver docs/flipbook-commerce-deploy.md
+ * seção 3 pra SQL completo.
  */
 
 const EVO_URL  = Deno.env.get('EVOLUTION_BASE_URL') || ''

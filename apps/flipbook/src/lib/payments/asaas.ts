@@ -217,6 +217,20 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
   })
 }
 
+/**
+ * Pega a primeira (mais recente) cobrança gerada pra uma subscription. Útil pra
+ * obter `invoiceUrl` da primeira parcela auto-gerada — Asaas cria o payment
+ * imediatamente após criar a subscription.
+ */
+export async function findFirstPaymentBySubscription(
+  subscriptionId: string,
+): Promise<AsaasPayment | null> {
+  const res = await asaasFetch<{ data: AsaasPayment[] }>(`/payments`, {
+    query: { subscription: subscriptionId, limit: '1', order: 'desc' },
+  })
+  return res.data[0] ?? null
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Webhook signature validation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -235,8 +249,7 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
 export function validateWebhookToken(receivedToken: string | null): boolean {
   const expected = process.env.ASAAS_WEBHOOK_TOKEN
   if (!expected) {
-    // Em dev sem env, aceita qualquer (mas avisa)
-    if (process.env.NODE_ENV !== 'production') return true
+    console.error('[asaas] ASAAS_WEBHOOK_TOKEN not configured — webhook rejected')
     return false
   }
   if (!receivedToken) return false
