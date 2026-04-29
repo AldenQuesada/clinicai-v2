@@ -180,7 +180,7 @@
       <span><strong>Data:</strong> 2026-04-29</span>
       <span><strong>App:</strong> apps/lara</span>
       <span><strong>Rota:</strong> /conversas</span>
-      <span><strong>Status atual:</strong> commit 3b8fec8 · <span style="color: var(--gold);">Sprint A + B + C entregues</span></span>
+      <span><strong>Status atual:</strong> commit e36d27c · <span style="color: var(--gold);">14 de 15 fraquezas done · UIX v2 design contract</span></span>
     </div>
 
     <nav class="toc">
@@ -316,11 +316,11 @@
       <h2><em>Fraquezas</em> · priorizadas por impacto</h2>
       <div class="section-meta">
         <span class="pill good">3 P0 done</span>
-        <span class="pill good">3 P1 done</span>
-        <span class="pill warn">2 P1 pend</span>
-        <span class="pill good">2 P2 done</span>
-        <span class="pill info">2 P2 pend</span>
-        <span class="pill">3 P3</span>
+        <span class="pill good">4 P1 done</span>
+        <span class="pill warn">1 P1 pend</span>
+        <span class="pill good">3 P2 done</span>
+        <span class="pill info">1 P2 pend</span>
+        <span class="pill good">3 P3 done</span>
       </div>
     </div>
     <div class="section-body">
@@ -490,13 +490,13 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-13">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-13">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-13</div>
+          <div class="id">P-13 · ✓ done · commit e36d27c</div>
           <div class="title">Pause durations fixas (15/30/60/120/1440 min)</div>
-          <div class="desc">Sem datetime custom. Sem snooze "amanhã 9h". Limita follow-up agendado.</div>
-          <div class="ref">components/AgentPauseSection.tsx:59</div>
+          <div class="desc">Adicionado preset "Amanhã 9h" (vira "Segunda 9h" se hoje é sex/sáb/dom) + opção "Personalizar..." com datetime-local picker (min agora+1min, validação inline).</div>
+          <div class="ref">components/AgentPauseSection.tsx</div>
         </div>
         <div class="meta">
           <span class="priority p3">P3</span>
@@ -504,13 +504,13 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-14">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-14">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-14</div>
+          <div class="id">P-14 · ✓ done · commit e36d27c</div>
           <div class="title">Lead score em pts crus ("80 pts")</div>
-          <div class="desc">Sem visual (estrelas/cor/label quente-morno-frio). Atendente não interpreta de relance.</div>
-          <div class="ref">components/LeadInfoPanel.tsx:96</div>
+          <div class="desc">LeadScoreBadge pill: 0-30 cinza/Frio · 31-60 amber/Morno · 61-100 champagne/Quente. Dot colorido + label uppercase tracking 0.15em + número.</div>
+          <div class="ref">components/LeadInfoPanel.tsx</div>
         </div>
         <div class="meta">
           <span class="priority p3">P3</span>
@@ -518,12 +518,12 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-15">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-15">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-15</div>
+          <div class="id">P-15 · ✓ done · commit e36d27c</div>
           <div class="title">Sem keyboard shortcuts (j/k próx, r resolver, a assumir)</div>
-          <div class="desc">Power user sofre. 200 conversas/dia clicando uma a uma é fricção desnecessária.</div>
+          <div class="desc">useKeyboardShortcuts hook com window keydown listener. j/k navegar, r resolver, a assumir. Ignora INPUT/TEXTAREA/contenteditable + Ctrl/Cmd combos. Disabled flag pra modal. Hint discreto no rodapé da lista.</div>
         </div>
         <div class="meta">
           <span class="priority p3">P3</span>
