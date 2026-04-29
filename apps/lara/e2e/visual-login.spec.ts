@@ -17,6 +17,13 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('/login · visual regression', () => {
+  // Skip ate baseline ser gerado e committed. Pra criar:
+  //   1. pnpm -F @clinicai/lara build && pnpm -F @clinicai/lara start
+  //   2. (outro terminal) pnpm -F @clinicai/lara e2e --update-snapshots visual-login
+  //   3. git add apps/lara/e2e/visual-login.spec.ts-snapshots/
+  //   4. Remover o test.skip abaixo · CI agora compara contra baseline
+  test.skip(true, 'baseline ausente no repo · gerar local + commitar primeiro')
+
   test('baseline desktop 1280x720', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
     await page.goto('/login', { waitUntil: 'networkidle' })
