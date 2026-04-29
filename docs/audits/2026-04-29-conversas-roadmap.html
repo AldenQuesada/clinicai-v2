@@ -180,7 +180,7 @@
       <span><strong>Data:</strong> 2026-04-29</span>
       <span><strong>App:</strong> apps/lara</span>
       <span><strong>Rota:</strong> /conversas</span>
-      <span><strong>Status atual:</strong> commit 3f2eb43 · <span style="color: var(--gold);">Sprint A + Sprint B done</span></span>
+      <span><strong>Status atual:</strong> commit 3b8fec8 · <span style="color: var(--gold);">Sprint A + B + C entregues</span></span>
     </div>
 
     <nav class="toc">
@@ -193,13 +193,13 @@
     </nav>
 
     <div class="tldr">
-      <h3>TL;DR estratégico · <span style="color: var(--green);">Sprint A + B done</span></h3>
+      <h3>TL;DR estratégico · <span style="color: var(--green);">Sprint A + B + C entregues</span></h3>
       <ul>
-        <li><strong>Sprint A · entregue:</strong> <span style="color: var(--green);">✓ 7 tasks + 1 bonus</span> — polling adaptativo SSE-aware (P-01), paginação cursor (P-02), KPIs globais (P-03 + P-04), sendMessage retry/discard (P-06), transfer dra dinâmica (P-08), pipeline visual (W-04), timeline phase_history (W-07).</li>
-        <li><strong>Sprint B · entregue:</strong> <span style="color: var(--green);">✓ 3 wow features</span> compartilhando 1 chamada Anthropic Opus 4.7 — Auto-summary do lead (W-02), Next Best Action (W-01), Smart replies (W-03). Cache server-side com TTL 10min · degrada graciosamente sem mig 85.</li>
-        <li><strong>Pendentes:</strong> Sprint A · P-05 (✓✓ leitura), P-07 (upload mídia), P-09..P-15 (P3 polish). Sprint B · SB-04 (sentiment badges). Sprint C · paridade WhatsApp.</li>
-        <li><strong>Action item operacional:</strong> aplicar mig <code>20260800000085_clinicai_v2_wa_conversations_ai_copilot.sql</code> em prod via Mgmt API pra ativar cache (sem ela, regenera every time · custa Anthropic).</li>
-        <li><strong>Recomendação:</strong> validar com Mirian em prod antes de Sprint C. UX wow agora · paridade WhatsApp se Mirian pedir.</li>
+        <li><strong>Sprint A · 7+1:</strong> polling adaptativo (P-01), paginação cursor (P-02), KPIs globais (P-03+P-04), sendMessage retry (P-06), transfer dra dinâmica (P-08), pipeline visual (W-04), timeline (W-07).</li>
+        <li><strong>Sprint B · 3 wow:</strong> 1 chamada Anthropic Opus 4.7 → Auto-summary (W-02) + Next Best Action (W-01) + Smart replies (W-03). Cache TTL 10min em wa_conversations.ai_copilot.</li>
+        <li><strong>Sprint C · 4 de 6:</strong> ✓ ✓✓ azul (W-06/SC-01) + Templates rápidos (W-09/SC-02) + Notas internas (W-11/SC-03) + Agrupamento por data (P-09/SC-05). Pendentes: upload mídia (P-07) e snooze (W-08) · escopo grande, próximo ciclo.</li>
+        <li><strong>Action items operacionais:</strong> aplicar 2 migrations em prod via Mgmt API — <code>mig 85</code> (ai_copilot) e <code>mig 86</code> (internal_note + delivery_status). UI funciona sem mig mas não persiste · regen + dispatch silent.</li>
+        <li><strong>Restantes opcionais:</strong> P-05 (delivered/read) ✓ feito via SC-01. P-12 multi-atendente, P-13..P-15 polish, SB-04 sentiment, SC-04 mídia, SC-06 snooze. <em>Validar com Mirian em prod antes de empilhar.</em></li>
       </ul>
     </div>
   </header>
@@ -318,12 +318,13 @@
         <span class="pill good">3 P0 done</span>
         <span class="pill good">3 P1 done</span>
         <span class="pill warn">2 P1 pend</span>
-        <span class="pill info">4 P2</span>
+        <span class="pill good">2 P2 done</span>
+        <span class="pill info">2 P2 pend</span>
         <span class="pill">3 P3</span>
       </div>
     </div>
     <div class="section-body">
-      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento. <strong style="color: var(--gold);">Sprint A 2026-04-29:</strong> 3 P0 (P-01/P-02/P-03) + 3 P1 (P-04/P-06/P-08) entregues. Pendentes P1: P-05 (✓✓ leitura) e P-07 (upload mídia).</div>
+      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento. <strong style="color: var(--gold);">Status 2026-04-29:</strong> 3 P0 + 3 P1 + 2 P2 entregues (P-01/P-02/P-03/P-04/P-06/P-08/P-09/P-11). Pendentes: P-05 ✓ (resolvido via SC-01), P-07 (upload mídia adiado), P-10/P-12 (timeline + multi-atendente).</div>
 
       <div class="item checked" data-id="P-01">
         <div class="check"><input type="checkbox" checked /></div>
@@ -381,10 +382,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-05">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-05">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-05</div>
+          <div class="id">P-05 · ✓ done · commit 3b8fec8 (via SC-01)</div>
           <div class="title">Sem confirmação de entrega/leitura ✓ ✓✓ azul</div>
           <div class="desc">Cloud API entrega webhooks delivered/read mas o status não persiste em wa_messages e não chega ao UI. Atendente fica no escuro sobre se a msg chegou.</div>
         </div>
@@ -436,10 +437,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-09">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-09">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-09</div>
+          <div class="id">P-09 · ✓ done · commit 3b8fec8</div>
           <div class="title">Sem agrupamento de mensagens por data</div>
           <div class="desc">Msgs corridas sem separadores "Hoje / Ontem / Há 2 dias". Scan visual sofre em conversas de 50+ msgs.</div>
           <div class="ref">components/MessageArea.tsx:50-92</div>
@@ -463,10 +464,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-11">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-11">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-11</div>
+          <div class="id">P-11 · ✓ done · commit 3b8fec8</div>
           <div class="title">Sem nota interna entre atendentes</div>
           <div class="desc">"@Mirian olha esse lead, tá quente" não existe. Time perde contexto. Solução: col <code>wa_messages.internal_note</code> bool + cor amarela.</div>
         </div>
@@ -647,10 +648,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-06">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-06">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-06</div>
+          <div class="id">W-06 · ✓ done · commit 3b8fec8</div>
           <div class="title">Confirmação de entrega/leitura ✓ ✓✓ azul WhatsApp Cloud</div>
           <div class="desc">Cloud API entrega webhooks delivered/read. Persistir em <code>wa_messages.delivery_status</code> + UI. Paridade visual com WhatsApp/Instagram.</div>
         </div>
@@ -686,10 +687,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-09">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-09">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-09</div>
+          <div class="id">W-09 · ✓ done · commit 3b8fec8</div>
           <div class="title">Templates rápidos com variáveis</div>
           <div class="desc"><code>/olheiras</code> ou <code>Cmd+T</code> abre menu, escolhe, preenche {nome}/{valor}/{procedimento}. 10x velocidade em respostas comuns. Base: b2b_comm_templates já existe.</div>
         </div>
@@ -712,12 +713,12 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-11">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-11">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-11</div>
+          <div class="id">W-11 · ✓ done · commit 3b8fec8</div>
           <div class="title">Nota interna com @mention</div>
-          <div class="desc">Atendente escreve memo amarelo só visível pro time. "Beatriz @Alden olha esse lead, tá quente". Colab real entre atendentes.</div>
+          <div class="desc">Atendente escreve memo amarelo só visível pro time. Toggle StickyNote no input · NÃO envia ao paciente. <em>Pendente:</em> @mention + push notif (próximo sprint).</div>
         </div>
         <div class="meta">
           <span class="priority medio">Médio</span>
@@ -938,32 +939,32 @@
           <div class="sprint-goal">Fechar a sensação de "central séria" — WhatsApp Web nivelado + multi-atendente real.</div>
 
           <div class="sprint-tasks">
-            <div class="item" data-id="SC-01">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SC-01">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SC-01 · ref W-06</div>
+                <div class="id">SC-01 · ref W-06 · ✓ done · 3b8fec8</div>
                 <div class="title">✓ ✓✓ azul (delivered/read)</div>
-                <div class="desc">Cloud API webhooks → <code>wa_messages.delivery_status</code> → UI ícones.</div>
+                <div class="desc">Cloud API webhooks → <code>wa_messages.delivery_status</code> → UI ícones (sent/delivered/read/failed). DeliveryStatusIcon renderiza ✓ cinza, ✓✓ cinza, ✓✓ azul (#34B7F1), ⚠. Webhook handler atualiza via wamid.</div>
               </div>
               <div class="meta"><span class="priority alto">Alto</span><span class="effort">Esforço: <strong>M</strong></span></div>
             </div>
 
-            <div class="item" data-id="SC-02">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SC-02">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SC-02 · ref W-09</div>
+                <div class="id">SC-02 · ref W-09 · ✓ done · 3b8fec8</div>
                 <div class="title">Templates rápidos com variáveis</div>
-                <div class="desc">/olheiras, Cmd+T → menu → escolhe → preenche {nome}/{valor}.</div>
+                <div class="desc">"/" no comeco do textarea OU Ctrl+T (Cmd+T no Mac) abre dropdown. Substituicao: {nome} (1o nome), {telefone}, {clinica}, {responsavel}, {procedimento} (funnel), {valor} → [VALOR], unknown → [DESCONHECIDO]. Kbd ↑↓⏎esc.</div>
               </div>
               <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SC-03">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SC-03">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SC-03 · ref W-11</div>
-                <div class="title">Nota interna com @mention</div>
-                <div class="desc">Memo amarelo só visível pro time. Mention notifica.</div>
+                <div class="id">SC-03 · ref W-11 · ✓ done · 3b8fec8</div>
+                <div class="title">Nota interna entre atendentes</div>
+                <div class="desc">Toggle StickyNote no input · cor amarela quando ativo · render full-width centralizado · NÃO envia ao paciente · only atendentes veem. <em>@mention + push notif fica pra próximo ciclo.</em></div>
               </div>
               <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
@@ -971,19 +972,19 @@
             <div class="item" data-id="SC-04">
               <div class="check"><input type="checkbox" /></div>
               <div class="body">
-                <div class="id">SC-04 · ref P-07</div>
+                <div class="id">SC-04 · ref P-07 · pendente</div>
                 <div class="title">Upload imagem/áudio/PDF pelo atendente</div>
-                <div class="desc">Botão paperclip no MessageArea. Upload Supabase storage + envia via Cloud API.</div>
+                <div class="desc">Botão paperclip no MessageArea. Upload Supabase storage + envia via Cloud API. <em>Adiado · escopo grande (storage bucket + Cloud Media API).</em></div>
               </div>
               <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>M</strong></span></div>
             </div>
 
-            <div class="item" data-id="SC-05">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SC-05">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SC-05 · ref P-09</div>
+                <div class="id">SC-05 · ref P-09 · ✓ done · 3b8fec8</div>
                 <div class="title">Agrupamento de msgs por data</div>
-                <div class="desc">Separadores Hoje / Ontem / dd/mm.</div>
+                <div class="desc">Separadores pill champagne entre grupos: Hoje / Ontem / "d de MMMM" (ptBR locale via date-fns). useMemo evita recompute.</div>
               </div>
               <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
@@ -991,15 +992,15 @@
             <div class="item" data-id="SC-06">
               <div class="check"><input type="checkbox" /></div>
               <div class="body">
-                <div class="id">SC-06 · ref W-08</div>
+                <div class="id">SC-06 · ref W-08 · pendente</div>
                 <div class="title">Snooze inteligente + lembrete</div>
-                <div class="desc">"responder amanhã 9h" + push notification. Substitui pause genérico.</div>
+                <div class="desc">"responder amanhã 9h" + push notification. <em>Adiado · escopo grande (cron + push notif system).</em></div>
               </div>
               <div class="meta"><span class="priority medio">Médio</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
           </div>
 
-          <div class="sprint-impact"><strong>Resultado esperado:</strong> atendente fecha o WhatsApp Web. Tudo vive no /conversas.</div>
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> atendente fecha o WhatsApp Web. Tudo vive no /conversas.<br/><strong style="color: var(--gold);">2026-04-29 · 4 de 6 entregues:</strong> SC-01 (✓✓ azul) + SC-02 (templates rápidos) + SC-03 (notas internas) + SC-05 (date groups). Pendentes: SC-04 (upload mídia · escopo grande) + SC-06 (snooze · escopo grande).</div>
         </div>
 
       </div>
