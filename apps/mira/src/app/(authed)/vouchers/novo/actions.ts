@@ -4,22 +4,27 @@
  * Server Action · /vouchers/novo · emit single rapido.
  *
  * Reusa 100% da infra de queue + dispatch + tracking · enqueue com items=[1].
- * Redirect pra /vouchers/bulk/[batchId] pra acompanhar dispatch.
+ * Retorna { ok, batchId, error } pra UI decidir navegar/fechar/exibir alerta.
+ * Caller standalone (page /vouchers/novo) faz router.push em sucesso · caller
+ * modal (VoucherCreateModal via NewMenu) fecha modal + router.push.
  *
  * Validacoes:
  *   - parceria selecionada (required)
  *   - nome trim nao vazio
  *   - phone passa pelo normalizePhoneBR (10-13 digitos BR)
  *   - scheduled_at opcional (default: agora)
- *
- * Mesmo PREVIEW_COOKIE NAO usado · single eh sync direto na queue.
  */
 
-import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { normalizePhoneBR } from '@clinicai/utils'
 import { loadMiraServerContext } from '@/lib/server-context'
 import type { PartnershipOption } from './SingleVoucherForm'
+
+export interface EmitVoucherSingleResult {
+  ok: boolean
+  batchId?: string
+  error?: string
+}
 
 /**
  * Lista parcerias ativas enriquecidas com cap+counts mensais.
@@ -63,9 +68,24 @@ function assertCanManage(role: string | null | undefined) {
   }
 }
 
-export async function emitVoucherSingleAction(formData: FormData) {
-  const { ctx, repos } = await loadMiraServerContext()
-  assertCanManage(ctx.role)
+/**
+ * useActionState-compatible signature: (prevState, formData) => result.
+ * Nunca lanca · sempre retorna EmitVoucherSingleResult pra UI decidir.
+ * UI standalone (page) faz router.push em ok=true · UI modal fecha + push.
+ */
+export async function emitVoucherSingleAction(
+  _prevState: EmitVoucherSingleResult | null,
+  formData: FormData,
+): Promise<EmitVoucherSingleResult> {
+  let ctx, repos
+  try {
+    ;({ ctx, repos } = await loadMiraServerContext())
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || 'Falha de contexto' }
+  }
+  if (ctx.role && !['owner', 'admin', 'therapist', 'receptionist'].includes(ctx.role)) {
+    return { ok: false, error: 'Permissao insuficiente' }
+  }
 
   const partnershipId = String(formData.get('partnership_id') || '').trim()
   const name = String(formData.get('name') || '').trim()
@@ -73,16 +93,16 @@ export async function emitVoucherSingleAction(formData: FormData) {
   const combo = String(formData.get('combo') || '').trim() || undefined
   const scheduledAtRaw = String(formData.get('scheduled_at') || '').trim()
 
-  if (!partnershipId) throw new Error('Parceria obrigatoria')
-  if (!name) throw new Error('Nome obrigatorio')
+  if (!partnershipId) return { ok: false, error: 'Parceria obrigatoria' }
+  if (!name) return { ok: false, error: 'Nome obrigatorio' }
 
   const phone = normalizePhoneBR(phoneRaw)
-  if (!phone) throw new Error(`Telefone invalido: "${phoneRaw}" · use formato BR (10-11 digits)`)
+  if (!phone) return { ok: false, error: `Telefone invalido: "${phoneRaw}" · use formato BR (10-11 digitos)` }
 
   let scheduledAt: string | undefined
   if (scheduledAtRaw) {
     const dt = new Date(scheduledAtRaw)
-    if (isNaN(dt.getTime())) throw new Error('Data agendamento invalida')
+    if (isNaN(dt.getTime())) return { ok: false, error: 'Data agendamento invalida' }
     scheduledAt = dt.toISOString()
   }
 
@@ -95,10 +115,10 @@ export async function emitVoucherSingleAction(formData: FormData) {
   })
 
   if (!result.ok || !result.batchId) {
-    throw new Error(result.error || 'Erro ao enfileirar voucher')
+    return { ok: false, error: result.error || 'Erro ao enfileirar voucher' }
   }
 
   revalidatePath('/vouchers')
   revalidatePath('/vouchers/bulk')
-  redirect(`/vouchers/bulk/${result.batchId}`)
+  return { ok: true, batchId: result.batchId }
 }

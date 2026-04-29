@@ -7,10 +7,17 @@
  * mostra cascade com combo cadastrado, validade, cap mensal, vouchers
  * emitidos no mes. Combo vira dropdown (select) com combos validos
  * em vez de input livre. Background dark forcado.
+ *
+ * 2026-04-29: action retorna { ok, error, batchId } via useActionState.
+ * Erro fica visivel inline (modal nao perde estado). Sucesso chama
+ * onSuccess(batchId) se passado, senao navega pra /vouchers/bulk/[id].
  */
 
-import { useMemo, useState } from 'react'
-import { emitVoucherSingleAction } from './actions'
+import { useEffect, useMemo, useState } from 'react'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
+import { useRouter } from 'next/navigation'
+import { emitVoucherSingleAction, type EmitVoucherSingleResult } from './actions'
 
 export interface PartnershipOption {
   id: string
@@ -30,14 +37,34 @@ function localNowInput(): string {
 export function SingleVoucherForm({
   partnerships,
   combos = [],
+  onSuccess,
 }: {
   partnerships: PartnershipOption[]
   /** Lista de combos cadastrados na clinica · vem de b2b_voucher_combos */
   combos?: string[]
+  /**
+   * Chamado em emit OK · recebe batchId. Caller decide o que fazer
+   * (modal fecha + router.push, page so router.push). Se nao passado,
+   * o form navega sozinho pra /vouchers/bulk/[batchId].
+   */
+  onSuccess?: (batchId: string) => void
 }) {
+  const router = useRouter()
+  const [state, formAction] = useActionState<EmitVoucherSingleResult | null, FormData>(
+    emitVoucherSingleAction,
+    null,
+  )
   const [partnershipId, setPartnershipId] = useState<string>('')
   const [phone, setPhone] = useState('')
   const [combo, setCombo] = useState('')
+
+  // Sucesso · delega pro caller OU navega default
+  useEffect(() => {
+    if (state?.ok && state.batchId) {
+      if (onSuccess) onSuccess(state.batchId)
+      else router.push(`/vouchers/bulk/${state.batchId}`)
+    }
+  }, [state, onSuccess, router])
 
   const selected = useMemo(
     () => partnerships.find((p) => p.id === partnershipId) ?? null,
@@ -97,9 +124,22 @@ export function SingleVoucherForm({
 
   return (
     <form
-      action={emitVoucherSingleAction}
+      action={formAction}
       className="rounded-lg border border-[#C9A96E]/22 bg-[#C9A96E]/[0.04] p-4 flex flex-col gap-3.5"
     >
+      {state?.ok === false && state.error ? (
+        <div
+          role="alert"
+          className="rounded-md px-3 py-2 text-[12px]"
+          style={{
+            background: 'rgba(220,38,38,0.12)',
+            border: '1px solid rgba(220,38,38,0.4)',
+            color: '#FCA5A5',
+          }}
+        >
+          {state.error}
+        </div>
+      ) : null}
       <Field label="Parceria" id="v-partner" required>
         <select
           id="v-partner"
@@ -263,24 +303,37 @@ export function SingleVoucherForm({
       </Field>
 
       <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-        <button
-          type="submit"
+        <SubmitButton
           disabled={
             partnerships.length === 0 ||
             !partnershipId ||
             (phoneFilled && !phoneValid)
           }
-          className="px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {capStatus?.tone === 'crit'
-            ? 'Emitir mesmo acima do cap'
-            : 'Enfileirar e disparar'}
-        </button>
+          capCrit={capStatus?.tone === 'crit'}
+        />
         <span className="text-[10px] text-[#6B7280]">
           Voucher entra na queue · dispatch ~1min
         </span>
       </div>
     </form>
+  )
+}
+
+function SubmitButton({ disabled, capCrit }: { disabled: boolean; capCrit: boolean }) {
+  const { pending } = useFormStatus()
+  const label = pending
+    ? 'Enfileirando…'
+    : capCrit
+      ? 'Emitir mesmo acima do cap'
+      : 'Enfileirar e disparar'
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      className="px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-[1px] bg-[#C9A96E] text-[#1A1814] hover:bg-[#D4B785] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      {label}
+    </button>
   )
 }
 

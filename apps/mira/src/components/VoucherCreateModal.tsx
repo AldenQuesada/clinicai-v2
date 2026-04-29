@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import {
   listEnrichedPartnershipsAction,
@@ -25,10 +26,18 @@ export function VoucherCreateModal({
   open: boolean
   onClose: () => void
 }) {
+  const router = useRouter()
   const [partnerships, setPartnerships] = useState<PartnershipOption[]>([])
   const [combos, setCombos] = useState<string[]>([])
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // Sucesso · fecha modal + navega pra batch tracking. Fecha ANTES do push
+  // pra modal nao ficar em cima da nova rota (bug Alden 2026-04-29).
+  function handleSuccess(batchId: string) {
+    onClose()
+    router.push(`/vouchers/bulk/${batchId}`)
+  }
 
   // Fetch lazy quando abre · partnerships + combos em paralelo
   useEffect(() => {
@@ -156,7 +165,11 @@ export function VoucherCreateModal({
               {error}
             </div>
           ) : (
-            <SingleVoucherForm partnerships={partnerships} combos={combos} />
+            <SingleVoucherForm
+              partnerships={partnerships}
+              combos={combos}
+              onSuccess={handleSuccess}
+            />
           )}
         </div>
       </div>
