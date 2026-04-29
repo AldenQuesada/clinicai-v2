@@ -82,6 +82,13 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
 
 /**
  * Carrega supabase + clinic context + repos numa chamada · pra RSC/Action.
+ *
+ * Fallback de role · 2026-04-29:
+ * Quando JWT nao tem `app_role` no claim (sessao antiga, antes do hook
+ * patch), enriquece ctx.role lendo de profiles diretamente. Sem isso,
+ * permission guards veem role=null e escondem features tipo "Gerenciar
+ * usuarios". Custa 1 query extra apenas quando JWT nao tem claim ·
+ * gratuito quando hook funcionar.
  */
 export async function loadServerReposContext(): Promise<{
   supabase: LoadedSupabase
@@ -89,5 +96,20 @@ export async function loadServerReposContext(): Promise<{
   repos: Repos
 }> {
   const { supabase, ctx } = await loadServerContext()
-  return { supabase, ctx, repos: makeRepos(supabase) }
+  const repos = makeRepos(supabase)
+
+  if (!ctx.role && ctx.user_id) {
+    try {
+      const profile = await repos.profiles.getById(ctx.user_id)
+      if (profile?.role) {
+        ctx.role = profile.role as ClinicContext['role']
+      }
+    } catch {
+      // ignore · ctx.role permanece null · permission guards vao usar
+      // fallback otimista (!role significa staff de confianca em codigo
+      // legado tipo AppHeader)
+    }
+  }
+
+  return { supabase, ctx, repos }
 }
