@@ -4,7 +4,8 @@
   "extends": "./base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM"],
-    "noEmit": false,
+    "noEmit": true,
+    "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
     "composite": false
