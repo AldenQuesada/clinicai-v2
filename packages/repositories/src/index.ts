@@ -31,8 +31,10 @@ export {
   type PendingInviteDTO,
   type MyProfileDTO,
   type InviteResult,
-  type RpcResult,
 } from './users.repository'
+// `RpcResult` nao re-exportado aqui · ja existe outro com mesmo nome
+// vindo de crm.types · UsersRepository expoe seu RpcResult internamente
+// e nao e necessario que callers usem o type diretamente.
 
 // ── Mira repositories (B2B + admin · WhatsApp Evolution) ──────────────────
 export { MiraStateRepository, type MiraStateRow } from './mira-state.repository'
