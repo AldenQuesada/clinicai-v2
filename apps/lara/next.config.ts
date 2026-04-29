@@ -6,9 +6,14 @@
  * - headers: CSP cravada (Gap 1 do MIGRATION_DOCTRINE) · espelha hardening
  *   do clinic-dashboard `_headers`/`nginx.conf` mas adaptado pra Next.
  * - output: standalone · Dockerfile minimal pro Easypanel.
+ * - withSentryConfig: wrapper Camada 11a · injeta instrumentation hooks
+ *   pros 3 runtimes (client/server/edge). Fail-soft se SENTRY_DSN ausente
+ *   (cada sentry.*.config.ts decide se inicializa ou nao). silent +
+ *   disableLogger evita poluir build logs · sem source map upload em
+ *   builds locais (configurar SENTRY_AUTH_TOKEN em CI quando precisar).
  */
-
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://oqboitkpcvuaudouwvkl.supabase.co'
 
@@ -73,4 +78,10 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  // Silenciar logs de build · evita ruido em CI/Easypanel quando DSN ausente
+  silent: true,
+  disableLogger: true,
+  // Source map upload precisa de SENTRY_AUTH_TOKEN · ausente = no-op
+  // (Sentry SDK detecta e pula upload sem quebrar build).
+})
