@@ -7,6 +7,7 @@
  * ADR-012 · repos.clinicData.getSettings (batch · 1 query pra todos os layers).
  */
 
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -346,7 +347,24 @@ export default async function PromptsPage() {
         </span>
       </header>
 
-      <PromptsWorkspace groups={groups} />
+      <Suspense
+        fallback={
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--b2b-text-muted)',
+              fontSize: 13,
+            }}
+          >
+            Carregando...
+          </div>
+        }
+      >
+        <PromptsWorkspace groups={groups} />
+      </Suspense>
     </main>
   )
 }
