@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ConversationList } from './components/ConversationList';
 import { MessageArea } from './components/MessageArea';
 import { LeadInfoPanel } from './components/LeadInfoPanel';
 import { ConfirmModal } from './components/ConfirmModal';
 import { NewConversationModal } from './components/NewConversationModal';
-import { useConversations } from './hooks/useConversations';
+import { useConversations, updateTabTitle } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
+import { useInsights } from './hooks/useInsights';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -19,6 +20,7 @@ export default function ChatPage() {
     statusFilter,
     setStatusFilter,
     refreshConversations,
+    lastSseEventAtRef,
   } = useConversations();
 
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(true);
@@ -40,7 +42,22 @@ export default function ChatPage() {
     sendMessage,
     sendStatus,
     messagesEndRef,
-  } = useMessages(selectedConversation?.conversation_id || null);
+  } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
+
+  // P-03/P-04: insights globais do clinic · independente do filtro ativo.
+  // Substitui calculos filter() do array (que zeravam ao trocar de aba).
+  const { insights, refresh: refreshInsights } = useInsights();
+
+  // Wrapper · em mutacoes (assume/resolve/archive/transfer + new conv) refresh
+  // tanto a lista quanto os insights pra UI ficar consistente sem esperar 30s.
+  const refreshAll = async () => {
+    await Promise.all([refreshConversations(), refreshInsights()]);
+  };
+
+  // Tab title reativo a insights · "(N) Central de Atendimento"
+  useEffect(() => {
+    updateTabTitle(insights.urgentes + insights.aguardando);
+  }, [insights.urgentes, insights.aguardando]);
 
   const handleSendMessage = () => {
     if (selectedConversation) {
@@ -133,24 +150,8 @@ export default function ChatPage() {
     }
   };
 
-  // Cálculos de Insights
-  const urgentes = conversations.filter(c => c.is_urgent).length;
-  const aguardando = conversations.filter(c => !c.ai_enabled && !c.is_urgent).length;
-  const laraAtiva = conversations.filter(c => c.ai_enabled).length;
-  // Resolvidos hoje · conta status='resolved' E last_message_at >= hoje 00:00.
-  // Quando statusFilter !== 'resolved' a lista nao traz resolvidas, entao
-  // o numero so sera != 0 quando user filtra por "Resolvidas".
-  const resolvidos = (() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return conversations.filter((c) => {
-      if (c.status !== 'resolved') return false;
-      const updated = c.last_message_at;
-      if (!updated) return false;
-      const ts = new Date(updated).getTime();
-      return Number.isFinite(ts) && ts >= todayStart.getTime();
-    }).length;
-  })();
+  // P-03/P-04: KPIs vem do useInsights global · nao calculados do array filtrado
+  const { urgentes, aguardando, laraAtiva, resolvidosHoje } = insights;
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
@@ -198,7 +199,7 @@ export default function ChatPage() {
           </div>
           <div>
             <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Resolvidos Hoje</p>
-            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{resolvidos}</p>
+            <p className="text-lg font-bold leading-none mt-0.5 text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
           </div>
         </div>
       </div>
@@ -233,7 +234,7 @@ export default function ChatPage() {
           isExpanded={isLeadPanelExpanded}
           onToggleExpand={() => setIsLeadPanelExpanded(!isLeadPanelExpanded)}
           onAction={handleAction}
-          onStatusChange={refreshConversations}
+          onStatusChange={refreshAll}
         />
       </div>
 
@@ -256,8 +257,8 @@ export default function ChatPage() {
           onClose={() => setIsNewConvOpen(false)}
           onCreated={async (convId) => {
             setIsNewConvOpen(false);
-            // Refresh lista · busca a conversa nova
-            await refreshConversations();
+            // Refresh lista + insights · busca a conversa nova
+            await refreshAll();
             // Aguarda 1 tick pra state atualizar e seleciona
             setTimeout(() => {
               const found = conversations.find(c => c.conversation_id === convId);

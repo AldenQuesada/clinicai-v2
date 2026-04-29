@@ -68,8 +68,13 @@ export const sendBrowserNotification = (title: string, body: string, onClick?: (
   }
 };
 
-export const updateTabTitle = (conversations: Conversation[]) => {
-  const pending = conversations.filter(c => c.is_urgent || (!c.ai_enabled && !c.is_urgent)).length;
+/**
+ * Atualiza titulo da aba com numero de pendentes.
+ * P-04 (2026-04-29): aceita `pending` direto · geralmente
+ * `insights.urgentes + insights.aguardando` do useInsights (global · nao
+ * filtrado por aba). Antes era filter() do array, que zerava ao trocar de aba.
+ */
+export const updateTabTitle = (pending: number) => {
   document.title = pending > 0 ? `(${pending}) Central de Atendimento` : 'ClinicAI';
 };
 
@@ -81,6 +86,7 @@ export function useConversations() {
   const selectedIdRef = useRef<string | null>(null);
   const prevDataRef = useRef<Conversation[]>([]);
   const prevStatusRef = useRef(statusFilter);
+  const lastSseEventAtRef = useRef<number>(0);
 
   // Mantém o ID selecionado sem causar re-render
   useEffect(() => {
@@ -95,10 +101,10 @@ export function useConversations() {
       const res = await fetch(`/api/conversations?status=${statusFilter}`);
       if (res.ok) {
         const data: Conversation[] = await res.json();
-        
-        // Atualiza Título da Aba
-        updateTabTitle(data);
-        
+
+        // P-04: tab title agora vem do useInsights (global) na page · removido daqui
+        // pra nao dar valor errado ao trocar de aba (Resolvidas zera urgentes).
+
         // Verifica Novas Mensagens / Notificações
         // SÓ verifica se NÃO houve troca de aba de status (filtro principal)
         const isTabChange = prevStatusRef.current !== statusFilter;
@@ -223,6 +229,7 @@ export function useConversations() {
         eventSource.onmessage = () => {
           // SSE entregou evento · conexao saudavel · reseta backoff
           reconnectAttempt = 0;
+          lastSseEventAtRef.current = Date.now();
           fetchConversations();
         };
         eventSource.onopen = () => {
@@ -262,6 +269,7 @@ export function useConversations() {
     setSelectedConversation,
     statusFilter,
     setStatusFilter,
-    refreshConversations: fetchConversations
+    refreshConversations: fetchConversations,
+    lastSseEventAtRef
   };
 }

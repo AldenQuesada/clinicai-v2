@@ -184,6 +184,65 @@ export class ConversationRepository {
     return count ?? 0
   }
 
+  /**
+   * Insights agregados pro top bar do /conversas · 4 counts em paralelo.
+   *
+   * Definicoes (mirror api/conversations/route.ts:isUrgent):
+   *  - urgentes: ai_enabled=false AND last_lead_msg < (now - 5min)
+   *    (atendente assumiu mas paciente respondeu ha mais de 5min · esfriando)
+   *  - aguardando: ai_enabled=false AND (last_lead_msg >= (now - 5min) OR null)
+   *    (atendente assumiu, paciente respondeu recente · ainda quente)
+   *  - lara_ativa: ai_enabled=true (Lara conduzindo)
+   *  - resolvidos_hoje: status=resolved AND last_message_at >= todayStartIso
+   *
+   * Multi-tenant: clinic_id via JWT no caller. Promise.all roda em paralelo.
+   */
+  async getInsights(
+    clinicId: string,
+    opts: { fiveMinAgoIso: string; todayStartIso: string },
+  ): Promise<{
+    urgentes: number
+    aguardando: number
+    laraAtiva: number
+    resolvidosHoje: number
+  }> {
+    const activeStatuses: ConversationStatus[] = ['active', 'paused']
+    const [urgentesQ, aguardandoQ, laraAtivaQ, resolvidosQ] = await Promise.all([
+      this.supabase
+        .from('wa_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('ai_enabled', false)
+        .lt('last_lead_msg', opts.fiveMinAgoIso),
+      this.supabase
+        .from('wa_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('ai_enabled', false)
+        .or(`last_lead_msg.gte.${opts.fiveMinAgoIso},last_lead_msg.is.null`),
+      this.supabase
+        .from('wa_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('ai_enabled', true),
+      this.supabase
+        .from('wa_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .eq('status', 'resolved')
+        .gte('last_message_at', opts.todayStartIso),
+    ])
+    return {
+      urgentes: urgentesQ.count ?? 0,
+      aguardando: aguardandoQ.count ?? 0,
+      laraAtiva: laraAtivaQ.count ?? 0,
+      resolvidosHoje: resolvidosQ.count ?? 0,
+    }
+  }
+
   async setReactivationSent(conversationId: string, value = true): Promise<void> {
     await this.supabase
       .from('wa_conversations')

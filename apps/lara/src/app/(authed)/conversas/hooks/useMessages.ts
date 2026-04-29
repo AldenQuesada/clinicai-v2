@@ -11,7 +11,10 @@ export interface Message {
   isManual?: boolean;
 }
 
-export function useMessages(conversationId: string | null) {
+export function useMessages(
+  conversationId: string | null,
+  opts?: { lastSseEventAtRef?: React.MutableRefObject<number> }
+) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [newMessage, setNewMessage] = useState('');
@@ -81,14 +84,22 @@ export function useMessages(conversationId: string | null) {
     // Carga inicial
     fetchMessages(conversationId);
 
-    // Polling leve a cada 3 segundos APENAS para checar se há mensagens novas
-    // Isso é muito leve pois busca apenas 1 conversa específica
-    const interval = setInterval(() => {
-      fetchMessages(conversationId, true); // silent = true, sem loading spinner
-    }, 3000);
+    // Polling adaptativo · SSE-aware
+    // Se SSE entregou evento nos ultimos 30s, espaca polling pra 30s.
+    // Se SSE silencioso (browser dormindo / rede caiu / server down), volta pra 3s.
+    const sseRef = opts?.lastSseEventAtRef;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    function tick() {
+      fetchMessages(conversationId!, true); // silent = true, sem loading spinner
+      const lastSse = sseRef?.current ?? 0;
+      const sseAlive = lastSse > 0 && Date.now() - lastSse < 30000;
+      const delay = sseAlive ? 30000 : 3000;
+      timeoutId = setTimeout(tick, delay);
+    }
+    timeoutId = setTimeout(tick, 3000); // primeira passada em 3s
 
-    return () => clearInterval(interval);
-  }, [conversationId, fetchMessages]);
+    return () => clearTimeout(timeoutId);
+  }, [conversationId, fetchMessages, opts?.lastSseEventAtRef]);
 
   const sendMessage = async (overrideContent?: string) => {
     const content = overrideContent || newMessage.trim();
