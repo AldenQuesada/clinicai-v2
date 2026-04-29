@@ -55,10 +55,25 @@ export interface ClinicDTO {
   address: ClinicAddress | null
   social: ClinicSocial | null
   operatingHours: ClinicHours | null
+  /**
+   * P-08 (2026-04-29): nome do responsavel para exibicao em UIs
+   * (ex: "Transferir para Dra. Mirian"). Fonte: `settings.responsible_name`
+   * jsonb path. Null quando nao configurado · UI faz fallback generico.
+   */
+  responsibleName: string | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRow(row: any): ClinicDTO {
+  // settings jsonb · le responsible_name OU doctor_name OU profissional_responsavel
+  // (3 chaves possiveis pra cobrir diferentes seeds historicos)
+  const settings = (row.settings ?? {}) as Record<string, unknown>
+  const responsibleName =
+    (typeof settings.responsible_name === 'string' && settings.responsible_name) ||
+    (typeof settings.doctor_name === 'string' && settings.doctor_name) ||
+    (typeof settings.profissional_responsavel === 'string' && settings.profissional_responsavel) ||
+    null
+
   return {
     id: String(row.id),
     name: String(row.name ?? 'Clínica'),
@@ -70,6 +85,7 @@ function mapRow(row: any): ClinicDTO {
     address: (row.address as ClinicAddress) ?? null,
     social: (row.social as ClinicSocial) ?? null,
     operatingHours: (row.operating_hours as ClinicHours) ?? null,
+    responsibleName: responsibleName as string | null,
   }
 }
 
@@ -80,7 +96,7 @@ export class ClinicRepository {
   async getById(clinicId: string): Promise<ClinicDTO | null> {
     const { data } = await this.supabase
       .from('clinics')
-      .select('id, name, phone, whatsapp, email, website, description, address, social, operating_hours')
+      .select('id, name, phone, whatsapp, email, website, description, address, social, operating_hours, settings')
       .eq('id', clinicId)
       .maybeSingle()
 

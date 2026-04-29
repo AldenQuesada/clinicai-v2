@@ -9,6 +9,7 @@ import { NewConversationModal } from './components/NewConversationModal';
 import { useConversations, updateTabTitle } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
 import { useInsights } from './hooks/useInsights';
+import { useClinicInfo } from './hooks/useClinicInfo';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -43,6 +44,8 @@ export default function ChatPage() {
     newMessage,
     setNewMessage,
     sendMessage,
+    retryMessage,
+    discardMessage,
     sendStatus,
     messagesEndRef,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
@@ -50,6 +53,10 @@ export default function ChatPage() {
   // P-03/P-04: insights globais do clinic · independente do filtro ativo.
   // Substitui calculos filter() do array (que zeravam ao trocar de aba).
   const { insights, refresh: refreshInsights } = useInsights();
+
+  // P-08: nome da responsavel pro transfer (multi-tenant) · evita "Dra. Mirian"
+  // hardcoded · le de clinics.settings.responsible_name (jsonb).
+  const { displayResponsible } = useClinicInfo();
 
   // Wrapper · em mutacoes (assume/resolve/archive/transfer + new conv) refresh
   // tanto a lista quanto os insights pra UI ficar consistente sem esperar 30s.
@@ -123,15 +130,16 @@ export default function ChatPage() {
       });
     }
     else if (action === 'transfer') {
+      const responsavel = displayResponsible(); // P-08 · ex: "Dra. Mirian", "Dr. Carlos", "a doutora"
       setModalConfig({
         isOpen: true,
-        title: 'Transferir para Dra. Mirian',
-        description: 'Deseja transferir este lead para a Dra. Mirian? A inteligência artificial será pausada e o paciente será avisado automaticamente.',
+        title: `Transferir para ${responsavel}`,
+        description: `Deseja transferir este lead para ${responsavel}? A inteligência artificial será pausada e o paciente será avisado automaticamente.`,
         confirmText: 'Transferir',
         onConfirm: async () => {
           const res = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
           const data = await res.json();
-          
+
           // Marca status como 'dra' no banco
           await fetch(`/api/conversations/${cid}/status`, {
             method: 'PATCH',
@@ -139,13 +147,13 @@ export default function ChatPage() {
             body: JSON.stringify({ status: 'dra' })
           });
 
-          await sendMessage('Entendi! Vou encaminhar sua conversa para a Dra. Mirian. Ela vai entrar em contato com você em breve!');
-          
-          setSelectedConversation(prev => prev ? { 
-            ...prev, 
+          await sendMessage(`Entendi! Vou encaminhar sua conversa para ${responsavel}. Ela vai entrar em contato com você em breve!`);
+
+          setSelectedConversation(prev => prev ? {
+            ...prev,
             ai_enabled: false,
             status: 'dra',
-            ai_paused_until: data.pauseStatus?.ai_paused_until || prev.ai_paused_until 
+            ai_paused_until: data.pauseStatus?.ai_paused_until || prev.ai_paused_until
           } : prev);
           setModalConfig(null);
         }
@@ -230,6 +238,8 @@ export default function ChatPage() {
           newMessage={newMessage}
           onNewMessageChange={setNewMessage}
           onSendMessage={handleSendMessage}
+          onRetryMessage={retryMessage}
+          onDiscardMessage={discardMessage}
           sendStatus={sendStatus}
           messagesEndRef={messagesEndRef}
         />
@@ -241,6 +251,7 @@ export default function ChatPage() {
           onToggleExpand={() => setIsLeadPanelExpanded(!isLeadPanelExpanded)}
           onAction={handleAction}
           onStatusChange={refreshAll}
+          responsavelLabel={displayResponsible()}
         />
       </div>
 

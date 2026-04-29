@@ -1,6 +1,8 @@
 import { UserCircle, Calendar, Tag, ShieldAlert, UserPlus, CheckCircle, Archive, Stethoscope, ExternalLink, CalendarPlus } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import { AgentPauseSection } from './AgentPauseSection';
+import { PipelineBar } from './PipelineBar';
+import { TimelineSection } from './TimelineSection';
 
 // URL do painel CRM legacy (clinic-dashboard) · usado pra abrir lead/agenda em nova aba
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
@@ -11,6 +13,8 @@ interface LeadInfoPanelProps {
   onToggleExpand: () => void;
   onAction?: (action: 'assume' | 'resolve' | 'archive' | 'transfer') => void;
   onStatusChange?: () => void;
+  /** P-08: nome dinamico da responsavel (ex: "Dra. Mirian", "a doutora") */
+  responsavelLabel?: string;
 }
 
 export function LeadInfoPanel({
@@ -18,7 +22,8 @@ export function LeadInfoPanel({
   isExpanded,
   onToggleExpand,
   onAction,
-  onStatusChange
+  onStatusChange,
+  responsavelLabel = 'a doutora',
 }: LeadInfoPanelProps) {
   if (!isExpanded) {
     return (
@@ -69,10 +74,13 @@ export function LeadInfoPanel({
           <button onClick={() => onAction?.('archive')} title="Arquivar" className="p-2 rounded-full bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--warning))] transition-colors cursor-pointer">
             <Archive className="w-5 h-5" />
           </button>
-          <button onClick={() => onAction?.('transfer')} title="Transferir para Dra. Mirian" className="p-2 rounded-full bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer">
+          <button onClick={() => onAction?.('transfer')} title={`Transferir para ${responsavelLabel}`} className="p-2 rounded-full bg-[hsl(var(--chat-panel-bg))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer">
             <Stethoscope className="w-5 h-5" />
           </button>
         </div>
+
+        {/* SA-06 · Pipeline visual da jornada (Quiz → Procedimento) */}
+        <PipelineBar phase={selectedConversation.phase} />
 
         <div className="p-6 space-y-6">
           {/* Tags / Pipeline Data */}
@@ -129,6 +137,9 @@ export function LeadInfoPanel({
               )}
             </div>
           </div>
+
+          {/* SA-07 · Timeline de eventos (phase_history) */}
+          <TimelineSection conversationId={selectedConversation.conversation_id} />
 
           {/* Atalhos pro painel CRM legacy · abre em nova aba */}
           <div className="pt-2 border-t border-[hsl(var(--chat-border))] space-y-2">

@@ -9,6 +9,8 @@ export interface Message {
   type: string;
   mediaUrl?: string | null;
   isManual?: boolean;
+  /** P-06 (2026-04-29): true quando sendMessage falhou · UI mostra botoes retry/descartar */
+  failed?: boolean;
 }
 
 export function useMessages(
@@ -101,27 +103,13 @@ export function useMessages(
     return () => clearTimeout(timeoutId);
   }, [conversationId, fetchMessages, opts?.lastSseEventAtRef]);
 
-  const sendMessage = async (overrideContent?: string) => {
-    const content = overrideContent || newMessage.trim();
-    if (!conversationId || !content) return;
-    
-    if (!overrideContent) {
-      setNewMessage('');
-    }
-    setSendStatus('sending');
-
-    // Otimismo: adiciona a mensagem na tela instantaneamente
-    const optimisticMsg: Message = {
-      id: `temp-${Date.now()}`,
-      content,
-      sender: 'assistant',
-      createdAt: new Date().toISOString(),
-      type: 'text',
-      isManual: true
-    };
-    setMessages(prev => [...prev, optimisticMsg]);
-    setTimeout(scrollToBottom, 100);
-
+  /**
+   * Posta o conteudo no server. Retorna true se OK, false se falhou.
+   * Marca a msg otimistica como `failed:true` em caso de erro · usuario decide
+   * entre retry/descartar (P-06).
+   */
+  const postMessage = async (content: string, optimisticId: string): Promise<boolean> => {
+    if (!conversationId) return false;
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
@@ -129,16 +117,70 @@ export function useMessages(
         body: JSON.stringify({ content })
       });
       if (res.ok) {
-        setSendStatus('idle');
-        // Recarrega para pegar o ID real do servidor
+        // Server confirmou · refetch traz o id real e remove o temp
         fetchMessages(conversationId, true);
-      } else {
-        setSendStatus('error');
+        return true;
       }
     } catch {
-      setSendStatus('error');
+      // network/abort · marca como failed abaixo
     }
+    // Falha · marca a optimistic msg como failed (nao remove · usuario decide)
+    setMessages(prev =>
+      prev.map(m => (m.id === optimisticId ? { ...m, failed: true } : m))
+    );
+    return false;
+  };
+
+  const sendMessage = async (overrideContent?: string) => {
+    const content = overrideContent || newMessage.trim();
+    if (!conversationId || !content) return;
+
+    if (!overrideContent) {
+      setNewMessage('');
+    }
+    setSendStatus('sending');
+
+    // Otimismo: adiciona a mensagem na tela instantaneamente
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      content,
+      sender: 'assistant',
+      createdAt: new Date().toISOString(),
+      type: 'text',
+      isManual: true,
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    setTimeout(scrollToBottom, 100);
+
+    const ok = await postMessage(content, optimisticId);
+    setSendStatus(ok ? 'idle' : 'error');
     setTimeout(() => setSendStatus('idle'), 3000);
+  };
+
+  /**
+   * P-06: Retentativa de uma msg que falhou · localiza pelo id temp,
+   * reseta o flag failed e faz POST de novo.
+   */
+  const retryMessage = async (tempId: string) => {
+    if (!conversationId) return;
+    const target = messages.find(m => m.id === tempId);
+    if (!target) return;
+    // Reseta visual · esconde botoes enquanto retenta
+    setMessages(prev =>
+      prev.map(m => (m.id === tempId ? { ...m, failed: false } : m))
+    );
+    setSendStatus('sending');
+    const ok = await postMessage(target.content, tempId);
+    setSendStatus(ok ? 'idle' : 'error');
+    setTimeout(() => setSendStatus('idle'), 3000);
+  };
+
+  /**
+   * P-06: Descarta uma msg que falhou · usuario escolheu desistir.
+   */
+  const discardMessage = (tempId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== tempId));
   };
 
   return {
@@ -147,7 +189,9 @@ export function useMessages(
     newMessage,
     setNewMessage,
     sendMessage,
+    retryMessage,
+    discardMessage,
     messagesEndRef,
-    sendStatus
+    sendStatus,
   };
 }

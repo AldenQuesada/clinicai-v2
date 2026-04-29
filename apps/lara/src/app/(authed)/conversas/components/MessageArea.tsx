@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Loader, UserCircle } from 'lucide-react';
+import { Send, Loader, UserCircle, AlertTriangle, RotateCw, X } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
@@ -13,6 +13,10 @@ interface MessageAreaProps {
   newMessage: string;
   onNewMessageChange: (val: string) => void;
   onSendMessage: () => void;
+  /** P-06: retentar uma msg que falhou */
+  onRetryMessage?: (tempId: string) => void;
+  /** P-06: descartar uma msg que falhou */
+  onDiscardMessage?: (tempId: string) => void;
   sendStatus: 'idle' | 'sending' | 'error';
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -24,6 +28,8 @@ export function MessageArea({
   newMessage,
   onNewMessageChange,
   onSendMessage,
+  onRetryMessage,
+  onDiscardMessage,
   sendStatus,
   messagesEndRef
 }: MessageAreaProps) {
@@ -55,15 +61,28 @@ export function MessageArea({
         ) : (
           messages.map((msg) => {
             const isUser = msg.sender === 'user';
+            const isFailed = msg.failed === true;
             return (
-              <div key={msg.id} className={`flex ${isUser ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                  isUser
-                    ? 'bg-[hsl(var(--chat-msg-user))] text-[hsl(var(--chat-msg-user-text))] rounded-tl-sm'
-                    : 'bg-[hsl(var(--chat-msg-bot))] text-[hsl(var(--chat-msg-bot-text))] rounded-tr-sm'
+              <div key={msg.id} className={`flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : ''}`}>
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2 transition-colors ${
+                  isFailed
+                    ? 'bg-[hsl(var(--danger))]/10 border border-[hsl(var(--danger))]/40 text-[hsl(var(--foreground))] rounded-tr-sm'
+                    : isUser
+                      ? 'bg-[hsl(var(--chat-msg-user))] text-[hsl(var(--chat-msg-user-text))] rounded-tl-sm'
+                      : 'bg-[hsl(var(--chat-msg-bot))] text-[hsl(var(--chat-msg-bot-text))] rounded-tr-sm'
                 }`}>
-                  <div className={`text-[12px] font-bold mb-1 pb-0.5 ${isUser ? 'text-[hsl(var(--accent))]' : 'text-[hsl(var(--success))]'}`}>
-                    {isUser
+                  <div className={`text-[12px] font-bold mb-1 pb-0.5 ${
+                    isFailed
+                      ? 'text-[hsl(var(--danger))]'
+                      : isUser
+                        ? 'text-[hsl(var(--accent))]'
+                        : 'text-[hsl(var(--success))]'
+                  }`}>
+                    {isFailed ? (
+                      <span className="inline-flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Falha ao enviar
+                      </span>
+                    ) : isUser
                       ? (selectedConversation.lead_name || 'Paciente')
                       : (msg.isManual ? 'Atendente Humano 👩‍⚕️' : 'Lara 🤖')
                     }
@@ -80,10 +99,28 @@ export function MessageArea({
                   )}
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                   <div className="flex items-center justify-end gap-1 mt-1 block">
-                    {msg.isManual && !isUser && <span className="text-[10px] opacity-70">Humano</span>}
+                    {msg.isManual && !isUser && !isFailed && <span className="text-[10px] opacity-70">Humano</span>}
                     <span className="text-[10px] opacity-70">{format(new Date(msg.createdAt), 'HH:mm')}</span>
                   </div>
                 </div>
+                {isFailed && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onRetryMessage?.(msg.id)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/25 transition-colors border border-[hsl(var(--primary))]/30"
+                    >
+                      <RotateCw className="w-3 h-3" /> Tentar de novo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDiscardMessage?.(msg.id)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/5 text-[hsl(var(--muted-foreground))] hover:bg-white/10 hover:text-[hsl(var(--foreground))] transition-colors border border-[hsl(var(--chat-border))]"
+                    >
+                      <X className="w-3 h-3" /> Descartar
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

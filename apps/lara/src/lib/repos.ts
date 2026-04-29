@@ -14,6 +14,7 @@ import {
   LeadRepository,
   ConversationRepository,
   MessageRepository,
+  ClinicRepository,
   ClinicDataRepository,
   TemplateRepository,
   BroadcastRepository,
@@ -42,6 +43,7 @@ export interface Repos {
   leads: LeadRepository
   conversations: ConversationRepository
   messages: MessageRepository
+  clinic: ClinicRepository
   clinicData: ClinicDataRepository
   templates: TemplateRepository
   broadcasts: BroadcastRepository
@@ -67,6 +69,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     leads: new LeadRepository(sb),
     conversations: new ConversationRepository(sb),
     messages: new MessageRepository(sb),
+    clinic: new ClinicRepository(sb),
     clinicData: new ClinicDataRepository(sb),
     templates: new TemplateRepository(sb),
     broadcasts: new BroadcastRepository(sb),
