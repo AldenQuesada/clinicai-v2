@@ -116,73 +116,22 @@ export function ClinicSettingsClient({
     })
   }
 
+  const activeIdx = SECTIONS.findIndex((s) => s.key === section)
+  const sectionNum = String(activeIdx + 1).padStart(2, '0')
+  const activeLabel = SECTIONS[activeIdx]?.label ?? ''
+
   return (
     <div>
-      {/* Top action bar · espelho do header do legacy linhas 759-773 */}
-      <div
+      {/* Sub-nav minimalista · tabs com underline gold no ativo (sem caixotes) */}
+      <nav
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
+          gap: 4,
           flexWrap: 'wrap',
-          gap: 10,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--b2b-ivory)' }}>
-            Dados da Clínica
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--b2b-text-muted)', marginTop: 2 }}>
-            Gerencie todas as informações da sua clínica
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {toast && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 12,
-                fontWeight: 600,
-                color:
-                  toast.tone === 'ok'
-                    ? 'var(--b2b-sage)'
-                    : toast.tone === 'warn'
-                      ? 'var(--b2b-champagne)'
-                      : 'var(--b2b-red)',
-              }}
-            >
-              {toast.tone === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />}
-              {toast.msg}
-            </span>
-          )}
-          {canEdit && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isPending}
-              className="b2b-btn b2b-btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Save size={13} />
-              {isPending ? 'Salvando...' : 'Salvar'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sub-nav · espelho linha 776-803 */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 6,
-          flexWrap: 'wrap',
-          marginBottom: 20,
-          paddingBottom: 14,
+          marginBottom: 32,
           borderBottom: '1px solid var(--b2b-border)',
         }}
+        aria-label="Seções de configuração"
       >
         {SECTIONS.map((s) => {
           const active = section === s.key
@@ -193,29 +142,124 @@ export function ClinicSettingsClient({
               type="button"
               onClick={() => setSection(s.key)}
               style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '10px 14px',
+                background: 'transparent',
+                color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 1.2,
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'color 0.15s',
+                fontFamily: 'inherit',
+              }}
+            >
+              <Icon size={12} strokeWidth={1.75} />
+              {s.label}
+              {active && (
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    right: 12,
+                    bottom: -1,
+                    height: 1.5,
+                    background: 'var(--b2b-champagne)',
+                  }}
+                />
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* Section heading · numero italic + titulo · estilo flipbook-auditoria */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 14,
+          marginBottom: 24,
+        }}
+      >
+        <span
+          className="font-display"
+          style={{
+            fontStyle: 'italic',
+            color: 'var(--b2b-champagne)',
+            fontSize: 28,
+            fontWeight: 300,
+            lineHeight: 1,
+          }}
+        >
+          {sectionNum}
+        </span>
+        <div style={{ flex: 1 }}>
+          <div
+            className="font-display"
+            style={{
+              fontSize: 22,
+              color: 'var(--b2b-ivory)',
+              lineHeight: 1.1,
+              fontWeight: 300,
+            }}
+          >
+            {activeLabel}
+          </div>
+        </div>
+        {/* Toast inline + Save · alinhado a direita */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {toast && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 500,
+                letterSpacing: 0.5,
+                color:
+                  toast.tone === 'ok'
+                    ? 'var(--b2b-sage)'
+                    : toast.tone === 'warn'
+                      ? 'var(--b2b-champagne)'
+                      : 'var(--b2b-red)',
+              }}
+            >
+              {toast.tone === 'ok' ? <Check size={12} /> : <AlertTriangle size={12} />}
+              {toast.msg}
+            </span>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className="b2b-btn b2b-btn-primary"
+              style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
                 padding: '7px 14px',
-                background: active ? 'rgba(201,169,110,0.15)' : 'transparent',
-                color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-dim)',
-                border: `1px solid ${active ? 'var(--b2b-champagne)' : 'var(--b2b-border)'}`,
-                borderRadius: 5,
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: 0.4,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
+                fontSize: 11,
+                letterSpacing: 1,
               }}
             >
-              <Icon size={12} /> {s.label}
+              <Save size={12} />
+              {isPending ? 'Salvando...' : 'Salvar'}
             </button>
-          )
-        })}
+          )}
+        </div>
       </div>
 
       {/* Panels */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {section === 'perfil' && (
           <>
             <PerfilContatoSection
@@ -225,7 +269,6 @@ export function ClinicSettingsClient({
               canEditOwner={canEditOwner}
             />
             <EnderecoSection data={data} onChange={patch} canEdit={canEdit} />
-            <HorariosSection data={data} onChange={patch} canEdit={canEdit} />
           </>
         )}
         {section === 'fiscal' && (
@@ -255,22 +298,6 @@ export function ClinicSettingsClient({
           <ObservacoesSection data={data} onChange={patch} canEdit={canEdit} />
         )}
       </div>
-
-      {/* Bottom save · espelho linhas 1382-1384 */}
-      {canEdit && (
-        <div className="b2b-form-actions">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className="b2b-btn b2b-btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <Save size={13} />
-            {isPending ? 'Salvando...' : 'Salvar Dados da Clínica'}
-          </button>
-        </div>
-      )}
     </div>
   )
 }

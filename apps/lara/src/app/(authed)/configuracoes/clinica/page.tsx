@@ -61,29 +61,61 @@ export default async function ConfiguracoesClinicaPage() {
   const canEditOwner = can(role, 'settings:clinic-data')
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        <div className="mb-8">
-          <p className="eyebrow mb-3">Painel · Configurações</p>
-          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
+    <main
+      className="flex-1 overflow-y-auto custom-scrollbar"
+      style={{
+        background: 'var(--b2b-bg-0)',
+        backgroundImage:
+          'radial-gradient(circle at 20% 0%, rgba(201,169,110,0.04), transparent 60%), radial-gradient(circle at 90% 80%, rgba(201,169,110,0.02), transparent 50%)',
+      }}
+    >
+      {/* Container narrow tipo "longform" · max-width 980px (estilo flipbook-auditoria) */}
+      <div style={{ maxWidth: 980, margin: '0 auto', padding: '40px 28px 72px' }}>
+        {/* Hero compacto · kicker + h1 + lede sem cards */}
+        <header style={{ marginBottom: 36 }}>
+          <p
+            className="eyebrow"
+            style={{ marginBottom: 10, fontSize: 10, letterSpacing: 3 }}
+          >
+            Painel · Configurações
+          </p>
+          <h1
+            className="font-display"
+            style={{
+              fontSize: 'clamp(32px, 4vw, 44px)',
+              lineHeight: 1.05,
+              color: 'var(--b2b-ivory)',
+              marginBottom: 12,
+              fontWeight: 300,
+            }}
+          >
             Dados da <em>clínica</em>
           </h1>
-          <p className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl">
-            Cadastrais, fiscais, atendimento, identidade visual, horários e notificações.
-            Tudo o que aparece pro paciente e o que regula a operação.
+          <p
+            className="font-display"
+            style={{
+              fontSize: 16,
+              fontStyle: 'italic',
+              color: 'var(--b2b-text-dim)',
+              maxWidth: 620,
+              lineHeight: 1.5,
+            }}
+          >
+            Cadastrais, fiscais, atendimento, identidade visual, horários e
+            notificações. Tudo o que aparece pro paciente e o que regula a operação.
           </p>
-        </div>
+        </header>
 
         {errorMsg && (
           <div
             style={{
               marginBottom: 16,
               padding: '10px 14px',
-              background: 'rgba(217, 122, 122, 0.12)',
+              background: 'rgba(217, 122, 122, 0.10)',
               color: 'var(--b2b-red)',
-              border: '1px solid rgba(217, 122, 122, 0.3)',
-              borderRadius: 5,
+              borderLeft: '2px solid var(--b2b-red)',
               fontSize: 12,
+              lineHeight: 1.5,
             }}
           >
             {errorMsg}
@@ -93,16 +125,20 @@ export default async function ConfiguracoesClinicaPage() {
         {!canEdit && (
           <div
             style={{
-              marginBottom: 16,
-              padding: '10px 14px',
-              background: 'rgba(201, 169, 110, 0.10)',
-              color: 'var(--b2b-champagne)',
-              border: '1px solid rgba(201, 169, 110, 0.3)',
-              borderRadius: 5,
-              fontSize: 12,
+              marginBottom: 20,
+              padding: '12px 16px',
+              background:
+                'linear-gradient(135deg, rgba(201,169,110,0.06), rgba(201,169,110,0.02))',
+              borderLeft: '2px solid var(--b2b-champagne)',
+              fontSize: 13,
+              fontFamily: 'Cormorant Garamond, serif',
+              fontStyle: 'italic',
+              color: 'var(--b2b-text-dim)',
+              lineHeight: 1.5,
             }}
           >
-            Você está no modo de visualização. Somente administradores podem editar as configurações.
+            Modo de visualização · somente administradores podem editar as
+            configurações.
           </div>
         )}
 
