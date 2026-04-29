@@ -28,6 +28,7 @@ import {
 } from './shared'
 import {
   AddOrcamentoPaymentSchema,
+  EnsureShareTokenSchema,
   MarkOrcamentoApprovedSchema,
   MarkOrcamentoLostSchema,
   MarkOrcamentoSentSchema,
@@ -279,4 +280,42 @@ export async function softDeleteOrcamentoAction(
   )
   updateTag(CRM_TAGS.orcamentos)
   return ok({ orcamentoId: parsed.data.orcamentoId })
+}
+
+// ── 7. ensureShareTokenAction · gera/retorna token publico idempotente ──────
+//
+// Token vai pra `/orcamento/<token>` (pagina publica sem JWT). Se ja existe
+// nao gera novo · evita revogar link antigo enviado pro paciente.
+
+export async function ensureShareTokenAction(
+  input: unknown,
+): Promise<Result<{ orcamentoId: string; shareToken: string }>> {
+  const parsed = EnsureShareTokenSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+  const token = await repos.orcamentos.ensureShareToken(parsed.data.orcamentoId)
+
+  if (!token) {
+    log.warn(
+      {
+        action: 'crm.orc.ensureShareToken',
+        clinic_id: ctx.clinic_id,
+        orcamento_id: parsed.data.orcamentoId,
+      },
+      'orc.ensureShareToken.failed',
+    )
+    return fail('ensure_share_token_failed')
+  }
+
+  log.info(
+    {
+      action: 'crm.orc.ensureShareToken',
+      clinic_id: ctx.clinic_id,
+      orcamento_id: parsed.data.orcamentoId,
+    },
+    'orc.ensureShareToken.ok',
+  )
+  updateTag(CRM_TAGS.orcamentos)
+  return ok({ orcamentoId: parsed.data.orcamentoId, shareToken: token })
 }

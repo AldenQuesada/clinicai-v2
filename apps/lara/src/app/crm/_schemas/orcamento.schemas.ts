@@ -81,3 +81,9 @@ export const AddOrcamentoPaymentSchema = z.object({
 export const SoftDeleteOrcamentoSchema = z.object({
   orcamentoId: z.string().uuid(),
 })
+
+// ── ensureShareToken · gera/retorna token publico idempotente ───────────────
+
+export const EnsureShareTokenSchema = z.object({
+  orcamentoId: z.string().uuid(),
+})
