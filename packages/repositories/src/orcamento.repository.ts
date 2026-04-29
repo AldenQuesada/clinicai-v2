@@ -473,4 +473,71 @@ export class OrcamentoRepository {
     if (error || typeof data !== 'number') return 0
     return data
   }
+
+  /**
+   * Stats do cron orcamento-followup pra dashboard /admin/health.
+   *
+   * Retorna:
+   *   - sentLast24h: orcamentos com last_followup_at >= now-24h
+   *   - stuckLocks: orcamentos com picking_at NAO-NULL > 5min (cron crashou)
+   *   - eligibleNow: orcamentos elegiveis pra proxima execucao do cron
+   *     (mesma logica de orcamento_followup_pick · sem o lock)
+   *   - lastRunAt: timestamp do follow-up mais recente (proxy pra
+   *     "ultima execucao do cron" · null = cron nunca rodou)
+   */
+  async getFollowupStats(clinicId: string): Promise<{
+    sentLast24h: number
+    stuckLocks: number
+    eligibleNow: number
+    lastRunAt: string | null
+  }> {
+    const now = new Date()
+    const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const cutoff5min = new Date(now.getTime() - 5 * 60 * 1000).toISOString()
+    const today = now.toISOString().slice(0, 10)
+    const todayPlus7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+
+    const [sentRes, stuckRes, eligibleRes, lastRes] = await Promise.all([
+      this.supabase
+        .from('orcamentos')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .gte('last_followup_at', cutoff24h),
+      this.supabase
+        .from('orcamentos')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .lt('picking_at', cutoff5min),
+      this.supabase
+        .from('orcamentos')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .in('status', ['sent', 'viewed', 'followup', 'negotiation'])
+        .not('share_token', 'is', null)
+        .gte('valid_until', today)
+        .lte('valid_until', todayPlus7),
+      this.supabase
+        .from('orcamentos')
+        .select('last_followup_at')
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .not('last_followup_at', 'is', null)
+        .order('last_followup_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    return {
+      sentLast24h: sentRes.count ?? 0,
+      stuckLocks: stuckRes.count ?? 0,
+      eligibleNow: eligibleRes.count ?? 0,
+      lastRunAt:
+        (lastRes.data as { last_followup_at: string | null } | null)?.last_followup_at ?? null,
+    }
+  }
 }

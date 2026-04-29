@@ -581,6 +581,29 @@ export class AppointmentRepository {
   }
 
   /**
+   * Distribuicao de appointments por status atual · para dashboard health
+   * (admin-only). Sem range · todos os appts nao-deletados da clinica.
+   *
+   * Cada status retorna count exato (group by). Usado pra detectar:
+   *   - Volume anormal de no_show / cancelado (sinal de problema operacional)
+   *   - Appts presos em estado intermediario (na_clinica/em_consulta de
+   *     dias passados sem ter ido pra finalizado)
+   */
+  async statusDistribution(clinicId: string): Promise<Record<string, number>> {
+    const { data } = await this.supabase
+      .from('appointments')
+      .select('status')
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+
+    const dist: Record<string, number> = {}
+    for (const r of (data ?? []) as Array<{ status: string }>) {
+      dist[r.status] = (dist[r.status] ?? 0) + 1
+    }
+    return dist
+  }
+
+  /**
    * Cria N appointments em sequencia (recurrence series).
    *
    * Compartilham `recurrence_group_id` (uuid gerado aqui) · cada appt tem
