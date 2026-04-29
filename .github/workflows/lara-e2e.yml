@@ -1,0 +1,72 @@
+# Lara E2E (Playwright) · Camada 11b foundation.
+#
+# Roda contra deploy de preview · workflow_dispatch manual por enquanto
+# (ate auth fixtures ficarem prontas em 11c). Specs publicos (login render +
+# /orcamento/<token> 404) nao precisam de auth nem DB · seguros pra rodar
+# em qualquer URL.
+#
+# Setup necessario:
+#   GitHub repo → Settings → Variables (nao Secrets) → Actions → New variable
+#     LARA_E2E_URL = https://lara.miriandpaula.com.br  (ou preview deploy)
+#
+# Pra adicionar no schedule fixo (ex: nightly), descomente o bloco
+# `schedule:` abaixo.
+
+name: Lara E2E (Playwright)
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 5 * * *'  # 05h UTC = 02h SP · diario
+  pull_request:
+    paths:
+      - 'apps/lara/**'
+      - 'packages/repositories/**'
+      - 'packages/ui/**'
+      - '.github/workflows/lara-e2e.yml'
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Permite falha sem quebrar PR · remove quando estavel (~5 runs verdes seguidas)
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/lara/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm -F @clinicai/lara exec playwright install --with-deps chromium
+
+      - name: Run E2E
+        env:
+          LARA_E2E_URL: ${{ vars.LARA_E2E_URL || 'https://lara.miriandpaula.com.br' }}
+          CI: 'true'
+        run: pnpm -F @clinicai/lara e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/lara/playwright-report/
+          retention-days: 7
