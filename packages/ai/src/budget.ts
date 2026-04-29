@@ -86,9 +86,10 @@ export async function recordUsage(usage: UsageRecord): Promise<void> {
     // RPC `_ai_budget_record` faz UPSERT com tokens += e cost +=
     const { error } = await supabase.rpc('_ai_budget_record', {
       p_clinic_id: usage.clinic_id,
-      // RPC requer string (nao opcional na signature canonica) · default ''
-      // pra usage system-level (cron/webhook sem user identificado).
-      p_user_id: usage.user_id ?? '',
+      // p_user_id e uuid · usar null pra calls system-level (webhook sem user).
+      // Antes passava '' · Postgres tentava cast '' -> uuid e quebrava com
+      // 22P02 "invalid input syntax for type uuid" em 100% das chamadas.
+      p_user_id: usage.user_id ?? null,
       p_source: usage.source,
       p_model: usage.model,
       p_input_tokens: usage.input_tokens,
