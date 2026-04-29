@@ -45,6 +45,7 @@ export default function ChatPage() {
     newMessage,
     setNewMessage,
     sendMessage,
+    sendInternalNote,
     retryMessage,
     discardMessage,
     sendStatus,
@@ -259,6 +260,7 @@ export default function ChatPage() {
           copilotCached={copilot?.cached ?? false}
           copilotSmartReplies={copilot?.smart_replies || []}
           onRefreshCopilot={() => refreshCopilot(true)}
+          onSendInternalNote={sendInternalNote}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}

@@ -19,5 +19,8 @@ export function mapMessageRow(row: any): MessageDTO {
     mediaUrl: row.media_url ?? null,
     status: String(row.status ?? 'received'),
     sentAt: row.sent_at ?? new Date().toISOString(),
+    // Sprint C · novos campos · undefined quando coluna nao existir (mig 86 pendente)
+    internalNote: row.internal_note === true ? true : row.internal_note === false ? false : undefined,
+    deliveryStatus: row.delivery_status ?? null,
   }
 }

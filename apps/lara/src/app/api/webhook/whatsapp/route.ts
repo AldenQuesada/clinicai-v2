@@ -116,10 +116,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Sprint C · SC-01 (W-06): processa status updates do Cloud API
+    // (sent/delivered/read/failed) · UI mostra ✓ ✓✓ azul.
+    //
+    // NOTA: Cloud API entrega 'wamid.HBgL...' como id, e atualmente nosso
+    // wa_messages.id e' uuid interno (sem mapping). updateDeliveryStatus
+    // tenta o update e degrada silencioso quando match nao acha · funciona
+    // imediatamente quando codigo de envio for refatorado pra usar wamid
+    // como id (ou quando adicionar coluna provider_message_id e match por la).
     const hasStatuses = body.entry?.some((e: any) =>
       e.changes?.some((c: any) => c.value?.statuses?.length > 0)
     );
     if (hasStatuses) {
+      try {
+        const supabase = createServerClient();
+        const repos = makeRepos(supabase);
+        for (const entry of body.entry || []) {
+          for (const change of entry.changes || []) {
+            for (const s of change.value?.statuses || []) {
+              const wamid: string | undefined = s.id;
+              const raw: string | undefined = s.status;
+              if (!wamid || !raw) continue;
+              const status = raw === 'read' ? 'read'
+                : raw === 'delivered' ? 'delivered'
+                : raw === 'sent' ? 'sent'
+                : raw === 'failed' ? 'failed'
+                : null;
+              if (!status) continue;
+              await repos.messages.updateDeliveryStatus(wamid, status);
+            }
+          }
+        }
+      } catch (err) {
+        log.warn({ err: (err as Error)?.message }, 'webhook.statuses.process_error');
+      }
       return NextResponse.json({ success: true });
     }
 

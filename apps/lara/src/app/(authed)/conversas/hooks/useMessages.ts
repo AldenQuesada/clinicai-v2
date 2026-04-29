@@ -11,6 +11,10 @@ export interface Message {
   isManual?: boolean;
   /** P-06 (2026-04-29): true quando sendMessage falhou · UI mostra botoes retry/descartar */
   failed?: boolean;
+  /** Sprint C · SC-03 (W-11): nota interna · so atendentes veem · NAO envia ao paciente */
+  internalNote?: boolean;
+  /** Sprint C · SC-01 (W-06): status do envio Cloud API · ✓ ✓✓ azul */
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed' | null;
 }
 
 export function useMessages(
@@ -45,7 +49,10 @@ export function useMessages(
             createdAt: msg.sent_at,
             type: msg.content_type,
             mediaUrl: msg.media_url,
-            isManual: msg.sender === 'humano'
+            isManual: msg.sender === 'humano',
+            // Sprint C: campos podem vir undefined se mig 86 ainda nao aplicada
+            internalNote: msg.internal_note === true,
+            deliveryStatus: msg.delivery_status ?? null,
           });
         });
         
@@ -183,12 +190,60 @@ export function useMessages(
     setMessages(prev => prev.filter(m => m.id !== tempId));
   };
 
+  /**
+   * Sprint C · SC-03 (W-11): Envia nota interna · NAO vai pro paciente.
+   * Usa POST /messages com flag internal=true · UI renderiza amarelo.
+   */
+  const sendInternalNote = async (content: string) => {
+    if (!conversationId || !content.trim()) return;
+    setSendStatus('sending');
+
+    // Otimismo: nota amarela aparece imediato
+    const optimisticId = `temp-note-${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      content: content.trim(),
+      sender: 'assistant',
+      createdAt: new Date().toISOString(),
+      type: 'text',
+      isManual: true,
+      internalNote: true,
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    setTimeout(scrollToBottom, 100);
+
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content.trim(), internal: true }),
+      });
+      if (res.ok) {
+        setSendStatus('idle');
+        fetchMessages(conversationId, true);
+      } else {
+        // Marca falha · retry compartilha logica de sendMessage
+        setMessages(prev =>
+          prev.map(m => (m.id === optimisticId ? { ...m, failed: true } : m))
+        );
+        setSendStatus('error');
+      }
+    } catch {
+      setMessages(prev =>
+        prev.map(m => (m.id === optimisticId ? { ...m, failed: true } : m))
+      );
+      setSendStatus('error');
+    }
+    setTimeout(() => setSendStatus('idle'), 3000);
+  };
+
   return {
     messages,
     isLoading,
     newMessage,
     setNewMessage,
     sendMessage,
+    sendInternalNote,
     retryMessage,
     discardMessage,
     messagesEndRef,

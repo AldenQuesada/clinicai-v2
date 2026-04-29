@@ -92,6 +92,60 @@ export class MessageRepository {
   }
 
   /**
+   * Sprint C · SC-03 (W-11): Salva nota interna · NAO envia ao paciente.
+   * Usa direction='outbound' + sender='atendente' + internal_note=true.
+   * UI filtra internal_note=true pra renderizar amarelo · webhook ignora.
+   */
+  async saveInternalNote(
+    clinicId: string,
+    input: {
+      conversationId: string
+      content: string
+      sender?: string
+      sentAt?: string
+    },
+  ): Promise<string | null> {
+    const id = uuidv4()
+    try {
+      const { error } = await this.supabase.from('wa_messages').insert({
+        id,
+        clinic_id: clinicId,
+        conversation_id: input.conversationId,
+        direction: 'outbound',
+        sender: input.sender ?? 'humano',
+        content: input.content,
+        content_type: 'text',
+        status: 'note',
+        internal_note: true,
+        sent_at: input.sentAt ?? new Date().toISOString(),
+      })
+      if (error) return null
+      return id
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Sprint C · SC-01 (W-06): Atualiza delivery_status pelo webhook do
+   * WhatsApp Cloud API. Match por wamid (Meta provider message id) que
+   * persistimos no campo `id` quando enviamos via cloud.
+   */
+  async updateDeliveryStatus(
+    messageId: string,
+    status: 'sent' | 'delivered' | 'read' | 'failed',
+  ): Promise<void> {
+    try {
+      await this.supabase
+        .from('wa_messages')
+        .update({ delivery_status: status })
+        .eq('id', messageId)
+    } catch {
+      // Coluna nao existe (mig 86 pendente) · degrada silencioso
+    }
+  }
+
+  /**
    * Detecta retry da Meta · mesmo content na mesma conv nos últimos N segundos.
    * Returns true se duplicata · caller deve abortar.
    */

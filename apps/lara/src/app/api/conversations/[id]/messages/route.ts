@@ -40,6 +40,9 @@ export async function GET(
       media_url: m.mediaUrl,
       status: m.status,
       sent_at: m.sentAt,
+      // Sprint C · campos novos (undefined se mig 86 nao aplicada)
+      internal_note: m.internalNote ?? false,
+      delivery_status: m.deliveryStatus ?? null,
     })),
   );
 }
@@ -50,7 +53,7 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const { content } = body;
+  const { content, internal } = body;
 
   if (!content?.trim()) {
     return NextResponse.json({ error: 'Content required' }, { status: 400 });
@@ -62,6 +65,26 @@ export async function POST(
   const conv = await repos.conversations.getById(id);
   if (!conv) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  // Sprint C · SC-03 (W-11): nota interna · NAO envia ao paciente
+  if (internal === true) {
+    const noteId = await repos.messages.saveInternalNote(conv.clinicId, {
+      conversationId: id,
+      content: content.trim(),
+      sender: 'humano',
+    });
+    if (!noteId) {
+      return NextResponse.json(
+        { error: 'Falha ao salvar nota · verifique se mig 86 foi aplicada' },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      message_id: noteId,
+      internal_note: true,
+    });
   }
 
   // Audit fix N7 (2026-04-27): WhatsApp service per-tenant.

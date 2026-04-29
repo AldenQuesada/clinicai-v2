@@ -29,7 +29,7 @@ export class TemplateRepository {
     const { data } = await this.supabase
       .from('wa_message_templates')
       .select(
-        'id, name, message, content, category, trigger_phase, type, day, active, is_active, sort_order, created_at, clinic_id',
+        'id, name, slug, message, content, category, trigger_phase, type, day, active, is_active, sort_order, created_at, clinic_id',
       )
       .eq('clinic_id', clinicId)
       .order('sort_order', { ascending: true, nullsFirst: false })

@@ -282,12 +282,18 @@ export interface MessageDTO {
   mediaUrl: string | null
   status: string
   sentAt: string
+  /** Sprint C · SC-03 (W-11) · nota interna entre atendentes (nao envia ao paciente) */
+  internalNote?: boolean
+  /** Sprint C · SC-01 (W-06) · status do envio: sent | delivered | read | failed */
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed' | null
 }
 
 export interface TemplateDTO {
   id: string
   clinicId: string
   name: string
+  /** Slug snake-case · trigger pra quick-templates dropdown (ex: `/olheiras`) */
+  slug: string | null
   message: string | null
   content: string | null
   category: string | null

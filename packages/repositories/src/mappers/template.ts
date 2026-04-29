@@ -10,6 +10,7 @@ export function mapTemplateRow(row: any): TemplateDTO {
     id: String(row.id),
     clinicId: String(row.clinic_id ?? ''),
     name: String(row.name ?? ''),
+    slug: row.slug ?? null,
     message: row.message ?? null,
     content: row.content ?? null,
     category: row.category ?? null,
