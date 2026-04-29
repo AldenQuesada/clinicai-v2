@@ -7,6 +7,7 @@ import {
   findCustomerByExternalReference,
   createPayment,
   createSubscription,
+  findFirstPaymentBySubscription,
   offerBillingToAsaasCycle,
   AsaasError,
 } from '@/lib/payments/asaas'
@@ -234,13 +235,18 @@ export async function createLeadAndChargeAction(
         .update({ status: 'charge_created', last_touch_at: new Date().toISOString() })
         .eq('id', buyer.id)
 
-      // Asaas subscription tem invoice url da PRIMEIRA cobrança auto-gerada
-      // mas precisa de query separada. Por hora, usa o portal de pagamentos do customer.
-      // TODO: GET /payments?subscription={id} pegar primeiro payment + invoiceUrl
+      let invoiceUrl: string
+      try {
+        const firstPayment = await findFirstPaymentBySubscription(sub.id)
+        invoiceUrl = firstPayment?.invoiceUrl ?? `https://www.asaas.com/c/${customerId}`
+      } catch {
+        invoiceUrl = `https://www.asaas.com/c/${customerId}`
+      }
+
       return {
         ok: true,
         buyerId: buyer.id,
-        invoiceUrl: `https://www.asaas.com/c/${customerId}`, // placeholder · webhook traz URL real
+        invoiceUrl,
         kind: 'subscription',
         gatewayId: sub.id,
       }

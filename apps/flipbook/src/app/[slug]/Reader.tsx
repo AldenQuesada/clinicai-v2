@@ -19,6 +19,10 @@ import { readControls, readPagination, readBackground, readPageEffect, readLogo,
 import { LogoOverlay } from '@/components/reader/LogoOverlay'
 import { BgAudioPlayer } from '@/components/reader/BgAudioPlayer'
 import { LeadCaptureModal } from '@/components/reader/LeadCaptureModal'
+import { PrintTrechoButton } from '@/components/reader/PrintTrechoButton'
+import { EpubSearchPanel } from '@/components/reader/EpubSearchPanel'
+import type { EpubHandle } from '@/components/reader/EpubCanvas'
+import { trackEvent } from '@/lib/utils/trackEvent'
 
 type Format = 'pdf' | 'epub' | 'mobi' | 'cbz' | 'html'
 
@@ -94,6 +98,9 @@ export function Reader({
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<CanvasHandle | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const trackedEngaged = useRef(false)
+  const trackedComplete = useRef(false)
+  const trackedFullscreen = useRef(false)
   const sound = useReadingSound()
   const router = useRouter()
   const progress = useProgress(flipbookId)
@@ -115,6 +122,24 @@ export function Reader({
     saveFn(currentPage, totalPages || null)
   }, [currentPage, totalPages, saveFn])
 
+  // Funnel · reading_engaged (chegou na pág 3) e reading_complete (>=75%)
+  // Ambos disparam UMA vez por sessão (refs guardam estado).
+  useEffect(() => {
+    if (!trackedEngaged.current && currentPage >= 3) {
+      trackedEngaged.current = true
+      trackEvent({ flipbookId, kind: 'reading_engaged', pageNumber: currentPage })
+    }
+    if (!trackedComplete.current && totalPages > 0 && currentPage / totalPages >= 0.75) {
+      trackedComplete.current = true
+      trackEvent({
+        flipbookId,
+        kind: 'reading_complete',
+        pageNumber: currentPage,
+        metadata: { total_pages: totalPages, ratio: +(currentPage / totalPages).toFixed(2) },
+      })
+    }
+  }, [currentPage, totalPages, flipbookId])
+
   // Flush no unload · pega só funções estáveis (useCallback)
   useEffect(() => {
     const onUnload = () => flushFn(currentPage, totalPages || null)
@@ -135,6 +160,7 @@ export function Reader({
       await navigator.clipboard.writeText(url)
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 1800)
+      trackEvent({ flipbookId, kind: 'share_copy', pageNumber: currentPage })
     } catch {}
   }
 
@@ -226,6 +252,11 @@ export function Reader({
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen?.().catch(() => {})
       setIsFullscreen(true)
+      // dispara só primeira vez por sessão pra não inflar funnel
+      if (!trackedFullscreen.current) {
+        trackedFullscreen.current = true
+        trackEvent({ flipbookId, kind: 'fullscreen_enter', pageNumber: currentPage })
+      }
     } else {
       document.exitFullscreen?.()
       setIsFullscreen(false)
@@ -324,7 +355,11 @@ export function Reader({
           subtitle={subtitle}
           author={author}
           edition={edition}
-          onDismiss={() => setCoverShown(false)}
+          slug={slug}
+          onDismiss={() => {
+            setCoverShown(false)
+            trackEvent({ flipbookId, kind: 'cinematic_skip', pageNumber: currentPage })
+          }}
         />
       )}
 
@@ -423,6 +458,7 @@ export function Reader({
                 rel="noreferrer noopener"
                 title="Comprar no Amazon"
                 aria-label="Comprar no Amazon"
+                onClick={() => trackEvent({ flipbookId, kind: 'amazon_click', pageNumber: currentPage, metadata: { source: 'top-bar' } })}
                 className="p-2 rounded text-text-muted hover:text-gold hover:bg-bg-panel transition shrink-0 border-l border-border ml-1"
               >
                 <ExternalLink className="w-4 h-4" strokeWidth={1.5} />
@@ -483,12 +519,18 @@ export function Reader({
           </div>
         )}
 
-        {/* Search panel */}
+        {/* Search panel · PDF usa indexação pdfjs, EPUB usa book.spine */}
         {searchOpen && format === 'pdf' && (
           <SearchPanel
             pdfUrl={pdfUrl}
             onClose={() => setSearchOpen(false)}
             onJump={(p) => { flipTo(p); setSearchOpen(false) }}
+          />
+        )}
+        {searchOpen && format === 'epub' && (
+          <EpubSearchPanel
+            epubRef={canvasRef as React.RefObject<EpubHandle | null>}
+            onClose={() => setSearchOpen(false)}
           />
         )}
 
@@ -551,6 +593,7 @@ export function Reader({
                 href={`https://www.amazon.com/dp/${amazonAsin}`}
                 target="_blank"
                 rel="noreferrer noopener sponsored"
+                onClick={() => trackEvent({ flipbookId, kind: 'amazon_click', pageNumber: currentPage, metadata: { source: 'cta-bar' } })}
                 className="font-meta text-[10px] uppercase tracking-wider text-gold hover:text-gold-light transition flex items-center gap-1.5 truncate"
                 title={`Comprar "${title}" no Amazon`}
               >
@@ -569,6 +612,13 @@ export function Reader({
           )}
 
           <div className="flex items-center gap-2">
+            {format === 'pdf' && controls.print !== false && (
+              <PrintTrechoButton
+                pdfUrl={pdfUrl}
+                pageNumber={currentPage}
+                title={title}
+              />
+            )}
             {controls.share !== false && (
               <button
                 onClick={copyDeepLink}

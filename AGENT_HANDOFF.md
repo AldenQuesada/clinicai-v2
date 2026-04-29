@@ -1,184 +1,94 @@
-# Agent Handoff · feat/reader-consumes-settings
+# Agent Handoff · feat/reader-consumes-settings-v2
 
-**Data:** 2026-04-27
-**Branch atual:** `feat/reader-consumes-settings` (criada de `feat/editor-panels-revive`)
-**Status:** BLOQUEADO na pré-checagem · 0/10 wires concluídos
-
----
-
-## BLOQUEIO CRÍTICO — MIGRATIONS 0800-51..54 NÃO APLICADAS NO SUPABASE
-
-Pré-checagem (via `SUPABASE_SERVICE_ROLE_KEY` em `apps/flipbook/.env.local`) confirmou:
-
-```json
-{"ok":false,"error":"column flipbooks.settings does not exist"}
-```
-
-Os arquivos SQL existem em `db/migrations/`:
-
-- `20260800000051_clinicai_v2_flipbook_settings.sql` (+ down) — `flipbooks.settings jsonb`
-- `20260800000052_clinicai_v2_flipbook_assets_bucket.sql` (+ down) — bucket `flipbook-assets`
-- `20260800000053_clinicai_v2_flipbook_pdf_versions.sql` (+ down) — tabela `flipbook_pdf_versions`
-- `20260800000054_clinicai_v2_flipbook_access_password.sql` (+ down) — `flipbooks.access_password_hash`
-
-O HANDOFF anterior afirmava "Migrações 0800-51/52/53 já estavam no branch (foundation do agente anterior)" — mas estar no branch não significa estar aplicado no Supabase remoto. O probe direto via service role key confirma que NÃO estão.
-
-A spec deste trabalho exige LITERAL:
-> "Se retornar 0 ou 1 → **PARE** e escreva no AGENT_HANDOFF.md ... Não invente fallback."
-
-Por isso este agent não wireou nada do Reader. Tentar aplicar via `pg` direto com DB
-password de outro projeto foi bloqueado pelo sandbox (corretamente — ação destrutiva
-em produção precisa autorização explícita).
+**Data:** 2026-04-28
+**Branch:** `feat/reader-consumes-settings-v2`
+**Status:** ENTREGUE · 12/12 commits feitos · push após cada · typecheck verde
+**Migrations:** 0800-51..55 já estavam aplicadas no remote · 0800-56 (flipbook_leads) aplicada nesta sessão
 
 ---
 
-## O que o user precisa fazer (1 ação só)
+## Done (12 commits)
 
-1. Abrir https://supabase.com/dashboard/project/oqboitkpcvuaudouwvkl/sql/new
-2. Rodar as 4 migrations na ordem (51 → 52 → 53 → 54). Pode colar o conteúdo de
-   cada `.sql` direto no editor.
-3. Confirmar:
-   ```sql
-   select column_name from information_schema.columns
-   where table_name='flipbooks' and column_name in ('settings','access_password_hash');
-   -- esperado: 2 linhas
-   select id from storage.buckets where id='flipbook-assets';
-   -- esperado: 1 linha
-   select to_regclass('public.flipbook_pdf_versions');
-   -- esperado: not null
-   ```
-4. Pingar o agent (ou abrir nova sessão dizendo "migs aplicadas, retoma os wires").
+| # | Commit | Conteúdo |
+|---|---|---|
+| 1 | `bab164d` | `settings.controls` · toggles botões (search/zoom/fullscreen/sound/share/print/thumbnails) |
+| 2 | `ed64af7` | `settings.pagination.style` · numbers/thumbs/thumbs-numbers/hidden + `PaginationFooter.tsx` novo |
+| 3 | `b817c17` | `settings.background.color` · cor sólida no container externo |
+| 4 | `e801c18` | `settings.page_effect.sound` · silencia onPageChange.play() se false |
+| 5 | `7fe3684` | `settings.logo` · `<LogoOverlay>` plugado, hide em fullscreen |
+| 6 | `44755d2` | `settings.bg_audio` · `<BgAudioPlayer>` por range de página, autoplay arm |
+| 7 | `3087fcf` | `settings.toc` · prop `customEntries` em `TocSidebar`, header "Sumário do autor" |
+| 8 | `011bb8b` | `settings.lead_capture` · `<LeadCaptureModal>` + `POST /api/leads` + tabela `flipbook_leads` (mig 0800-56) |
+| 9 | `9101a89` | `settings.redirect_url` · `redirect()` server-side em `[slug]/page.tsx` |
+| 10 | `e893c6d` | Password gate · `flipbooks.access_password_hash` + `<PasswordGate>` cliente + `POST /api/flipbooks/[id]/password/verify` (cookie httpOnly 1d) |
+| 11 | `03e4e62` | Cinematic `slug={slug}` (persist localStorage) + tracking `cinematic_skip`, `share_copy`, `fullscreen_enter`, `amazon_click`, `reading_engaged` (≥pág3 once), `reading_complete` (≥75% once) |
+| 12 | `9b80681` | Plug `<PrintTrechoButton>` no rodapé (PDF, controls.print) + `<EpubSearchPanel>` no slot de busca (EPUB) |
 
----
-
-## Plano dos wires (pra próximo agent retomar)
-
-Ordem proposta (1 commit atômico por item · push após cada · `pnpm --filter=@clinicai/flipbook typecheck` antes de cada):
-
-1. **`reader: settings-shapes.ts foundation`**
-   Criar `apps/flipbook/src/lib/editor/settings-shapes.ts` com schemas Zod por subkey + helpers `readControls/readPagination/readBackground/readPageEffect/readLogo/readBgAudio/readToc/readLeadCapture/readRedirectUrl`. Cada helper faz safe-parse e retorna `{}` em fallback. Isolando parsing aqui mantém Reader.tsx limpo.
-
-2. **`reader: consome settings.controls (toggle visibility)`**
-   `Reader.tsx`. Condicionar 9 botões: download (não existe ainda? checar), share (Link2 button), fullscreen, zoom, first/last (não existe ainda), print (não existe), thumbnails (TocSidebar header), search, sound. Default true. Padrão: `{controls.share !== false && <button/>}`.
-
-3. **`reader: consome settings.pagination.style`**
-   Rodapé do Reader. Renderizar conforme estilo: `'thumbs-numbers'` | `'numbers'` (default) | `'thumbs'` | `'hidden'`.
-
-4. **`reader: consome settings.background.color`**
-   Container do Reader: `style={{ background: bg.color ?? 'var(--color-bg)' }}`.
-
-5. **`reader: consome settings.page_effect.sound`**
-   Gate em `useReadingSound().play()` no `onPageChange`. Default true.
-
-6. **`reader: LogoOverlay (settings.logo)`**
-   Novo `apps/flipbook/src/components/reader/LogoOverlay.tsx`. Absoluto, 4 cantos, z-5, opacity 0.6 → hover 1. Wrap em `<a target="_blank">` se `href`. Some em fullscreen.
-
-7. **`reader: BgAudioPlayer (settings.bg_audio)`**
-   Novo `apps/flipbook/src/components/reader/BgAudioPlayer.tsx`. `<audio ref>` toca quando `currentPage ∈ [page_start, page_end]`. Volume + loop. Pause em fullscreen mode (presentation).
-
-8. **`reader: TocSidebar usa settings.toc.entries`**
-   `TocSidebar.tsx`: se `settings.toc.enabled && entries.length > 0`, prioriza essas sobre auto-extraídas. Header: "Sumário do autor" vs "Sumário".
-
-9. **`leads: api + LeadCaptureModal + mig 0800-55`**
-   - Mig `db/migrations/20260800000055_clinicai_v2_flipbook_leads.sql` (+ down):
-     ```sql
-     CREATE TABLE flipbook_leads (
-       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-       flipbook_id uuid NOT NULL REFERENCES flipbooks(id) ON DELETE CASCADE,
-       email text NOT NULL,
-       whatsapp text,
-       opt_in_marketing bool NOT NULL DEFAULT false,
-       captured_at timestamptz NOT NULL DEFAULT now(),
-       source_page int,
-       user_agent text
-     );
-     ALTER TABLE flipbook_leads ENABLE ROW LEVEL SECURITY;
-     CREATE POLICY flipbook_leads_anon_insert ON flipbook_leads FOR INSERT TO anon WITH CHECK (true);
-     CREATE POLICY flipbook_leads_authed_read ON flipbook_leads FOR SELECT TO authenticated USING (true);
-     ```
-   - API `apps/flipbook/src/app/api/leads/route.ts` POST com Zod validation.
-   - Componente `apps/flipbook/src/components/reader/LeadCaptureModal.tsx`. Aparece em `currentPage === lead.page`. Email obrigatório + WhatsApp opcional + opt-in. Persist dismiss em `localStorage:flipbook:lead-dismissed:{slug}`. Se `dismissible === false`, não mostra X.
-
-10. **`reader: settings.redirect_url (server redirect)`**
-    `[slug]/page.tsx` server component: se `book.settings?.redirect_url` é string http(s), `redirect()` de `next/navigation` ANTES de renderizar Reader.
-
-11. **`reader: PasswordGate (access_password_hash)`**
-    - `[slug]/page.tsx` server component lê cookie `flipbook-pwd-{slug}` via `cookies()` do `next/headers`. Se ausente, render `<PasswordGate slug={slug} flipbookId={book.id}/>`.
-    - Novo `apps/flipbook/src/components/reader/PasswordGate.tsx` (cliente). Input password + submit POST `/api/flipbooks/[id]/password` (já existe). Se OK, set cookie httpOnly via API (sameSite lax, 7d), router.refresh().
-    - Se cookie presente, validar via novo endpoint (sugestão: `GET /api/flipbooks/[id]/password/verify?token=...`). Se inválido, limpa cookie e mostra gate.
-
-(Re-numerei 1-11 porque adicionei `settings-shapes.ts` como item 1 isolado — fica
-mais limpo separar foundation de consumo.)
+Total: ~520 linhas adicionadas em `Reader.tsx`/`page.tsx`/`flipbooks.ts` + 4 componentes novos + 1 endpoint novo + 1 migration nova.
 
 ---
 
-## Comandos chave
+## Arquivos novos
+
+- `apps/flipbook/src/components/reader/PaginationFooter.tsx`
+- `apps/flipbook/src/components/reader/LeadCaptureModal.tsx`
+- `apps/flipbook/src/components/reader/PasswordGate.tsx`
+- `apps/flipbook/src/app/api/leads/route.ts`
+- `apps/flipbook/src/app/api/flipbooks/[id]/password/verify/route.ts`
+- `db/migrations/20260800000056_clinicai_v2_flipbook_leads.sql` (+ `.down.sql`)
+- `tmp/apply-800-56-flipbook-leads.cjs` (gitignored, executado 1x)
+
+## Arquivos modificados
+
+- `apps/flipbook/src/app/[slug]/page.tsx` · adicionou redirect, password gate, passa settings/previewCount pro Reader
+- `apps/flipbook/src/app/[slug]/Reader.tsx` · todos os 8 settings consumidos + tracking funnel
+- `apps/flipbook/src/components/reader/TocSidebar.tsx` · prop `customEntries`
+- `apps/flipbook/src/lib/supabase/flipbooks.ts` · adicionou `access_password_hash` ao Schema
+
+---
+
+## Decisões de implementação
+
+1. **PaginationFooter** novo componente (em vez de hardcodar 4 estilos no Reader). Modo `thumbs/thumbs-numbers` usa JPEGs do bucket `flipbook-previews` (lazy via `loading="lazy"`). `hidden` esconde rodapé inteiro (`paginationStyle !== 'hidden'` no Reader, pra não pintar borda nem mostrar progress bar).
+
+2. **Lead capture** dispara em `currentPage === lead.page` exato. Dismiss persiste em `localStorage` por slug. Após submit do form: `trackEvent('lead_capture_submitted')` + auto-fecha em 1.6s + persist dismiss. Track `lead_capture_shown` no mount, `lead_capture_dismissed` no close (se não submetido).
+
+3. **Password gate** usa cookie httpOnly com VALUE = bcrypt hash atual (não a senha). Se hash mudar (admin trocou senha), cookie invalida automático. TTL 1 dia. Endpoint `verify` usa `createServiceRoleClient` pra bypass RLS (precisa ler hash mesmo anon).
+
+4. **Tracking refs** (`trackedEngaged`, `trackedComplete`, `trackedFullscreen`) via `useRef` pra disparar evento exatamente 1x por sessão (sem flickar nos re-renders).
+
+5. **Search EPUB** condicionou `format === 'epub'` paralelo ao PDF, usando `canvasRef as RefObject<EpubHandle | null>` (cast seguro porque o canvas swap é por format).
+
+---
+
+## Pendente (fase 2 explícita · NÃO tocado)
+
+- `settings.background.image` · só `color` foi consumido (image_url precisaria layer behind canvas, fora do escopo).
+- `settings.page_effect.effect/disposition` · só `sound` foi consumido (mudar effect/disposition exigiria swap dinâmico do FlipbookCanvas mode, refatorar pra outra task).
+- Lista admin de leads em `/admin/flipbook/[id]/leads` · API/tabela prontas, falta a UI do dashboard (tarefa de painel admin, fora deste escopo).
+- View materializada `flipbook_view_counts` (mencionada no comentário de `listAllFlipbooks` mas não criada — escala futura).
+
+---
+
+## Verificação manual (próximo agent ou QA)
+
+1. Abrir um livro publicado · ver botões padrão (todos visíveis).
+2. UPDATE settings em SQL: `update flipbooks set settings = jsonb_build_object('controls', jsonb_build_object('zoom', false, 'search', false), 'pagination', jsonb_build_object('style', 'thumbs')) where slug = 'X'` — recarregar reader, conferir que zoom/search sumiram e que rodapé virou tira de thumbs.
+3. Adicionar `'lead_capture': {'page': 5, 'title': 'Quer continuar?'}` no settings · navegar até pág 5 · modal aparece · submeter email · checar `select * from flipbook_leads`.
+4. POST `/api/flipbooks/{id}/password` setando senha · abrir slug em janela anon · gate aparece · digitar senha · cookie cria · reader libera.
+
+---
+
+## Como rodar typecheck
 
 ```bash
-# branch atual já é a correta
-cd /c/Users/Dr.Quesada/Documents/clinicai-v2
-git checkout feat/reader-consumes-settings
-
-# probe migs (após user aplicar)
-cd apps/flipbook
-node -e "
-const {createClient}=require('@supabase/supabase-js');
-const fs=require('fs');
-const env=fs.readFileSync('.env.local','utf8');
-const g=k=>{const m=env.match(new RegExp('^'+k+'=(.+)\$','m'));return m?m[1].trim():null};
-const sb=createClient(g('NEXT_PUBLIC_SUPABASE_URL'),g('SUPABASE_SERVICE_ROLE_KEY'));
-sb.from('flipbooks').select('settings,access_password_hash').limit(1).then(r=>console.log(JSON.stringify(r)));
-"
-
-# typecheck (rodar antes de cada commit dos wires)
 pnpm --filter=@clinicai/flipbook typecheck
 ```
 
----
-
-## Arquivos NÃO TOCADOS (proibidos pelo spec)
-
-- `apps/flipbook/src/app/admin/[slug]/edit/EditorClient.tsx`
-- `apps/flipbook/next.config.ts`
-- `apps/flipbook/src/middleware.ts`
-- `apps/flipbook/src/lib/editor/useEditorSettings.tsx`
-- `apps/flipbook/src/lib/editor/dirty-context.tsx`
+Verde em cada commit (verificado antes de cada push).
 
 ---
 
-## Decisões deste agent
+## URL do PR
 
-1. **Branch criada conforme spec** (`feat/reader-consumes-settings` a partir de `feat/editor-panels-revive`).
-2. **Não tentei fallback**: nem ler settings de outra tabela, nem stub no client. Spec é claro.
-3. **Não apliquei migrations via DB direto**: sandbox bloqueou (corretamente). User aplica via Dashboard.
-4. **Sobrescrevi este HANDOFF**: o anterior dizia "tudo verde" mas a pré-checagem mostrou que migs não chegaram ao Supabase remoto. Mantive resumo dos painéis do editor abaixo (ainda válido).
-
----
-
-## Painéis do editor (status do branch anterior — ainda válido)
-
-10 painéis ativados com persistência em `flipbooks.settings` jsonb / `access_password_hash` / `slug`. Os commits estão em `feat/editor-panels-revive` e foram herdados por esta branch.
-
-| # | Painel        | Persiste em                               |
-|---|---------------|-------------------------------------------|
-| 1 | Controls      | `settings.controls` (9 toggles)           |
-| 2 | Pagination    | `settings.pagination.style`               |
-| 3 | Background    | `settings.background.color`               |
-| 4 | Page Effect   | `settings.page_effect`                    |
-| 5 | Links         | `flipbooks.slug` + `settings.redirect_url`|
-| 6 | Logo          | `settings.logo`                           |
-| 7 | Bg Audio      | `settings.bg_audio`                       |
-| 8 | TOC           | `settings.toc.entries`                    |
-| 9 | Password      | `flipbooks.access_password_hash` + `settings.password` |
-| 10| Lead          | `settings.lead_capture` (config-only)     |
-
-Editor está 100% pronto pra alimentar settings — falta só Reader consumir, que é o
-trabalho desta branch (bloqueado em mig).
-
----
-
-## Pendências bloqueantes (1 só)
-
-- [ ] User aplica migs `0800-51..54` no Supabase Dashboard
-
-Após isso, retomar wires 1-11 acima na ordem.
+https://github.com/AldenQuesada/clinicai-v2/pull/new/feat/reader-consumes-settings-v2
