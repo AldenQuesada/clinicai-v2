@@ -19,6 +19,7 @@ import {
   BudgetRepository,
   InboxNotificationRepository,
   ProfileRepository,
+  UsersRepository,
   B2BVoucherRepository,
   WaMediaBankRepository,
   AppointmentRepository,
@@ -45,6 +46,7 @@ export interface Repos {
   budget: BudgetRepository
   inboxNotifications: InboxNotificationRepository
   profiles: ProfileRepository
+  users: UsersRepository
   b2bVouchers: B2BVoucherRepository
   mediaBank: WaMediaBankRepository
   /** CRM core (Camada 4) · Agenda/Pacientes/Orcamento + audit trail */
@@ -68,6 +70,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     budget: new BudgetRepository(sb),
     inboxNotifications: new InboxNotificationRepository(sb),
     profiles: new ProfileRepository(sb),
+    users: new UsersRepository(sb),
     b2bVouchers: new B2BVoucherRepository(sb),
     mediaBank: new WaMediaBankRepository(sb),
     appointments: new AppointmentRepository(sb),

@@ -21,6 +21,7 @@ import { createMiddlewareClient } from '@clinicai/supabase'
 // Rotas publicas · NUNCA exigem auth (cada uma tem seu proprio guard interno)
 const PUBLIC_PATHS = [
   '/login',
+  '/join', // landing pra aceitar convite · valida token via RPC
   '/api/auth',
   '/api/webhook',
   '/api/cron',

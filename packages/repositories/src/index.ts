@@ -24,6 +24,15 @@ export { TemplateRepository } from './template.repository'
 export { BudgetRepository } from './budget.repository'
 export { InboxNotificationRepository } from './inbox-notification.repository'
 export { ProfileRepository, type ProfileDTO } from './profile.repository'
+export {
+  UsersRepository,
+  type StaffRole,
+  type StaffMemberDTO,
+  type PendingInviteDTO,
+  type MyProfileDTO,
+  type InviteResult,
+  type RpcResult,
+} from './users.repository'
 
 // ── Mira repositories (B2B + admin · WhatsApp Evolution) ──────────────────
 export { MiraStateRepository, type MiraStateRow } from './mira-state.repository'

@@ -1,0 +1,137 @@
+'use server'
+
+/**
+ * Server Actions · /configuracoes/usuarios.
+ *
+ * Wrappers em volta de UsersRepository · port 1:1 do clinic-dashboard.
+ * Cada action faz `requireAction` no inicio · RLS no Postgres e a defesa
+ * final mas o gate aqui da feedback rapido + UX clean.
+ */
+
+import { revalidatePath } from 'next/cache'
+import { loadServerReposContext } from '@/lib/repos'
+import { requireAction, type StaffRole } from '@/lib/permissions'
+
+const ROUTE = '/configuracoes/usuarios'
+
+function buildJoinUrl(rawToken: string): string {
+  const url =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
+    'https://lara.miriandpaula.com.br'
+  return `${url}/join?token=${encodeURIComponent(rawToken)}`
+}
+
+export interface InviteActionResult {
+  ok: boolean
+  joinUrl?: string
+  email?: string
+  role?: StaffRole
+  error?: string
+}
+
+export async function inviteStaffAction(formData: FormData): Promise<InviteActionResult> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'users:invite')
+
+  const email = String(formData.get('email') || '').trim().toLowerCase()
+  const role = String(formData.get('role') || '').trim() as StaffRole
+
+  if (!email || !email.includes('@')) {
+    return { ok: false, error: 'Email invalido' }
+  }
+  const validRoles: StaffRole[] = ['admin', 'therapist', 'receptionist', 'viewer']
+  if (!validRoles.includes(role)) {
+    return { ok: false, error: 'Role invalido' }
+  }
+  if (role === 'admin' && ctx.role !== 'owner') {
+    return { ok: false, error: 'Apenas owner pode convidar admin' }
+  }
+
+  const result = await repos.users.inviteStaff(email, role)
+  if (!result.ok || !result.rawToken) {
+    return { ok: false, error: result.error || 'Falha ao criar convite' }
+  }
+
+  revalidatePath(ROUTE)
+  return {
+    ok: true,
+    joinUrl: buildJoinUrl(result.rawToken),
+    email: result.email,
+    role: result.role,
+  }
+}
+
+export async function updateRoleAction(
+  userId: string,
+  newRole: StaffRole,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'users:change-role')
+
+  if (userId === ctx.user_id) {
+    return { ok: false, error: 'Voce nao pode mudar seu proprio role' }
+  }
+
+  const result = await repos.users.updateRole(userId, newRole)
+  if (!result.ok) return { ok: false, error: result.error || 'Falha ao atualizar role' }
+
+  revalidatePath(ROUTE)
+  return { ok: true }
+}
+
+export async function deactivateStaffAction(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'users:deactivate')
+
+  if (userId === ctx.user_id) {
+    return { ok: false, error: 'Voce nao pode desativar seu proprio acesso' }
+  }
+
+  const result = await repos.users.deactivateStaff(userId)
+  if (!result.ok) return { ok: false, error: result.error || 'Falha ao desativar' }
+
+  revalidatePath(ROUTE)
+  return { ok: true }
+}
+
+export async function activateStaffAction(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'users:reactivate')
+
+  const result = await repos.users.activateStaff(userId)
+  if (!result.ok) return { ok: false, error: result.error || 'Falha ao reativar' }
+
+  revalidatePath(ROUTE)
+  return { ok: true }
+}
+
+export async function revokeInviteAction(
+  inviteId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'invites:revoke')
+
+  const result = await repos.users.revokeInvite(inviteId)
+  if (!result.ok) return { ok: false, error: result.error || 'Falha ao revogar' }
+
+  revalidatePath(ROUTE)
+  return { ok: true }
+}
+
+export async function updateOwnProfileAction(
+  fields: { firstName?: string; lastName?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const { ctx, repos } = await loadServerReposContext()
+  if (!ctx.user_id) return { ok: false, error: 'Sem sessao' }
+
+  const result = await repos.users.updateOwnProfile(ctx.user_id, fields)
+  if (!result.ok) return { ok: false, error: result.error || 'Falha ao atualizar perfil' }
+
+  revalidatePath(ROUTE)
+  revalidatePath('/dashboard')
+  return { ok: true }
+}

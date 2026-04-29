@@ -204,6 +204,80 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+ * Modal overlay (b2b-* · espelho Mira)
+ * ═══════════════════════════════════════════════════════════════════ */
+.b2b-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; z-index: 1000; overflow-y: auto;
+}
+.b2b-modal {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 10px; max-width: 520px; width: 100%;
+  max-height: calc(100vh - 80px); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.b2b-modal-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 24px; border-bottom: 1px solid var(--b2b-border);
+}
+.b2b-modal-hdr h2 {
+  font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400;
+  margin: 0; color: var(--b2b-ivory);
+}
+.b2b-close {
+  background: transparent; border: none; color: var(--b2b-text-muted);
+  font-size: 28px; cursor: pointer; line-height: 1; padding: 0 8px;
+  transition: color 0.15s;
+}
+.b2b-close:hover { color: var(--b2b-ivory); }
+.b2b-modal-body { padding: 24px; overflow-y: auto; }
+
+.b2b-form-err {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(217, 122, 122, 0.12); color: var(--b2b-red);
+  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: 5px; font-size: 12px;
+}
+
+/* Pill de role · usar em member cards */
+.b2b-pill {
+  padding: 2px 10px; font-size: 10px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; border-radius: 10px;
+  display: inline-flex; align-items: center;
+}
+
+/* Avatar circular · iniciais · clone do _ua-avatar do clinic-dashboard */
+.b2b-avatar {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--b2b-bg-3), var(--b2b-bg-2));
+  border: 1px solid var(--b2b-border-strong);
+  color: var(--b2b-champagne);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
+  font-family: 'Cormorant Garamond', serif;
+}
+
+/* KPI grid · usar em pages com stats no topo */
+.b2b-kpi-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; margin-bottom: 20px;
+}
+.b2b-kpi {
+  background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.b2b-kpi-num {
+  font-family: 'Cormorant Garamond', serif; font-size: 28px;
+  font-weight: 500; color: var(--b2b-ivory); line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.b2b-kpi-lbl {
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--b2b-champagne); font-weight: 600; margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
  * Scrollbar custom · warm thumb
  * ═══════════════════════════════════════════════════════════════════ */
 .custom-scrollbar {

@@ -3,12 +3,15 @@
  * Visual: ESPELHO Mira (.b2b-page-container, .luxury-card, .eyebrow, .font-display, .b2b-form-actions).
  */
 
+import Link from 'next/link'
+import { Users } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { loadServerReposContext } from '@/lib/repos'
 import { ConfigSection } from '@/components/organisms/ConfigSection'
 import { NumericField } from '@/components/molecules/NumericField'
 import { SelectField } from '@/components/molecules/SelectField'
+import { can, type StaffRole } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +41,11 @@ const MODEL_OPTIONS = [
   { value: 'claude-opus-4-7', label: 'Opus 4.7', description: 'raciocínio complexo' },
 ]
 
-async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> {
+async function loadConfig(): Promise<{
+  config: LaraConfig
+  clinic_id: string
+  role: StaffRole | null
+}> {
   try {
     const { ctx, repos } = await loadServerReposContext()
     const stored =
@@ -46,15 +53,17 @@ async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> 
     return {
       config: { ...DEFAULT_CONFIG, ...stored },
       clinic_id: ctx.clinic_id,
+      role: (ctx.role ?? null) as StaffRole | null,
     }
   } catch (e) {
     console.error('[/configuracoes] loadConfig failed:', (e as Error).message, (e as Error).stack)
-    return { config: DEFAULT_CONFIG, clinic_id: '' }
+    return { config: DEFAULT_CONFIG, clinic_id: '', role: null }
   }
 }
 
 export default async function ConfiguracoesPage() {
-  const { config } = await loadConfig()
+  const { config, role } = await loadConfig()
+  const canManageUsers = can(role, 'users:view')
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
@@ -69,6 +78,60 @@ export default async function ConfiguracoesPage() {
             Comportamento da IA · cost control · limites operacionais. Mudanças aplicam imediatamente.
           </p>
         </div>
+
+        {canManageUsers && (
+          <div style={{ marginBottom: 24 }}>
+            <Link
+              href="/configuracoes/usuarios"
+              className="luxury-card"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: '16px 20px',
+                textDecoration: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  background: 'rgba(201,169,110,0.10)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--b2b-champagne)',
+                  flexShrink: 0,
+                }}
+              >
+                <Users className="w-5 h-5" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div className="eyebrow" style={{ marginBottom: 2 }}>
+                  Equipe
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--b2b-ivory)', marginBottom: 2 }}>
+                  Gerenciar usuários e permissões
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)' }}>
+                  Convidar membros · alterar nível de acesso · revogar convites
+                </div>
+              </div>
+              <span
+                style={{
+                  color: 'var(--b2b-champagne)',
+                  fontSize: 18,
+                  fontWeight: 300,
+                  padding: '0 8px',
+                }}
+              >
+                →
+              </span>
+            </Link>
+          </div>
+        )}
 
         <form action={saveLaraConfigAction}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
