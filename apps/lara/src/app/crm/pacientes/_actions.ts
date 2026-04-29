@@ -20,6 +20,7 @@ import {
   hashPhone,
   loadServerReposContext,
   ok,
+  requireRole,
   updateTag,
   zodFail,
   type Result,
@@ -35,6 +36,12 @@ const ExportSchema = z.object({
     .enum(['active', 'inactive', 'blocked', 'deceased'])
     .nullable()
     .optional(),
+  /**
+   * Camada 7.5 · quando definido, exporta APENAS pacientes selecionados
+   * (bulk-export). Filtro `status` continua aplicado se passado junto ·
+   * intersecao (selected ∩ status). Se ids vier vazio, retorna empty_export.
+   */
+  ids: z.array(z.string().uuid()).max(5000).nullable().optional(),
 })
 
 const SEX_LABEL: Record<string, string> = {
@@ -83,13 +90,25 @@ export async function exportPatientsCsvAction(
   if (!parsed.success) return zodFail(parsed.error)
 
   const { ctx, repos } = await loadServerReposContext()
-  const patients = await repos.patients.listAllForExport(ctx.clinic_id, {
+  const all = await repos.patients.listAllForExport(ctx.clinic_id, {
     status: parsed.data.status ?? undefined,
   })
 
+  // Camada 7.5 · filtra por IDs se passados (bulk-export · intersecao com
+  // status quando ambos definidos). RLS ja escopa por clinic_id · filter aqui
+  // e safe (defense-in-depth: ID fora da clinic nunca aparece em `all`).
+  const idSet = parsed.data.ids && parsed.data.ids.length > 0
+    ? new Set(parsed.data.ids)
+    : null
+  const patients = idSet ? all.filter((p) => idSet.has(p.id)) : all
+
   if (patients.length === 0) {
     log.warn(
-      { action: 'crm.patient.exportCsv', clinic_id: ctx.clinic_id },
+      {
+        action: 'crm.patient.exportCsv',
+        clinic_id: ctx.clinic_id,
+        ids_count: parsed.data.ids?.length ?? null,
+      },
       'patient.exportCsv.empty',
     )
     return fail('empty_export')
@@ -142,11 +161,117 @@ export async function exportPatientsCsvAction(
       clinic_id: ctx.clinic_id,
       count: patients.length,
       status_filter: parsed.data.status ?? null,
+      ids_count: parsed.data.ids?.length ?? null,
     },
     'patient.exportCsv.ok',
   )
 
   return ok({ csv, filename, count: patients.length })
+}
+
+// ── Bulk update status · Camada 7.5 ─────────────────────────────────────────
+//
+// Loop por IDs com `repos.patients.update` (NAO criamos `updateMany` no repo
+// pra manter simplicidade · cada update bate na RLS UPDATE policy de patients
+// individualmente · log estruturado por ID + agregado).
+//
+// Role gate: owner|admin|receptionist (mesma policy mig 61). Defense-in-depth.
+//
+// Status target: active|inactive|blocked|deceased (PatientStatus enum).
+//
+// Retorno: { updated, failed, total } · UI mostra X/Y atualizados.
+
+const BulkUpdateStatusSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'Selecione ao menos 1 paciente').max(500),
+  status: z.enum(['active', 'inactive', 'blocked', 'deceased']),
+})
+
+export async function bulkUpdatePatientStatusAction(
+  input: unknown,
+): Promise<
+  Result<{
+    updated: number
+    failed: number
+    total: number
+    failedIds: string[]
+  }>
+> {
+  const parsed = BulkUpdateStatusSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+
+  const roleCheck = requireRole(ctx.role, ['owner', 'admin', 'receptionist'])
+  if (roleCheck) {
+    log.warn(
+      {
+        action: 'crm.patient.bulkUpdateStatus',
+        clinic_id: ctx.clinic_id,
+        role: ctx.role,
+        ids_count: parsed.data.ids.length,
+      },
+      'patient.bulkUpdateStatus.forbidden',
+    )
+    return roleCheck
+  }
+
+  const { ids, status } = parsed.data
+  const failedIds: string[] = []
+  let updated = 0
+
+  // Loop sequencial · clinica nao tem volume gigante (max 500 por call).
+  // Caso futuro precise, vira `updateMany` no repo com 1 query batched.
+  for (const patientId of ids) {
+    try {
+      const dto = await repos.patients.update(patientId, { status })
+      if (dto) {
+        updated++
+      } else {
+        failedIds.push(patientId)
+        log.warn(
+          {
+            action: 'crm.patient.bulkUpdateStatus',
+            clinic_id: ctx.clinic_id,
+            patient_id: patientId,
+            target_status: status,
+          },
+          'patient.bulkUpdateStatus.itemFailed',
+        )
+      }
+    } catch (err) {
+      failedIds.push(patientId)
+      log.error(
+        {
+          action: 'crm.patient.bulkUpdateStatus',
+          clinic_id: ctx.clinic_id,
+          patient_id: patientId,
+          target_status: status,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'patient.bulkUpdateStatus.itemException',
+      )
+    }
+  }
+
+  log.info(
+    {
+      action: 'crm.patient.bulkUpdateStatus',
+      clinic_id: ctx.clinic_id,
+      target_status: status,
+      total: ids.length,
+      updated,
+      failed: failedIds.length,
+    },
+    'patient.bulkUpdateStatus.ok',
+  )
+
+  updateTag(CRM_TAGS.patients)
+  return ok({
+    updated,
+    failed: failedIds.length,
+    total: ids.length,
+    failedIds,
+  })
 }
 
 // ── Cadastro avulso de paciente (cria LEAD com phase=lead) ──────────────────

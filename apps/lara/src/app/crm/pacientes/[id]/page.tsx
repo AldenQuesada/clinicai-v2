@@ -17,13 +17,13 @@ import {
   CardTitle,
   CardContent,
   PageHeader,
-  PatientStatusBadge,
   Button,
 } from '@clinicai/ui'
-import { Pencil, Phone, Mail } from 'lucide-react'
+import { Pencil, Phone, Mail, CalendarClock } from 'lucide-react'
 import { sexLabel, formatPhoneBR } from '@clinicai/utils'
 import { loadServerReposContext } from '@/lib/repos'
 import { SoftDeleteButton } from '../_components/soft-delete-button'
+import type { AppointmentDTO, AppointmentStatus } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +60,76 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
+interface AppointmentStats {
+  total: number
+  finalizado: number
+  cancelado: number
+  noShow: number
+  outros: number
+  last: AppointmentDTO | null
+  next: AppointmentDTO | null
+}
+
+/**
+ * Resume os appointments do paciente em counts + last/next. Usado pelo card
+ * stub "Histórico de atendimentos" (Camada 7.5). Lista detalhada vem na
+ * Camada 8 (modulo Agenda).
+ *
+ * `last`: appointment com status finalizado mais recente (ou qualquer mais
+ *   recente se nao houver finalizado).
+ * `next`: proximo agendamento futuro com status nao-cancelado/no_show.
+ */
+function summarizeAppointments(rows: AppointmentDTO[]): AppointmentStats {
+  let finalizado = 0
+  let cancelado = 0
+  let noShow = 0
+  let outros = 0
+  let last: AppointmentDTO | null = null
+  let next: AppointmentDTO | null = null
+
+  // ISO date YYYY-MM-DD do hoje · scheduledDate vem como YYYY-MM-DD.
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  // Tipos de status que excluem do "next"
+  const dropNextStatuses: AppointmentStatus[] = [
+    'cancelado',
+    'no_show',
+    'finalizado',
+    'remarcado',
+  ]
+
+  for (const a of rows) {
+    if (a.status === 'finalizado') finalizado++
+    else if (a.status === 'cancelado') cancelado++
+    else if (a.status === 'no_show') noShow++
+    else outros++
+
+    // Last: scheduledDate mais recente entre os "passados ou de hoje".
+    // Comparacao lexicografica funciona em ISO date.
+    if (a.scheduledDate <= todayIso) {
+      if (!last || a.scheduledDate > last.scheduledDate) last = a
+    }
+
+    // Next: scheduledDate futura · status que ainda valem como "agenda".
+    if (
+      a.scheduledDate > todayIso &&
+      !dropNextStatuses.includes(a.status)
+    ) {
+      if (!next || a.scheduledDate < next.scheduledDate) next = a
+    }
+  }
+
+  return {
+    total: rows.length,
+    finalizado,
+    cancelado,
+    noShow,
+    outros,
+    last,
+    next,
+  }
+}
+
 export default async function PatientDetailPage({ params }: PageProps) {
   const { id } = await params
   const { ctx, repos } = await loadServerReposContext()
@@ -69,6 +139,15 @@ export default async function PatientDetailPage({ params }: PageProps) {
 
   const address = (patient.addressJson ?? null) as Record<string, string> | null
   const sourceMeta = patient.sourceLeadMeta ?? {}
+
+  // Camada 7.5 · histórico de appointments stub. Limit 100 (mesmo da Camada 8
+  // futura). Catch silencioso se RLS/falha temporaria · card mostra "Sem
+  // dados" em vez de quebrar a pagina inteira.
+  const appointments = await repos.appointments
+    .listBySubject(ctx.clinic_id, { patientId: patient.id }, { limit: 100 })
+    .catch(() => [] as AppointmentDTO[])
+
+  const apptStats = summarizeAppointments(appointments)
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -218,6 +297,131 @@ export default async function PatientDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
 
+        {/* Histórico de atendimentos · stub Camada 7.5 · lista detalhada vem
+            na Camada 8 (modulo Agenda). Card mostra agregados reais lendo
+            appointments.listBySubject. */}
+        <Card className="md:col-span-3">
+          <CardHeader>
+            <CardTitle>
+              <span className="inline-flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-[var(--primary)]" />
+                Histórico de atendimentos
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {apptStats.total === 0 ? (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Nenhum atendimento registrado ainda.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-2 text-sm">
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                    Resumo
+                  </div>
+                  <div className="text-2xl font-display-italic text-[var(--foreground)]">
+                    {apptStats.total}
+                  </div>
+                  <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
+                    <div>
+                      Finalizados:{' '}
+                      <strong className="text-emerald-400">
+                        {apptStats.finalizado}
+                      </strong>
+                    </div>
+                    <div>
+                      Cancelados:{' '}
+                      <strong className="text-rose-400">
+                        {apptStats.cancelado}
+                      </strong>
+                    </div>
+                    <div>
+                      Não compareceu:{' '}
+                      <strong className="text-rose-400">
+                        {apptStats.noShow}
+                      </strong>
+                    </div>
+                    {apptStats.outros > 0 && (
+                      <div>
+                        Em andamento/outros:{' '}
+                        <strong className="text-[var(--foreground)]">
+                          {apptStats.outros}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                    Último atendimento
+                  </div>
+                  {apptStats.last ? (
+                    <div>
+                      <div className="text-[var(--foreground)]">
+                        {fmtDate(apptStats.last.scheduledDate)}
+                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">
+                        {apptStats.last.procedureName || '—'}
+                      </div>
+                      <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]/70">
+                        {apptStats.last.status}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--muted-foreground)]">
+                      Sem atendimentos passados.
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                    Próximo agendamento
+                  </div>
+                  {apptStats.next ? (
+                    <div>
+                      <div className="text-[var(--foreground)]">
+                        {fmtDate(apptStats.next.scheduledDate)}
+                        {apptStats.next.startTime
+                          ? ` · ${apptStats.next.startTime.slice(0, 5)}`
+                          : ''}
+                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">
+                        {apptStats.next.procedureName || '—'}
+                      </div>
+                      <div className="mt-1 text-[10px] uppercase tracking-widest text-amber-400">
+                        {apptStats.next.status}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--muted-foreground)]">
+                      Nenhum agendamento futuro.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-2 border-t border-[var(--border)] pt-3">
+              {/* CTA · /crm/agenda nao existe ainda · render disabled pill com
+                  tooltip ate Camada 8. */}
+              <span
+                className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-[var(--border)] px-3 py-1.5 text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] opacity-60"
+                title="Disponível na Camada 8 · Módulo Agenda"
+                aria-disabled="true"
+              >
+                <CalendarClock className="h-3 w-3" />
+                Ver agenda completa
+              </span>
+              <span className="text-[10px] text-[var(--muted-foreground)]/60">
+                Lista detalhada chega na Camada 8 (Agenda).
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Origem */}
         <Card className="md:col-span-3">
           <CardHeader>
@@ -245,8 +449,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       </div>
 
       <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">
-        Histórico de appointments + orçamentos + timeline phase deferidos pras
-        Camadas 8 (Agenda) + 9 (Orçamento) + 10 (timeline integrada).
+        Lista detalhada de appointments + orçamentos + timeline phase chegam
+        nas Camadas 8 (Agenda) + 9 (Orçamento) + 10 (timeline integrada).
       </p>
     </div>
   )
