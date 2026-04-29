@@ -21,7 +21,6 @@ import {
   CalendarClock,
   Bell,
   Settings as SettingsIcon,
-  Clock,
   StickyNote,
   Save,
   Check,
@@ -44,17 +43,20 @@ type SectionKey =
   | 'fiscal'
   | 'visual'
   | 'atendimento'
-  | 'horarios'
   | 'notificacoes'
   | 'sistema'
   | 'observacoes'
 
+// Espelho 1:1 do clinic-dashboard CLINIC_SECTIONS (clinic-settings.js:145).
+// Horários NÃO é tab separado · ele renderiza DENTRO do tab "perfil" no final
+// (legacy linha 157-160: clinicSection('perfil') chama renderHorariosGrid).
+// Tabs alexa/documentos do legado omitidas (alexa = 5 campos extras, documentos
+// = redirect estático sem persistencia · ambos fora do scope do form principal).
 const SECTIONS: { key: SectionKey; label: string; Icon: typeof User }[] = [
   { key: 'perfil', label: 'Perfil & Contato', Icon: User },
   { key: 'fiscal', label: 'Fiscal & Bancário', Icon: CreditCard },
   { key: 'visual', label: 'Identidade Visual', Icon: Palette },
   { key: 'atendimento', label: 'Atendimento', Icon: CalendarClock },
-  { key: 'horarios', label: 'Horários', Icon: Clock },
   { key: 'notificacoes', label: 'Notificações', Icon: Bell },
   { key: 'sistema', label: 'Sistema', Icon: SettingsIcon },
   { key: 'observacoes', label: 'Observações', Icon: StickyNote },
@@ -122,14 +124,19 @@ export function ClinicSettingsClient({
 
   return (
     <div>
-      {/* Sub-nav minimalista · tabs com underline gold no ativo (sem caixotes) */}
+      {/* Sub-nav · tabs em UMA linha só (paridade legado linha 776 ·
+          flex-wrap removido · scroll horizontal em mobile) */}
       <nav
+        className="custom-scrollbar"
         style={{
           display: 'flex',
-          gap: 4,
-          flexWrap: 'wrap',
+          gap: 2,
           marginBottom: 32,
           borderBottom: '1px solid var(--b2b-border)',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          whiteSpace: 'nowrap',
+          scrollSnapType: 'x proximity',
         }}
         aria-label="Seções de configuração"
       >
@@ -146,17 +153,19 @@ export function ClinicSettingsClient({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '10px 14px',
+                padding: '10px 12px',
                 background: 'transparent',
                 color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
                 border: 'none',
                 fontSize: 11,
                 fontWeight: 600,
-                letterSpacing: 1.2,
+                letterSpacing: 0.8,
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 transition: 'color 0.15s',
                 fontFamily: 'inherit',
+                flexShrink: 0,
+                scrollSnapAlign: 'start',
               }}
             >
               <Icon size={12} strokeWidth={1.75} />
@@ -258,7 +267,7 @@ export function ClinicSettingsClient({
         </div>
       </div>
 
-      {/* Panels */}
+      {/* Panels · ordem 1:1 do legacy clinicSection() */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {section === 'perfil' && (
           <>
@@ -269,6 +278,9 @@ export function ClinicSettingsClient({
               canEditOwner={canEditOwner}
             />
             <EnderecoSection data={data} onChange={patch} canEdit={canEdit} />
+            {/* Horarios renderizado DENTRO de perfil · igual legacy
+                clinicSection('perfil') → renderHorariosGrid (linha 157-160) */}
+            <HorariosSection data={data} onChange={patch} canEdit={canEdit} />
           </>
         )}
         {section === 'fiscal' && (
@@ -284,9 +296,6 @@ export function ClinicSettingsClient({
         )}
         {section === 'atendimento' && (
           <AtendimentoSection data={data} onChange={patch} canEdit={canEdit} />
-        )}
-        {section === 'horarios' && (
-          <HorariosSection data={data} onChange={patch} canEdit={canEdit} />
         )}
         {section === 'notificacoes' && (
           <NotificacoesSection data={data} onChange={patch} canEdit={canEdit} />
