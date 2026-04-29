@@ -15,7 +15,7 @@ import { MediaCard } from '@/components/molecules/MediaCard'
 import { MediaFilters, type FunnelFilter } from '@/components/molecules/MediaFilters'
 import { MediaEditDrawer, type MediaEditData } from '@/components/organisms/MediaEditDrawer'
 import { MediaUploadDrawer } from '@/components/organisms/MediaUploadDrawer'
-import { toggleMediaActiveAction } from '@/app/midia/actions'
+import { toggleMediaActiveAction } from '@/app/(authed)/midia/actions'
 
 export interface GalleryMediaItem {
   id: string

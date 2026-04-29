@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { updateMediaAction } from '@/app/midia/actions'
+import { updateMediaAction } from '@/app/(authed)/midia/actions'
 
 export interface MediaEditData {
   id: string

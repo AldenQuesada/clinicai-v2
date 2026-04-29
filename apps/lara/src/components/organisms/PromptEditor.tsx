@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { savePromptAction } from '@/app/prompts/actions'
+import { savePromptAction } from '@/app/(authed)/prompts/actions'
 
 export interface EditorPrompt {
   key: string

@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { uploadMediaAction } from '@/app/midia/actions'
+import { uploadMediaAction } from '@/app/(authed)/midia/actions'
 
 const VALID_QUEIXAS = [
   'geral',

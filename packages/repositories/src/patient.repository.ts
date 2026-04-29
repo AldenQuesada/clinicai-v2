@@ -65,9 +65,13 @@ export class PatientRepository {
   }
 
   /**
-   * Lista pacientes da clinica · paginada, ordenada por updated_at desc.
-   * Filtros opcionais: status, assignedTo. Pra busca por texto livre,
-   * caller usa supabase-js .ilike na coluna que precisar (futuro: full-text).
+   * Lista pacientes da clinica · paginada, sort customizavel, filtros.
+   *
+   * Sort default: updated_at desc. Camada 7 expande pra sort por name,
+   * total_revenue, last_procedure_at via opt `sort`.
+   *
+   * Filtros: status, assignedTo, createdSince, lastProcedureSince,
+   * search (busca por nome/phone/email/cpf · ilike).
    */
   async list(
     clinicId: string,
@@ -76,25 +80,96 @@ export class PatientRepository {
       offset?: number
       status?: PatientStatus
       assignedTo?: string | null
+      /** ISO datetime · created_at >= since */
+      createdSince?: string
+      /** ISO datetime · created_at <= until */
+      createdUntil?: string
+      /** ISO datetime · last_procedure_at >= since (filtra retorno recente) */
+      lastProcedureSince?: string
+      /** Substring · ilike em name OR phone OR email OR cpf */
+      search?: string
+      /** Coluna pra ordenar · default 'updated_at' */
+      sort?:
+        | 'name'
+        | 'updated_at'
+        | 'created_at'
+        | 'total_revenue'
+        | 'last_procedure_at'
+        | 'first_procedure_at'
+      /** asc/desc · default desc */
+      sortDir?: 'asc' | 'desc'
     } = {},
   ): Promise<PatientDTO[]> {
     const limit = Math.min(opts.limit ?? 50, 500)
     const offset = opts.offset ?? 0
+    const sortCol = opts.sort ?? 'updated_at'
+    const sortDir = opts.sortDir ?? 'desc'
+
     let q = this.supabase
       .from('patients')
       .select(PATIENT_COLUMNS)
       .eq('clinic_id', clinicId)
       .is('deleted_at', null)
-      .order('updated_at', { ascending: false })
+      .order(sortCol, { ascending: sortDir === 'asc', nullsFirst: false })
       .range(offset, offset + limit - 1)
 
     if (opts.status) q = q.eq('status', opts.status)
     if (opts.assignedTo !== undefined && opts.assignedTo !== null) {
       q = q.eq('assigned_to', opts.assignedTo)
     }
+    if (opts.createdSince) q = q.gte('created_at', opts.createdSince)
+    if (opts.createdUntil) q = q.lte('created_at', opts.createdUntil)
+    if (opts.lastProcedureSince) {
+      q = q.gte('last_procedure_at', opts.lastProcedureSince)
+    }
+    if (opts.search) {
+      const pattern = `%${opts.search.trim()}%`
+      q = q.or(
+        `name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern},cpf.ilike.${pattern}`,
+      )
+    }
 
     const { data } = await q
     return ((data ?? []) as unknown[]).map(mapPatientRow)
+  }
+
+  /**
+   * Conta pacientes com filtros (mesmo shape do `list`) · usado pra mostrar
+   * total na paginacao + "X pacientes encontrados" quando filtros ativos.
+   */
+  async countWithFilters(
+    clinicId: string,
+    opts: {
+      status?: PatientStatus
+      assignedTo?: string | null
+      createdSince?: string
+      createdUntil?: string
+      lastProcedureSince?: string
+      search?: string
+    } = {},
+  ): Promise<number> {
+    let q = this.supabase
+      .from('patients')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+
+    if (opts.status) q = q.eq('status', opts.status)
+    if (opts.assignedTo) q = q.eq('assigned_to', opts.assignedTo)
+    if (opts.createdSince) q = q.gte('created_at', opts.createdSince)
+    if (opts.createdUntil) q = q.lte('created_at', opts.createdUntil)
+    if (opts.lastProcedureSince) {
+      q = q.gte('last_procedure_at', opts.lastProcedureSince)
+    }
+    if (opts.search) {
+      const pattern = `%${opts.search.trim()}%`
+      q = q.or(
+        `name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern},cpf.ilike.${pattern}`,
+      )
+    }
+
+    const { count } = await q
+    return count ?? 0
   }
 
   /**
@@ -133,6 +208,98 @@ export class PatientRepository {
     if (opts.status) q = q.eq('status', opts.status)
     const { count } = await q
     return count ?? 0
+  }
+
+  /**
+   * KPIs agregados da clinica · usado pelo header da lista de pacientes
+   * (Camada 7). 8 metricas em 2 queries (1 select + 1 head count) + 1 client
+   * sum. Os 2 KPIs de retorno (count com appointments futuros + dias medio)
+   * ficam pra Camada 8 quando AppointmentRepository expor essas queries.
+   *
+   * `churnDays` define o cutoff: pacientes ativos sem ultimo procedimento
+   * em N dias = churn. Default 90 dias (3 meses).
+   */
+  async aggregates(
+    clinicId: string,
+    opts: { churnDays?: number } = {},
+  ): Promise<{
+    total: number
+    active: number
+    churn: number
+    churnPct: number
+    revenueTotal: number
+    proceduresTotal: number
+    ticketAvg: number
+  }> {
+    const churnDays = opts.churnDays ?? 90
+    const churnCutoff = new Date(
+      Date.now() - churnDays * 24 * 60 * 60 * 1000,
+    ).toISOString()
+
+    const [allRows, totalCount, activeCount] = await Promise.all([
+      // Sums client-side (Supabase nao tem SUM via PostgREST)
+      this.supabase
+        .from('patients')
+        .select('total_revenue, total_procedures, last_procedure_at, status')
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null),
+      this.count(clinicId),
+      this.count(clinicId, { status: 'active' }),
+    ])
+
+    let revenueTotal = 0
+    let proceduresTotal = 0
+    let churn = 0
+    for (const row of (allRows.data ?? []) as Array<{
+      total_revenue?: number | string
+      total_procedures?: number | string
+      last_procedure_at?: string | null
+      status?: string
+    }>) {
+      revenueTotal += Number(row.total_revenue ?? 0)
+      proceduresTotal += Number(row.total_procedures ?? 0)
+      // Churn: ativo + (sem procedure OR ultimo procedure < cutoff)
+      if (row.status === 'active') {
+        const lastAt = row.last_procedure_at
+        if (!lastAt || lastAt < churnCutoff) churn++
+      }
+    }
+
+    const ticketAvg = proceduresTotal > 0 ? revenueTotal / proceduresTotal : 0
+    const churnPct = activeCount > 0 ? (churn / activeCount) * 100 : 0
+
+    return {
+      total: totalCount,
+      active: activeCount,
+      churn,
+      churnPct,
+      revenueTotal,
+      proceduresTotal,
+      ticketAvg,
+    }
+  }
+
+  /**
+   * Lista pra Export CSV · sem paginacao. Limite hard 5000 (5x mais que UI
+   * pagina) · clinica acima disso usa export por mes/segmento. Otimizacao
+   * futura: streaming/paginated download.
+   */
+  async listAllForExport(
+    clinicId: string,
+    opts: { status?: PatientStatus } = {},
+  ): Promise<PatientDTO[]> {
+    let q = this.supabase
+      .from('patients')
+      .select(PATIENT_COLUMNS)
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+      .limit(5000)
+
+    if (opts.status) q = q.eq('status', opts.status)
+
+    const { data } = await q
+    return ((data ?? []) as unknown[]).map(mapPatientRow)
   }
 
   // ── Mutations ──────────────────────────────────────────────────────────────
