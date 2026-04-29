@@ -49,22 +49,33 @@ export function createMiddlewareClient(
   return createSSRServerClient<Database>(url, key, {
     cookies: {
       getAll() {
-        return req.cookies.getAll()
+        try {
+          return req.cookies.getAll()
+        } catch {
+          // Edge case · request cookies inacessivel · trata como vazio
+          return []
+        }
       },
       setAll(cookiesToSet: CookieToSet[]) {
-        // Adiciona domain compartilhado em prod (SSO cross-subdomain)
-        const sharedDomain = getSharedCookieDomainMiddleware()
-        cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
-          req.cookies.set(name, value)
-          const enrichedOpts = sharedDomain
-            ? { ...(options || {}), domain: sharedDomain }
-            : (options as Parameters<typeof res.cookies.set>[2])
-          res.cookies.set(
-            name,
-            value,
-            enrichedOpts as Parameters<typeof res.cookies.set>[2],
-          )
-        })
+        try {
+          // Adiciona domain compartilhado em prod (SSO cross-subdomain)
+          const sharedDomain = getSharedCookieDomainMiddleware()
+          cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
+            req.cookies.set(name, value)
+            const enrichedOpts = sharedDomain
+              ? { ...(options || {}), domain: sharedDomain }
+              : (options as Parameters<typeof res.cookies.set>[2])
+            res.cookies.set(
+              name,
+              value,
+              enrichedOpts as Parameters<typeof res.cookies.set>[2],
+            )
+          })
+        } catch {
+          // Edge case · res.cookies.set lanca em alguns cenarios de stream
+          // ja iniciado · silenciar pra nao crashar middleware. Auth refresh
+          // pode falhar · proximo getUser() detecta e redireciona /login.
+        }
       },
     },
   })

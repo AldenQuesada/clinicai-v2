@@ -40,12 +40,25 @@ export async function middleware(req: NextRequest) {
   }
 
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient(req, res)
 
-  // getUser() valida JWT · refresh automatico se expirado
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Defensive · createMiddlewareClient pode throw se env vars faltarem ·
+  // getUser() pode throw se refresh token corrupto / clock skew / network.
+  // Sem catch, exception escapa → digest opaco no RSC seguinte. Tratar como
+  // sessao invalida e redirecionar pra /login.
+  let user = null as { id: string } | null
+  try {
+    const supabase = createMiddlewareClient(req, res)
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (e) {
+    console.error('[middleware] auth check failed:', (e as Error).message)
+    const loginUrl = new URL('/login', req.url)
+    loginUrl.searchParams.set('error', 'session_expired')
+    if (pathname !== '/') {
+      loginUrl.searchParams.set('redirect', pathname + req.nextUrl.search)
+    }
+    return NextResponse.redirect(loginUrl)
+  }
 
   if (!user) {
     const loginUrl = new URL('/login', req.url)

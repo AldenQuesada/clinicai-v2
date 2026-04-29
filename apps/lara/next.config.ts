@@ -42,6 +42,7 @@ const nextConfig: NextConfig = {
     '@clinicai/ui',
     '@clinicai/utils',
     '@clinicai/supabase',
+    '@clinicai/repositories',
     '@clinicai/ai',
     '@clinicai/whatsapp',
     '@clinicai/logger',
