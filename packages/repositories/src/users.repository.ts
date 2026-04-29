@@ -165,10 +165,16 @@ export class UsersRepository {
   async inviteStaff(
     email: string,
     role: StaffRole,
-    opts?: { permissions?: Array<{ moduleId: string; pageId?: string | null; allowed: boolean }> },
+    opts?: {
+      firstName?: string
+      lastName?: string
+      permissions?: Array<{ moduleId: string; pageId?: string | null; allowed: boolean }>
+    },
   ): Promise<InviteResult> {
     try {
       const params: Record<string, unknown> = { p_email: email, p_role: role }
+      if (opts?.firstName != null) params.p_first_name = opts.firstName
+      if (opts?.lastName != null) params.p_last_name = opts.lastName
       if (opts?.permissions != null) {
         params.p_permissions = opts.permissions.map((p) => ({
           module_id: p.moduleId,

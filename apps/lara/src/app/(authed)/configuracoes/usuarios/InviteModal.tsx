@@ -67,6 +67,8 @@ export function InviteModal({
   const [error, setError] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState<StaffRole>('therapist')
   const [email, setEmail] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [perms, setPerms] = useState<Record<string, boolean>>(() =>
     defaultPermsForRole('therapist'),
   )
@@ -81,6 +83,10 @@ export function InviteModal({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    if (!firstName.trim()) {
+      setError('Informe o nome')
+      return
+    }
     if (!email.trim()) {
       setError('Informe o email')
       return
@@ -89,6 +95,8 @@ export function InviteModal({
     try {
       const fd = new FormData()
       fd.set('email', email.trim())
+      fd.set('first_name', firstName.trim())
+      fd.set('last_name', lastName.trim())
       fd.set('role', selectedRole)
       fd.set('all_modules', allModuleIds)
       for (const [moduleId, allowed] of Object.entries(perms)) {
@@ -135,6 +143,37 @@ export function InviteModal({
               Identificação
             </div>
 
+            <div className="b2b-grid-2">
+              <div className="b2b-field">
+                <label className="b2b-field-lbl">
+                  Nome <em>*</em>
+                </label>
+                <input
+                  name="first_name"
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Ex: Ana"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  autoComplete="given-name"
+                  className="b2b-input"
+                />
+              </div>
+              <div className="b2b-field">
+                <label className="b2b-field-lbl">Sobrenome</label>
+                <input
+                  name="last_name"
+                  type="text"
+                  placeholder="Ex: Silva"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  autoComplete="family-name"
+                  className="b2b-input"
+                />
+              </div>
+            </div>
+
             <div className="b2b-field">
               <label className="b2b-field-lbl">
                 Email <em>*</em>
@@ -143,7 +182,6 @@ export function InviteModal({
                 name="email"
                 type="email"
                 required
-                autoFocus
                 placeholder="colaborador@clinica.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -157,7 +195,8 @@ export function InviteModal({
                   letterSpacing: 0.3,
                 }}
               >
-                Geramos um link · você envia manualmente para a pessoa
+                Nome aparece no convite · pessoa pode ajustar ao aceitar.
+                Geramos um link · você envia manualmente.
               </div>
             </div>
 

@@ -42,6 +42,17 @@
     --b2b-amber: #F59E0B;
     --b2b-red: #D97A7A;
 
+    /* Tokens de medidas premium · paridade clinic-dashboard
+       (radius mais generosos · shadows multi-layer · transition padronizada) */
+    --lara-radius-sm: 8px;
+    --lara-radius-md: 10px;
+    --lara-radius-lg: 14px;
+    --lara-radius-xl: 18px;
+    --lara-shadow-sm: 0 1px 3px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.18);
+    --lara-shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.20);
+    --lara-shadow-lg: 0 10px 32px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.28);
+    --lara-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
     /* Mapeamento legacy do Ivan (componentes /conversas) → tokens Mirian.
        NAO remover · ConversationList, MessageArea, LeadInfoPanel etc.
        referenciam essas vars HSL. */
@@ -103,20 +114,23 @@
     color: var(--b2b-champagne);
   }
 
-  /* Card luxury · base de 90% das superficies */
+  /* Card luxury · base de 90% das superficies (radius 14 · paridade clinic) */
   .luxury-card {
     background-color: var(--b2b-bg-1);
     border: 1px solid var(--b2b-border);
-    border-radius: 0.5rem;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    border-radius: 14px;
+    transition: border-color var(--lara-transition),
+      background-color var(--lara-transition),
+      box-shadow var(--lara-transition);
   }
   .luxury-card:hover {
     border-color: var(--b2b-border-strong);
+    box-shadow: var(--lara-shadow-sm);
   }
   .luxury-card-gold {
     background-color: rgba(201, 169, 110, 0.04);
     border: 1px solid rgba(201, 169, 110, 0.22);
-    border-radius: 0.5rem;
+    border-radius: 14px;
   }
 }
 
@@ -142,26 +156,42 @@
 }
 .b2b-list-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* Buttons · b2b-btn + b2b-btn-primary */
+/* Buttons · b2b-btn + b2b-btn-primary · paridade clinic-dashboard 36px height
+   (radius 10 · hover translateY + shadow soft · padrao premium) */
 .b2b-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 18px; background: var(--b2b-bg-2); color: var(--b2b-text);
-  border: 1px solid var(--b2b-border-strong); border-radius: 6px;
+  padding: 9px 16px; background: var(--b2b-bg-2); color: var(--b2b-text);
+  border: 1.5px solid var(--b2b-border-strong); border-radius: var(--lara-radius-md);
   font-size: 12px; font-weight: 500; letter-spacing: 0.3px; cursor: pointer;
-  font-family: inherit; transition: all 0.15s; text-decoration: none;
+  font-family: inherit; transition: all var(--lara-transition);
+  text-decoration: none;
+  box-shadow: var(--lara-shadow-sm);
 }
-.b2b-btn:hover { background: var(--b2b-bg-3); border-color: var(--b2b-champagne); }
-.b2b-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.b2b-btn:hover {
+  background: var(--b2b-bg-3); border-color: var(--b2b-champagne);
+  transform: translateY(-1px); box-shadow: var(--lara-shadow-md);
+}
+.b2b-btn:active { transform: translateY(0); }
+.b2b-btn:disabled {
+  opacity: 0.5; cursor: not-allowed;
+  transform: none; box-shadow: var(--lara-shadow-sm);
+}
 .b2b-btn-primary {
-  background: var(--b2b-champagne); color: var(--b2b-bg-0);
+  background: linear-gradient(135deg, var(--b2b-champagne), var(--b2b-champagne-dark));
+  color: var(--b2b-bg-0);
   border-color: var(--b2b-champagne); font-weight: 600;
+  box-shadow: 0 2px 8px rgba(201,169,110,0.25);
 }
-.b2b-btn-primary:hover { background: var(--b2b-champagne-light); }
+.b2b-btn-primary:hover {
+  background: linear-gradient(135deg, var(--b2b-champagne-light), var(--b2b-champagne));
+  box-shadow: 0 4px 14px rgba(201,169,110,0.40);
+}
 
 /* Empty state */
 .b2b-empty {
   padding: 40px; text-align: center; color: var(--b2b-text-muted); font-size: 13px;
-  background: var(--b2b-bg-1); border: 1px dashed var(--b2b-border); border-radius: 6px;
+  background: var(--b2b-bg-1); border: 1px dashed var(--b2b-border);
+  border-radius: var(--lara-radius-lg);
 }
 
 /* Form · /templates, /configuracoes */
@@ -181,11 +211,15 @@
 .b2b-input {
   width: 100%; padding: 9px 12px;
   background: var(--b2b-bg-2);
-  border: 1px solid var(--b2b-border); border-radius: 5px;
+  border: 1.5px solid var(--b2b-border); border-radius: var(--lara-radius-sm);
   color: var(--b2b-ivory); font-size: 13px; font-family: inherit;
-  color-scheme: dark;
+  color-scheme: dark; transition: border-color var(--lara-transition),
+    box-shadow var(--lara-transition);
 }
-.b2b-input:focus { outline: none; border-color: var(--b2b-champagne); }
+.b2b-input:focus {
+  outline: none; border-color: var(--b2b-champagne);
+  box-shadow: 0 0 0 3px rgba(201,169,110,0.12);
+}
 textarea.b2b-input { resize: vertical; min-height: 60px; }
 select.b2b-input { cursor: pointer; padding-right: 28px; }
 select.b2b-input option {
@@ -213,9 +247,10 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 }
 .b2b-modal {
   background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
-  border-radius: 10px; max-width: 520px; width: 100%;
+  border-radius: var(--lara-radius-xl); max-width: 520px; width: 100%;
   max-height: calc(100vh - 80px); overflow: hidden;
   display: flex; flex-direction: column;
+  box-shadow: var(--lara-shadow-lg);
 }
 .b2b-modal-hdr {
   display: flex; justify-content: space-between; align-items: center;
@@ -236,7 +271,8 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 .b2b-form-err {
   margin-top: 12px; padding: 10px 14px;
   background: rgba(217, 122, 122, 0.12); color: var(--b2b-red);
-  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: 5px; font-size: 12px;
+  border: 1px solid rgba(217, 122, 122, 0.3); border-radius: var(--lara-radius-sm);
+  font-size: 12px;
 }
 
 /* Pill de role · usar em member cards */
@@ -265,7 +301,14 @@ input.b2b-input[type="number"]::-webkit-outer-spin-button {
 }
 .b2b-kpi {
   background: var(--b2b-bg-1); border: 1px solid var(--b2b-border);
-  border-radius: 8px; padding: 14px 16px;
+  border-radius: var(--lara-radius-lg); padding: 18px 18px 14px;
+  transition: transform var(--lara-transition),
+    box-shadow var(--lara-transition);
+  box-shadow: var(--lara-shadow-sm);
+}
+.b2b-kpi:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--lara-shadow-md);
 }
 .b2b-kpi-num {
   font-family: 'Cormorant Garamond', serif; font-size: 28px;

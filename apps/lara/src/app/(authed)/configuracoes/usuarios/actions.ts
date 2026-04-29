@@ -35,7 +35,12 @@ export async function inviteStaffAction(formData: FormData): Promise<InviteActio
 
   const email = String(formData.get('email') || '').trim().toLowerCase()
   const role = String(formData.get('role') || '').trim() as StaffRole
+  const firstName = String(formData.get('first_name') || '').trim()
+  const lastName = String(formData.get('last_name') || '').trim()
 
+  if (!firstName) {
+    return { ok: false, error: 'Informe o nome' }
+  }
   if (!email || !email.includes('@')) {
     return { ok: false, error: 'Email invalido' }
   }
@@ -65,6 +70,8 @@ export async function inviteStaffAction(formData: FormData): Promise<InviteActio
   }
 
   const result = await repos.users.inviteStaff(email, role, {
+    firstName,
+    lastName,
     permissions: permissions.length > 0 ? permissions : undefined,
   })
   if (!result.ok || !result.rawToken) {
