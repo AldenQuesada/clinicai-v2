@@ -219,9 +219,9 @@ export async function POST(req: NextRequest) {
       p_dispatch_id: body.dispatch_id,
       p_status: 'dispatched',
       p_message_text: messageText,
-      p_template_id: generated.templateId,
-      p_template_version: generated.templateVersion,
-      p_template_variant: generated.templateVariant,
+      p_template_id: generated.templateId ?? undefined,
+      p_template_version: generated.templateVersion ?? undefined,
+      p_template_variant: generated.templateVariant ?? undefined,
     });
     if (markError) {
       log.warn(
