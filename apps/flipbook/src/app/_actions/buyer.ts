@@ -1,6 +1,6 @@
 'use server'
 
-import { createServerClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { normalizeBrPhone, normalizeCpf } from '@/lib/utils/phone'
 import {
   createCustomer,
@@ -66,7 +66,9 @@ export async function createLeadAndChargeAction(
     return { ok: false, error: 'CPF inválido.' }
   }
 
-  const supabase = await createServerClient()
+  // Service client · bypassa RLS pra mutations em buyers/purchases/subscriptions.
+  // Server actions são server-side trusted code — não dependem do role do cookie.
+  const supabase = createServiceClient()
 
   // Step 1 · cria buyer
   const { data: buyer, error: buyerErr } = await supabase

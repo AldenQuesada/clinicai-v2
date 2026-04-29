@@ -111,15 +111,22 @@ export default async function ReaderPage({ params, searchParams }: Props) {
     })
     if (grantId) {
       hasGrantAccess = true
-      // Persistir cookie 90d se veio via query param (primeira vez)
+      // Persistir cookie 90d se veio via query param (primeira vez).
+      // Next 16 só permite cookies.set() em Server Actions/Route Handlers · em RSC
+      // throw silencioso aceitável: ?t= continua funcionando, mas cookie não persiste.
+      // TODO: mover persist pro middleware.ts pra UX de "lembrar 90d sem refresh".
       if (t && t !== cookieToken) {
-        cookieStore.set(grantCookieName, t, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 90, // 90 dias
-        })
+        try {
+          cookieStore.set(grantCookieName, t, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 90,
+          })
+        } catch {
+          /* RSC sem permissão de mutar cookie · ignora */
+        }
       }
     }
   }
