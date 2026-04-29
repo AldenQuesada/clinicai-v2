@@ -180,7 +180,7 @@
       <span><strong>Data:</strong> 2026-04-29</span>
       <span><strong>App:</strong> apps/lara</span>
       <span><strong>Rota:</strong> /conversas</span>
-      <span><strong>Status atual:</strong> commit 26fa560 · Sprint A · P-01/P-02/P-03/P-04 done</span>
+      <span><strong>Status atual:</strong> commit 1d93fba · <span style="color: var(--gold);">Sprint A 100% done</span></span>
     </div>
 
     <nav class="toc">
@@ -193,13 +193,13 @@
     </nav>
 
     <div class="tldr">
-      <h3>TL;DR estratégico</h3>
+      <h3>TL;DR estratégico · <span style="color: var(--green);">Sprint A 100% done</span></h3>
       <ul>
         <li><strong>O que está sólido:</strong> arquitetura 3-painéis, SSE multi-tenant scoped, otimismo nas mutações, dedup robusto, 4 status × 4 abas × filtros avançados, badge cloud, atalhos pro CRM.</li>
-        <li><strong>P0 sangrando · STATUS 2026-04-29:</strong> <span style="color: var(--green);">✓ resolvido</span> — polling adaptativo (P-01), paginação cursor (P-02), KPIs globais via /api/conversations/insights (P-03 + P-04). Commits 090967c + 26fa560.</li>
-        <li><strong>Próximas fricções (P1 pendentes):</strong> sem ✓✓ de leitura (P-05), sendMessage falha silenciosa (P-06), sem upload mídia atendente (P-07), transfer "Dra. Mirian" hardcoded (P-08).</li>
-        <li><strong>O que vira wow (Sprint B):</strong> Auto-summary + Smart replies + Next Best Action — <em class="gold">3 features que compartilham 1 chamada Anthropic</em> e mudam a percepção do produto inteiro. Pipeline visual + Timeline de eventos completam o quadro.</li>
-        <li><strong>Recomendação:</strong> <em class="gold">Sprint A parcial entregue.</em> Decidir: terminar SA-04..SA-07 (P1 + W-04 + W-07) antes de Sprint B, ou pular pra B agora?</li>
+        <li><strong>Sprint A · 2026-04-29 · entregue:</strong> <span style="color: var(--green);">✓ 7 tasks + 1 bonus</span> — polling adaptativo SSE-aware (P-01), paginação cursor + scroll infinito (P-02), KPIs globais (P-03 + P-04), sendMessage retry/discard (P-06), transfer dra dinâmica multi-tenant (P-08), pipeline visual 5 fases (W-04), timeline phase_history (W-07). 4 commits: 090967c, 26fa560, 7af8fb2, 1d93fba.</li>
+        <li><strong>Restante de fraquezas:</strong> P-05 (✓✓ leitura), P-07 (upload mídia), P-09..P-15. Top: P-05/P-07 são P1.</li>
+        <li><strong>O que vira wow (Sprint B):</strong> Auto-summary + Smart replies + Next Best Action — <em class="gold">3 features que compartilham 1 chamada Anthropic</em> e mudam a percepção do produto inteiro.</li>
+        <li><strong>Recomendação:</strong> Próximo passo é <em class="gold">Sprint B</em>. Sprint A nivelou a base — efeito wow agora não compete com bugs.</li>
       </ul>
     </div>
   </header>
@@ -316,13 +316,14 @@
       <h2><em>Fraquezas</em> · priorizadas por impacto</h2>
       <div class="section-meta">
         <span class="pill good">3 P0 done</span>
-        <span class="pill warn">4 P1 (1 done)</span>
+        <span class="pill good">3 P1 done</span>
+        <span class="pill warn">2 P1 pend</span>
         <span class="pill info">4 P2</span>
         <span class="pill">3 P3</span>
       </div>
     </div>
     <div class="section-body">
-      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento. <strong style="color: var(--gold);">Atualização 2026-04-29:</strong> 3 P0 (P-01/P-02/P-03) + 1 P1 (P-04) entregues nos commits 090967c + 26fa560.</div>
+      <div class="section-desc">P0 = quebra/sangra agora. P1 = fricção visível pro usuário. P2 = limita escala. P3 = polimento. <strong style="color: var(--gold);">Sprint A 2026-04-29:</strong> 3 P0 (P-01/P-02/P-03) + 3 P1 (P-04/P-06/P-08) entregues. Pendentes P1: P-05 (✓✓ leitura) e P-07 (upload mídia).</div>
 
       <div class="item checked" data-id="P-01">
         <div class="check"><input type="checkbox" checked /></div>
@@ -393,10 +394,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-06">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-06">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-06</div>
+          <div class="id">P-06 · ✓ done · commit 1d93fba</div>
           <div class="title">sendMessage falha silenciosa — sem retry, sem rollback do otimismo</div>
           <div class="desc">sendStatus='error' some em 3s. A msg otimística fica visível mas nunca foi enviada. Atendente acha que mandou, paciente nunca recebe.</div>
           <div class="ref">hooks/useMessages.ts:124-130</div>
@@ -421,10 +422,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-08">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-08">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-08</div>
+          <div class="id">P-08 · ✓ done · commit 1d93fba</div>
           <div class="title">handleAction(transfer) hardcoded "Dra. Mirian"</div>
           <div class="desc">Multi-tenant quebra na 1ª clínica nova. Devia vir de <code>clinics.responsible_name</code> (ou clinic_secrets/clinic_settings).</div>
           <div class="ref">page.tsx:108-122</div>
@@ -620,10 +621,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-04">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-04">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-04</div>
+          <div class="id">W-04 · ✓ done · commit 1d93fba</div>
           <div class="title">Pipeline visual — barra horizontal da jornada do lead</div>
           <div class="desc"><code>Quiz ✓ → Orçamento ⏳ → Consulta · → Procedimento</code>. Click numa fase abre histórico daquela etapa. Foto contextual de 1ª olhada.</div>
         </div>
@@ -659,10 +660,10 @@
         </div>
       </div>
 
-      <div class="item" data-id="W-07">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="W-07">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">W-07</div>
+          <div class="id">W-07 · ✓ done · commit 1d93fba</div>
           <div class="title">Timeline de eventos no painel direito</div>
           <div class="desc">"AI pausada 14:32 por Alden · Conversa assumida 14:35 · status → dra 15:00 · transferida pra Mirian". Auditoria gratuita pra debug e supervisão. Já tem phase_history.</div>
         </div>
@@ -831,48 +832,48 @@
               <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-04">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-04">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-04 · ref P-06</div>
+                <div class="id">SA-04 · ref P-06 · ✓ done · 1d93fba</div>
                 <div class="title">sendMessage com retry button + rollback do otimismo</div>
                 <div class="desc">Em falha: msg vira "vermelha" com botão "tentar de novo". Se cancelar, remove do array. Não some silenciosa.</div>
               </div>
               <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-05">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-05">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-05 · ref P-08</div>
+                <div class="id">SA-05 · ref P-08 · ✓ done · 1d93fba</div>
                 <div class="title">Transfer Dra dinâmica</div>
-                <div class="desc">Lê <code>clinics.responsible_name</code> (ou clinic_secrets). Modal e texto se adaptam. Multi-tenant safe.</div>
+                <div class="desc">Lê <code>clinics.settings.responsible_name</code> (jsonb · 3 fallbacks). Modal, msg auto e tooltip dinâmicos. Multi-tenant safe.</div>
               </div>
               <div class="meta"><span class="priority p1">P1</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-06">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-06">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-06 · ref W-04</div>
+                <div class="id">SA-06 · ref W-04 · ✓ done · 1d93fba</div>
                 <div class="title">Pipeline visual no LeadInfoPanel</div>
-                <div class="desc">Barra horizontal: <code>Quiz → Contato → Orçamento → Consulta → Procedimento</code>. Data já existe (phase + funnel).</div>
+                <div class="desc">Barra horizontal: <code>Quiz → Contato → Orçamento → Consulta → Procedimento</code>. 5 dots champagne com ring no atual + glow. Phase mapping permissive (substring match · crash-safe).</div>
               </div>
               <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
 
-            <div class="item" data-id="SA-07">
-              <div class="check"><input type="checkbox" /></div>
+            <div class="item checked" data-id="SA-07">
+              <div class="check"><input type="checkbox" checked /></div>
               <div class="body">
-                <div class="id">SA-07 · ref W-07</div>
+                <div class="id">SA-07 · ref W-07 · ✓ done · 1d93fba</div>
                 <div class="title">Timeline de eventos do lead</div>
-                <div class="desc">Lê phase_history + audit logs. Renderiza coluna de timestamps no painel direito.</div>
+                <div class="desc">Endpoint /api/conversations/[id]/events lê phase_history. TimelineSection scrollable max-h-64 · formatDistanceToNow ptBR · schema extensível pra novas fontes.</div>
               </div>
               <div class="meta"><span class="priority p2">P2</span><span class="effort">Esforço: <strong>S</strong></span></div>
             </div>
           </div>
 
-          <div class="sprint-impact"><strong>Resultado esperado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.<br/><strong style="color: var(--gold);">2026-04-29 · entregues:</strong> SA-01 (polling adaptativo) + SA-02 (insights endpoint) + SA-03 (top bar global) + bonus P-02 (paginação cursor + scroll infinito). Pendentes: SA-04 (sendMessage retry), SA-05 (transfer dra dinâmica), SA-06 (pipeline visual), SA-07 (timeline eventos).</div>
+          <div class="sprint-impact"><strong>Resultado esperado:</strong> KPIs corretos, dispatch inteligente de tráfego, contexto do lead em 1 olhada.<br/><strong style="color: var(--gold);">2026-04-29 · Sprint A 100% done</strong> · 8 entregas em 4 commits (090967c, 26fa560, 7af8fb2, 1d93fba) · SA-01..SA-07 + bonus P-02 (paginação cursor). Próximo: Sprint B · efeito wow (Auto-summary + Smart replies + Next Best Action).</div>
         </div>
 
         <!-- SPRINT B -->
