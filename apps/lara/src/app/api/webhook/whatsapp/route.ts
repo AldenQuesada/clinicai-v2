@@ -614,16 +614,30 @@ async function processInboundMessage(
             await new Promise((resolve) => setTimeout(resolve, photoDelayMs));
           }
           try {
-            await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
+            const sendRes = await wa.sendImage(phone, extra.url, extra.caption || 'Resultado real · Dra. Mirian de Paula');
             await repos.messages.saveOutbound(clinic_id, {
               conversationId: conv.id,
               sender: 'lara',
               content: extra.caption || '',
               contentType: 'image',
               mediaUrl: extra.url,
-              status: 'sent',
+              status: sendRes.ok ? 'sent' : 'failed',
             });
-            log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: photoDelayMs }, 'media.extra.sent_after');
+            if (sendRes.ok) {
+              log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: photoDelayMs }, 'media.extra.sent_after');
+            } else {
+              log.warn(
+                {
+                  clinic_id,
+                  phone_hash: hashPhone(phone),
+                  idx: i,
+                  url: extra.url,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  meta_err: (sendRes as any)?.error ?? null,
+                },
+                'media.extra.send_returned_not_ok',
+              );
+            }
           } catch (e) {
             log.warn({ clinic_id, phone_hash: hashPhone(phone), idx: i, err: (e as Error)?.message }, 'media.extra.send_failed_after');
           }
