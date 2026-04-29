@@ -27,10 +27,15 @@ function toView(m: WaMediaBankDTO): GalleryMediaItem {
 }
 
 async function loadMedia(): Promise<{ media: GalleryMediaItem[]; canManage: boolean }> {
-  const { ctx, repos } = await loadServerReposContext()
-  const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
-  const dtos = await repos.mediaBank.listAll(ctx.clinic_id)
-  return { media: dtos.map(toView), canManage }
+  try {
+    const { ctx, repos } = await loadServerReposContext()
+    const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+    const dtos = await repos.mediaBank.listAll(ctx.clinic_id)
+    return { media: dtos.map(toView), canManage }
+  } catch (e) {
+    console.error('[/midia] loadMedia failed:', (e as Error).message, (e as Error).stack)
+    return { media: [], canManage: false }
+  }
 }
 
 function noun(n: number) {

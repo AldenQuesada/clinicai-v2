@@ -39,12 +39,17 @@ const MODEL_OPTIONS = [
 ]
 
 async function loadConfig(): Promise<{ config: LaraConfig; clinic_id: string }> {
-  const { ctx, repos } = await loadServerReposContext()
-  const stored =
-    (await repos.clinicData.getSetting<Partial<LaraConfig>>(ctx.clinic_id, 'lara_config')) ?? {}
-  return {
-    config: { ...DEFAULT_CONFIG, ...stored },
-    clinic_id: ctx.clinic_id,
+  try {
+    const { ctx, repos } = await loadServerReposContext()
+    const stored =
+      (await repos.clinicData.getSetting<Partial<LaraConfig>>(ctx.clinic_id, 'lara_config')) ?? {}
+    return {
+      config: { ...DEFAULT_CONFIG, ...stored },
+      clinic_id: ctx.clinic_id,
+    }
+  } catch (e) {
+    console.error('[/configuracoes] loadConfig failed:', (e as Error).message, (e as Error).stack)
+    return { config: DEFAULT_CONFIG, clinic_id: '' }
   }
 }
 

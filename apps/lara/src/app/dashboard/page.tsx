@@ -39,7 +39,24 @@ interface Stats {
   leads_today: number
 }
 
-async function loadStats(): Promise<Stats> {
+function emptyStats(): Stats {
+  return {
+    cost_today_usd: 0,
+    cost_7d_usd: 0,
+    msgs_today_in: 0,
+    msgs_today_out: 0,
+    msgs_7d_in: 0,
+    msgs_7d_out: 0,
+    active_conversations: 0,
+    waiting_human: 0,
+    transbordo_today: 0,
+    funnel_breakdown: {},
+    total_leads: 0,
+    leads_today: 0,
+  }
+}
+
+async function loadStatsRaw(): Promise<Stats> {
   const { ctx, repos } = await loadServerReposContext()
   const today = new Date().toISOString().slice(0, 10)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -96,6 +113,15 @@ async function loadStats(): Promise<Stats> {
     funnel_breakdown,
     total_leads: totalLeads,
     leads_today: leadsToday,
+  }
+}
+
+async function loadStats(): Promise<Stats> {
+  try {
+    return await loadStatsRaw()
+  } catch (e) {
+    console.error('[/dashboard] loadStats failed:', (e as Error).message, (e as Error).stack)
+    return emptyStats()
   }
 }
 

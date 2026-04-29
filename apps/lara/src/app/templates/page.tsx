@@ -44,10 +44,15 @@ function toView(t: TemplateDTO): TemplateView {
 }
 
 async function loadTemplates(): Promise<{ templates: TemplateView[]; canManage: boolean }> {
-  const { ctx, repos } = await loadServerReposContext()
-  const dtos = await repos.templates.listAll(ctx.clinic_id)
-  const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
-  return { templates: dtos.map(toView), canManage }
+  try {
+    const { ctx, repos } = await loadServerReposContext()
+    const dtos = await repos.templates.listAll(ctx.clinic_id)
+    const canManage = !ctx.role || ['owner', 'admin'].includes(ctx.role)
+    return { templates: dtos.map(toView), canManage }
+  } catch (e) {
+    console.error('[/templates] loadTemplates failed:', (e as Error).message, (e as Error).stack)
+    return { templates: [], canManage: false }
+  }
 }
 
 export default async function TemplatesPage() {
