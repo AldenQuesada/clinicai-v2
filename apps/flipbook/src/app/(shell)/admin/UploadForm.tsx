@@ -43,9 +43,12 @@ export function UploadForm() {
     const path = `${slug}/${uuidv4()}.${ext}`
 
     // 1. Extrai page_count + capa client-side ANTES do upload (só PDF por ora)
+    // PDFs grandes (>30MB) travam o browser no file.arrayBuffer() + pdfjs parse —
+    // skipa extração client-side e deixa admin gerar via "Regenerar capa" depois.
+    const CLIENT_SIDE_LIMIT_BYTES = 30 * 1024 * 1024
     let pageCount: number | null = null
     let coverUrl: string | null = null
-    if (format === 'pdf') {
+    if (format === 'pdf' && file.size <= CLIENT_SIDE_LIMIT_BYTES) {
       try {
         setProgress(10)
         const meta = await extractPdfMetadata(file, { coverWidth: 600 })
@@ -68,6 +71,10 @@ export function UploadForm() {
         // best-effort: se extração falhar, continua sem page_count/cover (admin pode editar depois)
         console.warn('extractPdfMetadata falhou:', e)
       }
+    } else if (format === 'pdf') {
+      // PDF grande · pula extração e avisa admin
+      console.info('[upload] PDF grande (' + (file.size / 1024 / 1024).toFixed(0) + 'MB) — capa/page_count via "Regenerar capa" no admin')
+      setProgress(40)
     }
 
     // 2. Upload do PDF principal
@@ -107,8 +114,9 @@ export function UploadForm() {
     }
     setProgress(100)
     setSubmitting(false)
-    setTitle(''); setSubtitle(''); setEdition(''); setAmazonAsin(''); setFile(null)
-    router.refresh()
+    // Redireciona pro editor do livro recém-criado (capítulos, produtos, preview).
+    // Mais útil que ficar na página de upload com form vazio.
+    router.push(`/admin/${slug}/edit`)
   }
 
   return (
@@ -177,7 +185,16 @@ export function UploadForm() {
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           className="w-full bg-bg-panel border border-border rounded px-4 py-2.5 text-text outline-none file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-gold/20 file:text-gold file:font-meta hover:file:bg-gold/30"
         />
-        {file && <div className="text-xs text-text-dim mt-2">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</div>}
+        {file && (
+          <div className="text-xs text-text-dim mt-2">
+            {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+            {file.size > 30 * 1024 * 1024 && (
+              <span className="ml-2 text-gold/80">
+                · PDF grande, capa/contagem de páginas será gerada após upload (clique &quot;Regenerar capa&quot; no card)
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="md:col-span-2 flex items-center gap-4">

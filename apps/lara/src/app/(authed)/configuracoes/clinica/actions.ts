@@ -250,6 +250,7 @@ export async function saveClinicSettingsAction(
 
   revalidatePath(ROUTE)
   revalidatePath('/configuracoes')
+  revalidatePath('/configuracoes')
 
   const updatedAt =
     result && typeof result === 'object' && 'updated_at' in result

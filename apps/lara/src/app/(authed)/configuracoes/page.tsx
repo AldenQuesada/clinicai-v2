@@ -1,291 +1,389 @@
 /**
- * Configurações da Lara · Server Component.
- * Visual: ESPELHO Mira (.b2b-page-container, .luxury-card, .eyebrow, .font-display, .b2b-form-actions).
+ * /configuracoes · pagina unica com tabs externas (espelho 1:1 legacy).
+ *
+ * Estrutura legacy clinic-dashboard `page-settings-clinic`:
+ *   8 abas: Dados | Equipe | Tecnologias | Salas | Injetaveis | Procedimentos
+ *           | Usuarios | Permissoes
+ *
+ * Lara adicionou +1 ('lara') pra config IA (modelo/budget/limites) que
+ * legado nao tem · marcamos visualmente diferente (separador) pra deixar
+ * claro que e exclusivo Lara.
+ *
+ * Selecao via ?tab=X · default 'clinic'. Rotas antigas (/configuracoes/clinica,
+ * /configuracoes/usuarios, /configuracoes/usuarios/permissoes) redirecionam
+ * pra cá com tab apropriada (ver redirect.ts em cada rota).
  */
 
-import Link from 'next/link'
-import { Users, Building2 } from 'lucide-react'
-import { saveLaraConfigAction } from './actions'
-import { NotificationSettingsPanel } from './NotificationSettingsPanel'
+import { redirect } from 'next/navigation'
+import {
+  Home,
+  Users,
+  Monitor,
+  Grid,
+  Droplet,
+  List,
+  Shield,
+  Lock,
+  Sparkles,
+  Construction,
+} from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
-import { ConfigSection } from '@/components/organisms/ConfigSection'
-import { NumericField } from '@/components/molecules/NumericField'
-import { SelectField } from '@/components/molecules/SelectField'
 import { can, type StaffRole } from '@/lib/permissions'
+import type {
+  StaffMemberDTO,
+  PendingInviteDTO,
+  ModulePermissionRow,
+} from '@clinicai/repositories'
+import { PageContainer } from '@/components/page/PageContainer'
+import { PageHero } from '@/components/page/PageHero'
+import { ClinicSettingsClient } from './clinica/ClinicSettingsClient'
+import { loadClinicSettingsAction } from './clinica/actions'
+import { emptyClinicSettings, type ClinicSettingsData } from './clinica/types'
+import { UsersAdminClient } from './usuarios/UsersAdminClient'
+import { PermissionsMatrixClient } from './usuarios/permissoes/PermissionsMatrixClient'
+import { LaraConfigTab } from './LaraConfigTab'
 
 export const dynamic = 'force-dynamic'
 
-interface LaraConfig {
-  model: string
-  daily_budget_usd: number
-  daily_message_limit: number
-  auto_pause_minutes: number
-  disparo_cooldown_minutes: number
-  compact_after: number
-  photo_delay_seconds: number
+const TABS = [
+  { key: 'clinic', label: 'Dados da Clínica', icon: Home },
+  { key: 'team', label: 'Equipe', icon: Users },
+  { key: 'technologies', label: 'Tecnologias', icon: Monitor },
+  { key: 'rooms', label: 'Salas', icon: Grid },
+  { key: 'injectables', label: 'Injetáveis', icon: Droplet },
+  { key: 'procedures', label: 'Procedimentos', icon: List },
+  { key: 'users', label: 'Usuários', icon: Shield },
+  { key: 'permissions', label: 'Permissões', icon: Lock },
+  { key: 'lara', label: 'Lara IA', icon: Sparkles },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
+
+function pickTab(raw: string | undefined): TabKey {
+  const valid = TABS.map((t) => t.key) as readonly string[]
+  if (raw && valid.includes(raw)) return raw as TabKey
+  return 'clinic'
 }
 
-const DEFAULT_CONFIG: LaraConfig = {
-  model: 'claude-sonnet-4-6',
-  daily_budget_usd: 5.0,
-  daily_message_limit: 45,
-  auto_pause_minutes: 30,
-  disparo_cooldown_minutes: 30,
-  compact_after: 6,
-  photo_delay_seconds: 15,
-}
-
-const MODEL_OPTIONS = [
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6', description: 'balanceado · padrão' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', description: 'rápido + barato' },
-  { value: 'claude-opus-4-7', label: 'Opus 4.7', description: 'raciocínio complexo' },
-]
-
-async function loadConfig(): Promise<{
-  config: LaraConfig
-  clinic_id: string
+interface PageData {
   role: StaffRole | null
-}> {
+  // Clinica tab
+  clinicData: ClinicSettingsData
+  clinicErrorMsg: string | null
+  // Users tab
+  staff: StaffMemberDTO[]
+  invites: PendingInviteDTO[]
+  myUserId: string | null
+  // Permissions tab
+  matrixOverrides: ModulePermissionRow[]
+}
+
+async function loadDataForTab(tab: TabKey): Promise<PageData> {
+  const empty: PageData = {
+    role: null,
+    clinicData: emptyClinicSettings(),
+    clinicErrorMsg: null,
+    staff: [],
+    invites: [],
+    myUserId: null,
+    matrixOverrides: [],
+  }
+
   try {
     const { ctx, repos } = await loadServerReposContext()
-    const stored =
-      (await repos.clinicData.getSetting<Partial<LaraConfig>>(ctx.clinic_id, 'lara_config')) ?? {}
-    return {
-      config: { ...DEFAULT_CONFIG, ...stored },
-      clinic_id: ctx.clinic_id,
-      role: (ctx.role ?? null) as StaffRole | null,
+    const role = (ctx.role ?? null) as StaffRole | null
+    empty.role = role
+    empty.myUserId = ctx.user_id ?? null
+
+    if (tab === 'clinic' && can(role, 'settings:view')) {
+      const result = await loadClinicSettingsAction()
+      if (result.ok && result.data) empty.clinicData = result.data
+      else empty.clinicErrorMsg = result.error || null
     }
+
+    if (tab === 'users' && can(role, 'users:view')) {
+      const [staffRes, invitesRes] = await Promise.all([
+        repos.users.listStaff(),
+        can(role, 'invites:revoke')
+          ? repos.users.listPendingInvites()
+          : Promise.resolve({ ok: true, data: [], error: null }),
+      ])
+      empty.staff = staffRes.ok ? staffRes.data ?? [] : []
+      empty.invites = invitesRes.ok ? invitesRes.data ?? [] : []
+    }
+
+    if (tab === 'permissions' && can(role, 'settings:edit')) {
+      const res = await repos.users.getModulePermissions()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      empty.matrixOverrides = (res.ok ? (res.data as any) : []) ?? []
+      // Tambem precisamos staff pra aba "customizar acesso por usuario"
+      const staffRes = await repos.users.listStaff()
+      empty.staff = staffRes.ok ? staffRes.data ?? [] : []
+    }
+
+    return empty
   } catch (e) {
-    console.error('[/configuracoes] loadConfig failed:', (e as Error).message, (e as Error).stack)
-    return { config: DEFAULT_CONFIG, clinic_id: '', role: null }
+    console.error('[/configuracoes] loadData failed:', (e as Error).message)
+    return empty
   }
 }
 
-export default async function ConfiguracoesPage() {
-  const { config, role } = await loadConfig()
-  const canManageUsers = can(role, 'users:view')
-  const canEditSettings = can(role, 'settings:edit')
+export default async function ConfiguracoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const sp = await searchParams
+  const tab = pickTab(sp.tab)
+  const data = await loadDataForTab(tab)
+  const role = data.role
+
+  // Tabs visiveis por permissao (gate suave · clica em outra tab redireciona)
+  const visibleTabs = TABS.filter((t) => {
+    if (t.key === 'clinic') return can(role, 'settings:view')
+    if (t.key === 'users') return can(role, 'users:view')
+    if (t.key === 'permissions') return can(role, 'settings:edit')
+    if (t.key === 'lara') return can(role, 'settings:edit')
+    // team/technologies/rooms/injectables/procedures · placeholders
+    // sempre visiveis pra mostrar a estrutura completa
+    return true
+  })
 
   return (
-    <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
-      <div className="b2b-page-container">
-        {/* Page heading · padrao Mira */}
-        <div className="mb-8">
-          <p className="eyebrow mb-3">Painel · Lara</p>
-          <h1 className="font-display text-[40px] leading-tight text-[var(--b2b-ivory)]">
+    <PageContainer variant="wide">
+      <PageHero
+        kicker="Painel · Configurações"
+        title={
+          <>
             Configurações da <em>clínica</em>
-          </h1>
-          <p className="text-[13px] text-[var(--b2b-text-dim)] italic mt-2 max-w-2xl">
-            Comportamento da IA · cost control · limites operacionais. Mudanças aplicam imediatamente.
-          </p>
-        </div>
+          </>
+        }
+        lede="Dados cadastrais, equipe, tecnologias, salas, injetáveis, procedimentos, usuários e permissões."
+      />
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 12,
-            marginBottom: 24,
-          }}
-        >
-          {canEditSettings && (
-            <SettingsCard
-              href="/configuracoes/clinica"
-              icon={<Building2 className="w-5 h-5" />}
-              eyebrow="Clínica"
-              title="Dados da clínica"
-              desc="Identidade · contato · endereço · fiscal · horários · equipe"
-            />
-          )}
-          {canManageUsers && (
-            <SettingsCard
-              href="/configuracoes/usuarios"
-              icon={<Users className="w-5 h-5" />}
-              eyebrow="Equipe"
-              title="Gerenciar usuários e permissões"
-              desc="Convidar membros · alterar nível · matriz de permissões"
-            />
-          )}
-        </div>
-
-        <form action={saveLaraConfigAction}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <ConfigSection
-              eyebrow="Custo"
-              title="Modelo e teto diário"
-              description="Modelo Claude usado nas conversas e teto em USD por dia. Quando atingido, IA bloqueia até 00:00 UTC."
-              cols={2}
+      {/* Tabs externas · espelho 1:1 do legacy linha 744-753 */}
+      <nav
+        style={{
+          display: 'flex',
+          gap: 2,
+          flexWrap: 'wrap',
+          marginBottom: 28,
+          borderBottom: '1px solid var(--b2b-border)',
+        }}
+        aria-label="Configurações da clínica"
+      >
+        {visibleTabs.map((t) => {
+          const active = t.key === tab
+          const Icon = t.icon
+          return (
+            <a
+              key={t.key}
+              href={`/configuracoes?tab=${t.key}`}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '10px 14px',
+                background: 'transparent',
+                color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                textDecoration: 'none',
+                transition: 'color var(--lara-transition)',
+              }}
             >
-              <SelectField
-                name="model"
-                label="Modelo Claude"
-                defaultValue={config.model}
-                options={MODEL_OPTIONS}
-                helper="Sonnet 4.6 é o padrão. Haiku usa cerca de 5× menos tokens, mas pode ser menos consistente."
-              />
-              <NumericField
-                name="daily_budget_usd"
-                label="Limite diário"
-                defaultValue={config.daily_budget_usd}
-                min={0.5}
-                max={100}
-                step={0.5}
-                prefix="$"
-                suffix="USD"
-                helper="Padrão $5/dia · suficiente para ~80 conversas Sonnet 4.6."
-              />
-            </ConfigSection>
+              <Icon size={12} strokeWidth={1.75} />
+              {t.label}
+              {active && (
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    right: 12,
+                    bottom: -1,
+                    height: 1.5,
+                    background: 'var(--b2b-champagne)',
+                  }}
+                />
+              )}
+            </a>
+          )
+        })}
+      </nav>
 
-            <ConfigSection
-              eyebrow="Limites operacionais"
-              title="Anti-loop e cooldown"
-              description="Anti-loop por conversa, comportamento quando humano assume e cooldown pós-disparo."
-              cols={3}
-            >
-              <NumericField
-                name="daily_message_limit"
-                label="Msgs/conversa em 24h"
-                defaultValue={config.daily_message_limit}
-                min={10}
-                max={200}
-                step={5}
-                suffix="msgs"
-                helper="Anti-loop · IA é desligada se ultrapassar (paused_by=auto_limit). Padrão 45."
-              />
-              <NumericField
-                name="auto_pause_minutes"
-                label="Pausa quando humano assume"
-                defaultValue={config.auto_pause_minutes}
-                min={5}
-                max={1440}
-                step={5}
-                suffix="min"
-                helper="IA volta automaticamente após o tempo expirar."
-              />
-              <NumericField
-                name="disparo_cooldown_minutes"
-                label="Cooldown pós-disparo"
-                defaultValue={config.disparo_cooldown_minutes}
-                min={0}
-                max={1440}
-                step={5}
-                suffix="min"
-                helper="Após disparo de campanha, Lara espera antes de processar mensagens."
-              />
-            </ConfigSection>
-
-            <ConfigSection
-              eyebrow="Performance"
-              title="Compact prompt threshold"
-              description="Após N mensagens trocadas, Lara troca para um prompt compacto · ~70% menos tokens."
-              cols={1}
-            >
-              <NumericField
-                name="compact_after"
-                label="Após N mensagens trocadas"
-                defaultValue={config.compact_after}
-                min={2}
-                max={50}
-                step={1}
-                suffix="msgs"
-                helper="Padrão 6. Diminuir = mais econômico · aumentar = mais contexto na fase tardia."
-              />
-            </ConfigSection>
-
-            <ConfigSection
-              eyebrow="Cadência de mídia"
-              title="Envio de fotos"
-              description="Quando [FOTO:queixa] dispara, Lara envia 2 fotos do banco. O delay define o intervalo entre a 1ª e a 2ª."
-              cols={1}
-            >
-              <NumericField
-                name="photo_delay_seconds"
-                label="Delay entre 1ª e 2ª foto"
-                defaultValue={config.photo_delay_seconds}
-                min={0}
-                max={120}
-                step={1}
-                suffix="seg"
-                helper="Padrão 15s · paridade legacy n8n. 0 = simultâneas. Acima de 30s parece travado."
-              />
-            </ConfigSection>
-          </div>
-
-          <div className="b2b-form-actions">
-            <button type="submit" className="b2b-btn b2b-btn-primary">
-              Salvar configurações
-            </button>
-          </div>
-        </form>
-
-        <div style={{ marginTop: 32 }}>
-          <NotificationSettingsPanel />
-        </div>
-      </div>
-    </main>
+      {/* Panel da tab ativa */}
+      {tab === 'clinic' && <ClinicTabPanel data={data} role={role} />}
+      {tab === 'team' && <ComingSoonPanel title="Equipe" desc="Cadastro de profissionais (médicos, terapeutas, recepcionistas) com vínculo a usuários do sistema." />}
+      {tab === 'technologies' && <ComingSoonPanel title="Tecnologias" desc="Equipamentos e tratamentos disponíveis na clínica." />}
+      {tab === 'rooms' && <ComingSoonPanel title="Salas" desc="Cadastro de salas/cabines de atendimento + agenda por sala." />}
+      {tab === 'injectables' && <ComingSoonPanel title="Injetáveis" desc="Estoque e controle de injetáveis (toxina, ácido, biorremodelador)." />}
+      {tab === 'procedures' && <ComingSoonPanel title="Procedimentos" desc="Catálogo de procedimentos com preços, duração e protocolos." />}
+      {tab === 'users' && <UsersTabPanel data={data} role={role} />}
+      {tab === 'permissions' && <PermissionsTabPanel data={data} role={role} />}
+      {tab === 'lara' && <LaraConfigTab role={role} />}
+    </PageContainer>
   )
 }
 
-function SettingsCard({
-  href,
-  icon,
-  eyebrow,
-  title,
-  desc,
-}: {
-  href: string
-  icon: React.ReactNode
-  eyebrow: string
-  title: string
-  desc: string
-}) {
+// ─── Panels ─────────────────────────────────────────────────────────────────
+
+function ClinicTabPanel({ data, role }: { data: PageData; role: StaffRole | null }) {
+  if (!can(role, 'settings:view')) {
+    return <PermissionDenied />
+  }
+  const canEdit = can(role, 'settings:edit')
+  const canEditOwner = can(role, 'settings:clinic-data')
   return (
-    <Link
-      href={href}
+    <>
+      {data.clinicErrorMsg && <ErrorBanner msg={data.clinicErrorMsg} />}
+      {!canEdit && <ReadOnlyBanner />}
+      <ClinicSettingsClient
+        initialData={data.clinicData}
+        canEdit={canEdit}
+        canEditOwner={canEditOwner}
+      />
+    </>
+  )
+}
+
+function UsersTabPanel({ data, role }: { data: PageData; role: StaffRole | null }) {
+  if (!can(role, 'users:view')) {
+    return <PermissionDenied />
+  }
+  const activeStaff = data.staff.filter((m) => m.isActive)
+  const inactiveStaff = data.staff.filter((m) => !m.isActive)
+  return (
+    <UsersAdminClient
+      activeStaff={activeStaff}
+      inactiveStaff={inactiveStaff}
+      invites={data.invites}
+      myUserId={data.myUserId}
+      myRole={role}
+    />
+  )
+}
+
+function PermissionsTabPanel({ data, role }: { data: PageData; role: StaffRole | null }) {
+  if (!can(role, 'settings:edit')) {
+    return <PermissionDenied />
+  }
+  return (
+    <PermissionsMatrixClient
+      initialOverrides={data.matrixOverrides}
+      editableMembers={data.staff.filter((m) => m.role !== 'owner')}
+    />
+  )
+}
+
+function ComingSoonPanel({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div
       className="luxury-card"
       style={{
+        padding: '60px 32px',
+        textAlign: 'center',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        gap: 16,
-        padding: '16px 20px',
-        textDecoration: 'none',
-        cursor: 'pointer',
+        gap: 14,
       }}
     >
-      <div
+      <Construction size={32} style={{ color: 'var(--b2b-champagne)' }} />
+      <h2
+        className="font-display"
+        style={{ fontSize: 24, color: 'var(--b2b-ivory)', lineHeight: 1.1 }}
+      >
+        {title} · <em style={{ color: 'var(--b2b-champagne)' }}>em breve</em>
+      </h2>
+      <p
+        className="font-display"
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          background: 'rgba(201,169,110,0.10)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--b2b-champagne)',
-          flexShrink: 0,
+          fontSize: 14,
+          fontStyle: 'italic',
+          color: 'var(--b2b-text-dim)',
+          maxWidth: 480,
+          lineHeight: 1.6,
         }}
       >
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="eyebrow" style={{ marginBottom: 2 }}>
-          {eyebrow}
-        </div>
-        <div style={{ fontSize: 14, color: 'var(--b2b-ivory)', marginBottom: 2 }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)' }}>{desc}</div>
-      </div>
-      <span
+        {desc}
+      </p>
+      <p
         style={{
-          color: 'var(--b2b-champagne)',
+          fontSize: 11,
+          letterSpacing: 1.5,
+          textTransform: 'uppercase',
+          color: 'var(--b2b-text-muted)',
+          marginTop: 6,
+        }}
+      >
+        Port em commit dedicado
+      </p>
+    </div>
+  )
+}
+
+function PermissionDenied() {
+  return (
+    <div
+      className="luxury-card"
+      style={{ padding: 32, textAlign: 'center' }}
+    >
+      <p
+        className="font-display"
+        style={{
           fontSize: 18,
-          fontWeight: 300,
-          padding: '0 8px',
+          fontStyle: 'italic',
+          color: 'var(--b2b-text-dim)',
         }}
       >
-        →
-      </span>
-    </Link>
+        Sem permissão pra ver esta aba.
+      </p>
+    </div>
+  )
+}
+
+function ErrorBanner({ msg }: { msg: string }) {
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        padding: '10px 14px',
+        background: 'rgba(217, 122, 122, 0.10)',
+        color: 'var(--b2b-red)',
+        borderLeft: '2px solid var(--b2b-red)',
+        fontSize: 12,
+        lineHeight: 1.5,
+      }}
+    >
+      {msg}
+    </div>
+  )
+}
+
+function ReadOnlyBanner() {
+  return (
+    <div
+      style={{
+        marginBottom: 20,
+        padding: '12px 16px',
+        background:
+          'linear-gradient(135deg, rgba(201,169,110,0.06), rgba(201,169,110,0.02))',
+        borderLeft: '2px solid var(--b2b-champagne)',
+        fontSize: 13,
+        fontFamily: 'Cormorant Garamond, serif',
+        fontStyle: 'italic',
+        color: 'var(--b2b-text-dim)',
+        lineHeight: 1.5,
+      }}
+    >
+      Modo de visualização · somente administradores podem editar as
+      configurações.
+    </div>
   )
 }

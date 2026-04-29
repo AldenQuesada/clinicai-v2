@@ -79,6 +79,7 @@ export async function inviteStaffAction(formData: FormData): Promise<InviteActio
   }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   return {
     ok: true,
     joinUrl: buildJoinUrl(result.rawToken),
@@ -102,6 +103,7 @@ export async function updateRoleAction(
   if (!result.ok) return { ok: false, error: result.error || 'Falha ao atualizar role' }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   return { ok: true }
 }
 
@@ -119,6 +121,7 @@ export async function deactivateStaffAction(
   if (!result.ok) return { ok: false, error: result.error || 'Falha ao desativar' }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   return { ok: true }
 }
 
@@ -132,6 +135,7 @@ export async function activateStaffAction(
   if (!result.ok) return { ok: false, error: result.error || 'Falha ao reativar' }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   return { ok: true }
 }
 
@@ -145,6 +149,7 @@ export async function revokeInviteAction(
   if (!result.ok) return { ok: false, error: result.error || 'Falha ao revogar' }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   return { ok: true }
 }
 
@@ -158,6 +163,7 @@ export async function updateOwnProfileAction(
   if (!result.ok) return { ok: false, error: result.error || 'Falha ao atualizar perfil' }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   revalidatePath('/dashboard')
   return { ok: true }
 }

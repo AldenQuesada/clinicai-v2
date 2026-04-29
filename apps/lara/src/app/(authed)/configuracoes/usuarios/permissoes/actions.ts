@@ -66,6 +66,7 @@ export async function saveMatrixPermissionsAction(
   }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   revalidatePath('/configuracoes/usuarios')
   return { ok: true, updated: result.data?.updated ?? 0 }
 }
@@ -93,6 +94,7 @@ export async function saveUserPermissionsAction(
   }
 
   revalidatePath(ROUTE)
+  revalidatePath('/configuracoes')
   revalidatePath('/configuracoes/usuarios')
   return { ok: true }
 }
