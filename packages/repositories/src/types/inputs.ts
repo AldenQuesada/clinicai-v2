@@ -115,6 +115,23 @@ export interface CreateTemplateInput {
   category?: string
   sortOrder?: number
   triggerPhase?: string | null
+  /** Tipo legacy · 8 valores: confirmacao/lembrete/engajamento/boas_vindas/consent_img/consent_info/manual */
+  type?: string
+  /** Dia relativo a consulta · -7 a +30 */
+  day?: number
+  /** Default true · false cria como inativo (rascunho) */
+  active?: boolean
+}
+
+export interface UpdateTemplateInput {
+  name?: string
+  content?: string
+  category?: string
+  sortOrder?: number
+  triggerPhase?: string | null
+  type?: string
+  day?: number
+  active?: boolean
 }
 
 export interface InboxNotificationInput {

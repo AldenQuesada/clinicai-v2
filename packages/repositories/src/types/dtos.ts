@@ -292,6 +292,10 @@ export interface TemplateDTO {
   content: string | null
   category: string | null
   triggerPhase: string | null
+  /** Tipo legacy clinic-dashboard · 8 valores · controla cor/icone da timeline */
+  type: string | null
+  /** Dia relativo a consulta · -7 (7d antes) · 0 (mesmo dia) · +30 (30d depois) */
+  day: number | null
   active: boolean
   isActive: boolean
   sortOrder: number | null

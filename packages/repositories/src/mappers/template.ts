@@ -14,6 +14,8 @@ export function mapTemplateRow(row: any): TemplateDTO {
     content: row.content ?? null,
     category: row.category ?? null,
     triggerPhase: row.trigger_phase ?? null,
+    type: row.type ?? null,
+    day: row.day != null ? Number(row.day) : null,
     active: row.active !== false,
     isActive: row.is_active !== false,
     sortOrder: row.sort_order != null ? Number(row.sort_order) : null,
