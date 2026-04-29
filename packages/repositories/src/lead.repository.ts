@@ -19,9 +19,11 @@ import type {
   LeadCreateRpcInput,
   LeadToAppointmentRpcInput,
   LeadToOrcamentoRpcInput,
+  UpdateLeadInput,
+  ListLeadsFilter,
 } from './types/inputs'
 import type { DedupHit, LeadDTO } from './types/dtos'
-import type { LeadPhase } from './types/enums'
+import type { LeadPhase, LeadTemperature } from './types/enums'
 import type {
   LeadCreateResult,
   LeadLostResult,
@@ -130,6 +132,104 @@ export class LeadRepository {
     funnel: 'olheiras' | 'fullface' | 'procedimentos',
   ): Promise<void> {
     await this.supabase.from('leads').update({ funnel }).eq('id', leadId)
+  }
+
+  /**
+   * Atualiza phase direto · NAO registra phase_history. Use changePhase()
+   * (RPC sdr_change_phase) quando precisar do audit trail.
+   */
+  async setPhase(leadId: string, phase: LeadPhase): Promise<void> {
+    await this.supabase.from('leads').update({ phase }).eq('id', leadId)
+  }
+
+  /**
+   * Atualiza temperatura direto · campo livre pra IA/UI.
+   */
+  async setTemperature(leadId: string, temperature: LeadTemperature): Promise<void> {
+    await this.supabase.from('leads').update({ temperature }).eq('id', leadId)
+  }
+
+  /**
+   * Update parcial · so campos do payload sao tocados (snake-case no DB).
+   * Tabela `leads` tem varios NOT NULL com default · null explicito viola
+   * constraint, entao filtramos undefined pra omitir.
+   */
+  async update(leadId: string, fields: UpdateLeadInput): Promise<LeadDTO | null> {
+    const row: Record<string, unknown> = {}
+    if (fields.name !== undefined) row.name = fields.name
+    if (fields.phone !== undefined) row.phone = fields.phone
+    if (fields.email !== undefined) row.email = fields.email
+    if (fields.cpf !== undefined) row.cpf = fields.cpf
+    if (fields.rg !== undefined) row.rg = fields.rg
+    if (fields.birthDate !== undefined) row.birth_date = fields.birthDate
+    if (fields.idade !== undefined) row.idade = fields.idade
+    if (fields.funnel !== undefined) row.funnel = fields.funnel
+    if (fields.temperature !== undefined) row.temperature = fields.temperature
+    if (fields.priority !== undefined) row.priority = fields.priority
+    if (fields.aiPersona !== undefined) row.ai_persona = fields.aiPersona
+    if (fields.assignedTo !== undefined) row.assigned_to = fields.assignedTo
+    if (fields.queixasFaciais !== undefined) row.queixas_faciais = fields.queixasFaciais
+    if (fields.tags !== undefined) row.tags = fields.tags
+    if (fields.metadata !== undefined) row.metadata = fields.metadata
+    if (fields.waOptIn !== undefined) row.wa_opt_in = fields.waOptIn
+
+    if (Object.keys(row).length === 0) return this.getById(leadId)
+
+    row.updated_at = new Date().toISOString()
+    const { data, error } = await this.supabase
+      .from('leads')
+      .update(row)
+      .eq('id', leadId)
+      .select()
+      .maybeSingle()
+
+    if (error || !data) return null
+    return mapLeadRow(data)
+  }
+
+  /**
+   * Soft-delete · seta deleted_at.
+   */
+  async softDelete(leadId: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('leads')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', leadId)
+    return !error
+  }
+
+  /**
+   * Reativa lead soft-deleted (deleted_at = null).
+   */
+  async restore(leadId: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('leads')
+      .update({ deleted_at: null })
+      .eq('id', leadId)
+    return !error
+  }
+
+  /**
+   * Toggle de tag · remove se ja tem, adiciona se nao tem. Retorna set final.
+   */
+  async toggleTag(leadId: string, tag: string): Promise<string[]> {
+    const existing = await this.getTags(leadId)
+    const has = existing.includes(tag)
+    const next = has ? existing.filter((t) => t !== tag) : [...existing, tag]
+    await this.supabase.from('leads').update({ tags: next }).eq('id', leadId)
+    return next
+  }
+
+  /**
+   * Remove tags especificas · op-set inverso de addTags.
+   */
+  async removeTags(leadId: string, tagsToRemove: string[]): Promise<string[]> {
+    if (!tagsToRemove.length) return []
+    const existing = await this.getTags(leadId)
+    const next = existing.filter((t) => !tagsToRemove.includes(t))
+    if (next.length === existing.length) return existing
+    await this.supabase.from('leads').update({ tags: next }).eq('id', leadId)
+    return next
   }
 
   async getTags(leadId: string): Promise<string[]> {
@@ -272,6 +372,88 @@ export class LeadRepository {
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1)
     return ((data ?? []) as unknown[]).map(mapLeadRow)
+  }
+
+  /**
+   * Lista leads paginada com filtros multidimensionais · usado pela
+   * pagina /leads (Lara). Ordena por `updated_at` desc por default.
+   * Retorna `{ rows, total }` com count exato.
+   */
+  async list(
+    clinicId: string,
+    filter: ListLeadsFilter = {},
+    pagination: { limit?: number; offset?: number } = {},
+  ): Promise<{ rows: LeadDTO[]; total: number }> {
+    const limit = Math.min(pagination.limit ?? 50, 200)
+    const offset = pagination.offset ?? 0
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const applyFilters = (q: any): any => {
+      let out = q.eq('clinic_id', clinicId).is('deleted_at', null)
+      if (filter.funnel) out = out.eq('funnel', filter.funnel)
+      if (filter.funnels?.length) out = out.in('funnel', filter.funnels)
+      if (filter.phase) out = out.eq('phase', filter.phase)
+      if (filter.phases?.length) out = out.in('phase', filter.phases)
+      if (filter.excludePhases?.length) {
+        out = out.not('phase', 'in', `(${filter.excludePhases.join(',')})`)
+      }
+      if (filter.temperature) out = out.eq('temperature', filter.temperature)
+      if (filter.sourceType) out = out.eq('source_type', filter.sourceType)
+      if (filter.tags?.length) out = out.contains('tags', filter.tags)
+      if (filter.createdSince) out = out.gte('created_at', filter.createdSince)
+      if (filter.createdUntil) out = out.lte('created_at', filter.createdUntil)
+      if (filter.noResponseSinceIso) {
+        out = out.or(
+          `last_response_at.lt.${filter.noResponseSinceIso},last_response_at.is.null`,
+        )
+      }
+      if (filter.search) {
+        const term = String(filter.search).replace(/[%,]/g, ' ').trim()
+        if (term) {
+          out = out.or(
+            `name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+          )
+        }
+      }
+      return out
+    }
+
+    const headQ = this.supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+    const { count } = await applyFilters(headQ)
+
+    const rowsQ = this.supabase
+      .from('leads')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+    const { data } = await applyFilters(rowsQ)
+    const rows = ((data ?? []) as unknown[]).map(mapLeadRow)
+
+    return { rows, total: count ?? 0 }
+  }
+
+  /**
+   * Conta leads sem resposta desde sinceIso · KPI da lista.
+   * `last_response_at < sinceIso` OU NULL.
+   */
+  async countNoResponseSince(clinicId: string, sinceIso: string): Promise<number> {
+    const [{ count: a }, { count: b }] = await Promise.all([
+      this.supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .lt('last_response_at', sinceIso),
+      this.supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
+        .is('last_response_at', null),
+    ])
+    return (a ?? 0) + (b ?? 0)
   }
 
   /**

@@ -9,6 +9,8 @@
 import {
   LayoutDashboard,
   MessageSquare,
+  Users,
+  Send,
   FileText,
   Sparkles,
   Image as ImageIcon,
@@ -40,6 +42,20 @@ export const SECTIONS: readonly Section[] = [
     path: '/conversas',
     icon: MessageSquare,
     requires: 'lara:view-conversas',
+  },
+  {
+    key: 'leads',
+    label: 'Leads',
+    path: '/leads',
+    icon: Users,
+    requires: 'patients:view',
+  },
+  {
+    key: 'campanhas',
+    label: 'Campanhas',
+    path: '/campanhas',
+    icon: Send,
+    requires: 'notifications:broadcast',
   },
   {
     key: 'templates',

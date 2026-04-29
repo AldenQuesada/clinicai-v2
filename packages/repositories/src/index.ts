@@ -21,6 +21,19 @@ export {
   type ClinicHoursDay,
 } from './clinic.repository'
 export { TemplateRepository } from './template.repository'
+export {
+  BroadcastRepository,
+  type BroadcastDTO,
+  type BroadcastStatsDTO,
+  type BroadcastLeadDTO,
+  type BroadcastLeadSegment,
+  type BroadcastStatus,
+  type BroadcastTargetFilter,
+  type BroadcastUpsertInput,
+  type BroadcastCreateResult,
+  type BroadcastStartResult,
+  type BroadcastCancelResult,
+} from './broadcast.repository'
 export { BudgetRepository } from './budget.repository'
 export { InboxNotificationRepository } from './inbox-notification.repository'
 export { ProfileRepository, type ProfileDTO } from './profile.repository'
@@ -31,6 +44,8 @@ export {
   type PendingInviteDTO,
   type MyProfileDTO,
   type InviteResult,
+  type ModulePermissionRow,
+  type UserPermissionRow,
 } from './users.repository'
 // `RpcResult` nao re-exportado aqui · ja existe outro com mesmo nome
 // vindo de crm.types · UsersRepository expoe seu RpcResult internamente
@@ -378,6 +393,8 @@ export type {
   BudgetDayDTO,
   ClinicDataValue,
   CreateLeadInput,
+  UpdateLeadInput,
+  ListLeadsFilter,
   CreateConversationInput,
   SaveInboundMessageInput,
   SaveOutboundMessageInput,

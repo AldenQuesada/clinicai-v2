@@ -10,6 +10,8 @@ import type {
   AppointmentStatus,
   ConversationStatus,
   Funnel,
+  LeadPhase,
+  LeadPriority,
   LeadSource,
   LeadSourceType,
   LeadTemperature,
@@ -35,6 +37,48 @@ export interface CreateLeadInput {
    */
   source?: string | null
   tags?: string[] | null
+}
+
+/**
+ * Update parcial de lead · todo campo `undefined` e omitido no UPDATE.
+ * camelCase aqui · LeadRepository.update converte pra snake_case do DB.
+ */
+export interface UpdateLeadInput {
+  name?: string | null
+  phone?: string
+  email?: string | null
+  cpf?: string | null
+  rg?: string | null
+  birthDate?: string | null
+  idade?: number | null
+  funnel?: Funnel
+  temperature?: LeadTemperature
+  priority?: LeadPriority
+  aiPersona?: string
+  assignedTo?: string | null
+  queixasFaciais?: string[]
+  tags?: string[]
+  metadata?: Record<string, unknown>
+  waOptIn?: boolean
+}
+
+/**
+ * Filtros pra LeadRepository.list · todos opcionais.
+ */
+export interface ListLeadsFilter {
+  search?: string
+  funnel?: Funnel
+  funnels?: Funnel[]
+  phase?: LeadPhase
+  phases?: LeadPhase[]
+  excludePhases?: LeadPhase[]
+  temperature?: LeadTemperature
+  sourceType?: LeadSourceType
+  tags?: string[]
+  createdSince?: string
+  createdUntil?: string
+  /** Sem resposta desde · `last_response_at < iso` OU NULL */
+  noResponseSinceIso?: string
 }
 
 export interface CreateConversationInput {

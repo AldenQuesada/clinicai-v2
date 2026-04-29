@@ -60,6 +60,21 @@ export interface MyProfileDTO {
   avatarUrl: string | null
 }
 
+export interface ModulePermissionRow {
+  moduleId: string
+  /** null = secao inteira; senao page_id especifico */
+  pageId: string | null
+  role: StaffRole
+  allowed: boolean
+}
+
+export interface UserPermissionRow {
+  moduleId: string
+  /** null = secao inteira; senao page_id especifico */
+  pageId: string | null
+  allowed: boolean
+}
+
 export interface InviteResult {
   ok: boolean
   rawToken?: string
@@ -312,23 +327,69 @@ export class UsersRepository {
 
   // ── Permissoes (matriz role x modulo + overrides por user) ──────────
 
-  async getModulePermissions(): Promise<RpcResult<unknown>> {
+  async getModulePermissions(): Promise<RpcResult<ModulePermissionRow[]>> {
     try {
       const { data, error } = await this.supabase.rpc('get_module_permissions')
       if (error) return err(error)
-      return ok(data)
+      const shape = rpcShape(data)
+      if (!shape.ok) return err(shape.error || 'get_module_permissions_failed')
+      const list = (shape.payload?.permissions ?? []) as Array<Record<string, unknown>>
+      return ok(
+        list.map((p) => ({
+          moduleId: String(p.module_id ?? ''),
+          pageId: (p.page_id ?? null) as string | null,
+          role: String(p.role ?? '') as StaffRole,
+          allowed: !!p.allowed,
+        })),
+      )
     } catch (e) {
       return err(e)
     }
   }
 
-  async getUserPermissions(userId: string): Promise<RpcResult<unknown>> {
+  /** Aplica batch de overrides role x modulo (owner protected no DB). */
+  async bulkSetModulePermissions(
+    permissions: Array<{
+      moduleId: string
+      pageId?: string | null
+      role: StaffRole
+      allowed: boolean
+    }>,
+  ): Promise<RpcResult<{ updated: number }>> {
+    try {
+      const { data, error } = await this.supabase.rpc('bulk_set_module_permissions', {
+        p_permissions: permissions.map((p) => ({
+          module_id: p.moduleId,
+          page_id: p.pageId ?? null,
+          role: p.role,
+          allowed: p.allowed,
+        })),
+      })
+      if (error) return err(error)
+      const shape = rpcShape(data)
+      if (!shape.ok) return err(shape.error || 'bulk_set_module_permissions_failed')
+      return ok({ updated: Number(shape.payload?.updated ?? 0) })
+    } catch (e) {
+      return err(e)
+    }
+  }
+
+  async getUserPermissions(userId: string): Promise<RpcResult<UserPermissionRow[]>> {
     try {
       const { data, error } = await this.supabase.rpc('get_user_permissions', {
         p_user_id: userId,
       })
       if (error) return err(error)
-      return ok(data)
+      const shape = rpcShape(data)
+      if (!shape.ok) return err(shape.error || 'get_user_permissions_failed')
+      const list = (shape.payload?.permissions ?? []) as Array<Record<string, unknown>>
+      return ok(
+        list.map((p) => ({
+          moduleId: String(p.module_id ?? ''),
+          pageId: (p.page_id ?? null) as string | null,
+          allowed: !!p.allowed,
+        })),
+      )
     } catch (e) {
       return err(e)
     }
@@ -348,7 +409,9 @@ export class UsersRepository {
         })),
       })
       if (error) return err(error)
-      return ok(data)
+      const shape = rpcShape(data)
+      if (!shape.ok) return err(shape.error || 'set_user_permissions_failed')
+      return ok(shape.payload)
     } catch (e) {
       return err(e)
     }

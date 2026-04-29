@@ -16,6 +16,7 @@ import {
   MessageRepository,
   ClinicDataRepository,
   TemplateRepository,
+  BroadcastRepository,
   BudgetRepository,
   InboxNotificationRepository,
   ProfileRepository,
@@ -43,6 +44,7 @@ export interface Repos {
   messages: MessageRepository
   clinicData: ClinicDataRepository
   templates: TemplateRepository
+  broadcasts: BroadcastRepository
   budget: BudgetRepository
   inboxNotifications: InboxNotificationRepository
   profiles: ProfileRepository
@@ -67,6 +69,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     messages: new MessageRepository(sb),
     clinicData: new ClinicDataRepository(sb),
     templates: new TemplateRepository(sb),
+    broadcasts: new BroadcastRepository(sb),
     budget: new BudgetRepository(sb),
     inboxNotifications: new InboxNotificationRepository(sb),
     profiles: new ProfileRepository(sb),

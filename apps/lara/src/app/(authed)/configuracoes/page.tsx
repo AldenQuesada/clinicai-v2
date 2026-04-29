@@ -4,7 +4,7 @@
  */
 
 import Link from 'next/link'
-import { Users } from 'lucide-react'
+import { Users, Building2 } from 'lucide-react'
 import { saveLaraConfigAction } from './actions'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { loadServerReposContext } from '@/lib/repos'
@@ -64,6 +64,7 @@ async function loadConfig(): Promise<{
 export default async function ConfiguracoesPage() {
   const { config, role } = await loadConfig()
   const canManageUsers = can(role, 'users:view')
+  const canEditSettings = can(role, 'settings:edit')
 
   return (
     <main className="flex-1 overflow-y-auto custom-scrollbar bg-[var(--b2b-bg-0)]">
@@ -79,59 +80,33 @@ export default async function ConfiguracoesPage() {
           </p>
         </div>
 
-        {canManageUsers && (
-          <div style={{ marginBottom: 24 }}>
-            <Link
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 12,
+            marginBottom: 24,
+          }}
+        >
+          {canEditSettings && (
+            <SettingsCard
+              href="/configuracoes/clinica"
+              icon={<Building2 className="w-5 h-5" />}
+              eyebrow="Clínica"
+              title="Dados da clínica"
+              desc="Identidade · contato · endereço · fiscal · horários · equipe"
+            />
+          )}
+          {canManageUsers && (
+            <SettingsCard
               href="/configuracoes/usuarios"
-              className="luxury-card"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                padding: '16px 20px',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 8,
-                  background: 'rgba(201,169,110,0.10)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--b2b-champagne)',
-                  flexShrink: 0,
-                }}
-              >
-                <Users className="w-5 h-5" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className="eyebrow" style={{ marginBottom: 2 }}>
-                  Equipe
-                </div>
-                <div style={{ fontSize: 14, color: 'var(--b2b-ivory)', marginBottom: 2 }}>
-                  Gerenciar usuários e permissões
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)' }}>
-                  Convidar membros · alterar nível de acesso · revogar convites
-                </div>
-              </div>
-              <span
-                style={{
-                  color: 'var(--b2b-champagne)',
-                  fontSize: 18,
-                  fontWeight: 300,
-                  padding: '0 8px',
-                }}
-              >
-                →
-              </span>
-            </Link>
-          </div>
-        )}
+              icon={<Users className="w-5 h-5" />}
+              eyebrow="Equipe"
+              title="Gerenciar usuários e permissões"
+              desc="Convidar membros · alterar nível · matriz de permissões"
+            />
+          )}
+        </div>
 
         <form action={saveLaraConfigAction}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -248,5 +223,69 @@ export default async function ConfiguracoesPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+function SettingsCard({
+  href,
+  icon,
+  eyebrow,
+  title,
+  desc,
+}: {
+  href: string
+  icon: React.ReactNode
+  eyebrow: string
+  title: string
+  desc: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="luxury-card"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '16px 20px',
+        textDecoration: 'none',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 8,
+          background: 'rgba(201,169,110,0.10)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--b2b-champagne)',
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="eyebrow" style={{ marginBottom: 2 }}>
+          {eyebrow}
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--b2b-ivory)', marginBottom: 2 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--b2b-text-muted)' }}>{desc}</div>
+      </div>
+      <span
+        style={{
+          color: 'var(--b2b-champagne)',
+          fontSize: 18,
+          fontWeight: 300,
+          padding: '0 8px',
+        }}
+      >
+        →
+      </span>
+    </Link>
   )
 }
