@@ -189,8 +189,8 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
-      {/* Barra de Insights (Top Bar) · v2 design contract */}
-      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center px-6 shrink-0 z-10 justify-between">
+      {/* Barra de Insights (Top Bar) · KPIs centralizados */}
+      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center px-6 shrink-0 z-10">
         <div className="flex items-center gap-7">
           <div className="flex items-center gap-3">
             <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
@@ -238,17 +238,9 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
-
-        {/* Bloco direito · contexto temporal pra balancear · evita topbar com 60% vazio */}
-        <div className="hidden md:flex flex-col items-end gap-0.5 pl-6 border-l border-white/[0.04]">
-          <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Hoje</p>
-          <p className="font-display text-[15px] leading-none text-[hsl(var(--foreground))] italic">
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })}
-          </p>
-        </div>
       </div>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* 1. Coluna Esquerda: Lista de contatos */}
         <ConversationList
           conversations={conversations}

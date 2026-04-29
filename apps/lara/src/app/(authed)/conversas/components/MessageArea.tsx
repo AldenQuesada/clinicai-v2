@@ -254,7 +254,7 @@ export function MessageArea({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full">
+    <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full min-w-0">
       {/* Header · v2 design contract · trata caso lead_name === phone */}
       {(() => {
         const phoneOnly = !selectedConversation.lead_name ||

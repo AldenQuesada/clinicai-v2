@@ -132,12 +132,34 @@ export function ConversationList({
 
   return (
     <div className="w-80 border-r border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] relative">
-      <div className="h-16 border-b border-white/[0.06] flex items-center px-5 justify-between shrink-0">
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-[17px] text-[hsl(var(--foreground))]">Conversas</span>
-          <span className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
+      {/* Header fundido · "Conversas N" + tabs status + ações · economiza 1 linha vertical */}
+      <div className="h-16 border-b border-white/[0.06] flex items-center px-3 gap-2 shrink-0">
+        <div className="flex items-baseline gap-1.5 px-2 shrink-0">
+          <span className="font-display text-[14px] text-[hsl(var(--foreground))] leading-none">Conversas</span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="grid grid-cols-4 gap-0.5 flex-1">
+          {[
+            { id: 'active', label: 'Abert.' },
+            { id: 'dra', label: 'Dra.' },
+            { id: 'resolved', label: 'Feitas' },
+            { id: 'archived', label: 'Arq.' }
+          ].map(s => (
+            <button
+              key={s.id}
+              onClick={() => onStatusFilterChange(s.id as any)}
+              title={s.id === 'dra' ? 'Dra. Mirian' : s.id === 'resolved' ? 'Resolvidas' : s.id === 'archived' ? 'Arquivadas' : 'Abertas'}
+              className={`px-1 py-1 text-[9.5px] font-semibold rounded transition-all ${
+                statusFilter === s.id
+                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
            <button
             onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
             className={`p-1.5 rounded-md transition-colors ${sortOrder === 'oldest' ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
@@ -159,29 +181,6 @@ export function ConversationList({
       </div>
 
       <div className="p-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
-        {/* Abas de Status Principal · 4 labels que cabem em 320px */}
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { id: 'active', label: 'Abertas' },
-            { id: 'dra', label: 'Dra.' },
-            { id: 'resolved', label: 'Feitas' },
-            { id: 'archived', label: 'Arq.' }
-          ].map(s => (
-            <button
-              key={s.id}
-              onClick={() => onStatusFilterChange(s.id as any)}
-              title={s.id === 'dra' ? 'Dra. Mirian' : s.id === 'resolved' ? 'Resolvidas' : s.id === 'archived' ? 'Arquivadas' : 'Abertas'}
-              className={`px-2 py-1.5 text-[10px] font-semibold rounded-md transition-all ${
-                statusFilter === s.id
-                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" strokeWidth={1.5} />
