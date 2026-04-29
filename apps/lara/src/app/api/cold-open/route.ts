@@ -212,22 +212,20 @@ export async function POST(req: NextRequest) {
 
   // 7. Atualiza anatomy_quiz_lara_dispatch se dispatch_id passado · audit gap B8 salva
   // template_id/version/variant pra tracking de qual variante converteu melhor.
+  // Camada 10b · usa RPC anatomy_quiz_lara_dispatch_mark (mig 800-83) em vez
+  // de UPDATE direto · respeita boundary ADR-005 e centraliza whitelist de status.
   if (body.dispatch_id) {
-    try {
-      await supabase
-        .from('anatomy_quiz_lara_dispatch')
-        .update({
-          status: 'dispatched',
-          dispatched_at: new Date().toISOString(),
-          message_text: messageText,
-          template_id: generated.templateId,
-          template_version: generated.templateVersion,
-          template_variant: generated.templateVariant,
-        })
-        .eq('id', body.dispatch_id);
-    } catch (e) {
+    const { error: markError } = await supabase.rpc('anatomy_quiz_lara_dispatch_mark', {
+      p_dispatch_id: body.dispatch_id,
+      p_status: 'dispatched',
+      p_message_text: messageText,
+      p_template_id: generated.templateId,
+      p_template_version: generated.templateVersion,
+      p_template_variant: generated.templateVariant,
+    });
+    if (markError) {
       log.warn(
-        { clinic_id, dispatch_id: body.dispatch_id, err: (e as Error)?.message },
+        { clinic_id, dispatch_id: body.dispatch_id, err: markError.message },
         'cold_open.dispatch.update.failed',
       );
       // Nao falha · cold-open ja foi enviado · update de status e nao critico

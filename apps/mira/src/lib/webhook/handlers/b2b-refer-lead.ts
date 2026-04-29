@@ -75,41 +75,38 @@ export const b2bReferLeadHandler: Handler = async (ctx): Promise<HandlerResult> 
     }
   }
 
-  // 3. Cria lead novo com discriminator B2B
+  // 3. Cria lead novo + attribution via RPC race-safe (Camada 10b · mig 800-84).
   // Boundary multi-tenant ADR-028 · clinicId vem do contexto.
-  const lead = await repos.leads.create(clinicId, {
+  // RPC b2b_refer_lead_safe combina dedup atomico (advisory lock + FOR UPDATE)
+  // com INSERT em leads + INSERT em b2b_attributions numa unica transacao ·
+  // evita race quando 2 parceiras indicam mesma pessoa quase simultaneamente.
+  const referral = await repos.leads.referFromPartner({
+    clinicId,
+    partnershipId: partnership.id,
     phone: recipient.phone,
     name: recipient.name,
-    phase: 'lead',
-    temperature: 'warm',
-    source: 'b2b_partnership_referral',
-    tags: ['b2b_referral', partnership.slug].filter(Boolean) as string[],
+    partnerSlug: partnership.slug,
+    metadata: {
+      requested_by_phone: phone,
+    },
   })
 
-  if (!lead) {
+  if (!referral.ok || !referral.leadId) {
     return {
       replyText:
         `Tive um problema pra registrar a indicação agora · pode me mandar de novo daqui a pouco? ` +
         `(Avisei a Mirian.)`,
       actions: [],
       stateTransitions: [],
-      meta: { handler: 'b2b-refer-lead', error: 'lead_create_failed' },
+      meta: {
+        handler: 'b2b-refer-lead',
+        error: 'lead_create_failed',
+        rpc_error: referral.error,
+      },
     }
   }
 
-  // 4. Cria attribution lead -> parceria (sem voucher)
-  await repos.b2bAttributions.create({
-    clinicId,
-    partnershipId: partnership.id,
-    leadId: lead.id,
-    attributionType: 'referral',
-    weight: 1,
-    meta: {
-      source: 'mira_refer_lead',
-      requested_by_phone: phone,
-      partner_slug: partnership.slug,
-    },
-  })
+  const lead = { id: referral.leadId }
 
   // 5. Resposta · template DB-first, fallback hard-coded
   const tpl = await repos.b2bTemplates.getByEventKey(
@@ -157,9 +154,10 @@ export const b2bReferLeadHandler: Handler = async (ctx): Promise<HandlerResult> 
       phone,
       query: text,
       intent: 'partner.refer_lead',
-      rpcCalled: 'leads.insert+b2b_attributions.insert',
+      rpcCalled: 'b2b_refer_lead_safe',
       success: true,
-      resultSummary: `Lead ${lead.id.slice(0, 8)} criado · attribution → ${partnership.slug}`,
+      resultSummary:
+        `Lead ${lead.id.slice(0, 8)} ${referral.action ?? 'created'} · attribution → ${partnership.slug}`,
     },
   })
 
@@ -171,6 +169,7 @@ export const b2bReferLeadHandler: Handler = async (ctx): Promise<HandlerResult> 
       handler: 'b2b-refer-lead',
       partnership_id: partnership.id,
       lead_id: lead.id,
+      lead_action: referral.action,
       recipient,
       template_resolved: !!tpl,
     },

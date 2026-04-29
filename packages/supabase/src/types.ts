@@ -14516,6 +14516,17 @@ export type Database = {
       alexa_metrics: { Args: { p_days?: number }; Returns: Json }
       alexa_pending_queue: { Args: never; Returns: Json }
       anamnesis_purge_all: { Args: never; Returns: Json }
+      anatomy_quiz_lara_dispatch_mark: {
+        Args: {
+          p_dispatch_id: string
+          p_status: string
+          p_message_text?: string | null
+          p_template_id?: string | null
+          p_template_version?: number | null
+          p_template_variant?: string | null
+        }
+        Returns: boolean
+      }
       app_clinic_id: { Args: never; Returns: string }
       app_role: { Args: never; Returns: string }
       appointment_attend: {
@@ -15128,6 +15139,18 @@ export type Database = {
         Returns: Json
       }
       b2b_playbook_template_upsert: { Args: { p_payload: Json }; Returns: Json }
+      b2b_refer_lead_safe: {
+        Args: {
+          p_partnership_id: string
+          p_clinic_id: string
+          p_phone: string
+          p_name?: string | null
+          p_email?: string | null
+          p_partner_slug?: string | null
+          p_metadata?: Json
+        }
+        Returns: Json
+      }
       b2b_renewal_dashboard: { Args: never; Returns: Json }
       b2b_renewal_upcoming: { Args: { p_days_ahead?: number }; Returns: Json }
       b2b_scout_can_scan: { Args: { p_category: string }; Returns: Json }

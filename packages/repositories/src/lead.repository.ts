@@ -594,6 +594,58 @@ export class LeadRepository {
   }
 
   /**
+   * Wrapper de `b2b_refer_lead_safe()` RPC (Camada 10b · mig 800-84).
+   * Race-safe dedup + creation atomico para fluxo Mira partner.refer_lead.
+   *
+   * Retorna shape canonico:
+   *   { ok: true,  leadId, action: 'created' | 'reused' | 'reactivated' }
+   *   { ok: false, error: 'invalid_phone' | 'partnership_not_found' | ... }
+   *
+   * Action semantica:
+   *   - 'created'     · lead novo inserido
+   *   - 'reused'      · lead ativo ja existia (mesmo phone+clinic_id)
+   *   - 'reactivated' · lead estava soft-deleted, voltou ativo
+   *
+   * Se a RPC retornar payload inesperado (defensivo), retorna unexpected_response.
+   */
+  async referFromPartner(input: {
+    partnershipId: string
+    clinicId: string
+    phone: string
+    name?: string | null
+    email?: string | null
+    partnerSlug?: string | null
+    metadata?: Record<string, unknown>
+  }): Promise<{
+    ok: boolean
+    leadId?: string
+    action?: 'created' | 'reused' | 'reactivated'
+    error?: string
+  }> {
+    const { data, error } = await this.supabase.rpc('b2b_refer_lead_safe', {
+      p_partnership_id: input.partnershipId,
+      p_clinic_id: input.clinicId,
+      p_phone: input.phone,
+      p_name: input.name ?? null,
+      p_email: input.email ?? null,
+      p_partner_slug: input.partnerSlug ?? null,
+      p_metadata: input.metadata ?? {},
+    })
+    if (error) return { ok: false, error: error.message }
+    if (data && typeof data === 'object' && 'ok' in data) {
+      const d = data as {
+        ok: boolean
+        lead_id?: string
+        action?: 'created' | 'reused' | 'reactivated'
+        error?: string
+      }
+      if (!d.ok) return { ok: false, error: d.error ?? 'unknown_error' }
+      return { ok: true, leadId: d.lead_id, action: d.action }
+    }
+    return { ok: false, error: 'unexpected_response' }
+  }
+
+  /**
    * Wrapper generico de mudanca de phase · roteia pra RPC especifica quando
    * aplicavel (lead_lost / lead_to_paciente). Para fases simples
    * (lead/agendado/reagendado/compareceu) faz UPDATE direto. orcamento
