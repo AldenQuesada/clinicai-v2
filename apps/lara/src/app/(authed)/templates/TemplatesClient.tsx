@@ -1,20 +1,21 @@
 'use client'
 
 /**
- * TemplatesClient · timeline visual + modal create/edit · port 1:1 do legado.
+ * TemplatesClient · timeline agrupada por tipo + side panel preview · port
+ * 1:1 do legado com adaptacao: edit em modal · preview/acoes em painel lateral.
  *
- * Espelho de clinic-dashboard agenda-mensagens.js:
- * - Timeline vertical com dots coloridos por tipo + linha conectora
- * - 8 tipos pré-definidos com cor/ícone/bg
- * - Modal create/edit (ao invés de view inline · UX moderno)
- * - Variables chip buttons ({{nome}}, {{data}}, ...) inserem no textarea
- * - Live preview iPhone (CSS only · bubble WhatsApp · markdown *bold*)
- * - Char counter
- * - Day select (-7 a +30)
- * - Toggle active/inactive
+ * UX (decidido com user 2026-04-29):
+ *  1. Lista agrupada por type (8 grupos · cor/icone) · timeline dots+linha
+ *     dentro de cada grupo (sem cruzar grupos)
+ *  2. Click numa linha → drawer lateral direito (~440px) com preview iPhone
+ *  3. Botoes "Editar" no drawer abrem TemplateFormModal full-screen
+ *  4. "Novo template" abre modal vazio direto
+ *
+ * Mantido do legado: 8 tipos com cor · variables chip buttons · iPhone
+ * mockup · markdown WhatsApp · day scheduling · toggle active.
  */
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useMemo, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus,
@@ -31,6 +32,10 @@ import {
   Camera,
   FileText,
   MessageSquare,
+  ChevronRight,
+  ChevronDown,
+  Power,
+  PowerOff,
 } from 'lucide-react'
 import type { TemplateDTO } from '@clinicai/repositories'
 import {
@@ -104,6 +109,16 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
 }
 
+// Ordem de exibicao dos grupos
+const TYPE_ORDER = [
+  'confirmacao',
+  'lembrete',
+  'engajamento',
+  'boas_vindas',
+  'consent_img',
+  'consent_info',
+  'manual',
+]
 const TYPE_KEYS = Object.keys(TYPE_CONFIG)
 
 const VARIABLES: Array<{ key: string; label: string }> = [
@@ -151,7 +166,6 @@ function applyVars(text: string): string {
 }
 
 function formatBubbleHtml(text: string): string {
-  // Markdown WhatsApp: *bold* · _italic_ · ~strike~
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -163,14 +177,14 @@ function formatBubbleHtml(text: string): string {
     .replace(/\n/g, '<br>')
 }
 
-function dayLabel(day: number | null): string {
+function dayLabel(day: number | null | undefined): string {
   if (day === null || day === undefined) return 'Sob demanda'
   const opt = DAY_OPTIONS.find((o) => o.value === day)
   return opt?.label || `${day > 0 ? '+' : ''}${day} dias`
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Component
+// Component principal
 // ─────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -181,23 +195,40 @@ interface Props {
 export function TemplatesClient({ templates, canManage }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [selected, setSelected] = useState<TemplateDTO | null>(null)
   const [editing, setEditing] = useState<TemplateDTO | null>(null)
   const [creating, setCreating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<TemplateDTO | null>(null)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   function refresh() {
     startTransition(() => router.refresh())
   }
 
-  // Sort templates por day (asc · null no final) + sort_order + name
-  const sorted = [...templates].sort((a, b) => {
-    if (a.day === null && b.day !== null) return 1
-    if (b.day === null && a.day !== null) return -1
-    if (a.day !== b.day) return (a.day ?? 0) - (b.day ?? 0)
-    if ((a.sortOrder ?? 0) !== (b.sortOrder ?? 0))
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-    return a.name.localeCompare(b.name)
-  })
+  // Agrupar templates por type
+  const grouped = useMemo(() => {
+    const map: Record<string, TemplateDTO[]> = {}
+    for (const t of templates) {
+      const key = t.type ?? 'manual'
+      const validKey = TYPE_CONFIG[key] ? key : 'manual'
+      if (!map[validKey]) map[validKey] = []
+      map[validKey].push(t)
+    }
+    // Sort dentro de cada grupo: day asc, sort_order, name
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => {
+        if (a.day === null && b.day !== null) return 1
+        if (b.day === null && a.day !== null) return -1
+        if (a.day !== b.day) return (a.day ?? 0) - (b.day ?? 0)
+        if ((a.sortOrder ?? 0) !== (b.sortOrder ?? 0))
+          return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+        return a.name.localeCompare(b.name)
+      })
+    }
+    return map
+  }, [templates])
+
+  const visibleGroups = TYPE_ORDER.filter((key) => grouped[key]?.length)
 
   return (
     <>
@@ -222,7 +253,13 @@ export function TemplatesClient({ templates, canManage }: Props) {
               fontWeight: 600,
             }}
           >
-            {sorted.length} {sorted.length === 1 ? 'template' : 'templates'}
+            {templates.length} {templates.length === 1 ? 'template' : 'templates'}
+            {visibleGroups.length > 0 && (
+              <>
+                {' · '}
+                {visibleGroups.length} {visibleGroups.length === 1 ? 'tipo' : 'tipos'}
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -236,30 +273,125 @@ export function TemplatesClient({ templates, canManage }: Props) {
         </div>
       )}
 
-      {/* Timeline */}
-      {sorted.length === 0 ? (
+      {templates.length === 0 ? (
         <div className="b2b-empty">
           {canManage
-            ? 'Nenhum template criado ainda · clique em Novo template pra começar.'
+            ? 'Nenhum template criado · clique em Novo template pra começar.'
             : 'Nenhum template disponível.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {sorted.map((t, i) => (
-            <TimelineItem
-              key={t.id}
-              template={t}
-              isLast={i === sorted.length - 1}
-              canManage={canManage}
-              onEdit={() => setEditing(t)}
-              onDelete={() => setConfirmDelete(t)}
-              onToggleActive={async () => {
-                await setTemplateActiveAction(t.id, !t.active)
-                refresh()
-              }}
-            />
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          {visibleGroups.map((typeKey) => {
+            const items = grouped[typeKey] || []
+            const cfg = TYPE_CONFIG[typeKey]
+            const isCollapsed = collapsed[typeKey]
+            const Icon = cfg.Icon
+
+            return (
+              <section key={typeKey}>
+                {/* Group header (clickable · collapse) */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed((c) => ({ ...c, [typeKey]: !c[typeKey] }))
+                  }
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '8px 0',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    marginBottom: 12,
+                    borderBottom: '1px solid var(--b2b-border)',
+                  }}
+                >
+                  {isCollapsed ? (
+                    <ChevronRight size={14} style={{ color: 'var(--b2b-text-muted)' }} />
+                  ) : (
+                    <ChevronDown size={14} style={{ color: 'var(--b2b-text-muted)' }} />
+                  )}
+                  <span
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 6,
+                      background: cfg.bg,
+                      color: cfg.color,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon size={12} strokeWidth={2.2} />
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 1.5,
+                      textTransform: 'uppercase',
+                      color: cfg.color,
+                    }}
+                  >
+                    {cfg.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--b2b-text-muted)',
+                      letterSpacing: 1,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    · {items.length} {items.length === 1 ? 'template' : 'templates'}
+                  </span>
+                </button>
+
+                {!isCollapsed && (
+                  <div style={{ paddingLeft: 14 }}>
+                    {items.map((t, i) => (
+                      <TimelineItem
+                        key={t.id}
+                        template={t}
+                        typeConfig={cfg}
+                        isLast={i === items.length - 1}
+                        isSelected={selected?.id === t.id}
+                        onSelect={() => setSelected(t)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
         </div>
+      )}
+
+      {/* SidePanel · slide-in da direita */}
+      {selected && (
+        <SidePanel
+          template={selected}
+          canManage={canManage}
+          onClose={() => setSelected(null)}
+          onEdit={() => {
+            setEditing(selected)
+            setSelected(null)
+          }}
+          onToggleActive={async () => {
+            await setTemplateActiveAction(selected.id, !selected.active)
+            setSelected({ ...selected, active: !selected.active })
+            refresh()
+          }}
+          onDelete={() => {
+            setConfirmDelete(selected)
+          }}
+        />
       )}
 
       {/* Modal Create */}
@@ -294,6 +426,7 @@ export function TemplatesClient({ templates, canManage }: Props) {
           onConfirm={async () => {
             await deleteTemplateAction(confirmDelete.id)
             setConfirmDelete(null)
+            setSelected(null)
             refresh()
           }}
         />
@@ -303,207 +436,553 @@ export function TemplatesClient({ templates, canManage }: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Timeline item
+// Timeline item · linha simples · click abre side panel
 // ─────────────────────────────────────────────────────────────────
 
 function TimelineItem({
   template,
+  typeConfig,
   isLast,
-  canManage,
-  onEdit,
-  onDelete,
-  onToggleActive,
+  isSelected,
+  onSelect,
 }: {
   template: TemplateDTO
+  typeConfig: TypeConfig
   isLast: boolean
-  canManage: boolean
-  onEdit: () => void
-  onDelete: () => void
-  onToggleActive: () => void
+  isSelected: boolean
+  onSelect: () => void
 }) {
-  const t = TYPE_CONFIG[template.type ?? 'manual'] ?? TYPE_CONFIG.manual
-  const Icon = t.Icon
-  const preview = (template.content ?? template.message ?? '').slice(0, 140)
+  const preview = (template.content ?? template.message ?? '').slice(0, 100)
+  const showInactive = !template.active
 
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '40px 1fr',
-        gap: 14,
-        opacity: template.active ? 1 : 0.5,
+        gridTemplateColumns: '24px 1fr',
+        gap: 12,
+        opacity: showInactive ? 0.55 : 1,
       }}
     >
-      {/* Dot + linha conectora */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          paddingTop: 12,
+          paddingTop: 14,
         }}
       >
         <div
           style={{
-            width: 36,
-            height: 36,
+            width: 10,
+            height: 10,
             borderRadius: '50%',
-            background: t.bg,
-            border: `1.5px solid ${t.color}`,
-            color: t.color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            background: typeConfig.color,
             flexShrink: 0,
             zIndex: 1,
           }}
-        >
-          <Icon size={16} strokeWidth={2} />
-        </div>
+        />
         {!isLast && (
           <div
             style={{
               width: 1.5,
               flex: 1,
-              minHeight: 24,
-              background: `linear-gradient(to bottom, ${t.color}30, var(--b2b-border))`,
-              marginTop: 4,
+              minHeight: 12,
+              background: `linear-gradient(to bottom, ${typeConfig.color}40, var(--b2b-border))`,
+              marginTop: 2,
             }}
           />
         )}
       </div>
 
-      {/* Card */}
-      <div
-        className="luxury-card"
+      <button
+        type="button"
+        onClick={onSelect}
         style={{
-          marginBottom: 14,
-          overflow: 'hidden',
+          marginBottom: 8,
+          padding: '12px 14px',
+          background: isSelected ? 'rgba(201,169,110,0.06)' : 'var(--b2b-bg-1)',
+          border: `1px solid ${isSelected ? 'var(--b2b-champagne)' : 'var(--b2b-border)'}`,
+          borderRadius: 10,
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+          width: '100%',
+          transition: 'all var(--lara-transition)',
         }}
       >
-        {/* Header colorido por tipo */}
         <div
           style={{
-            background: t.bg,
-            padding: '8px 14px',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'baseline',
             justifyContent: 'space-between',
             gap: 8,
             flexWrap: 'wrap',
+            marginBottom: 4,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            className="font-display"
+            style={{
+              fontSize: 15,
+              color: 'var(--b2b-ivory)',
+              lineHeight: 1.2,
+            }}
+          >
+            {template.name}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              color: 'var(--b2b-text-muted)',
+              letterSpacing: 0.5,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Calendar size={10} />
+            {dayLabel(template.day)}
+            {showInactive && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  padding: '1px 6px',
+                  background: 'rgba(122,113,101,0.18)',
+                  color: 'var(--b2b-text-muted)',
+                  borderRadius: 999,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                }}
+              >
+                Inativo
+              </span>
+            )}
+          </span>
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--b2b-text-dim)',
+            lineHeight: 1.5,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+          }}
+        >
+          {preview}
+          {(template.content?.length ?? 0) > 100 && '...'}
+        </div>
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SidePanel · slide-in da direita · preview WhatsApp + ações
+// ─────────────────────────────────────────────────────────────────
+
+function SidePanel({
+  template,
+  canManage,
+  onClose,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  template: TemplateDTO
+  canManage: boolean
+  onClose: () => void
+  onEdit: () => void
+  onToggleActive: () => void | Promise<void>
+  onDelete: () => void
+}) {
+  const cfg = TYPE_CONFIG[template.type ?? 'manual'] ?? TYPE_CONFIG.manual
+  const Icon = cfg.Icon
+  const content = template.content ?? template.message ?? ''
+  const previewBody = applyVars(content || '(mensagem vazia)')
+  const previewHtml = formatBubbleHtml(previewBody)
+
+  return (
+    <>
+      {/* Overlay · click fora fecha */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(2px)',
+          zIndex: 900,
+          animation: 'lara-fade-in 0.2s ease',
+        }}
+      />
+
+      <aside
+        role="dialog"
+        aria-label={`Detalhes do template ${template.name}`}
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 'min(440px, 95vw)',
+          background: 'var(--b2b-bg-1)',
+          borderLeft: '1px solid var(--b2b-border-strong)',
+          boxShadow: '-12px 0 32px rgba(0,0,0,0.40)',
+          zIndex: 950,
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'lara-slide-in 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        <style>{`
+          @keyframes lara-slide-in {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+          }
+          @keyframes lara-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--b2b-border)',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <span
               style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                textTransform: 'uppercase',
-                color: t.color,
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: cfg.bg,
+                color: cfg.color,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
-              {t.label}
+              <Icon size={14} strokeWidth={2.2} />
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                  textTransform: 'uppercase',
+                  color: cfg.color,
+                  fontWeight: 700,
+                }}
+              >
+                {cfg.label}
+              </div>
+              <div
+                className="font-display"
+                style={{
+                  fontSize: 18,
+                  color: 'var(--b2b-ivory)',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {template.name}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            className="b2b-btn"
+            style={{ padding: 6, lineHeight: 0 }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body · scroll */}
+        <div
+          className="custom-scrollbar"
+          style={{ flex: 1, overflowY: 'auto', padding: 20 }}
+        >
+          {/* Meta info */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              fontSize: 11,
+              marginBottom: 16,
+            }}
+          >
+            <span
+              style={{
+                padding: '3px 10px',
+                borderRadius: 999,
+                background: template.active ? 'rgba(138,158,136,0.18)' : 'rgba(122,113,101,0.18)',
+                color: template.active ? 'var(--b2b-sage)' : 'var(--b2b-text-muted)',
+                fontWeight: 700,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                fontSize: 9,
+              }}
+            >
+              {template.active ? 'Ativo' : 'Inativo'}
             </span>
             <span
               style={{
-                fontSize: 10,
-                color: 'var(--b2b-text-muted)',
+                padding: '3px 10px',
+                borderRadius: 999,
+                background: 'var(--b2b-bg-2)',
+                color: 'var(--b2b-text-dim)',
+                fontWeight: 600,
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 4,
+                fontSize: 10,
               }}
             >
               <Calendar size={10} />
               {dayLabel(template.day)}
             </span>
+            {template.category && template.category !== 'quick_reply' && (
+              <span
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(201,169,110,0.10)',
+                  color: 'var(--b2b-champagne)',
+                  fontWeight: 600,
+                  fontSize: 10,
+                }}
+              >
+                {template.category}
+              </span>
+            )}
           </div>
-          <span
+
+          {/* iPhone preview */}
+          <div className="b2b-form-sec" style={{ marginTop: 0 }}>
+            Pré-visualização
+          </div>
+          <PhonePreview bubbleHtml={previewHtml} />
+
+          {/* Texto bruto */}
+          <div className="b2b-form-sec">
+            Mensagem (texto bruto)
+          </div>
+          <pre
             style={{
-              padding: '2px 8px',
-              borderRadius: 999,
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              background: template.active ? 'rgba(138,158,136,0.18)' : 'rgba(122,113,101,0.18)',
-              color: template.active ? 'var(--b2b-sage)' : 'var(--b2b-text-muted)',
+              margin: 0,
+              padding: '12px 14px',
+              background: 'var(--b2b-bg-2)',
+              border: '1px solid var(--b2b-border)',
+              borderRadius: 8,
+              fontSize: 12,
+              color: 'var(--b2b-text-dim)',
+              fontFamily: 'ui-monospace, monospace',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: 1.5,
             }}
           >
-            {template.active ? 'Ativo' : 'Inativo'}
-          </span>
+            {content || '(vazio)'}
+          </pre>
+          <div
+            style={{
+              fontSize: 10,
+              color: 'var(--b2b-text-muted)',
+              marginTop: 6,
+              fontStyle: 'italic',
+            }}
+          >
+            {content.length} caracteres · {(content.match(/\{\{[^}]+\}\}/g) || []).length} variáveis
+          </div>
         </div>
 
-        {/* Body */}
-        <div
-          style={{
-            padding: '12px 14px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            alignItems: 'flex-start',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              className="font-display"
+        {/* Footer · ações */}
+        {canManage && (
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--b2b-border)',
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onDelete}
+              className="b2b-btn"
               style={{
-                fontSize: 16,
-                color: 'var(--b2b-ivory)',
-                lineHeight: 1.3,
-                marginBottom: 4,
+                color: 'var(--b2b-red)',
+                borderColor: 'rgba(217,122,122,0.35)',
+                padding: '8px 12px',
               }}
             >
-              {template.name}
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: 'var(--b2b-text-dim)',
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
-              {preview}
-              {(template.content?.length ?? 0) > 140 && '...'}
-            </div>
-          </div>
-          {canManage && (
-            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              <Trash2 size={12} /> Excluir
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
                 onClick={onToggleActive}
-                title={template.active ? 'Desativar' : 'Ativar'}
                 className="b2b-btn"
-                style={{ padding: '6px 9px', fontSize: 11 }}
+                style={{ padding: '8px 12px' }}
               >
-                {template.active ? 'Desativar' : 'Ativar'}
+                {template.active ? (
+                  <>
+                    <PowerOff size={12} /> Desativar
+                  </>
+                ) : (
+                  <>
+                    <Power size={12} /> Ativar
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 onClick={onEdit}
-                title="Editar"
-                className="b2b-btn"
-                style={{ padding: '6px 9px' }}
+                className="b2b-btn b2b-btn-primary"
+                style={{ padding: '8px 14px' }}
               >
-                <Edit3 size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={onDelete}
-                title="Excluir"
-                className="b2b-btn"
-                style={{
-                  padding: '6px 9px',
-                  color: 'var(--b2b-red)',
-                  borderColor: 'rgba(217,122,122,0.35)',
-                }}
-              >
-                <Trash2 size={12} />
+                <Edit3 size={12} /> Editar
               </button>
             </div>
-          )}
+          </div>
+        )}
+      </aside>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Phone preview (compacto · usado no SidePanel)
+// ─────────────────────────────────────────────────────────────────
+
+function PhonePreview({
+  bubbleHtml,
+  large = false,
+}: {
+  bubbleHtml: string
+  large?: boolean
+}) {
+  const w = large ? 264 : 240
+  return (
+    <div
+      style={{
+        width: w,
+        margin: '0 auto',
+        background: '#1C1C1E',
+        borderRadius: 32,
+        padding: 8,
+        boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+      }}
+    >
+      <div
+        style={{
+          background: '#0E1B14',
+          borderRadius: 26,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 320,
+        }}
+      >
+        <div
+          style={{
+            background: '#1C1C1E',
+            height: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{ width: 44, height: 4, background: '#000', borderRadius: 4 }}
+          />
+        </div>
+        <div
+          style={{
+            background: '#1F2C34',
+            color: '#E9EDEF',
+            padding: '10px 14px',
+            fontSize: 11,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: 'var(--b2b-champagne)',
+              color: 'var(--b2b-bg-0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            M
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600 }}>Maria · paciente</div>
+            <div style={{ fontSize: 9, opacity: 0.7 }}>online agora</div>
+          </div>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            padding: '14px 12px',
+            background: '#0B141A',
+          }}
+        >
+          <div
+            style={{
+              background: '#005C4B',
+              color: '#E9EDEF',
+              padding: '8px 10px',
+              borderRadius: 8,
+              borderTopRightRadius: 2,
+              marginLeft: 'auto',
+              maxWidth: '88%',
+              fontSize: 11.5,
+              lineHeight: 1.5,
+              wordBreak: 'break-word',
+            }}
+            dangerouslySetInnerHTML={{ __html: bubbleHtml }}
+          />
+        </div>
+        <div
+          style={{
+            background: '#1F2C34',
+            padding: '8px 12px',
+            fontSize: 10,
+            color: '#8696A0',
+          }}
+        >
+          Digite uma mensagem...
         </div>
       </div>
     </div>
@@ -532,8 +1011,6 @@ function TemplateFormModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const tConfig = TYPE_CONFIG[type] ?? TYPE_CONFIG.manual
 
   function insertVar(varKey: string) {
     const ta = textareaRef.current
@@ -594,7 +1071,8 @@ function TemplateFormModal({
       >
         <div className="b2b-modal-hdr">
           <h2>
-            {isEdit ? 'Editar' : 'Novo'} <em style={{ color: 'var(--b2b-champagne)' }}>template</em>
+            {isEdit ? 'Editar' : 'Novo'}{' '}
+            <em style={{ color: 'var(--b2b-champagne)' }}>template</em>
           </h2>
           <button type="button" onClick={onClose} className="b2b-close" aria-label="Fechar">
             ×
@@ -611,7 +1089,6 @@ function TemplateFormModal({
               padding: 24,
             }}
           >
-            {/* Coluna esquerda · form */}
             <div>
               <div className="b2b-grid-2">
                 <div className="b2b-field">
@@ -665,7 +1142,6 @@ function TemplateFormModal({
                 />
               </div>
 
-              {/* Variáveis · chip buttons */}
               <div className="b2b-field">
                 <label className="b2b-field-lbl">Variáveis dinâmicas</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
@@ -751,17 +1227,11 @@ function TemplateFormModal({
               {error && <div className="b2b-form-err">{error}</div>}
             </div>
 
-            {/* Coluna direita · iPhone preview */}
             <div>
               <div className="b2b-form-sec" style={{ marginTop: 0 }}>
                 Pré-visualização
               </div>
-              <PhonePreview
-                bubbleHtml={previewHtml}
-                typeColor={tConfig.color}
-                typeLabel={tConfig.label}
-                day={day}
-              />
+              <PhonePreview bubbleHtml={previewHtml} large />
             </div>
           </div>
 
@@ -783,169 +1253,6 @@ function TemplateFormModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────
-// Phone preview (CSS only · tema dark · bubble WhatsApp)
-// ─────────────────────────────────────────────────────────────────
-
-function PhonePreview({
-  bubbleHtml,
-  typeColor,
-  typeLabel,
-  day,
-}: {
-  bubbleHtml: string
-  typeColor: string
-  typeLabel: string
-  day: number | null
-}) {
-  return (
-    <div>
-      <div
-        style={{
-          width: 264,
-          margin: '0 auto',
-          background: '#1C1C1E',
-          borderRadius: 36,
-          padding: 10,
-          boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div
-          style={{
-            background: '#0E1B14',
-            borderRadius: 28,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 360,
-          }}
-        >
-          {/* Notch */}
-          <div
-            style={{
-              background: '#1C1C1E',
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: 50,
-                height: 4,
-                background: '#000',
-                borderRadius: 4,
-              }}
-            />
-          </div>
-          {/* WA header */}
-          <div
-            style={{
-              background: '#1F2C34',
-              color: '#E9EDEF',
-              padding: '10px 14px',
-              fontSize: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: 'var(--b2b-champagne)',
-                color: 'var(--b2b-bg-0)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 11,
-                fontWeight: 700,
-              }}
-            >
-              M
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>Maria · paciente</div>
-              <div style={{ fontSize: 9, opacity: 0.7 }}>online agora</div>
-            </div>
-          </div>
-          {/* Chat body */}
-          <div
-            style={{
-              flex: 1,
-              padding: '14px 12px',
-              background:
-                'linear-gradient(180deg, #0E1B14 0%, #0E1B14 100%) #0B141A',
-            }}
-          >
-            <div
-              style={{
-                background: '#005C4B',
-                color: '#E9EDEF',
-                padding: '8px 10px',
-                borderRadius: 8,
-                borderTopRightRadius: 2,
-                marginLeft: 'auto',
-                maxWidth: '88%',
-                fontSize: 12,
-                lineHeight: 1.5,
-                wordBreak: 'break-word',
-              }}
-              dangerouslySetInnerHTML={{ __html: bubbleHtml }}
-            />
-          </div>
-          {/* WA footer */}
-          <div
-            style={{
-              background: '#1F2C34',
-              padding: '8px 12px',
-              fontSize: 11,
-              color: '#8696A0',
-            }}
-          >
-            Digite uma mensagem...
-          </div>
-        </div>
-      </div>
-
-      {/* Badges abaixo */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          marginTop: 14,
-          fontSize: 10,
-          textAlign: 'center',
-        }}
-      >
-        <div>
-          <span
-            style={{
-              padding: '3px 10px',
-              borderRadius: 999,
-              background: `${typeColor}25`,
-              color: typeColor,
-              fontWeight: 700,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            {typeLabel}
-          </span>
-        </div>
-        <div style={{ color: 'var(--b2b-text-muted)' }}>
-          <Calendar size={10} style={{ display: 'inline', marginRight: 4 }} />
-          {dayLabel(day)}
-        </div>
       </div>
     </div>
   )
@@ -984,8 +1291,8 @@ function DeleteConfirmModal({
         </div>
         <div className="b2b-modal-body">
           <p style={{ fontSize: 13, color: 'var(--b2b-text-dim)', lineHeight: 1.6 }}>
-            Excluir <strong style={{ color: 'var(--b2b-ivory)' }}>"{template.name}"</strong>? Soft delete · pode ser
-            restaurado por admin via DB.
+            Excluir <strong style={{ color: 'var(--b2b-ivory)' }}>"{template.name}"</strong>?
+            Soft delete · pode ser restaurado por admin via DB.
           </p>
         </div>
         <div className="b2b-form-actions" style={{ padding: '0 24px 20px' }}>
