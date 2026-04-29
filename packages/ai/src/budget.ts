@@ -84,11 +84,14 @@ export async function recordUsage(usage: UsageRecord): Promise<void> {
   try {
     const supabase = createServiceRoleClient()
     // RPC `_ai_budget_record` faz UPSERT com tokens += e cost +=
-    const { error } = await supabase.rpc('_ai_budget_record', {
+    // Cast pra any · types gerados marcam p_user_id como string non-null
+    // mas a coluna e nullable e o cast '' -> uuid quebrava com 22P02.
+    // Quando o codegen rodar de novo, regenera os types e remove o cast.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('_ai_budget_record', {
       p_clinic_id: usage.clinic_id,
-      // p_user_id e uuid · usar null pra calls system-level (webhook sem user).
-      // Antes passava '' · Postgres tentava cast '' -> uuid e quebrava com
-      // 22P02 "invalid input syntax for type uuid" em 100% das chamadas.
+      // p_user_id e uuid nullable · usar null pra calls system-level
+      // (webhook sem user). Antes passava '' e quebrava em 100% das chamadas.
       p_user_id: usage.user_id ?? null,
       p_source: usage.source,
       p_model: usage.model,

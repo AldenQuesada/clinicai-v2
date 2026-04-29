@@ -14,7 +14,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Check, AlertTriangle } from 'lucide-react'
-import { createBrowserClient } from '@clinicai/supabase'
+// Import via subpath direto · evita pull do barrel @clinicai/supabase que
+// re-exporta loadServerContext (depende de next/headers · RSC-only).
+// Webpack proibia client component importar isso indireto.
+import { createBrowserClient } from '@clinicai/supabase/browser'
 import { ROLE_LABELS, type StaffRole } from '@/lib/permissions'
 
 type View = 'loading' | 'noToken' | 'login' | 'collectName' | 'register' | 'success' | 'error'
@@ -58,7 +61,10 @@ export function JoinClient() {
 
   async function tryAccept(fname: string, lname: string) {
     if (!token) return
-    const sb = createBrowserClient()
+    // Cast pra any · accept_invitation RPC nao esta nos types gerados ainda
+    // (clinic-dashboard migrations rodaram fora do codegen do clinicai-v2).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createBrowserClient() as any
     try {
       const { data, error: rpcErr } = await sb.rpc('accept_invitation', {
         p_raw_token: token,
