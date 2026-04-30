@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState, useRef, useCallback } from 'react';
-import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw } from 'lucide-react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SmartReplies } from './SmartReplies';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
 import { AssumeReleaseBar } from './AssumeReleaseBar';
 import { PresenceLine } from './PresenceLine';
+import { MediaPreviewBar } from './MediaPreviewBar';
 import { useClinicMembers } from '../hooks/useClinicMembers';
 import { usePresence } from '../hooks/usePresence';
+import { useMediaUpload, formatFileSize } from '../hooks/useMediaUpload';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useQuickTemplates, type QuickTemplate } from '../hooks/useQuickTemplates';
 import { useClinicInfo } from '../hooks/useClinicInfo';
 import type { Conversation } from '../hooks/useConversations';
@@ -147,6 +150,28 @@ export function MessageArea({
 }: MessageAreaProps) {
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
+
+  // P-07 · upload de midia (paperclip + drag&drop + audio recorder)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+  const {
+    staged,
+    error: mediaError,
+    isSending: isMediaSending,
+    progress: mediaProgress,
+    stageFile,
+    clear: clearMedia,
+    send: sendMedia,
+  } = useMediaUpload({
+    conversationId: selectedConversation?.conversation_id ?? null,
+    onSent: () => {
+      onNewMessageChange('');
+    },
+  });
+  const audioRecorder = useAudioRecorder((file) => {
+    stageFile(file);
+  });
 
   // P-12 Fase 3+4 · presence conversation-level + typing indicator
   const { me, clinicId, findById } = useClinicMembers();
@@ -465,6 +490,29 @@ export function MessageArea({
                           <AudioPlayer src={msg.mediaUrl} isUser={isUser} />
                         </div>
                       )}
+                      {/* P-07 · render document (PDF/DOC/etc) · card com download */}
+                      {msg.type === 'document' && msg.mediaUrl && (
+                        <a
+                          href={msg.mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2.5 px-3 py-2.5 mb-2 rounded-md bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] transition-colors group"
+                          style={{ maxWidth: 280 }}
+                        >
+                          <div className="w-9 h-9 rounded bg-white/[0.06] flex items-center justify-center shrink-0">
+                            <FileText className="w-4.5 h-4.5 opacity-80" strokeWidth={1.5} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] truncate">
+                              {msg.mediaUrl.split('/').pop()?.replace(/^[a-f0-9-]+\./, 'arquivo.') || 'documento'}
+                            </p>
+                            <p className="font-meta text-[8.5px] uppercase tracking-[0.15em] opacity-60 mt-0.5">
+                              Documento
+                            </p>
+                          </div>
+                          <Download className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0" strokeWidth={1.5} />
+                        </a>
+                      )}
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                       <div className="flex items-center justify-end gap-1 mt-1 block">
                         {msg.isManual && !isUser && !isFailed && <span className="text-[10px] opacity-70">Humano</span>}
@@ -502,15 +550,71 @@ export function MessageArea({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box */}
-      <div className={`p-4 border-t border-[hsl(var(--chat-border))] shrink-0 relative ${
-        isNoteMode ? 'bg-[#FBBF24]/5' : 'bg-[hsl(var(--chat-bg))]'
-      }`}>
+      {/* Input Box · com drag&drop (P-07) */}
+      <div
+        className={`p-4 border-t border-[hsl(var(--chat-border))] shrink-0 relative transition-colors ${
+          isNoteMode ? 'bg-[#FBBF24]/5' : 'bg-[hsl(var(--chat-bg))]'
+        } ${isDragging ? 'ring-2 ring-[hsl(var(--primary))] ring-inset bg-[hsl(var(--primary))]/[0.04]' : ''}`}
+        onDragEnter={(e) => {
+          if (isNoteMode) return;
+          e.preventDefault();
+          dragCounterRef.current += 1;
+          if (e.dataTransfer.types.includes('Files')) setIsDragging(true);
+        }}
+        onDragOver={(e) => {
+          if (isNoteMode) return;
+          if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+        }}
+        onDragLeave={() => {
+          dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+          if (dragCounterRef.current === 0) setIsDragging(false);
+        }}
+        onDrop={(e) => {
+          if (isNoteMode) return;
+          e.preventDefault();
+          dragCounterRef.current = 0;
+          setIsDragging(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) stageFile(file);
+        }}
+      >
         {/* Linha "Lara ativa · pausa 30min" REMOVIDA · agora vive na AssumeReleaseBar acima */}
         {isNoteMode && (
           <div className="mb-2 text-xs text-[#FBBF24] flex items-center justify-center bg-[#FBBF24]/10 py-1 rounded-md gap-1.5">
             <StickyNote className="w-3 h-3" />
             <strong>Modo nota interna</strong> · esta mensagem NÃO será enviada ao paciente, só atendentes veem.
+          </div>
+        )}
+
+        {/* P-07 · preview da midia staged */}
+        {staged && (
+          <MediaPreviewBar
+            staged={staged}
+            isSending={isMediaSending}
+            progress={mediaProgress}
+            onClear={clearMedia}
+          />
+        )}
+
+        {/* P-07 · erro de upload/envio */}
+        {mediaError && !staged && (
+          <div className="mb-2 text-[11px] text-[hsl(var(--danger))] flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.2]">
+            <AlertTriangle className="w-3 h-3 shrink-0" strokeWidth={2} />
+            <span className="truncate">{mediaError}</span>
+          </div>
+        )}
+
+        {/* P-07 · gravando audio · feedback hold-to-record */}
+        {audioRecorder.isRecording && (
+          <div className="mb-2 flex items-center gap-3 px-3 py-2 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.25]">
+            <span className="inline-flex w-2 h-2 rounded-full bg-[hsl(var(--danger))] animate-pulse shrink-0" />
+            <span className="font-meta uppercase text-[10px] tracking-[0.18em] text-[hsl(var(--danger))]">Gravando</span>
+            <span className="font-mono tabular-nums text-[11px] text-[hsl(var(--foreground))]">
+              {String(Math.floor(audioRecorder.duration / 60)).padStart(2, '0')}:{String(audioRecorder.duration % 60).padStart(2, '0')}
+            </span>
+            <span className="flex-1 text-[10.5px] text-[hsl(var(--muted-foreground))] italic font-display">
+              Solte o botão pra enviar · arraste pra fora pra cancelar
+            </span>
           </div>
         )}
 
@@ -533,11 +637,38 @@ export function MessageArea({
           />
         )}
 
+        {/* P-07 · file input invisible · acionado pelo paperclip */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) stageFile(f);
+            // reset value pra permitir re-anexar mesmo arquivo
+            if (e.target) e.target.value = '';
+          }}
+        />
+
         <div className={`flex items-end gap-2 rounded-lg border p-2 focus-within:ring-1 ${
           isNoteMode
             ? 'border-[#FBBF24]/40 bg-[#FBBF24]/5 ring-[#FBBF24]/40'
             : 'border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))] ring-[hsl(var(--ring))]'
         }`}>
+          {/* P-07 · paperclip · file picker (escondido em modo nota) */}
+          {!isNoteMode && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!!staged || isMediaSending}
+              title="Anexar imagem · áudio · PDF"
+              className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center transition-colors bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--primary))]/[0.08] hover:text-[hsl(var(--primary))] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Paperclip className="w-4 h-4" strokeWidth={1.5} />
+            </button>
+          )}
+
           {/* SC-03: toggle modo nota interna */}
           {onSendInternalNote && (
             <button
@@ -560,7 +691,9 @@ export function MessageArea({
             placeholder={
               isNoteMode
                 ? 'Nota interna (não envia ao paciente)...'
-                : 'Digite sua mensagem (Pausa a IA)...'
+                : staged
+                  ? 'Adicione uma legenda (opcional)...'
+                  : 'Digite sua mensagem (Pausa a IA)...'
             }
             className="flex-1 bg-transparent border-none focus:outline-none resize-none min-h-[44px] max-h-32 text-sm p-2 scrollbar-thin text-[hsl(var(--foreground))]"
             onKeyDown={(e) => {
@@ -574,9 +707,46 @@ export function MessageArea({
                 }
                 return;
               }
+              // P-07 · com staged, Enter envia midia
+              if (staged && e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendTyping(false);
+                sendMedia(newMessage);
+                return;
+              }
               handleKeyDown(e);
             }}
           />
+
+          {/* P-07 · botão Mic · hold-to-record (só quando nada staged + textarea vazio + nao nota) */}
+          {!isNoteMode && !staged && !newMessage.trim() && (
+            <button
+              type="button"
+              title="Mantenha pressionado pra gravar áudio"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                audioRecorder.start();
+              }}
+              onMouseUp={() => audioRecorder.stop()}
+              onMouseLeave={() => {
+                if (audioRecorder.isRecording) audioRecorder.cancel();
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                audioRecorder.start();
+              }}
+              onTouchEnd={() => audioRecorder.stop()}
+              onTouchCancel={() => audioRecorder.cancel()}
+              className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                audioRecorder.isRecording
+                  ? 'bg-[hsl(var(--danger))] text-white animate-pulse'
+                  : 'bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--primary))]/[0.08] hover:text-[hsl(var(--primary))]'
+              }`}
+            >
+              <Mic className="w-4 h-4" strokeWidth={1.5} />
+            </button>
+          )}
+
           <button
             onClick={() => {
               if (isNoteMode) {
@@ -585,12 +755,20 @@ export function MessageArea({
                   onNewMessageChange('');
                   setIsNoteMode(false);
                 }
+              } else if (staged) {
+                // P-07 · envia midia (caption opcional do textarea)
+                sendTyping(false);
+                sendMedia(newMessage);
               } else {
                 sendTyping(false); // P-12 Fase 4 · stop typing
                 onSendMessage();
               }
             }}
-            disabled={!newMessage.trim() || sendStatus === 'sending'}
+            disabled={
+              isMediaSending ||
+              (staged ? false : !newMessage.trim()) ||
+              sendStatus === 'sending'
+            }
             className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center disabled:opacity-50 transition-opacity ${
               isNoteMode
                 ? 'bg-[#FBBF24] text-[hsl(var(--bg-0,0_0%_4%))] hover:opacity-90'

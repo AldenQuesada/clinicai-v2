@@ -409,13 +409,36 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-07">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-07">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-07</div>
-          <div class="title">Sem upload de imagem/áudio/PDF pelo atendente humano</div>
-          <div class="desc">Mirian quer mandar foto de antes/depois ou áudio explicando procedimento → tem que abrir WhatsApp Web fora. Quebra fluxo.</div>
-          <div class="ref">components/MessageArea.tsx:103-122</div>
+          <div class="id">P-07 · ✓ done · 2026-04-30</div>
+          <div class="title">Upload de imagem/áudio/PDF inline pelo atendente</div>
+          <div class="desc">
+            <strong>Server</strong>: <code>POST /api/conversations/[id]/upload</code>
+            (multipart → bucket <code>media/wa-uploads/{clinic_id}/{conv_id}/</code>) ·
+            <code>POST /api/conversations/[id]/messages</code> expandido pra aceitar
+            <code>{ mediaPath, mediaType, mimeType, fileName, content }</code>. Backend
+            faz <em>Path B</em> da Cloud API: download do Storage → POST <code>/media</code>
+            (recebe <code>media_id</code>) → POST <code>/messages</code> com
+            <code>image|audio|document</code> + <code>media_id</code>. Bucket privado-ish,
+            Meta hospeda 30 dias.<br/>
+            <strong>WhatsApp helpers</strong> em <code>packages/whatsapp/cloud.ts</code>:
+            <code>uploadMediaFromBuffer</code>, <code>sendImageById</code>,
+            <code>sendAudioById</code>, <code>sendDocumentById</code>, <code>_sendByMediaId</code>
+            (privado). <code>sendVoice</code> stub virou impl real com Path A (URL).<br/>
+            <strong>UI</strong>: 📎 paperclip à esquerda do StickyNote (file picker
+            <code>image/*,audio/*,application/pdf,doc,xlsx,txt</code>); 🎤 mic
+            <em>hold-to-record</em> via <code>MediaRecorder</code> (ogg/opus → webm → mp4
+            fallback · cancel se &lt;500ms · cancel se mouse sai); drag&drop sobre o input
+            box inteiro com ring champagne; <code>MediaPreviewBar</code> com thumb (image)
+            ou audio player (audio) ou ícone (PDF) + nome + tamanho + X cancelar; caption
+            opcional no textarea.<br/>
+            <strong>Render document</strong>: card 280px com ícone PDF + nome + Download
+            ao hover. Image/audio já renderizavam.<br/>
+            Limites Meta: imagem 5MB · áudio/vídeo 16MB · PDF 100MB.
+          </div>
+          <div class="ref">apps/lara/src/app/api/conversations/[id]/upload/route.ts · apps/lara/src/app/api/conversations/[id]/messages/route.ts · apps/lara/src/app/(authed)/conversas/hooks/useMediaUpload.ts · apps/lara/src/app/(authed)/conversas/hooks/useAudioRecorder.ts · apps/lara/src/app/(authed)/conversas/components/MediaPreviewBar.tsx · apps/lara/src/app/(authed)/conversas/components/MessageArea.tsx · packages/whatsapp/src/cloud.ts</div>
         </div>
         <div class="meta">
           <span class="priority p1">P1</span>

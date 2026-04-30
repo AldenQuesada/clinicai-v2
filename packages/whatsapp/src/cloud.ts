@@ -120,20 +120,215 @@ export class WhatsAppCloudService implements WhatsAppProvider {
   }
 
   /**
-   * sendVoice · Meta Cloud usa media upload + audio message ID. P0 nao tem
-   * upload pipeline aqui (Lara nao envia audio outbound) · stub fail-soft pra
-   * cumprir contrato WhatsAppProvider sem quebrar caller.
+   * P-07 · Upload de buffer pro Meta Cloud API · retorna media_id (Meta hospeda 30 dias).
    *
-   * Quando precisar de fato, implementar 2-step:
-   *   1. POST /{phone_number_id}/media (multipart) → media_id
-   *   2. POST /{phone_number_id}/messages com type=audio, audio.id=media_id
+   * Fluxo Meta:
+   *   POST /{phone_number_id}/media (multipart/form-data)
+   *     - messaging_product: whatsapp
+   *     - type: image/jpeg, audio/ogg, application/pdf, etc
+   *     - file: binario com filename
+   *   → response { id: 'media_id_string' }
+   *
+   * Limites Meta:
+   *   - Imagem: 5MB (jpg/png · webp permitido em algumas regioes)
+   *   - Audio: 16MB (ogg/mp3/m4a/amr · ogg+opus pra voice notes)
+   *   - Video: 16MB (mp4/3gpp)
+   *   - Documento: 100MB (qualquer tipo)
    */
-  async sendVoice(_to: string, _audioUrl: string): Promise<WhatsAppSendResult> {
-    log.warn(
-      { wa_number_id: this.wa_number_id },
-      'cloud.sendVoice nao implementado · use Evolution provider pra audio',
-    )
-    return { ok: false, error: 'sendVoice nao suportado em Cloud provider', messageId: null }
+  async uploadMediaFromBuffer(
+    buffer: Buffer | Uint8Array,
+    mimeType: string,
+    filename: string,
+  ): Promise<{ ok: true; mediaId: string } | { ok: false; error: string }> {
+    const url = `${GRAPH_API}/${this.phoneNumberId}/media`
+    try {
+      const form = new FormData()
+      form.append('messaging_product', 'whatsapp')
+      form.append('type', mimeType)
+      // Blob a partir do buffer (Node 22 tem Blob global · Edge runtime tambem).
+      // Cast pra ArrayBuffer · TS reclama de SharedArrayBuffer mas em runtime
+      // nao acontece (Node nunca devolve SAB nesse contexto).
+      const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+      const blob = new Blob([u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer], {
+        type: mimeType,
+      })
+      form.append('file', blob, filename)
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+        body: form,
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          {
+            clinic_id: this.clinic_id,
+            wa_number_id: this.wa_number_id,
+            status: res.status,
+            err,
+            mimeType,
+            size: buffer.byteLength,
+          },
+          'uploadMediaFromBuffer falhou',
+        )
+        return { ok: false, error: err }
+      }
+      const data = (await res.json()) as { id?: string }
+      if (!data.id) {
+        return { ok: false, error: 'Meta nao retornou media_id' }
+      }
+      log.info(
+        {
+          clinic_id: this.clinic_id,
+          wa_number_id: this.wa_number_id,
+          mediaId: data.id,
+          mimeType,
+          size: buffer.byteLength,
+        },
+        'uploadMediaFromBuffer ok',
+      )
+      return { ok: true, mediaId: data.id }
+    } catch (err) {
+      log.error(
+        { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, mimeType },
+        'uploadMediaFromBuffer exception',
+      )
+      return { ok: false, error: String(err) }
+    }
+  }
+
+  /**
+   * P-07 · Envia imagem por media_id (em vez de URL publica). Privado · bucket fica
+   * fechado, Meta tem o blob por 30 dias.
+   */
+  async sendImageById(
+    to: string,
+    mediaId: string,
+    caption?: string,
+  ): Promise<WhatsAppSendResult> {
+    return this._sendByMediaId(to, mediaId, 'image', { caption })
+  }
+
+  /**
+   * P-07 · Envia audio (voice note) por media_id · type=audio · sem caption (Meta
+   * nao suporta caption em audio).
+   */
+  async sendAudioById(to: string, mediaId: string): Promise<WhatsAppSendResult> {
+    return this._sendByMediaId(to, mediaId, 'audio')
+  }
+
+  /**
+   * P-07 · Envia documento (PDF/DOC) por media_id · filename obrigatorio pra
+   * paciente ver nome legivel.
+   */
+  async sendDocumentById(
+    to: string,
+    mediaId: string,
+    filename: string,
+    caption?: string,
+  ): Promise<WhatsAppSendResult> {
+    return this._sendByMediaId(to, mediaId, 'document', { filename, caption })
+  }
+
+  private async _sendByMediaId(
+    to: string,
+    mediaId: string,
+    type: 'image' | 'audio' | 'document' | 'video',
+    extras: { filename?: string; caption?: string } = {},
+  ): Promise<WhatsAppSendResult> {
+    const url = `${GRAPH_API}/${this.phoneNumberId}/messages`
+    const mediaPayload: Record<string, unknown> = { id: mediaId }
+    if (type === 'image' && extras.caption) mediaPayload.caption = extras.caption
+    if (type === 'document') {
+      if (extras.filename) mediaPayload.filename = extras.filename
+      if (extras.caption) mediaPayload.caption = extras.caption
+    }
+    if (type === 'video' && extras.caption) mediaPayload.caption = extras.caption
+
+    const body: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type,
+      [type]: mediaPayload,
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          {
+            clinic_id: this.clinic_id,
+            wa_number_id: this.wa_number_id,
+            status: res.status,
+            err,
+            type,
+            mediaId,
+          },
+          '_sendByMediaId falhou',
+        )
+        return { ok: false, error: err }
+      }
+      log.info(
+        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, type, mediaId },
+        '_sendByMediaId ok',
+      )
+      return { ok: true, data: await res.json() }
+    } catch (err) {
+      log.error(
+        { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, type },
+        '_sendByMediaId exception',
+      )
+      return { ok: false, error: String(err) }
+    }
+  }
+
+  /**
+   * sendVoice · contrato legacy do WhatsAppProvider (URL · Evolution-style).
+   * Mantido pra compat · pra Cloud, prefira uploadMediaFromBuffer + sendAudioById.
+   */
+  async sendVoice(to: string, audioUrl: string): Promise<WhatsAppSendResult> {
+    // Path A · URL publica (Meta baixa). Mantido pra retrocompat · Path B
+    // (uploadMediaFromBuffer + sendAudioById) e o caminho privacy-first novo.
+    const url = `${GRAPH_API}/${this.phoneNumberId}/messages`
+    const body = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'audio',
+      audio: { link: audioUrl },
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, status: res.status, err },
+          'sendVoice falhou',
+        )
+        return { ok: false, error: err }
+      }
+      log.info({ clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendVoice ok')
+      return { ok: true, data: await res.json() }
+    } catch (err) {
+      log.error({ err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendVoice exception')
+      return { ok: false, error: String(err) }
+    }
   }
 
   async downloadMedia(idOrKey: string | Record<string, unknown>): Promise<WhatsAppMediaDownload | null> {

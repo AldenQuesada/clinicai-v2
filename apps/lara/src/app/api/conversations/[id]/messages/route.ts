@@ -53,10 +53,12 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const { content, internal } = body;
+  const { content, internal, mediaPath, mediaType, mimeType, fileName } = body;
 
-  if (!content?.trim()) {
-    return NextResponse.json({ error: 'Content required' }, { status: 400 });
+  // P-07 · pelo menos content OU midia
+  const hasMedia = !!mediaPath && !!mediaType && !!mimeType;
+  if (!content?.trim() && !hasMedia) {
+    return NextResponse.json({ error: 'Content ou media obrigatorio' }, { status: 400 });
   }
 
   const { supabase } = await loadServerContext();
@@ -71,7 +73,7 @@ export async function POST(
   if (internal === true) {
     const noteId = await repos.messages.saveInternalNote(conv.clinicId, {
       conversationId: id,
-      content: content.trim(),
+      content: content?.trim() ?? '',
       sender: 'humano',
     });
     if (!noteId) {
@@ -88,10 +90,6 @@ export async function POST(
   }
 
   // Audit fix N7 (2026-04-27): WhatsApp service per-tenant.
-  // Tenta resolver pelo wa_number_id da conversation; fallback pra env global
-  // enquanto wa_numbers está sendo populado pra todas clínicas.
-  // Camada 3.5 da auditoria CRM: ConversationDTO agora tem waNumberId tipado
-  // (antes faltava · `(conv as any).waNumberId` retornava undefined em runtime).
   let wa: WhatsAppCloudService | null = null;
   if (conv.waNumberId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,7 +104,94 @@ export async function POST(
     });
   }
 
-  // clinic_id vem da conversation (resolvido no inbound · ADR-028)
+  // ────────────────────────────────────────────────────────────────
+  // P-07 · Branch MIDIA · upload pra Meta + send by media_id
+  // ────────────────────────────────────────────────────────────────
+  if (hasMedia) {
+    // Le blob do Storage com service-role (bucket `media` publico mas usamos
+    // SDK pra resolver path corretamente sem expor public URL no fluxo critico)
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from('media')
+      .download(mediaPath as string);
+    if (dlErr || !blob) {
+      console.error('[API] media download error:', dlErr);
+      return NextResponse.json(
+        { error: 'Falha ao ler midia do storage' },
+        { status: 500 },
+      );
+    }
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 1. Upload pra Meta · recebe media_id
+    const safeFilename = (fileName as string) || (mediaPath as string).split('/').pop() || 'file';
+    const upRes = await wa.uploadMediaFromBuffer(buffer, mimeType as string, safeFilename);
+    if (!upRes.ok) {
+      return NextResponse.json(
+        { error: `Meta upload falhou: ${upRes.error}` },
+        { status: 502 },
+      );
+    }
+
+    // 2. Send por media_id · branch por tipo
+    let sendResult;
+    const captionTrim = content?.trim() || undefined;
+    if (mediaType === 'image') {
+      sendResult = await wa.sendImageById(conv.phone, upRes.mediaId, captionTrim);
+    } else if (mediaType === 'audio') {
+      sendResult = await wa.sendAudioById(conv.phone, upRes.mediaId);
+    } else if (mediaType === 'document') {
+      sendResult = await wa.sendDocumentById(conv.phone, upRes.mediaId, safeFilename, captionTrim);
+    } else if (mediaType === 'video') {
+      // sem helper dedicado · usa _sendByMediaId via fallback pra documento (Meta aceita type=video tb)
+      // mas pra UX correta, comentar como nao suportado por enquanto
+      return NextResponse.json(
+        { error: 'video ainda nao suportado · use audio/imagem/PDF' },
+        { status: 415 },
+      );
+    } else {
+      return NextResponse.json(
+        { error: `mediaType invalido: ${mediaType}` },
+        { status: 400 },
+      );
+    }
+
+    // 3. Salva em wa_messages · publica URL pra render no chat propria UI
+    const { data: pub } = supabase.storage.from('media').getPublicUrl(mediaPath as string);
+    const msgId = uuidv4();
+    await repos.messages.saveOutbound(conv.clinicId, {
+      id: msgId,
+      conversationId: id,
+      sender: 'humano',
+      content: captionTrim ?? '', // caption ou vazio
+      contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
+      mediaUrl: pub.publicUrl,
+      status: sendResult.ok ? 'sent' : 'failed',
+    });
+
+    // Auto-pause IA + atualiza last_message
+    if (sendResult.ok) {
+      await repos.conversations.updateAiPause(id, {
+        pausedUntil: new Date(Date.now() + 30 * 60000).toISOString(),
+        aiEnabled: false,
+      });
+      const lastText = captionTrim || `[${mediaType}]`;
+      await repos.conversations.updateLastMessage(id, lastText, false);
+    }
+
+    return NextResponse.json({
+      ok: sendResult.ok,
+      message_id: msgId,
+      whatsappStatus: sendResult.ok ? 'sent' : 'error',
+      whatsappError: sendResult.ok ? null : sendResult.error,
+      mediaUrl: pub.publicUrl,
+      autoPauseActivated: sendResult.ok,
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Branch TEXTO (legacy)
+  // ────────────────────────────────────────────────────────────────
   const msgId = uuidv4();
   await repos.messages.saveOutbound(conv.clinicId, {
     id: msgId,
@@ -117,7 +202,6 @@ export async function POST(
     status: 'pending',
   });
 
-  // Envia via WA Cloud
   const result = await wa.sendText(conv.phone, content.trim());
 
   await repos.messages.updateStatus(msgId, result.ok ? 'sent' : 'failed');
