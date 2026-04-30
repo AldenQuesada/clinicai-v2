@@ -154,11 +154,20 @@ export class WhatsAppCloudService implements WhatsAppProvider {
       })
       form.append('file', blob, filename)
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${this.accessToken}` },
-        body: form,
-      })
+      // Timeout 30s · evita pendurar route quando Meta trava
+      const ac = new AbortController()
+      const tid = setTimeout(() => ac.abort(), 30000)
+      let res: Response
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${this.accessToken}` },
+          body: form,
+          signal: ac.signal,
+        })
+      } finally {
+        clearTimeout(tid)
+      }
       if (!res.ok) {
         const err = await res.text()
         log.error(
@@ -172,7 +181,7 @@ export class WhatsAppCloudService implements WhatsAppProvider {
           },
           'uploadMediaFromBuffer falhou',
         )
-        return { ok: false, error: err }
+        return { ok: false, error: `Meta API ${res.status}: ${err.slice(0, 200)}` }
       }
       const data = (await res.json()) as { id?: string }
       if (!data.id) {

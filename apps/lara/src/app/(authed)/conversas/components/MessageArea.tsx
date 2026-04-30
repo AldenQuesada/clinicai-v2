@@ -13,6 +13,7 @@ import { useClinicMembers } from '../hooks/useClinicMembers';
 import { usePresence } from '../hooks/usePresence';
 import { useMediaUpload, formatFileSize } from '../hooks/useMediaUpload';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { encodeFileToMp3 } from '../hooks/useMp3Encoder';
 import { useQuickTemplates, type QuickTemplate } from '../hooks/useQuickTemplates';
 import { useClinicInfo } from '../hooks/useClinicInfo';
 import type { Conversation } from '../hooks/useConversations';
@@ -154,6 +155,7 @@ export function MessageArea({
   // P-07 · upload de midia (paperclip + drag&drop + audio recorder)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isTranscoding, setIsTranscoding] = useState(false);
   const dragCounterRef = useRef(0);
   const {
     staged,
@@ -169,8 +171,21 @@ export function MessageArea({
       onNewMessageChange('');
     },
   });
-  const audioRecorder = useAudioRecorder((file) => {
-    stageFile(file);
+  // Recorder grava webm/opus (Chrome) · transcoda pra mp3 antes do stage
+  // (Meta Cloud API rejeita webm · mp3 e voice note nativa pra paciente).
+  const audioRecorder = useAudioRecorder(async (file) => {
+    setIsTranscoding(true);
+    try {
+      const isWebm = (file.type || '').toLowerCase().includes('webm');
+      const finalFile = isWebm ? await encodeFileToMp3(file) : file;
+      stageFile(finalFile);
+    } catch (e) {
+      console.error('[MessageArea] transcode webm→mp3 falhou:', e);
+      // Fallback · stageia o webm bruto · server fara fallback document
+      stageFile(file);
+    } finally {
+      setIsTranscoding(false);
+    }
   });
 
   // P-12 Fase 3+4 · presence conversation-level + typing indicator
@@ -609,6 +624,16 @@ export function MessageArea({
           <div className="mb-2 text-[11px] text-[hsl(var(--danger))] flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.2]">
             <AlertTriangle className="w-3 h-3 shrink-0" strokeWidth={2} />
             <span className="truncate">Microfone: {audioRecorder.error}</span>
+          </div>
+        )}
+
+        {/* P-07 · convertendo audio (webm → mp3) · acontece entre stop() e stage */}
+        {isTranscoding && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md bg-[hsl(var(--primary))]/[0.06] border border-[hsl(var(--primary))]/[0.2]">
+            <Loader className="w-3 h-3 text-[hsl(var(--primary))] animate-spin shrink-0" />
+            <span className="font-meta uppercase text-[10px] tracking-[0.18em] text-[hsl(var(--primary))]">
+              Convertendo áudio...
+            </span>
           </div>
         )}
 

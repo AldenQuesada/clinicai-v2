@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@breezystack/lamejs": "^1.2.7",
     "@clinicai/ai": "workspace:*",
     "@clinicai/logger": "workspace:*",
     "@clinicai/repositories": "workspace:*",
@@ -25,8 +26,8 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@sentry/nextjs": "^10.51.0",
-    "@supabase/supabase-js": "catalog:",
     "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
     "date-fns": "catalog:",
     "groq-sdk": "catalog:",
     "lucide-react": "catalog:",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@clinicai/tsconfig": "workspace:*",
+    "@playwright/test": "^1.48.0",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -48,7 +50,6 @@
     "eslint-config-next": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "^4.1.5",
-    "@playwright/test": "^1.48.0"
+    "vitest": "^4.1.5"
   }
 }
