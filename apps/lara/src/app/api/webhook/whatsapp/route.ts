@@ -50,7 +50,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Extrai pergunta final da resposta da Lara (paridade legacy n8n).
- * Pega a ultima linha que termina em "?" SE estiver nas ultimas 3 linhas.
+ * Pega a ultima linha que CONTEM "?" SE estiver nas ultimas 3 linhas.
+ * Aceita emojis/pontuacao apos o "?" (caso "Voce vai gostar? 😊" · audit
+ * 2026-04-30 mostrou que o endsWith('?') falhava com emojis no fim).
  * Quando ha foto, a pergunta vai como mensagem de TEXTO separada apos as
  * fotos · regra do prompt: "sempre finalize com pergunta que abre novo loop".
  */
@@ -62,7 +64,9 @@ function extractFollowUp(text: string): {
   const lines = text.split('\n');
   let lastQ = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim().endsWith('?')) {
+    // Aceita "?" no fim ou seguido de espacos/emojis/pontuacao (nao palavras).
+    // Regex: "?" + qualquer coisa que NAO seja letra/numero ate o fim da linha.
+    if (/\?[^\p{L}\p{N}]*$/u.test(lines[i].trim())) {
       lastQ = i;
       break;
     }
