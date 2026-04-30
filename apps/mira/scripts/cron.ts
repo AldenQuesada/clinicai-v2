@@ -57,12 +57,13 @@ interface CronJob {
 // jobs), igual ao router do GitHub Actions. Mantem paridade exata.
 const JOBS: CronJob[] = [
   {
-    label: 'cada-minuto · state cleanup + reminder + b2b voucher dispatch + webhook queue',
+    label: 'cada-minuto · state cleanup + reminder + b2b voucher dispatch + pending dispatches + webhook queue',
     schedule: '* * * * *',
     endpoints: [
       'mira-state-cleanup',
       'mira-state-reminder-check',
       'b2b-voucher-dispatch-worker',
+      'b2b-pending-dispatches-worker',
       'webhook-processing-worker',
     ],
   },
