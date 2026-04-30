@@ -1,6 +1,7 @@
 import { Search, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
+import { computeConversationTags } from '../hooks/useConversationTags';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
 
 interface ConversationListProps {
@@ -374,30 +375,36 @@ export function ConversationList({
                   </div>
                   <p className="text-[11.5px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 leading-snug">{conv.last_message_text || 'Sem mensagens'}</p>
 
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {conv.phase && (
-                      <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] bg-[hsl(var(--primary))]/[0.08] text-[hsl(var(--primary))] px-1.5 py-[2px] rounded-full font-medium leading-tight">
-                        {conv.phase}
-                      </span>
-                    )}
-                    {conv.is_urgent && (
-                      <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] bg-[hsl(var(--danger))]/[0.10] text-[hsl(var(--danger))] px-1.5 py-[2px] rounded-full font-medium leading-tight">
-                        <span className="inline-block w-1 h-1 rounded-full bg-[hsl(var(--danger))]" />
-                        Urgente
-                      </span>
-                    )}
-                  </div>
+                  {/* Tags · regras port da legacy clinic-dashboard · estetica .badge-serious flipbook */}
+                  {(() => {
+                    const tagsToRender = computeConversationTags(conv);
+                    if (tagsToRender.length === 0) return null;
+                    return (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {tagsToRender.map((tag) => (
+                          <span
+                            key={tag.label}
+                            className="font-meta uppercase whitespace-nowrap"
+                            style={{
+                              fontSize: '8.5px',
+                              letterSpacing: '0.12em',
+                              fontWeight: 500,
+                              padding: '2px 6px',
+                              borderRadius: 2,
+                              background: tag.bg,
+                              color: tag.color,
+                              border: `1px solid ${tag.border}`,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {tag.label}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
-                  {conv.tags && conv.tags.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {conv.tags.slice(0, 3).map((tag, i) => (
-                        <span key={i} className="text-[9px] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-1.5 py-0.5 rounded border border-[hsl(var(--chat-border))]">
-                          {tag}
-                        </span>
-                      ))}
-                      {conv.tags.length > 3 && <span className="text-[9px] text-[hsl(var(--muted-foreground))]">+{conv.tags.length - 3}</span>}
-                    </div>
-                  )}
+                  {/* Tags genericas do array conv.tags removidas · viraram derivadas em computeConversationTags */}
                 </div>
               </div>
             </div>
