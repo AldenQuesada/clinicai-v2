@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ficha de Anamnese</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config/env.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{font-family:'Inter',sans-serif;background:#F9FAFB;color:#111827;-webkit-text-size-adjust:100%}
+    body{min-height:100vh}
+
+    /* Layout principal */
+    .pf-shell{min-height:100vh;display:flex;flex-direction:column}
+    .pf-header{background:#fff;border-bottom:1px solid #E5E7EB;padding:16px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+    .pf-header-logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7C3AED,#5B21B6);display:flex;align-items:center;justify-content:center}
+    .pf-header-logo svg{color:#fff}
+    .pf-header-info{flex:1}
+    .pf-header-title{font-size:14px;font-weight:700;color:#111}
+    .pf-header-sub{font-size:11px;color:#9CA3AF;margin-top:1px}
+
+    /* Progresso */
+    .pf-progress-bar{height:4px;background:#E5E7EB;position:relative;overflow:hidden}
+    .pf-progress-fill{height:100%;background:linear-gradient(90deg,#7C3AED,#A78BFA);transition:width .4s ease;border-radius:0 4px 4px 0}
+
+    /* Content */
+    .pf-content{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px 64px}
+    .pf-card{width:100%;max-width:600px;background:#fff;border-radius:20px;border:1px solid #E5E7EB;overflow:hidden;animation:slideUp .3s ease}
+    @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+    .pf-card-header{padding:28px 32px 24px;border-bottom:1px solid #F3F4F6}
+    .pf-session-num{font-size:11px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+    .pf-session-title{font-size:20px;font-weight:700;color:#111}
+    .pf-session-desc{font-size:13px;color:#6B7280;margin-top:6px;line-height:1.5}
+
+    .pf-fields{padding:24px 32px;display:flex;flex-direction:column;gap:20px}
+
+    /* Campos */
+    .pf-field{}
+    .pf-field-label{font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;line-height:1.4}
+    .pf-field-req{color:#EF4444;margin-left:2px}
+    .pf-field-desc{font-size:12px;color:#9CA3AF;margin-bottom:8px;line-height:1.4}
+    .pf-field-help{font-size:11px;color:#A78BFA;margin-top:4px;line-height:1.4}
+    .pf-input{width:100%;padding:10px 14px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:14px;font-family:inherit;color:#111;background:#fff;transition:border-color .15s,box-shadow .15s;outline:none}
+    .pf-input:focus{border-color:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+    .pf-input::placeholder{color:#D1D5DB}
+    .pf-textarea{min-height:100px;resize:vertical}
+    .pf-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+
+    /* Boolean sim/não */
+    .pf-bool-row{display:flex;gap:10px}
+    .pf-bool-btn{flex:1;padding:10px 14px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#374151;text-align:center;transition:all .15s}
+    .pf-bool-btn.selected{border-color:#7C3AED;background:#F5F3FF;color:#7C3AED}
+    .pf-bool-btn.selected-yes{border-color:#10B981;background:#ECFDF5;color:#059669}
+    .pf-bool-btn.selected-no{border-color:#EF4444;background:#FEF2F2;color:#EF4444}
+
+    /* Multi select */
+    .pf-multi-grid{display:flex;flex-direction:column;gap:6px}
+    .pf-multi-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid #E5E7EB;border-radius:10px;cursor:pointer;transition:all .15s;user-select:none}
+    .pf-multi-item.selected{border-color:#7C3AED;background:#F5F3FF}
+    .pf-multi-check{width:18px;height:18px;border:1.5px solid #D1D5DB;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;background:#fff}
+    .pf-multi-item.selected .pf-multi-check{background:#7C3AED;border-color:#7C3AED}
+    .pf-multi-check-inner{display:none}
+    .pf-multi-item.selected .pf-multi-check-inner{display:block;color:#fff}
+    .pf-multi-label{font-size:13px;color:#374151;flex:1}
+
+    /* Scale select */
+    .pf-scale-row{display:flex;gap:6px;flex-wrap:wrap}
+    .pf-scale-btn{width:44px;height:44px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#374151;text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center}
+    .pf-scale-btn.selected{border-color:#7C3AED;background:#7C3AED;color:#fff}
+
+    /* Navegação */
+    .pf-nav{padding:20px 32px;border-top:1px solid #F3F4F6;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .pf-btn-back{padding:11px 22px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#374151;transition:all .15s}
+    .pf-btn-back:hover{border-color:#9CA3AF;background:#F9FAFB}
+    .pf-btn-next{padding:11px 28px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px}
+    .pf-btn-next:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 4px 14px rgba(124,58,237,.35)}
+    .pf-btn-next:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+    .pf-btn-finish{padding:11px 28px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px}
+    .pf-btn-finish:hover{opacity:.9;transform:translateY(-1px)}
+    .pf-btn-finish:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Autosave indicator */
+    .pf-autosave{font-size:11px;color:#9CA3AF;display:flex;align-items:center;gap:5px;height:18px}
+    .pf-autosave-dot{width:6px;height:6px;border-radius:50%;background:#10B981}
+    .pf-autosave-dot.saving{background:#F59E0B;animation:pulse .8s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+    /* Telas especiais */
+    .pf-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 24px;gap:16px}
+    .pf-screen-icon{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+    .pf-screen-icon.error{background:#FEF2F2}
+    .pf-screen-icon.success{background:#ECFDF5}
+    .pf-screen-icon.loading{background:#F5F3FF;animation:pulse 1.2s infinite}
+    .pf-screen-title{font-size:22px;font-weight:700;color:#111}
+    .pf-screen-msg{font-size:14px;color:#6B7280;max-width:360px;line-height:1.6}
+
+    /* Autosave badge */
+    .pf-saving-badge{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none;z-index:999}
+    .pf-saving-badge.visible{opacity:1}
+
+    /* Rich text simples */
+    .pf-rich-area{width:100%;min-height:120px;padding:12px 14px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:14px;font-family:inherit;color:#111;resize:vertical;outline:none;transition:border-color .15s}
+    .pf-rich-area:focus{border-color:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+
+    /* Responsivo */
+    @media(max-width:520px){
+      .pf-card-header{padding:20px 20px 16px}
+      .pf-fields{padding:18px 20px;gap:16px}
+      .pf-nav{padding:16px 20px}
+      .pf-session-title{font-size:17px}
+    }
+  </style>
+</head>
+<body>
+
+<div class="pf-shell" id="pfShell">
+  <!-- Tela de carregamento inicial -->
+  <div class="pf-screen" id="pfScreenLoading">
+    <div class="pf-screen-icon loading">
+      <svg width="32" height="32" fill="none" stroke="#7C3AED" stroke-width="2" viewBox="0 0 24 24" style="animation:spin 1s linear infinite">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+    </div>
+    <div class="pf-screen-title">Carregando...</div>
+    <div class="pf-screen-msg">Verificando seu link de anamnese</div>
+  </div>
+</div>
+
+<div class="pf-saving-badge" id="pfSavingBadge">Salvando...</div>
+
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+<script>
+;(function () {
+'use strict'
+
+const _env = window.ClinicEnv || {}
+const SUPABASE_URL = _env.SUPABASE_URL || ''
+const SUPABASE_KEY = _env.SUPABASE_KEY || ''
+const BASE         = SUPABASE_URL + '/rest/v1'
+
+// ── HTTP helpers ──────────────────────────────────────────────
+function _hdrs(extra) {
+  return Object.assign({
+    'Content-Type':  'application/json',
+    'apikey':        SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Prefer':        'return=representation',
+  }, extra || {})
+}
+async function _get(path, params) {
+  const qs = params ? '?' + Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&') : ''
+  const r = await fetch(BASE + path + qs, { headers: _hdrs() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+async function _post(path, body) {
+  const r = await fetch(BASE + path, { method:'POST', headers:_hdrs(), body:JSON.stringify(body) })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+async function _patch(path, params, body) {
+  const qs = '?' + Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&')
+  const r = await fetch(BASE + path + qs, { method:'PATCH', headers:_hdrs(), body:JSON.stringify(body) })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+async function _rpc(fn, body) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, { method:'POST', headers:_hdrs(), body:JSON.stringify(body) })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ── Estado global ─────────────────────────────────────────────
+const S = {
+  slug: null, token: null,
+  requestId: null, responseId: null, clinicId: null, patientId: null, templateId: null,
+  requestStatus: null, responseStatus: null,
+  patient: null,
+  template: null,
+  sessions: [],
+  fields: [],
+  options: {},   // field_id → options[]
+  answers: {},   // field_key → value
+  currentIdx: 0, // índice da sessão atual
+  saving: false,
+  savingTimer: null,
+}
+
+// ── Inicialização ─────────────────────────────────────────────
+async function init() {
+  const params = new URLSearchParams(location.search)
+  S.slug  = params.get('slug')
+  S.token = params.get('token')
+
+  if (!S.slug || !S.token) {
+    return _renderScreen('error', 'Link inválido', 'Este link de anamnese não é válido. Solicite um novo link à clínica.')
+  }
+
+  try {
+    // 1. Valida link
+    const validation = await _rpc('validate_anamnesis_public_link', {
+      p_public_slug: S.slug,
+      p_raw_token:   S.token,
+    })
+    const v = Array.isArray(validation) ? validation[0] : validation
+    if (!v) return _renderScreen('error', 'Link inválido', 'Este link não foi encontrado ou já foi revogado.')
+
+    if (v.request_status === 'revoked' || v.request_status === 'cancelled') {
+      return _renderScreen('error', 'Link revogado', 'Este link de anamnese foi revogado pela clínica.')
+    }
+    if (v.request_status === 'expired') {
+      return _renderScreen('error', 'Link expirado', 'O prazo para preencher esta anamnese expirou.')
+    }
+    if (v.response_status === 'completed') {
+      return _renderScreen('success', 'Ficha já preenchida', 'Você já preencheu esta ficha de anamnese. Obrigado!')
+    }
+
+    S.requestId      = v.request_id
+    S.responseId     = v.response_id
+    S.clinicId       = v.clinic_id
+    S.patientId      = v.patient_id
+    S.templateId     = v.template_id
+    S.requestStatus  = v.request_status
+    S.responseStatus = v.response_status
+
+    // 2. Marca como aberto
+    await _rpc('mark_anamnesis_request_opened', { p_request_id: S.requestId })
+
+    // 3. Carrega dados
+    const [patient, template, sessions, fields, allOptions, savedAnswers] = await Promise.all([
+      _get('/patients', { 'id':'eq.'+S.patientId, 'select':'*' }),
+      _get('/anamnesis_templates', { 'id':'eq.'+S.templateId }),
+      _get('/anamnesis_template_sessions', { 'template_id':'eq.'+S.templateId, 'is_active':'eq.true', 'order':'order_index.asc' }),
+      _get('/anamnesis_fields', { 'template_id':'eq.'+S.templateId, 'deleted_at':'is.null', 'is_active':'eq.true', 'order':'order_index.asc' }),
+      _get('/anamnesis_field_options', {
+        'field_id': 'in.(' + fields?.map(f=>f.id).join(',') + ')',
+        'is_active':'eq.true', 'order':'order_index.asc'
+      }).catch(()=>[]),
+      _get('/anamnesis_answers', { 'response_id':'eq.'+S.responseId, 'select':'*' }),
+    ])
+
+    S.patient  = (patient || [])[0]
+    S.template = (template || [])[0]
+    S.sessions = sessions || []
+    S.fields   = fields   || []
+
+    // Mapeia opções por field_id
+    ;(allOptions || []).forEach(o => {
+      if (!S.options[o.field_id]) S.options[o.field_id] = []
+      S.options[o.field_id].push(o)
+    })
+
+    // Carrega respostas salvas
+    ;(savedAnswers || []).forEach(a => {
+      try { S.answers[a.field_key] = a.value_json } catch {}
+    })
+
+    // Pré-preenche com dados do paciente (sessão 1 — Dados Gerais)
+    _preFillPatientData()
+
+    // Retoma sessão onde parou
+    if (S.responseStatus === 'in_progress') {
+      const progPct = savedAnswers?.length / Math.max(S.fields.filter(f=>f.is_required).length, 1) * 100
+      // Detecta última sessão com resposta
+      const answeredSessions = new Set((savedAnswers||[]).map(a => {
+        const f = S.fields.find(x=>x.field_key===a.field_key)
+        return f?.session_id
+      }))
+      const lastIdx = S.sessions.findIndex(s => !answeredSessions.has(s.id))
+      if (lastIdx > 0) S.currentIdx = lastIdx
+    }
+
+    _buildUI()
+    _renderSession()
+
+  } catch (e) {
+    console.error(e)
+    _renderScreen('error', 'Erro ao carregar', 'Não foi possível carregar sua ficha de anamnese. Tente novamente.')
+  }
+}
+
+function _preFillPatientData() {
+  const pat = S.patient
+  if (!pat) return
+  const map = {
+    first_name: pat.first_name, last_name: pat.last_name,
+    phone: pat.phone, cpf: pat.cpf, rg: pat.rg,
+    birth_date: pat.birth_date, sex: pat.sex,
+    address_zip_code: pat.address_zip_code, address_street: pat.address_street,
+    address_number: pat.address_number, address_complement: pat.address_complement,
+    address_neighborhood: pat.address_neighborhood, address_city: pat.address_city,
+    address_state: pat.address_state,
+  }
+  Object.entries(map).forEach(([k, v]) => {
+    if (v != null && S.answers[k] === undefined) S.answers[k] = v
+  })
+}
+
+// ── Build da interface principal ──────────────────────────────
+function _buildUI() {
+  const shell = document.getElementById('pfShell')
+  shell.innerHTML = `
+    <header class="pf-header">
+      <div class="pf-header-logo">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+      </div>
+      <div class="pf-header-info">
+        <div class="pf-header-title" id="pfHeaderTitle">${_esc(S.template?.name || 'Anamnese')}</div>
+        <div class="pf-header-sub" id="pfHeaderSub">Sessão 1 de ${S.sessions.length}</div>
+      </div>
+      <div class="pf-autosave" id="pfAutosave">
+        <div class="pf-autosave-dot" id="pfAutosaveDot"></div>
+        <span id="pfAutosaveText">Salvo</span>
+      </div>
+    </header>
+    <div class="pf-progress-bar">
+      <div class="pf-progress-fill" id="pfProgress" style="width:0%"></div>
+    </div>
+    <div class="pf-content">
+      <div class="pf-card" id="pfCard"></div>
+    </div>
+    <div class="pf-saving-badge" id="pfSavingBadge">Salvando...</div>
+  `
+}
+
+// ── Renderiza sessão atual ─────────────────────────────────────
+function _renderSession() {
+  const card = document.getElementById('pfCard')
+  if (!card) return
+  const sess = S.sessions[S.currentIdx]
+  if (!sess) return
+
+  const sessionFields = S.fields.filter(f => f.session_id === sess.id && f.is_visible)
+  const isLast = S.currentIdx === S.sessions.length - 1
+  const pct = ((S.currentIdx + 1) / S.sessions.length) * 100
+  _setProgress(pct)
+  _updateHeader()
+
+  card.innerHTML = `
+    <div class="pf-card-header">
+      <div class="pf-session-num">Sessão ${sess.order_index} de ${S.sessions.length}</div>
+      <div class="pf-session-title">${_esc(sess.title)}</div>
+      ${sess.description ? `<div class="pf-session-desc">${_esc(sess.description)}</div>` : ''}
+    </div>
+    <div class="pf-fields" id="pfFields">
+      ${sessionFields.map(f => _renderField(f)).join('')}
+    </div>
+    <div class="pf-nav">
+      ${S.currentIdx > 0
+        ? `<button class="pf-btn-back" onclick="pfPrev()">
+             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+             Voltar
+           </button>`
+        : `<div></div>`}
+      ${isLast
+        ? `<button class="pf-btn-finish" id="pfFinishBtn" onclick="pfFinish()">
+             Finalizar
+             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+           </button>`
+        : `<button class="pf-btn-next" id="pfNextBtn" onclick="pfNext()">
+             Próximo
+             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+           </button>`}
+    </div>
+  `
+  // Aplica lógica condicional
+  _applyConditionals()
+}
+
+// ── Renderiza campo ────────────────────────────────────────────
+function _renderField(f) {
+  const val = S.answers[f.field_key]
+  let inputHtml = ''
+
+  switch (f.field_type) {
+    case 'text':
+    case 'number':
+      inputHtml = `<input
+        type="${f.field_type === 'number' ? 'number' : 'text'}"
+        class="pf-input"
+        id="pff_${f.field_key}"
+        placeholder="${_esc(f.placeholder || '')}"
+        value="${_esc(val != null ? String(val) : '')}"
+        oninput="pfSetAnswer('${f.field_key}', this.value)">`
+      break
+
+    case 'date':
+      inputHtml = `<input
+        type="date"
+        class="pf-input"
+        id="pff_${f.field_key}"
+        value="${_esc(val || '')}"
+        oninput="pfSetAnswer('${f.field_key}', this.value)">`
+      break
+
+    case 'textarea':
+    case 'rich_text':
+      inputHtml = `<textarea
+        class="pf-input pf-textarea pf-rich-area"
+        id="pff_${f.field_key}"
+        placeholder="${_esc(f.placeholder || 'Escreva aqui...')}"
+        oninput="pfSetAnswer('${f.field_key}', this.value)">${_esc(val || '')}</textarea>`
+      break
+
+    case 'boolean':
+      const boolVal = val
+      inputHtml = `<div class="pf-bool-row">
+        <button class="pf-bool-btn ${boolVal === true ? 'selected-yes' : ''}" id="pff_${f.field_key}_yes"
+          onclick="pfSetBool('${f.field_key}', true)">Sim</button>
+        <button class="pf-bool-btn ${boolVal === false ? 'selected-no' : ''}" id="pff_${f.field_key}_no"
+          onclick="pfSetBool('${f.field_key}', false)">Não</button>
+      </div>`
+      break
+
+    case 'single_select': {
+      const opts = S.options[f.id] || []
+      if (opts.length <= 6) {
+        const selVal = val
+        inputHtml = `<div class="pf-multi-grid">
+          ${opts.map(o => `
+            <div class="pf-multi-item ${selVal === o.value ? 'selected' : ''}" onclick="pfSetSingle('${f.field_key}', '${_esc(o.value)}')">
+              <div class="pf-multi-check">
+                <svg class="pf-multi-check-inner" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="pf-multi-label">${_esc(o.label)}</span>
+            </div>
+          `).join('')}
+        </div>`
+      } else {
+        inputHtml = `<select class="pf-input pf-select" id="pff_${f.field_key}" onchange="pfSetAnswer('${f.field_key}', this.value)">
+          <option value="">Selecione...</option>
+          ${opts.map(o => `<option value="${_esc(o.value)}" ${val === o.value ? 'selected' : ''}>${_esc(o.label)}</option>`).join('')}
+        </select>`
+      }
+      break
+    }
+
+    case 'multi_select': {
+      const opts = S.options[f.id] || []
+      const selArr = Array.isArray(val) ? val : []
+      const exclusive = (f.settings_json?.exclusiveOptions || [])
+      inputHtml = `<div class="pf-multi-grid">
+        ${opts.map(o => `
+          <div class="pf-multi-item ${selArr.includes(o.value) ? 'selected' : ''}"
+               onclick="pfToggleMulti('${f.field_key}', '${_esc(o.value)}', ${JSON.stringify(exclusive)}, ${JSON.stringify(opts.map(x=>x.value))})">
+            <div class="pf-multi-check">
+              <svg class="pf-multi-check-inner" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span class="pf-multi-label">${_esc(o.label)}</span>
+          </div>
+        `).join('')}
+      </div>`
+      break
+    }
+
+    case 'single_select_dynamic': {
+      const sourceKey = f.settings_json?.sourceFieldKey
+      const sourceVal = sourceKey ? (S.answers[sourceKey] || []) : []
+      const dynOpts   = Array.isArray(sourceVal) ? sourceVal : [sourceVal]
+      const selVal    = val
+      inputHtml = `<div class="pf-multi-grid">
+        ${dynOpts.filter(Boolean).map(v => `
+          <div class="pf-multi-item ${selVal === v ? 'selected' : ''}" onclick="pfSetSingle('${f.field_key}', '${_esc(v)}')">
+            <div class="pf-multi-check">
+              <svg class="pf-multi-check-inner" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span class="pf-multi-label">${_esc(v)}</span>
+          </div>
+        `).join('')}
+        ${!dynOpts.filter(Boolean).length ? '<div style="font-size:12px;color:#9CA3AF;padding:10px">Responda a questão anterior primeiro.</div>' : ''}
+      </div>`
+      break
+    }
+
+    case 'scale_select': {
+      const min = f.settings_json?.min ?? 0
+      const max = f.settings_json?.max ?? 10
+      const selVal = val
+      const nums = []
+      for (let i = min; i <= max; i++) nums.push(i)
+      inputHtml = `<div class="pf-scale-row">
+        ${nums.map(n => `<button class="pf-scale-btn ${selVal === n ? 'selected' : ''}" onclick="pfSetAnswer('${f.field_key}', ${n})">${n}</button>`).join('')}
+      </div>`
+      if (f.description) {
+        inputHtml += `<div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span style="font-size:11px;color:#9CA3AF">${min} — menor</span>
+          <span style="font-size:11px;color:#9CA3AF">maior — ${max}</span>
+        </div>`
+      }
+      break
+    }
+
+    case 'section_title':
+      return `<div style="font-size:15px;font-weight:700;color:#111;padding:4px 0;border-bottom:1px solid #F3F4F6;margin-bottom:4px">${_esc(f.label)}</div>`
+
+    case 'label':
+    case 'description_text':
+      return `<div style="font-size:13px;color:#6B7280;line-height:1.5">${_esc(f.label)}</div>`
+
+    default:
+      inputHtml = `<input class="pf-input" id="pff_${f.field_key}" value="${_esc(val || '')}" oninput="pfSetAnswer('${f.field_key}', this.value)" placeholder="${_esc(f.placeholder||'')}">`
+  }
+
+  return `
+    <div class="pf-field" id="pfwrap_${f.field_key}">
+      <div class="pf-field-label">${_esc(f.label)}${f.is_required ? '<span class="pf-field-req">*</span>' : ''}</div>
+      ${f.description ? `<div class="pf-field-desc">${_esc(f.description)}</div>` : ''}
+      ${inputHtml}
+      ${f.help_text ? `<div class="pf-field-help">${_esc(f.help_text)}</div>` : ''}
+    </div>
+  `
+}
+
+// ── Lógica condicional ─────────────────────────────────────────
+function _applyConditionals() {
+  S.fields.forEach(f => {
+    const cond = f.conditional_rules_json
+    if (!cond?.dependsOn) return
+    const wrap = document.getElementById('pfwrap_' + f.field_key)
+    if (!wrap) return
+    const visible = _evalCond(cond)
+    wrap.style.display = visible ? '' : 'none'
+  })
+}
+
+function _evalCond(cond) {
+  const sourceVal = S.answers[cond.dependsOn]
+  if (sourceVal == null) return false
+  switch (cond.operator) {
+    case 'equals':   return sourceVal === cond.value
+    case 'not_equals': return sourceVal !== cond.value
+    case 'includes':
+      if (Array.isArray(sourceVal)) return sourceVal.includes(cond.value)
+      return sourceVal === cond.value
+    default: return true
+  }
+}
+
+// ── Setters de resposta ────────────────────────────────────────
+window.pfSetAnswer = function(key, value) {
+  S.answers[key] = value
+  _applyConditionals()
+  _scheduleSave()
+}
+
+window.pfSetBool = function(key, val) {
+  S.answers[key] = val
+  _renderSession()
+  _scheduleSave()
+}
+
+window.pfSetSingle = function(key, val) {
+  S.answers[key] = val
+  _renderSession()
+  _scheduleSave()
+}
+
+window.pfToggleMulti = function(key, val, exclusive, allVals) {
+  let arr = Array.isArray(S.answers[key]) ? [...S.answers[key]] : []
+  const isExclusive = exclusive.includes(val)
+  if (isExclusive) {
+    arr = arr.includes(val) ? [] : [val]
+  } else {
+    // Remove exclusivos
+    arr = arr.filter(v => !exclusive.includes(v))
+    if (arr.includes(val)) arr = arr.filter(v => v !== val)
+    else arr.push(val)
+  }
+  S.answers[key] = arr
+  _renderSession()
+  _scheduleSave()
+}
+
+// ── Navegação ──────────────────────────────────────────────────
+window.pfNext = function() {
+  const sess   = S.sessions[S.currentIdx]
+  const fields = S.fields.filter(f => f.session_id === sess.id && f.is_visible && f.is_required)
+  const missing = fields.filter(f => {
+    const wrap = document.getElementById('pfwrap_' + f.field_key)
+    if (wrap && wrap.style.display === 'none') return false // campo condicional oculto
+    const v = S.answers[f.field_key]
+    if (v === undefined || v === null || v === '') return true
+    if (Array.isArray(v) && !v.length) return true
+    return false
+  })
+  if (missing.length) {
+    // Destaca campos faltando
+    missing.forEach(f => {
+      const inp = document.getElementById('pff_' + f.field_key) || document.getElementById('pfwrap_' + f.field_key)
+      if (inp) inp.style.outline = '2px solid #EF4444'
+      setTimeout(() => { if (inp) inp.style.outline = '' }, 2000)
+    })
+    return
+  }
+  S.currentIdx++
+  _renderSession()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+window.pfPrev = function() {
+  if (S.currentIdx <= 0) return
+  S.currentIdx--
+  _renderSession()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+window.pfFinish = async function() {
+  const btn = document.getElementById('pfFinishBtn')
+  if (btn) { btn.disabled = true; btn.textContent = 'Finalizando...' }
+  try {
+    // Salva respostas restantes da sessão atual
+    await _saveCurrentSessionAnswers()
+    // Atualiza status
+    await _patch('/anamnesis_responses',
+      { 'id': 'eq.' + S.responseId },
+      { status:'completed', completed_at: new Date().toISOString(), progress_percent: 100 }
+    )
+    await _patch('/anamnesis_requests',
+      { 'id': 'eq.' + S.requestId },
+      { status:'completed', completed_at: new Date().toISOString() }
+    )
+    // Sincroniza paciente
+    await _syncPatient()
+    // Motor de flags
+    await _runFlags()
+    // Motor de sugestões
+    await _runSuggestions()
+
+    _renderScreen('success', 'Ficha concluída!', 'Obrigado por preencher sua anamnese. Nossa equipe irá analisar suas respostas antes da sua consulta.')
+  } catch (e) {
+    console.error(e)
+    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar' }
+    alert('Erro ao finalizar: ' + e.message)
+  }
+}
+
+// ── Autosave ───────────────────────────────────────────────────
+function _scheduleSave() {
+  clearTimeout(S.savingTimer)
+  _setSavingState(true)
+  S.savingTimer = setTimeout(_saveCurrentSessionAnswers, 1200)
+}
+
+async function _saveCurrentSessionAnswers() {
+  const sess   = S.sessions[S.currentIdx]
+  if (!sess) return
+  const fields = S.fields.filter(f => f.session_id === sess.id)
+
+  // Se primeira vez salvando, marca in_progress
+  if (S.responseStatus === 'not_started') {
+    try {
+      await _patch('/anamnesis_responses',
+        { 'id': 'eq.' + S.responseId },
+        { status:'in_progress', started_at: new Date().toISOString() }
+      )
+      S.responseStatus = 'in_progress'
+    } catch {}
+  }
+
+  // Upsert respostas
+  for (const f of fields) {
+    const val = S.answers[f.field_key]
+    if (val === undefined) continue
+    try {
+      // Verifica se existe
+      const existing = await _get('/anamnesis_answers', {
+        'response_id': 'eq.' + S.responseId,
+        'field_id':    'eq.' + f.id,
+        'select':      'id',
+      })
+      if (existing?.length) {
+        await _patch('/anamnesis_answers',
+          { 'response_id': 'eq.' + S.responseId, 'field_id': 'eq.' + f.id },
+          { value_json: val, field_key: f.field_key }
+        )
+      } else {
+        await _post('/anamnesis_answers', [{
+          response_id: S.responseId,
+          field_id:    f.id,
+          field_key:   f.field_key,
+          value_json:  val,
+        }])
+      }
+    } catch (e) {
+      console.warn('Erro ao salvar resposta ' + f.field_key, e)
+    }
+  }
+
+  // Atualiza progresso
+  const totalRequired = S.fields.filter(f=>f.is_required).length || 1
+  const answered = S.fields.filter(f=>f.is_required && S.answers[f.field_key] !== undefined && S.answers[f.field_key] !== '' && S.answers[f.field_key] !== null).length
+  const pct = Math.min(100, Math.round(answered / totalRequired * 100))
+  try {
+    await _patch('/anamnesis_responses', { 'id':'eq.'+S.responseId }, { progress_percent: pct })
+  } catch {}
+
+  _setSavingState(false)
+}
+
+// ── Sincroniza dados gerais com patients ───────────────────────
+async function _syncPatient() {
+  const keys = ['first_name','last_name','phone','birth_date','rg','cpf','sex',
+    'address_zip_code','address_street','address_number','address_complement',
+    'address_neighborhood','address_city','address_state']
+  const update = {}
+  keys.forEach(k => { if (S.answers[k] !== undefined) update[k] = S.answers[k] })
+  if (!Object.keys(update).length) return
+  // Valida CPF único (não muda de paciente)
+  await _patch('/patients', { 'id':'eq.'+S.patientId }, update).catch(e => {
+    if (e.message?.includes('duplicate') || e.message?.includes('unique')) {
+      console.warn('CPF já cadastrado em outro paciente — ignorando atualização de CPF')
+      delete update.cpf
+      return _patch('/patients', { 'id':'eq.'+S.patientId }, update)
+    }
+    throw e
+  })
+}
+
+// ── Motor de flags ─────────────────────────────────────────────
+async function _runFlags() {
+  // Remove flags antigas
+  try { await fetch(BASE + '/anamnesis_response_flags?response_id=eq.' + S.responseId, { method:'DELETE', headers:_hdrs() }) } catch {}
+
+  const flags = []
+  const a = S.answers
+
+  if (a.pregnant === true)               flags.push({ flag_type:'clinical',    flag_code:'pregnancy_restriction',       severity:'critical', message:'Paciente gestante — procedimentos estéticos contraindicados.' })
+  if (a.breastfeeding === true)          flags.push({ flag_type:'clinical',    flag_code:'breastfeeding_attention',     severity:'high',     message:'Paciente em amamentação — avaliar contraindicações.' })
+  if (a.valve_prosthesis_or_pacemaker === true) flags.push({ flag_type:'clinical', flag_code:'pacemaker_or_valve_alert', severity:'critical', message:'Paciente com marcapasso ou prótese valvar — contraindicação para tecnologias.' })
+  if (['type_1','type_2'].includes(a.diabetes_type)) flags.push({ flag_type:'clinical', flag_code:'diabetes_attention', severity:'high', message:'Paciente diabético — atenção a cicatrização e recuperação.' })
+  if (a.herpes_history === true)         flags.push({ flag_type:'clinical',    flag_code:'herpes_prophylaxis_needed',   severity:'warning',  message:'Histórico de herpes labial — profilaxia pode ser necessária.' })
+  if (a.heart_disease === true)          flags.push({ flag_type:'clinical',    flag_code:'cardiac_evaluation_needed',   severity:'critical', message:'Doença cardíaca — avaliação médica antes de procedimentos.' })
+  if (Array.isArray(a.pigmentation_changes) && a.pigmentation_changes.includes('melasma')) flags.push({ flag_type:'clinical', flag_code:'melasma_heat_caution', severity:'warning', message:'Melasma detectado — evitar tecnologias com calor excessivo.' })
+  if (a.smoker === true)                 flags.push({ flag_type:'clinical',    flag_code:'smoking_low_collagen_response', severity:'warning', message:'Tabagismo pode reduzir resposta a bioestimuladores de colágeno.' })
+  if (Array.isArray(a.technology_history) && a.technology_history.includes('fotona')) flags.push({ flag_type:'commercial', flag_code:'already_knows_fotona', severity:'info', message:'Paciente já realizou Fotona anteriormente.' })
+  if (Array.isArray(a.injectable_history) && a.injectable_history.includes('never')) flags.push({ flag_type:'commercial', flag_code:'esthetic_beginner_profile', severity:'info', message:'Paciente sem experiência com injetáveis — perfil iniciante.' })
+
+  if (!flags.length) return
+  await _post('/anamnesis_response_flags', flags.map(f => ({
+    response_id: S.responseId,
+    ...f,
+    metadata: {},
+  }))).catch(console.error)
+}
+
+// ── Motor de sugestões de protocolo ───────────────────────────
+async function _runSuggestions() {
+  try { await fetch(BASE + '/anamnesis_response_protocol_suggestions?response_id=eq.' + S.responseId, { method:'DELETE', headers:_hdrs() }) } catch {}
+
+  const sugs = []
+  const a = S.answers
+
+  if (Array.isArray(a.facial_concerns) && a.facial_concerns.includes('flacidez_facial')) sugs.push({ protocol_code:'PROTO_FOTONA_4D', protocol_name:'Fotona 4D', reason:'Flacidez facial detectada', priority:10 })
+  if (Array.isArray(a.facial_concerns) && a.facial_concerns.includes('olheiras'))        sugs.push({ protocol_code:'PROTO_SMOOTHEYES', protocol_name:'SmoothEyes', reason:'Olheiras detectadas', priority:9 })
+  if (Array.isArray(a.pigmentation_changes) && a.pigmentation_changes.includes('manchas_senis')) sugs.push({ protocol_code:'PROTO_FOTONA_2D', protocol_name:'Fotona 2D', reason:'Manchas senis detectadas', priority:8 })
+  if (a.visible_stretch_marks === true) sugs.push({ protocol_code:'PROTO_REGENERACAO_ESTRIAS', protocol_name:'Regeneração de Estrias', reason:'Estrias visíveis detectadas', priority:7 })
+  if (a.localized_fat === true)         sugs.push({ protocol_code:'PROTO_CORPORAL_GORDURA', protocol_name:'Protocolo Corporal Gordura', reason:'Gordura localizada detectada', priority:7 })
+  if (a.flaccidity_specific_areas === true) sugs.push({ protocol_code:'PROTO_FLACIDEZ_CORPORAL', protocol_name:'Protocolo Flacidez Corporal', reason:'Flacidez corporal detectada', priority:6 })
+  if (Array.isArray(a.body_concerns) && a.body_concerns.includes('ronco_apneia')) sugs.push({ protocol_code:'PROTO_FOTONA_RONCO', protocol_name:'Fotona Ronco', reason:'Queixa de ronco/apneia', priority:8 })
+
+  if (!sugs.length) return
+  await _post('/anamnesis_response_protocol_suggestions', sugs.map(s => ({
+    response_id: S.responseId,
+    ...s,
+    metadata: {},
+  }))).catch(console.error)
+}
+
+// ── Helpers de UI ─────────────────────────────────────────────
+function _setProgress(pct) {
+  const el = document.getElementById('pfProgress')
+  if (el) el.style.width = pct + '%'
+}
+
+function _updateHeader() {
+  const sub = document.getElementById('pfHeaderSub')
+  if (sub) sub.textContent = `Sessão ${S.currentIdx + 1} de ${S.sessions.length}`
+}
+
+function _setSavingState(saving) {
+  S.saving = saving
+  const dot  = document.getElementById('pfAutosaveDot')
+  const text = document.getElementById('pfAutosaveText')
+  const badge= document.getElementById('pfSavingBadge')
+  if (saving) {
+    if (dot) dot.classList.add('saving')
+    if (text) text.textContent = 'Salvando...'
+    if (badge) badge.classList.add('visible')
+  } else {
+    if (dot) dot.classList.remove('saving')
+    if (text) text.textContent = 'Salvo'
+    if (badge) badge.classList.remove('visible')
+  }
+}
+
+function _renderScreen(type, title, msg) {
+  const shell = document.getElementById('pfShell')
+  const iconColor = type === 'success' ? '#059669' : type === 'error' ? '#DC2626' : '#7C3AED'
+  const iconPath  = type === 'success'
+    ? '<polyline points="20 6 9 17 4 12"/>'
+    : type === 'error'
+    ? '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'
+    : '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>'
+  shell.innerHTML = `
+    <div class="pf-screen">
+      <div class="pf-screen-icon ${type}">
+        <svg width="32" height="32" fill="none" stroke="${iconColor}" stroke-width="2" viewBox="0 0 24 24">${iconPath}</svg>
+      </div>
+      <div class="pf-screen-title">${_esc(title)}</div>
+      <div class="pf-screen-msg">${_esc(msg)}</div>
+    </div>
+  `
+}
+
+function _esc(s) {
+  if (s == null) return ''
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', init)
+
+})()
+</script>
+</body>
+</html>

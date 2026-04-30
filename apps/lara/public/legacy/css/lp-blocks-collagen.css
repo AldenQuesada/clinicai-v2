@@ -1,0 +1,486 @@
+/**
+ * LP Builder · Block: collagen-animation (Onda 29 · Premium Refactor)
+ * Namespace: .blk-collagen-*
+ * Brandbook: champagne #C8A97E · ivory #FEFCF8 · graphite #2C2C2C
+ * Tipografia: Cormorant Garamond (display) · Montserrat (body)
+ *
+ * 5 camadas WOW:
+ *   1. Timeline scrubber controlavel (HOJE · 15d · 30d · 60d · 90d)
+ *   2. SVG da pele animado (hidratacao + fibras + brilho)
+ *   3. Painel clinico com 3 metricas + barras semanticas
+ *   4. Microtag contextual sobre o stage
+ *   5. CTA contextual cujo texto muda por stage
+ */
+
+.blk-collagen {
+  --blk-coll-champagne: #C8A97E;
+  --blk-coll-champagne-dk: #B8946A;
+  --blk-coll-champagne-soft: rgba(200, 169, 126, 0.18);
+  --blk-coll-ivory: #FEFCF8;
+  --blk-coll-cream: #F6EFE3;
+  --blk-coll-graphite: #2C2C2C;
+  --blk-coll-graphite-soft: #4A4A4A;
+  --blk-coll-text: #2C2C2C;
+  --blk-coll-muted: #6E6357;
+  --blk-coll-border: rgba(200, 169, 126, 0.22);
+  --blk-coll-track-bg: rgba(200, 169, 126, 0.18);
+  --blk-coll-track-fill: var(--blk-coll-champagne);
+
+  padding: 56px 20px;
+  background: var(--blk-coll-ivory);
+  color: var(--blk-coll-text);
+  font-family: 'Montserrat', system-ui, sans-serif;
+  text-align: center;
+}
+
+.blk-collagen[data-bg="cream"] { background: var(--blk-coll-cream); }
+.blk-collagen[data-bg="graphite"] {
+  background: var(--blk-coll-graphite);
+  color: var(--blk-coll-ivory);
+  --blk-coll-text: var(--blk-coll-ivory);
+  --blk-coll-muted: rgba(254, 252, 248, 0.7);
+  --blk-coll-border: rgba(200, 169, 126, 0.35);
+  --blk-coll-track-bg: rgba(254, 252, 248, 0.14);
+}
+
+.blk-collagen-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ─────────────── Header ─────────────── */
+.blk-collagen-eyebrow {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--blk-coll-champagne);
+  margin: 0 0 14px;
+}
+
+.blk-collagen-head {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(28px, 4.4vw, 44px);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: var(--blk-coll-text);
+  margin: 0 0 14px;
+}
+
+.blk-collagen-lead {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--blk-coll-muted);
+  margin: 0 auto 36px;
+  max-width: 580px;
+}
+
+/* ─────────────── SVG Stage + Microtag ─────────────── */
+.blk-collagen-stage {
+  position: relative;
+  margin: 0 auto;
+  max-width: 600px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 18px 40px -22px rgba(44, 44, 44, 0.20),
+    0 4px 14px -6px rgba(44, 44, 44, 0.08);
+  transition: box-shadow 320ms ease;
+}
+
+.blk-collagen-stage:hover {
+  box-shadow:
+    0 22px 50px -22px rgba(44, 44, 44, 0.30),
+    0 6px 18px -6px rgba(44, 44, 44, 0.12);
+}
+
+.blk-collagen-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* SVG element transitions · suave em todas as mudancas de t */
+.blk-collagen-svg [data-anim="hydra"],
+.blk-collagen-svg [data-anim="shine"],
+.blk-collagen-svg [data-drop],
+.blk-collagen-svg [data-fiber] {
+  transition:
+    opacity 280ms cubic-bezier(.4, 0, .2, 1),
+    stroke-width 280ms cubic-bezier(.4, 0, .2, 1);
+}
+
+/* Microtag · contextual sobre o SVG */
+.blk-collagen-microtag {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(44, 44, 44, 0.78);
+  color: var(--blk-coll-ivory);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px -6px rgba(44, 44, 44, 0.4);
+  opacity: 1;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blk-collagen-microtag.is-fading {
+  opacity: 0;
+}
+
+@media (max-width: 600px) {
+  .blk-collagen-microtag {
+    font-size: 11px;
+    padding: 7px 12px;
+    white-space: normal;
+    bottom: 10px;
+  }
+}
+
+/* ─────────────── Painel Clinico (3 metricas) ─────────────── */
+.blk-collagen-clinic {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 28px auto 0;
+  max-width: 600px;
+  padding: 18px 20px;
+  border: 1px solid var(--blk-coll-border);
+  border-radius: 12px;
+  background: rgba(254, 252, 248, 0.4);
+}
+
+.blk-collagen[data-bg="graphite"] .blk-collagen-clinic {
+  background: rgba(254, 252, 248, 0.04);
+}
+
+.blk-collagen-metric {
+  text-align: left;
+  min-width: 0;
+}
+
+.blk-collagen-metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.blk-collagen-metric-lbl {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--blk-coll-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blk-collagen-metric-val {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--blk-coll-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.blk-collagen-metric-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(110, 99, 87, 0.16);
+  overflow: hidden;
+  position: relative;
+}
+
+.blk-collagen[data-bg="graphite"] .blk-collagen-metric-bar {
+  background: rgba(254, 252, 248, 0.12);
+}
+
+.blk-collagen-metric-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--blk-coll-champagne);
+  transition: width 320ms cubic-bezier(.4, 0, .2, 1),
+              background-color 320ms ease;
+}
+
+@media (max-width: 600px) {
+  .blk-collagen-clinic {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .blk-collagen-metric-val { font-size: 20px; }
+}
+
+/* ─────────────── Timeline (scrubber) ─────────────── */
+.blk-collagen-timeline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 28px auto 0;
+  max-width: 600px;
+}
+
+.blk-collagen-playbtn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--blk-coll-border);
+  background: transparent;
+  color: var(--blk-coll-champagne);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 220ms ease, transform 180ms ease, border-color 220ms ease;
+}
+
+.blk-collagen-playbtn:hover {
+  background: var(--blk-coll-champagne-soft);
+  border-color: var(--blk-coll-champagne);
+  transform: scale(1.05);
+}
+
+.blk-collagen-playbtn:focus-visible {
+  outline: 2px solid var(--blk-coll-champagne);
+  outline-offset: 3px;
+}
+
+.blk-collagen-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Track */
+.blk-collagen-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 44px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.blk-collagen-track:focus-visible {
+  outline: none;
+}
+.blk-collagen-track:focus-visible .blk-collagen-handle {
+  box-shadow:
+    0 0 0 4px var(--blk-coll-champagne-soft),
+    0 4px 10px -2px rgba(44, 44, 44, 0.25);
+}
+
+.blk-collagen-track::before {
+  /* base track */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--blk-coll-track-bg);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.blk-collagen-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--blk-coll-champagne), var(--blk-coll-champagne-dk));
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: width 80ms linear;
+}
+
+.blk-collagen-handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blk-coll-ivory);
+  border: 2px solid var(--blk-coll-champagne);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 10px -2px rgba(44, 44, 44, 0.18);
+  pointer-events: none;
+  transition: left 80ms linear, transform 180ms ease, box-shadow 220ms ease;
+  z-index: 3;
+}
+
+.blk-collagen-track:hover .blk-collagen-handle,
+.blk-collagen-track:active .blk-collagen-handle {
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow:
+    0 0 0 6px var(--blk-coll-champagne-soft),
+    0 6px 14px -3px rgba(44, 44, 44, 0.25);
+}
+
+/* Marks (5 paradas) */
+.blk-collagen-marks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.blk-collagen-mark {
+  position: relative;
+  pointer-events: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--blk-coll-muted);
+  transition: color 220ms ease, transform 180ms ease;
+}
+
+.blk-collagen-mark:focus-visible {
+  outline: 2px solid var(--blk-coll-champagne);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.blk-collagen-mark-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blk-coll-track-bg);
+  border: 1.5px solid transparent;
+  transition: background 220ms ease, transform 220ms ease, border-color 220ms ease;
+}
+
+.blk-collagen-mark.is-passed .blk-collagen-mark-dot {
+  background: var(--blk-coll-champagne);
+}
+
+.blk-collagen-mark.is-active {
+  color: var(--blk-coll-champagne);
+}
+
+.blk-collagen-mark.is-active .blk-collagen-mark-dot {
+  background: var(--blk-coll-champagne);
+  border-color: var(--blk-coll-ivory);
+  transform: scale(1.5);
+  box-shadow: 0 0 0 4px var(--blk-coll-champagne-soft);
+}
+
+.blk-collagen[data-bg="graphite"] .blk-collagen-mark.is-active .blk-collagen-mark-dot {
+  border-color: var(--blk-coll-graphite);
+}
+
+.blk-collagen-mark-lbl {
+  display: block;
+  margin-top: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .blk-collagen-timeline { gap: 10px; }
+  .blk-collagen-playbtn { width: 36px; height: 36px; }
+  .blk-collagen-mark-lbl { font-size: 8px; }
+  .blk-collagen-mark-dot { width: 7px; height: 7px; }
+}
+
+/* ─────────────── CTA ─────────────── */
+.blk-collagen-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 36px;
+  padding: 13px 32px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--blk-coll-graphite);
+  background: var(--blk-coll-champagne);
+  border-radius: 999px;
+  transition: background 220ms ease, transform 220ms ease, box-shadow 220ms ease;
+  box-shadow: 0 8px 22px -10px rgba(200, 169, 126, 0.55);
+}
+
+.blk-collagen-cta:hover {
+  background: var(--blk-coll-champagne-dk);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -10px rgba(200, 169, 126, 0.6);
+}
+
+.blk-collagen-cta:focus-visible {
+  outline: 2px solid var(--blk-coll-champagne);
+  outline-offset: 3px;
+}
+
+.blk-collagen[data-bg="graphite"] .blk-collagen-cta {
+  color: var(--blk-coll-graphite);
+}
+
+/* ─────────────── Reduced motion ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .blk-collagen-svg [data-anim="hydra"],
+  .blk-collagen-svg [data-anim="shine"],
+  .blk-collagen-svg [data-drop],
+  .blk-collagen-svg [data-fiber],
+  .blk-collagen-microtag,
+  .blk-collagen-fill,
+  .blk-collagen-handle,
+  .blk-collagen-metric-bar-fill,
+  .blk-collagen-mark-dot {
+    transition: none !important;
+  }
+}
+
+/* ─────────────── Mobile ─────────────── */
+@media (max-width: 600px) {
+  .blk-collagen { padding: 40px 16px; }
+  .blk-collagen-lead { margin-bottom: 24px; }
+  .blk-collagen-cta { padding: 12px 26px; font-size: 11px; }
+}

@@ -1,0 +1,99 @@
+/* ============================================================
+   ClinicAI — Planejamento Anual
+   ============================================================ */
+
+/* Header row */
+.plan-header-row { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:4px; }
+.plan-header-info { display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+.plan-header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+/* Ano selector */
+.plan-ano-selector { display:flex; align-items:center; gap:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.plan-ano-btn { width:34px; height:34px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:var(--text-muted); cursor:pointer; transition:all .15s; }
+.plan-ano-btn:hover { background:var(--surface-hover); color:var(--text-primary); }
+.plan-ano-label { font-size:16px; font-weight:800; color:var(--text-primary); padding:0 12px; }
+
+/* Totais strip */
+.plan-totais { display:flex; align-items:center; gap:0; }
+.plan-total-item { display:flex; flex-direction:column; gap:2px; padding:0 16px; }
+.plan-total-val { font-size:16px; font-weight:800; color:var(--text-primary); }
+.plan-total-lbl { font-size:11px; color:var(--text-muted); }
+.plan-total-sep { width:1px; height:36px; background:var(--border); }
+
+/* Distribuição bar */
+.plan-dist-bar { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:4px; }
+.plan-dist-inner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.plan-dist-lbl { font-size:13px; font-weight:600; color:var(--text-secondary); white-space:nowrap; }
+
+/* Meses grid — 4 colunas */
+.plan-meses-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+
+/* Mes card */
+.plan-mes-card { background:var(--surface-hover); border:1px solid var(--border); border-radius:14px; padding:14px; transition:border-color .15s; }
+.plan-mes-card:hover { border-color:rgba(255,255,255,.15); }
+.plan-mes-current { border-color:var(--accent-gold) !important; box-shadow:0 0 0 1px rgba(201,169,110,.2); }
+
+.plan-mes-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.plan-mes-nome { font-size:13px; font-weight:700; color:var(--text-primary); }
+.plan-mes-badge { font-size:10px; font-weight:700; background:rgba(201,169,110,.15); color:#C9A96E; padding:2px 7px; border-radius:20px; }
+.plan-mes-status { font-size:14px; font-weight:700; }
+.plan-s-hit  { color:#10B981; }
+.plan-s-miss { color:#EF4444; }
+
+.plan-mes-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.plan-mes-field { display:flex; flex-direction:column; gap:3px; }
+.plan-mes-field label { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.plan-mes-input { background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:7px 10px; font-size:12px; font-weight:600; color:var(--text-primary); width:100%; transition:border-color .15s; }
+.plan-mes-input:focus { outline:none; border-color:var(--accent-gold); }
+.plan-meta-input:focus { border-color:#C9A96E; }
+.plan-real-input:focus { border-color:#10B981; }
+
+.plan-mes-progress { height:5px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; margin-bottom:5px; }
+.plan-mes-bar { height:100%; border-radius:3px; transition:width .5s ease; }
+.plan-mes-pct { font-size:11px; font-weight:700; display:block; }
+.plan-mes-pct-empty { color:var(--text-muted); }
+
+/* Especialistas Matrix */
+.plan-esp-wrap { overflow-x:auto; }
+.plan-matrix-table { width:100%; border-collapse:collapse; font-size:12px; }
+.plan-matrix-table th { padding:8px 6px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted); border-bottom:1px solid var(--border); white-space:nowrap; background:var(--surface-hover); }
+.plan-matrix-esp-col { text-align:left !important; min-width:140px; padding-left:12px !important; }
+.plan-matrix-mes-col { min-width:80px; }
+.plan-matrix-tot-col { min-width:90px; }
+.plan-matrix-act-col { min-width:70px; }
+
+.plan-matrix-row td { border-bottom:1px solid rgba(255,255,255,.04); padding:6px; }
+.plan-matrix-row:last-child td { border-bottom:none; }
+.plan-matrix-row:hover td { background:rgba(255,255,255,.02); }
+
+.plan-matrix-esp-cell { padding:8px 6px 8px 12px !important; }
+.plan-esp-info { display:flex; flex-direction:column; gap:1px; }
+.plan-esp-nome { font-size:13px; font-weight:600; color:var(--text-primary); }
+.plan-esp-cargo { font-size:11px; color:var(--text-muted); }
+
+.plan-matrix-input-cell { padding:4px !important; }
+.plan-matrix-input { width:100%; background:var(--surface-hover); border:1px solid transparent; border-radius:6px; padding:5px 6px; font-size:12px; font-weight:600; color:var(--text-primary); text-align:center; transition:border-color .15s; }
+.plan-matrix-input:focus { outline:none; border-color:var(--accent-gold); background:var(--surface); }
+.plan-matrix-input::placeholder { color:var(--text-muted); font-weight:400; }
+
+.plan-matrix-tot-cell { font-size:12px; font-weight:700; color:var(--text-primary); text-align:center; white-space:nowrap; }
+.plan-matrix-act-cell { text-align:center; }
+
+/* Tfoot */
+.plan-matrix-totals td { padding:8px 6px; border-top:2px solid var(--border); font-weight:700; background:rgba(255,255,255,.02); }
+.plan-matrix-tot-lbl { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; padding-left:12px !important; }
+.plan-matrix-tot-mes { font-size:12px; font-weight:700; color:var(--text-primary); text-align:center; }
+.plan-tot-over  { color:#EF4444 !important; }
+.plan-tot-under { color:#F59E0B !important; }
+
+.plan-matrix-gap td { padding:5px 6px; font-size:11px; }
+.plan-matrix-gap-cell { text-align:center; }
+
+/* Campanhas necessárias */
+.plan-camp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+.plan-camp-card { background:var(--surface-hover); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:6px; }
+.plan-camp-mes  { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; }
+.plan-camp-meta { font-size:14px; font-weight:800; color:var(--text-primary); }
+.plan-camp-row  { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); }
+.plan-camp-gap  { font-size:11px; font-weight:600; color:#F59E0B; margin-top:2px; }
+.plan-camp-ok   { font-size:12px; font-weight:700; color:#10B981; }

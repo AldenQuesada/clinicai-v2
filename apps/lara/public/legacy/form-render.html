@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- Evita envio do token (fragment) no header Referer para fontes externas (Google Fonts, etc.) -->
+  <meta name="referrer" content="no-referrer">
+  <!-- Content-Security-Policy: bloqueia inline eval e conexões não autorizadas -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' https://oqboitkpcvuaudouwvkl.supabase.co;
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src https://fonts.gstatic.com;
+                 connect-src https://oqboitkpcvuaudouwvkl.supabase.co https://viacep.com.br;
+                 img-src 'self' data: https:;
+                 frame-ancestors 'none';">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Anamnese</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: #F7F8FC;
+      color: #111827;
+      font-size: 16px;
+    }
+
+    /* ── Layout ──────────────────────────────────── */
+    html, body { height: 100%; }
+
+    #app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* form-view ocupa 100% e usa flex para manter rodapé fixo */
+    #form-view {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #test-banner {
+      background: #FEF08A;
+      color: #713F12;
+      text-align: center;
+      padding: 7px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      border-bottom: 1px solid #FDE047;
+    }
+
+    #header {
+      background: #fff;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #clinic-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #EDE9FE;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    #clinic-logo svg { color: #7C3AED; width: 18px; height: 18px; }
+
+    #template-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.3;
+    }
+
+    #progress-bar-wrap {
+      background: #fff;
+      border-bottom: 1px solid #F3F4F6;
+      padding: 8px 16px 10px;
+    }
+
+    #progress-label {
+      font-size: 11px;
+      color: #6B7280;
+      margin-bottom: 6px;
+    }
+
+    #progress-track {
+      height: 5px;
+      background: #E5E7EB;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: #7C3AED;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    #main-content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 12px 12px 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    #form-container {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .session-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      padding: 16px;
+    }
+
+    .session-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .session-description {
+      font-size: 13px;
+      color: #6B7280;
+      line-height: 1.5;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .fields-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Field wrappers ───────────────────────────── */
+    .field-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .field-label .req {
+      color: #EF4444;
+      margin-left: 2px;
+    }
+
+    .field-desc {
+      font-size: 11px;
+      color: #9CA3AF;
+      margin-top: -3px;
+    }
+
+    /* ── Inputs ───────────────────────────────────── */
+    .f-input, .f-textarea, .f-select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      color: #111827;
+      background: #fff;
+      outline: none;
+      transition: border-color .15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .f-input:focus, .f-textarea:focus, .f-select:focus {
+      border-color: #7C3AED;
+    }
+
+    .f-input.error, .f-textarea.error, .f-select.error {
+      border-color: #EF4444;
+    }
+
+    .f-textarea {
+      resize: vertical;
+      min-height: 76px;
+    }
+
+    .f-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    /* ── Boolean pills ───────────────────────────── */
+    .bool-wrap {
+      display: flex;
+      gap: 8px;
+    }
+
+    .bool-btn {
+      flex: 1;
+      min-height: 42px;
+      padding: 8px 12px;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 9px;
+      background: #fff;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+      color: #374151;
+    }
+
+    .bool-btn:hover:not(.active) {
+      border-color: #A78BFA;
+      color: #7C3AED;
+    }
+
+    .bool-btn.active {
+      background: #7C3AED;
+      border-color: #7C3AED;
+      color: #fff;
+    }
+
+    /* ── Single select pills ─────────────────────── */
+    /* ── Radio Select ── */
+    .radio-opts {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .radio-opt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 9px;
+      background: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all .15s;
+      color: #374151;
+      font-family: 'Inter', sans-serif;
+      min-height: 42px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .radio-opt:hover:not(.active) { border-color: #A78BFA; }
+
+    .radio-opt.active {
+      border-color: #7C3AED;
+      background: #F5F3FF;
+      color: #5B21B6;
+      font-weight: 600;
+    }
+
+    .radio-circle {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #D1D5DB;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color .15s;
+    }
+
+    .radio-opt.active .radio-circle {
+      border-color: #7C3AED;
+    }
+
+    .radio-dot {
+      width: 10px;
+      height: 10px;
+      background: #7C3AED;
+      border-radius: 50%;
+    }
+
+    .single-opts, .multi-opts {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .single-opt, .multi-opt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 9px;
+      background: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all .15s;
+      color: #374151;
+      font-family: 'Inter', sans-serif;
+      min-height: 42px;
+      text-align: left;
+    }
+
+    .single-opt:hover:not(.active), .multi-opt:hover:not(.active) {
+      border-color: #A78BFA;
+    }
+
+    .single-opt.active {
+      border-color: #7C3AED;
+      background: #F5F3FF;
+      color: #5B21B6;
+      font-weight: 600;
+    }
+
+    .multi-opt.active {
+      border-color: #7C3AED;
+      background: #F5F3FF;
+      color: #5B21B6;
+    }
+
+    .opt-radio {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #D1D5DB;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+
+    .single-opt.active .opt-radio {
+      border-color: #7C3AED;
+      background: #7C3AED;
+    }
+
+    .single-opt.active .opt-radio::after {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: #fff;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .opt-check {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #D1D5DB;
+      border-radius: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+
+    .multi-opt.active .opt-check {
+      border-color: #7C3AED;
+      background: #7C3AED;
+    }
+
+    .multi-opt.active .opt-check::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E") center/contain no-repeat;
+      display: block;
+    }
+
+    /* ── Scale slider ─────────────────────────────── */
+    .anm-scale-wrap { display: flex; flex-direction: column; gap: 0; }
+    .anm-scale-value-row { display: flex; align-items: baseline; justify-content: center; gap: 3px; margin-bottom: 10px; }
+    .anm-scale-num { font-size: 26px; font-weight: 700; line-height: 1; transition: color .2s ease, transform .12s cubic-bezier(.34,1.56,.64,1); display: inline-block; }
+    .anm-scale-denom { font-size: 12px; color: #9CA3AF; font-weight: 500; }
+    .anm-scale-track-wrap { position: relative; height: 44px; display: flex; align-items: center; }
+    .anm-scale-track { position: absolute; left: 13px; right: 13px; height: 8px; background: #E9D5FF; border-radius: 4px; }
+    .anm-scale-fill { height: 100%; border-radius: 4px; transition: width .06s ease, background .2s ease; pointer-events: none; }
+    .anm-scale-thumb { position: absolute; width: 26px; height: 26px; background: #fff; border: 3px solid currentColor; border-radius: 50%; transform: translateX(-50%); pointer-events: none; box-shadow: 0 2px 10px rgba(0,0,0,.15); transition: left .06s ease, border-color .2s ease; top: 50%; margin-top: -13px; }
+    .anm-scale-input { position: absolute; width: 100%; height: 44px; opacity: 0; cursor: pointer; margin: 0; z-index: 3; -webkit-appearance: none; appearance: none; }
+    .anm-scale-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+    .anm-scale-label-min, .anm-scale-label-max { font-size: 11px; color: #9CA3AF; }
+    .anm-scale-ticks { display: flex; justify-content: space-between; padding: 0 13px; margin-top: 3px; }
+    .anm-scale-tick { width: 1px; height: 4px; background: #D8B4FE; border-radius: 1px; }
+
+    /* ── Section title ────────────────────────────── */
+    .field-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      padding-top: 2px;
+      padding-bottom: 2px;
+      border-top: 1px solid #F3F4F6;
+    }
+    .field-section-title.st-center { text-align: center; }
+    .field-section-title.st-right  { text-align: right; }
+    .field-section-title.st-bg {
+      background: #F1F5F9;
+      border-top: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    /* ── Separator ────────────────────────────────── */
+    .field-separator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+
+    .field-separator-line {
+      flex: 1;
+      height: 1px;
+    }
+
+    .field-separator-dot {
+      width: 4px;
+      height: 4px;
+      background: #D1D5DB;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Description block ────────────────────────── */
+    /* Imagem em cima full-width, texto abaixo (coluna).
+       Bleed horizontal cancela o padding do session-card (16px) */
+    .field-desc-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 4px 0;
+      margin-left: -16px;
+      margin-right: -16px;
+    }
+
+    .field-desc-block .block-image-wrap {
+      width: 100%;
+      min-height: 240px;
+      max-height: 640px;
+      overflow: hidden;
+      background: #F3F4F6;
+    }
+
+    .field-desc-block .block-image-wrap img {
+      width: 100%;
+      height: auto;
+      max-height: 640px;
+      min-height: 240px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .field-desc-block .block-image-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 240px;
+      color: #9CA3AF;
+      background: #F9FAFB;
+      font-size: 12px;
+    }
+
+    .field-desc-block .block-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 0 16px;
+    }
+
+    .field-desc-block .block-text-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.3;
+    }
+
+    .field-desc-block .block-text-body {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.55;
+    }
+
+    /* ── File upload ──────────────────────────────── */
+    .f-file {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px dashed #D1D5DB;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      color: #6B7280;
+      background: #FAFAFA;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+
+    .f-file:hover { border-color: #A78BFA; }
+
+    /* ── Navigation (rodapé fixo) ────────────────── */
+    #nav-wrap {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      background: #fff;
+      border-top: 1px solid #E5E7EB;
+      flex-shrink: 0;
+    }
+
+    .nav-btn {
+      flex: 1;
+      min-height: 46px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      border: none;
+    }
+
+    .nav-btn-secondary {
+      background: #F3F4F6;
+      color: #374151;
+    }
+
+    .nav-btn-secondary:hover { background: #E5E7EB; }
+
+    .nav-btn-primary {
+      background: #7C3AED;
+      color: #fff;
+    }
+
+    .nav-btn-primary:hover { background: #6D28D9; }
+
+    .nav-btn-primary:active { background: #5B21B6; transform: scale(0.98); }
+
+    .nav-btn-secondary:active { transform: scale(0.98); }
+
+    /* Botão bloqueado — campos obrigatórios pendentes */
+    .nav-btn-primary.btn-locked {
+      background: #DDD6FE;
+      color: #8B5CF6;
+      cursor: pointer;
+    }
+
+    .nav-btn-primary.btn-locked:hover { background: #C4B5FD; }
+
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── Footer ───────────────────────────────────── */
+    #footer {
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 11px;
+      color: #C4B5FD;
+      background: #fff;
+    }
+
+    /* ── Loading / Error / Success ───────────────── */
+    #state-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .state-box {
+      text-align: center;
+      max-width: 320px;
+    }
+
+    .state-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .state-icon.loading { background: #EDE9FE; color: #7C3AED; }
+    .state-icon.error   { background: #FEE2E2; color: #EF4444; }
+    .state-icon.success { background: #D1FAE5; color: #059669; }
+
+    .state-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .state-body {
+      font-size: 14px;
+      color: #6B7280;
+      line-height: 1.55;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner   { animation: spin 0.8s linear infinite; }
+    .spin-slow { animation: spin 1.4s linear infinite; }
+
+    /* ── Error message inline ─────────────────────── */
+    .field-error {
+      font-size: 12px;
+      color: #EF4444;
+      margin-top: -2px;
+    }
+
+    /* ── LGPD Screen ──────────────────────────────── */
+    #lgpd-screen {
+      display: none;
+      flex: 1;
+      height: 100%;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 40px;
+      background: #F7F8FC;
+    }
+
+    .lgpd-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.09);
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .lgpd-icon {
+      width: 60px;
+      height: 60px;
+      background: #EDE9FE;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+      color: #7C3AED;
+    }
+
+    .lgpd-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .lgpd-subtitle {
+      font-size: 14px;
+      color: #6B7280;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .lgpd-box {
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.65;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .lgpd-check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: border-color .15s;
+      text-align: left;
+    }
+
+    .lgpd-check-row:hover { border-color: #A78BFA; }
+    .lgpd-check-row.checked { border-color: #7C3AED; background: #F5F3FF; }
+
+    .lgpd-check-box {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #D1D5DB;
+      border-radius: 5px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+      transition: all .15s;
+    }
+
+    .lgpd-check-row.checked .lgpd-check-box {
+      background: #7C3AED;
+      border-color: #7C3AED;
+    }
+
+    .lgpd-check-label {
+      font-size: 14px;
+      color: #374151;
+      line-height: 1.5;
+    }
+
+    #btn-lgpd-confirm {
+      width: 100%;
+      padding: 14px;
+      background: #7C3AED;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all .15s;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    #btn-lgpd-confirm.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #btn-lgpd-confirm.active:hover { background: #6D28D9; }
+
+    /* ── Responsive ───────────────────────────────── */
+    @media (max-width: 360px) {
+      .session-card { padding: 12px; }
+      .session-title { font-size: 15px; }
+      .nav-btn { font-size: 14px; min-height: 42px; }
+      .lgpd-card { padding: 20px 14px; }
+      #main-content { padding: 10px 10px 12px; }
+      .fields-list { gap: 12px; }
+      .field-label { font-size: 13px; }
+      .f-input, .f-textarea, .f-select { font-size: 13px; padding: 8px 10px; }
+    }
+
+    /* ── Grade de Imagens ─────────────────────────────────── */
+    /* Imagens bleed-to-edge: margem negativa cancela o padding
+       do session-card (16px) pra ocupar canto-a-canto do card visual */
+    .img-grid-wrap {
+      display: flex; flex-direction: column; gap: 8px;
+      margin-left: -16px; margin-right: -16px;
+    }
+    .img-grid-gen-title {
+      font-size: 15px; font-weight: 700; color: #111827;
+      margin-bottom: 2px; padding: 0 16px;
+    }
+    .img-grid-gen-desc  {
+      font-size: 13px; color: #6B7280; margin-bottom: 10px;
+      line-height: 1.5; padding: 0 16px;
+    }
+    .img-grid-row  { display: flex; gap: 4px; }
+
+    .img-grid-card {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; align-items: center;
+      border-radius: 12px; border: 2px solid transparent;
+      padding: 0; background: #FAFAFA;
+      overflow: hidden;
+      transition: border-color .15s, background .15s;
+    }
+    .img-grid-card[onclick] { cursor: pointer; }
+    .img-grid-card[onclick]:hover { border-color: #C4B5FD; background: #F5F3FF; }
+    .img-grid-card.ig-selected { border-color: #7C3AED !important; background: #F5F3FF !important; }
+    .img-grid-card--spacer { background: transparent; border-color: transparent; pointer-events: none; }
+
+    .img-grid-img-wrap {
+      width: 100%;
+      overflow: hidden;
+      background: #F3F4F6;
+    }
+    .img-grid-img {
+      width: 100%; height: auto; max-height: 640px;
+      min-height: 240px;
+      object-fit: cover;
+      display: block;
+    }
+    .img-grid-placeholder {
+      width: 100%; height: 240px;
+      display: flex; align-items: center; justify-content: center; color: #9CA3AF;
+      font-size: 12px;
+    }
+    .img-grid-title {
+      font-size: 14px; font-weight: 600; color: #111827;
+      padding: 10px 12px 4px; text-align: center;
+    }
+    .img-grid-radio {
+      display: flex; align-items: center; gap: 6px;
+      margin: 0 12px 10px; padding: 5px 10px;
+      border-radius: 20px; background: #F3F4F6;
+    }
+    .ig-radio-circle {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid #D1D5DB; background: #fff;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: border-color .15s;
+    }
+    .ig-radio-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #7C3AED;
+    }
+    .ig-radio-label { font-size: 11px; color: #6B7280; white-space: nowrap; }
+    .ig-selected .ig-radio-label { color: #7C3AED; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- State screens (loading / error / success) -->
+  <div id="state-screen">
+    <div class="state-box">
+      <div class="state-icon loading">
+        <svg class="spinner" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      </div>
+      <div class="state-title">Carregando formulário...</div>
+      <div class="state-body">Aguarde enquanto preparamos sua anamnese.</div>
+    </div>
+  </div>
+
+  <!-- LGPD Screen -->
+  <div id="lgpd-screen">
+    <div class="lgpd-card">
+      <div class="lgpd-icon">
+        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div class="lgpd-title" id="lgpd-title">Obrigado!</div>
+      <div class="lgpd-subtitle" id="lgpd-subtitle">Antes de enviar, precisamos da sua confirmação sobre o uso dos seus dados.</div>
+      <div class="lgpd-box">
+        <strong>Proteção de Dados (LGPD)</strong><br><br>
+        Seus dados pessoais e de saúde são tratados com total sigilo e segurança. As informações fornecidas neste formulário são utilizadas <strong>exclusivamente para fins de consulta médica</strong> e acompanhamento do seu tratamento. Não compartilhamos seus dados com terceiros sem o seu consentimento expresso.<br><br>
+        Você pode solicitar acesso, correção ou exclusão dos seus dados a qualquer momento, conforme previsto na Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
+      </div>
+      <div class="lgpd-check-row" id="lgpd-check-row">
+        <div class="lgpd-check-box" id="lgpd-check-box">
+          <svg id="lgpd-check-icon" width="12" height="12" fill="none" stroke="#fff" stroke-width="3" viewBox="0 0 24 24" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="lgpd-check-label">Estou ciente e concordo com a coleta e uso das minhas informações para fins de consulta, conforme a LGPD.</div>
+      </div>
+      <button id="btn-lgpd-confirm">Enviar Formulário</button>
+    </div>
+  </div>
+
+  <!-- Form (hidden until loaded) -->
+  <div id="form-view" style="display:none">
+    <div id="test-banner" style="display:none">
+      MODO TESTE — Respostas não serão salvas
+    </div>
+
+    <div id="header">
+      <div id="clinic-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
+      <div id="template-name">Anamnese</div>
+      <!-- Indicador de status de save (auto-save progressivo) -->
+      <div id="save-status" style="margin-left:auto;font-size:11px;display:flex;align-items:center;gap:5px;opacity:0;transition:opacity .3s"></div>
+    </div>
+
+    <div id="progress-bar-wrap">
+      <div id="progress-label">Sessão 1 de 1</div>
+      <div id="progress-track">
+        <div id="progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div id="main-content">
+      <div id="form-container">
+        <div class="session-card">
+          <div id="session-title" class="session-title"></div>
+          <div id="session-description" class="session-description" style="display:none"></div>
+          <div id="fields-list" class="fields-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="nav-wrap">
+      <button id="btn-prev" class="nav-btn nav-btn-secondary" style="display:none">Anterior</button>
+      <button id="btn-next" class="nav-btn nav-btn-primary">Próximo</button>
+    </div>
+
+    <div id="footer">Formulário seguro — ClinicAI</div>
+  </div>
+</div>
+
+<script src="js/config/env.js"></script>
+<script src="js/form-render.js?v=20260411w"></script>
+</body>
+</html>

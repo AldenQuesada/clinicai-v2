@@ -15,6 +15,7 @@ import {
   Sparkles,
   Image as ImageIcon,
   Settings,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -26,6 +27,8 @@ export interface Section {
   icon: LucideIcon
   /** Acao de permissao requerida pra ver o item · null = sempre visivel pra logados */
   requires: Action | null
+  /** External · path eh URL absoluta ou static .html · usa <a target> em vez de <Link> */
+  external?: boolean
 }
 
 export const SECTIONS: readonly Section[] = [
@@ -77,6 +80,20 @@ export const SECTIONS: readonly Section[] = [
     path: '/midia',
     icon: ImageIcon,
     requires: 'lara:manage-midia',
+  },
+  {
+    // Sub-app legado · clinic-dashboard/anamnese servido como static
+    // sob /legacy/ · liberado em PUBLIC_PATHS (legacy faz seu auth via
+    // anon key + RLS · paciente preenche via token, admin via session
+    // do mesmo Supabase). Decisao 2026-04-30: nao migrar pra v2 · UX
+    // perfeita, FKs ja apontam pra public.X · drop legacy schema em
+    // 2026-05-28 nao quebra (anamnese vive em public).
+    key: 'anamnese',
+    label: 'Anamnese',
+    path: '/legacy/anamnese.html',
+    icon: ClipboardList,
+    requires: 'patients:view',
+    external: true,
   },
   {
     key: 'configuracoes',

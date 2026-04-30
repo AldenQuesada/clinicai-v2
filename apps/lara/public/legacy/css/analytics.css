@@ -1,0 +1,240 @@
+/* ============================================================
+   Analytics Dashboard — Metricas WhatsApp & Lara
+   Design Power BI: cards KPI, graficos, funil, tabelas
+   ============================================================ */
+
+.anl-page { max-width: 1200px; }
+
+.anl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.anl-title { font-size: 20px; font-weight: 800; color: var(--text-primary); margin: 0; }
+.anl-subtitle { font-size: 13px; color: var(--text-secondary); margin: 4px 0 0; }
+
+.anl-period {
+  display: flex;
+  gap: 4px;
+}
+
+.anl-period-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.anl-period-btn:hover { background: var(--bg-hover, #f9fafb); }
+.anl-period-btn.anl-period-active { background: var(--accent-gold); color: #fff; border-color: var(--accent-gold); }
+
+/* KPI Cards */
+.anl-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.anl-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.anl-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.anl-kpi-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.anl-kpi-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Sections */
+.anl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.anl-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.anl-section-full { grid-column: 1 / -1; }
+
+.anl-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Funnel visualization */
+.anl-funnel { display: flex; flex-direction: column; gap: 4px; }
+
+.anl-funnel-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  position: relative;
+}
+
+.anl-funnel-bar {
+  height: 28px;
+  border-radius: 4px;
+  min-width: 4px;
+  transition: width 0.5s ease;
+}
+
+.anl-funnel-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.anl-funnel-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.anl-funnel-pct {
+  font-size: 11px;
+  color: var(--text-muted, #9ca3af);
+  white-space: nowrap;
+}
+
+/* Daily chart (bar chart with CSS) */
+.anl-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+
+.anl-chart-bar {
+  flex: 1;
+  background: var(--accent-gold);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  position: relative;
+  transition: height 0.3s;
+  cursor: default;
+}
+
+.anl-chart-bar:hover { opacity: 0.8; }
+
+.anl-chart-bar::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-muted, #9ca3af);
+  white-space: nowrap;
+}
+
+.anl-chart-bar::before {
+  content: attr(data-value);
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: none;
+}
+
+.anl-chart-bar:hover::before { display: block; }
+
+/* Tags cloud */
+.anl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.anl-tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-hover, #f3f4f6);
+  color: var(--text-secondary);
+}
+
+.anl-tag-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Cadence table */
+.anl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.anl-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.anl-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.anl-table tr:last-child td { border-bottom: none; }
+
+/* Loading */
+.anl-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .anl-kpis { grid-template-columns: repeat(2, 1fr); }
+  .anl-grid { grid-template-columns: 1fr; }
+}

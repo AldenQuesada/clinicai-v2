@@ -86,30 +86,53 @@ export function AppSidebar({ role }: { role: StaffRole | null }) {
 
 function SidebarItem({ section, active }: { section: Section; active: boolean }) {
   const Icon = section.icon
+  // External (.html static · sub-apps legacy) abre em tab nova ·
+  // Next <Link> client-route nao funciona pra static · usa <a> nativo.
+  const commonClass =
+    'relative flex items-center justify-center h-11 group transition-colors'
+  const commonStyle = {
+    color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
+    background: active ? 'rgba(201,169,110,0.06)' : 'transparent',
+  }
+  const indicator = active ? (
+    <span
+      aria-hidden
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 6,
+        bottom: 6,
+        width: 2,
+        background: 'var(--b2b-champagne)',
+        borderRadius: 1,
+      }}
+    />
+  ) : null
+
+  if (section.external) {
+    return (
+      <a
+        href={section.path}
+        title={section.label}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={commonClass}
+        style={commonStyle}
+      >
+        {indicator}
+        <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} />
+      </a>
+    )
+  }
+
   return (
     <Link
       href={section.path}
       title={section.label}
-      className="relative flex items-center justify-center h-11 group transition-colors"
-      style={{
-        color: active ? 'var(--b2b-champagne)' : 'var(--b2b-text-muted)',
-        background: active ? 'rgba(201,169,110,0.06)' : 'transparent',
-      }}
+      className={commonClass}
+      style={commonStyle}
     >
-      {active && (
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 6,
-            bottom: 6,
-            width: 2,
-            background: 'var(--b2b-champagne)',
-            borderRadius: 1,
-          }}
-        />
-      )}
+      {indicator}
       <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} />
     </Link>
   )

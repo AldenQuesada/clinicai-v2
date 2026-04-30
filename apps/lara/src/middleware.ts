@@ -23,6 +23,7 @@ const PUBLIC_PATHS = [
   '/login',
   '/join', // landing pra aceitar convite · valida token via RPC
   '/orcamento', // pagina publica do orcamento · share_token serve de auth
+  '/legacy', // sub-app legado anamnese · token publico + RLS · ver public/legacy/
   '/api/auth',
   '/api/webhook',
   '/api/cron',

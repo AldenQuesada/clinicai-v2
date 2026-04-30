@@ -1,0 +1,367 @@
+/* =============================================================================
+ * lp-blocks-action-cards.css — Cards de Acao com Foto + CTA
+ * =============================================================================
+ * 4 variantes visuais premium (dark, light, tan, white)
+ * 3 estilos de foto (bleed, inside, float)
+ * Grid responsivo 1/2/3 colunas
+ * Mobile mantem horizontal comprimido (como na imagem de referencia)
+ * ============================================================================= */
+
+/* ─── Container da secao · grid ─────────────────────────────────────────── */
+.blk-action-cards {
+  display: grid;
+  margin-top: 32px;
+  grid-template-columns: 1fr;      /* fallback mobile */
+  /* heights fixos no .action-card substituem a necessidade de grid-auto-rows */
+}
+
+.blk-action-cards.gap-sm { gap: 12px; }
+.blk-action-cards.gap-md { gap: 20px; }
+.blk-action-cards.gap-lg { gap: 32px; }
+
+@media (min-width: 768px) {
+  .blk-action-cards.cols-1 { grid-template-columns: 1fr; }
+  .blk-action-cards.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .blk-action-cards.cols-3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ─── Card base ────────────────────────────────────────────────────────── */
+.action-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;  /* 50/50 default — ajustavel via variant */
+  align-items: stretch;
+  /* Altura auto · foto dita aspect-ratio 4/5 (consistente com positioner),
+   * text stretcha pra matching. Garantia minima de 320px pra text-heavy
+   * cards nao ficarem pequenos quando photo_side='float' etc. */
+  min-height: 320px;
+  border-radius: 20px;
+  overflow: hidden;
+  isolation: isolate;
+  font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+  /* card-link pattern · area inteira do card e clicavel via ::after do btn
+   * (estica pelo card que e position: relative). Cursor + microelevacao no
+   * hover dao affordance visual de "clickable" em todo o card. */
+  cursor: pointer;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.12);
+}
+
+/* side variants (trocar ordem text/photo) */
+.action-card--side-right .action-card__text  { order: 0; }
+.action-card--side-right .action-card__photo { order: 1; }
+.action-card--side-left  .action-card__text  { order: 1; text-align: right; }
+.action-card--side-left  .action-card__photo { order: 0; }
+
+/* ─── Bloco de texto ───────────────────────────────────────────────────── */
+.action-card__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* centra verticalmente · deixa ar em cima e embaixo */
+  padding: 32px;              /* respiro generoso nas 4 bordas */
+  gap: 10px;                  /* interlinhas entre blocos · sai do grudado */
+  z-index: 2;
+  /* Container query root · fontes dos filhos escalam com a largura REAL do
+   * text column (metade do card), nao com o viewport inteiro. Assim o mesmo
+   * clamp funciona em preview desktop (card grande -> font grande) e mobile
+   * (card menor -> font menor) sem @media override de font-size. Antes era
+   * baseado em vw · em preview grande o title virava 34px num column de
+   * ~200px e a palavra "MENTORIA" com letter-spacing extrapolava. */
+  container-type: inline-size;
+  container-name: action-card-text;
+  min-width: 0;               /* permite filhos shrink em flex/grid · evita overflow */
+}
+
+.action-card__eyebrow {
+  /* 8cqi de 180px (mobile col) = 14px · de 280px (desktop col) = 22px */
+  font-size: clamp(10px, 5.5cqi, 13px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  opacity: 0.92;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.action-card__title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  /* clamp min 17 · max 32 · entre 180-280px cobre 18-30px */
+  font-size: clamp(17px, 10cqi, 32px);
+  letter-spacing: 0.06em;     /* reduzido de 0.08 · menos compressao em fonts grandes */
+  text-transform: uppercase;
+  line-height: 1.05;          /* respira entre linhas quando quebra */
+  margin: 0;
+  overflow-wrap: break-word;  /* quebra palavras muito longas antes de overflow */
+  hyphens: auto;              /* hifenizacao opcional quando lang="pt-BR" */
+}
+
+/* ACCENT MAIOR que title — inversao de hierarquia observada na referencia.
+ * Cursive italic dominante visualmente, bate com padrao Ouse Comunicar. */
+.action-card__accent {
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  /* 15cqi de 180 = 27px · de 280 = 42px */
+  font-size: clamp(26px, 15cqi, 48px);
+  /* line-height 1.28 · Cormorant italic tem descendentes longas (p/g/y/j) ·
+   * 1.1 cortava a base do "Paula" quando quebrava em 2 linhas. Tambem removi
+   * margin: -4px 0 0 (pull-up) que comia espaco vertical das descendentes. */
+  line-height: 1.28;
+  letter-spacing: -0.005em;
+  margin: 0;
+  padding-bottom: 0.08em;     /* folga pras descendentes mesmo em line-height apertado */
+  overflow-wrap: break-word;
+}
+
+.action-card__sub {
+  font-size: clamp(10px, 5cqi, 13px);
+  font-weight: 400;
+  line-height: 1.4;
+  margin: 0;
+  opacity: 0.85;
+  overflow-wrap: break-word;
+}
+
+/* ─── Botao CTA pill ───────────────────────────────────────────────────── */
+.action-card__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  /* 28px · era 18 · precisa acomodar descendentes do accent em italic
+   * (Cormorant: P/g/y/j com swash longo) sem encostar no topo do botao */
+  margin-top: 28px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: fit-content;
+  max-width: 100%;
+  background: var(--action-card-btn-bg, #1a1a1c);
+  color: var(--action-card-btn-text, #F5F0E8);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  border: 1px solid transparent;
+}
+
+.action-card__btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+
+/* card-link · ::after cobre a area do .action-card (ancestor positioned mais
+ * proximo). Click em qualquer area do card aciona ESTE link · um <a> so,
+ * acessivel · keyboard/screen-reader/ctrl-click funcionam normais. Trade-off
+ * conhecido: text selection dentro do card fica desabilitada (overlay
+ * captura clicks). */
+.action-card__btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;       /* acima de text (z-2) e photo gradient (z-2 local) */
+  /* sem background · invisivel · so captura click */
+}
+
+.action-card--side-left .action-card__btn { align-self: flex-end; }
+
+/* ─── Foto ─────────────────────────────────────────────────────────────── */
+.action-card__photo {
+  position: relative;
+  /* aspect-ratio FIXO 4/5 · bate com o positioner/crop modal (aspect: '4/5'
+   * em lpb-schema.js). Sem isso, o photo pegava 50% width × altura do card
+   * (320/240 fixo) → aspect variavel (~15:16 desktop, ~3:4 mobile), e com
+   * object-fit:cover o preview NAO batia com o render (bug 2026-04-24:
+   * cabeca aparecia cortada em mobile, centralizada em desktop). */
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  align-self: stretch;
+}
+
+.action-card__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Degrade na borda interna da foto — curva EXPONENCIAL suave pra olho nao
+ * detectar onde termina. Versoes anteriores (5-6 stops linear) ainda deixavam
+ * "linha" visivel onde o alpha zerava porque a queda era constante.
+ *
+ * Tecnica · easeOutExpo approximation com 10 stops:
+ *   - Alpha cai RAPIDO nos primeiros 20% (100 -> 60) · cobre o texto solido
+ *   - Entre 20-60% desaceleracao gradual (60 -> 12) · transicao principal
+ *   - Acima de 60% alpha fica <10% · imperceptivel, blend "some" no olho
+ *
+ * Width 45% -> 60% · curva ocupa area maior, decaimento fica mais plano no fim. */
+.action-card--photo-bleed .action-card__photo::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 60%;
+  z-index: 2;
+  pointer-events: none;
+}
+.action-card--side-right.action-card--photo-bleed .action-card__photo::before {
+  left: 0;
+  background: linear-gradient(to right,
+    var(--card-bg-edge, transparent) 0%,
+    color-mix(in srgb, var(--card-bg-edge) 92%, transparent) 8%,
+    color-mix(in srgb, var(--card-bg-edge) 78%, transparent) 16%,
+    color-mix(in srgb, var(--card-bg-edge) 60%, transparent) 28%,
+    color-mix(in srgb, var(--card-bg-edge) 42%, transparent) 40%,
+    color-mix(in srgb, var(--card-bg-edge) 26%, transparent) 54%,
+    color-mix(in srgb, var(--card-bg-edge) 14%, transparent) 68%,
+    color-mix(in srgb, var(--card-bg-edge) 6%,  transparent) 82%,
+    color-mix(in srgb, var(--card-bg-edge) 2%,  transparent) 92%,
+    transparent 100%);
+}
+.action-card--side-left.action-card--photo-bleed .action-card__photo::before {
+  right: 0;
+  background: linear-gradient(to left,
+    var(--card-bg-edge, transparent) 0%,
+    color-mix(in srgb, var(--card-bg-edge) 92%, transparent) 8%,
+    color-mix(in srgb, var(--card-bg-edge) 78%, transparent) 16%,
+    color-mix(in srgb, var(--card-bg-edge) 60%, transparent) 28%,
+    color-mix(in srgb, var(--card-bg-edge) 42%, transparent) 40%,
+    color-mix(in srgb, var(--card-bg-edge) 26%, transparent) 54%,
+    color-mix(in srgb, var(--card-bg-edge) 14%, transparent) 68%,
+    color-mix(in srgb, var(--card-bg-edge) 6%,  transparent) 82%,
+    color-mix(in srgb, var(--card-bg-edge) 2%,  transparent) 92%,
+    transparent 100%);
+}
+
+/* foto_style: bleed — borda-a-borda (default, vista na imagem de referencia) */
+.action-card--photo-bleed .action-card__photo {
+  border-radius: 0;
+}
+
+/* foto_style: inside — respiro ao redor */
+.action-card--photo-inside .action-card__photo {
+  padding: 18px;
+  background: transparent;
+}
+.action-card--photo-inside .action-card__photo img {
+  border-radius: 12px;
+}
+
+/* foto_style: float — mockup PNG transparente (livro/produto flutuando)
+ * - sem background no container (transparencia do PNG revela o card)
+ * - sem ::before gradient overlay (so .action-card--photo-bleed tem)
+ * - drop-shadow suave em 2 camadas pra dar profundidade sem dramatizar
+ * - max-height 130% + overflow:visible permite livro "sair" do card */
+.action-card--photo-float .action-card__photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: visible;
+  background: transparent !important;  /* anula qualquer foto_bg legacy · preserva PNG */
+  /* aspect-ratio 4/5 herdado do .action-card__photo · mantem layout consistente
+   * com positioner. PNG e centralizado dentro via flex + object-fit:contain. */
+}
+.action-card--photo-float .action-card__photo img {
+  max-height: 130%;
+  width: auto;
+  object-fit: contain;
+  /* drop-shadow em 2 camadas (long+blur soft + short+sharp) · efeito livro
+   * em prateleira sem ficar dramatico demais */
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.28)) drop-shadow(0 4px 8px rgba(0,0,0,0.12));
+  transform: translateY(-4px);
+}
+
+/* ─── Variante: dark + dourado ─────────────────────────────────────────── */
+.action-card--dark {
+  background: linear-gradient(135deg, #1A1A1C 0%, #2A2119 100%);
+  color: #F5F0E8;
+  --action-card-btn-bg: #F5F0E8;
+  --action-card-btn-text: #1A1A1C;
+  --card-bg-edge: #1A1A1C;
+}
+.action-card--dark .action-card__title  { color: #D4AF7A; }   /* dourado no title · "MENTORIA" na referencia */
+.action-card--dark .action-card__accent { color: #F5F0E8; }   /* creme no accent · "Comunicar" cursive */
+
+/* ─── Variante: light + prateado ───────────────────────────────────────── */
+.action-card--light {
+  background: linear-gradient(135deg, #EDEDEF 0%, #F6F6F8 60%, #E8E6E3 100%);
+  color: #2C2C2C;
+  --action-card-btn-bg: #1A1A1C;
+  --action-card-btn-text: #F5F0E8;
+  --card-bg-edge: #EDEDEF;
+}
+.action-card--light .action-card__title  { color: #1A1A1C; }
+.action-card--light .action-card__accent { color: #C8A97E; }
+
+/* ─── Variante: tan + bronze ───────────────────────────────────────────── */
+.action-card--tan {
+  background: #D4A574;
+  color: #3D2817;
+  --action-card-btn-bg: #1A1A1C;
+  --action-card-btn-text: #F5F0E8;
+  --card-bg-edge: #D4A574;
+}
+.action-card--tan .action-card__title  { color: #FFF8EE; }
+.action-card--tan .action-card__accent { color: #5C3B1C; }
+
+/* ─── Variante: white + dourado ────────────────────────────────────────── */
+.action-card--white {
+  background: #FFFFFF;
+  color: #2C2C2C;
+  --action-card-btn-bg: #1A1A1C;
+  --action-card-btn-text: #F5F0E8;
+  --card-bg-edge: #FFFFFF;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.action-card--white .action-card__title  { color: #1A1A1C; }
+.action-card--white .action-card__accent { color: #C8A97E; }
+
+/* ─── Mobile: mantem horizontal (como na imagem Movil.png) ─────────────── */
+@media (max-width: 767px) {
+  /* Reduz margem lateral entre card e borda do phone · aspect mais retangular */
+  .blk-action-cards {
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+
+  .action-card {
+    min-height: 240px;         /* garantia minima · photo aspect 4/5 dita real height */
+    border-radius: 16px;
+  }
+  .action-card__text {
+    padding: 22px;             /* respiro nas 4 bordas · menor que desktop */
+    gap: 8px;                  /* interlinhas no mobile · sai do grudado */
+  }
+  /* font-sizes · REMOVIDOS overrides vw-based · container-query-based ja
+   * escala automaticamente com a largura do text column. Mantidos apenas
+   * micro-ajustes de margin/line-height quando necessario. */
+  .action-card__accent {
+    /* mobile: sem pull-up · margin zerado · line-height 1.28 herdado cobre
+     * descendentes do Cormorant italic */
+    margin: 0;
+  }
+  .action-card__btn {
+    padding: 7px 14px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    margin-top: 22px;           /* ar antes do botao · acomoda descendentes accent italic */
+  }
+  .action-card__btn svg { width: 10px; height: 10px; }
+
+  /* foto float no mobile — menor pra caber */
+  .action-card--photo-float .action-card__photo img {
+    max-height: 115%;
+    transform: translateY(-2px);
+  }
+}
+
+/* ─── Section backgrounds (scoped) ─────────────────────────────────────── */
+.section-alt-ivory { background: #FFFBF5; padding: 48px 0; }
+/* .section-alt e .section-dark ja definidos em lp-builder.css */
