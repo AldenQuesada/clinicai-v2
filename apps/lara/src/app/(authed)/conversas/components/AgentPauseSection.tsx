@@ -161,7 +161,7 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
           </button>
 
           {dropdownOpen && !customOpen && (
-            <div className="absolute right-0 bottom-full mb-2 w-52 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md overflow-hidden z-10">
+            <div className="absolute right-0 top-full mt-2 w-52 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md overflow-hidden z-30">
               {/* Preset destacado · Amanha 9h (ou Segunda 9h se sex/sab/dom) */}
               <button
                 onClick={() => {
@@ -211,7 +211,7 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
           )}
 
           {dropdownOpen && customOpen && (
-            <div className="absolute right-0 bottom-full mb-2 w-64 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md p-3.5 z-10">
+            <div className="absolute right-0 top-full mt-2 w-64 bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-md shadow-luxury-md p-3.5 z-30">
               <label className="block text-[10px] font-bold text-[hsl(var(--primary))] uppercase tracking-[1.2px] mb-2 flex items-center gap-1.5">
                 <CalendarIcon className="h-3 w-3" />
                 Pausar até

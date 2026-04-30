@@ -636,6 +636,7 @@ async function processInboundMessage(
       phone,
       aiResponse,
       leadFunnel,
+      conversationId: conv.id, // 2026-04-30 dedup · nunca repetir foto na mesma conversa
     });
 
     if (media.photos.length > 0) {

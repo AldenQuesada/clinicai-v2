@@ -94,6 +94,10 @@ interface ResolveOpts {
   phone: string
   aiResponse: string
   leadFunnel: string | null | undefined
+  /** Audit 2026-04-30 · evitar repetir foto na mesma conversa.
+      Caller passa o conversation_id pra que possamos consultar wa_messages
+      e excluir URLs/filenames ja enviados antes do shuffle. */
+  conversationId?: string | null
 }
 
 function resolveTag(aiResponse: string, leadFunnel: string | null | undefined): {
@@ -244,7 +248,7 @@ async function fallbackBucketList(
  * diferentes. Caller envia cada foto via sendImage(photo.url, photo.caption).
  */
 export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDispatchResult> {
-  const { supabase, clinic_id, phone, aiResponse, leadFunnel } = opts
+  const { supabase, clinic_id, phone, aiResponse, leadFunnel, conversationId } = opts
 
   const { tag, matchText } = resolveTag(aiResponse, leadFunnel)
   if (!tag || !matchText) {
@@ -292,8 +296,47 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
     }
   }
 
+  // Audit 2026-04-30 · NUNCA enviar a mesma foto duas vezes na mesma
+  // conversa. Antes do pick, busca historico de media_url ja enviadas
+  // (outbound + content_type=image) e exclui do pool. Se zerar (todas
+  // ja foram), libera o pool inteiro novamente (ultimo recurso · evita
+  // ficar mudo). Caller que nao passar conversationId mantem comportamento
+  // legacy (sem dedup) por compat.
+  let alreadySent = new Set<string>()
+  if (conversationId) {
+    try {
+      const { data: prev } = await supabase
+        .from('wa_messages')
+        .select('media_url')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .eq('content_type', 'image')
+        .not('media_url', 'is', null)
+      if (Array.isArray(prev)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        alreadySent = new Set((prev as any[]).map((r) => r.media_url).filter(Boolean))
+      }
+    } catch (e) {
+      log.warn({ err: (e as Error)?.message, conversationId }, 'media.history.fetch_failed')
+    }
+  }
+
+  const photosFresh = alreadySent.size > 0
+    ? photos.filter((p) => !alreadySent.has(p.url))
+    : photos
+
+  // Se todas foram excluidas (ja mandou todas na mesma conversa),
+  // reusa o pool inteiro · melhor mandar repetida do que ficar sem foto
+  const photosToUse = photosFresh.length > 0 ? photosFresh : photos
+  if (photosFresh.length === 0 && alreadySent.size > 0) {
+    log.info(
+      { clinic_id, phone_hash: hashPhone(phone), tag, total_sent_before: alreadySent.size },
+      'media.dedup.exhausted_pool',
+    )
+  }
+
   // Pega até 2 fotos de pessoas distintas (paridade legacy n8n)
-  const picked = pickTwoFromDifferentPeople(photos)
+  const picked = pickTwoFromDifferentPeople(photosToUse)
 
   log.info(
     {
