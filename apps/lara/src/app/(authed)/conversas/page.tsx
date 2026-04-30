@@ -248,14 +248,15 @@ export default function ChatPage() {
               {filteredCount}
             </span>
           </div>
+          {/* Icone-buttons da topbar zona esquerda · hover forte com bg + ring + cursor */}
           <button
             type="button"
             onClick={() => setShowFilters((v) => !v)}
             title="Filtros avancados (funil/tag/periodo)"
-            className={`p-1.5 rounded-md transition-colors shrink-0 ${
+            className={`p-1.5 rounded-md transition-all shrink-0 cursor-pointer ${
               showFilters || hasAdvFiltersActive
-                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/[0.12] ring-1 ring-[hsl(var(--primary))]/30'
+                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08] hover:ring-1 hover:ring-[hsl(var(--primary))]/20'
             }`}
           >
             <Filter className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -264,10 +265,10 @@ export default function ChatPage() {
             type="button"
             onClick={() => setSortOrder((p) => (p === 'newest' ? 'oldest' : 'newest'))}
             title="Inverter ordem"
-            className={`p-1.5 rounded-md transition-colors shrink-0 ${
+            className={`p-1.5 rounded-md transition-all shrink-0 cursor-pointer ${
               sortOrder === 'oldest'
-                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/[0.12] ring-1 ring-[hsl(var(--primary))]/30'
+                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08] hover:ring-1 hover:ring-[hsl(var(--primary))]/20'
             }`}
           >
             <ArrowUpDown className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -276,7 +277,7 @@ export default function ChatPage() {
             type="button"
             onClick={() => setIsNewConvOpen(true)}
             title="Nova conversa manual"
-            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors shrink-0"
+            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08] hover:ring-1 hover:ring-[hsl(var(--primary))]/20 transition-all shrink-0 cursor-pointer"
           >
             <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
           </button>
@@ -284,7 +285,7 @@ export default function ChatPage() {
             type="button"
             onClick={refreshAll}
             title="Atualizar conversas e KPIs"
-            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors shrink-0"
+            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08] hover:ring-1 hover:ring-[hsl(var(--primary))]/20 transition-all shrink-0 cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>

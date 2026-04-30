@@ -98,26 +98,52 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
   };
 
   return (
-    <div className="border-b border-white/[0.06] p-4 bg-[hsl(var(--chat-panel-bg))] shrink-0">
+    <div className="border-b border-white/[0.06] p-4 bg-[hsl(var(--chat-panel-bg))] shrink-0 space-y-3">
+      {/* Banner status quando pausada · âmbar com cronômetro */}
       {isPaused && (
-        <div className="flex items-center justify-between mb-3 bg-[hsl(var(--warning))]/10 px-3 py-2 rounded-md border border-[hsl(var(--warning))]/20">
-          <span className="text-sm text-[hsl(var(--warning))] flex items-center gap-2 font-medium">
-            <Pause className="h-4 w-4" /> Pausado
+        <div className="flex items-center justify-between bg-[hsl(var(--warning))]/10 px-3 py-2 rounded-md border border-[hsl(var(--warning))]/20">
+          <span className="font-meta uppercase text-[10px] tracking-[0.18em] text-[hsl(var(--warning))] flex items-center gap-2">
+            <Pause className="h-3 w-3" strokeWidth={2} /> Pausada
           </span>
-          <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--warning))] font-mono">
-            <Clock className="h-3 w-3" />
+          <div className="flex items-center gap-1.5 text-[12px] text-[hsl(var(--warning))] font-mono tabular-nums">
+            <Clock className="h-3 w-3" strokeWidth={1.5} />
             {formatRemainingTime(remainingTime)}
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-[hsl(var(--muted-foreground))] font-medium">
-          {isPaused ? 'Adicionar Tempo' : 'Pausar a Inteligência'}
+      {/* BOTÃO PRIMÁRIO · grande, proeminente · alterna PAUSAR/REATIVAR */}
+      {isPaused ? (
+        <button
+          type="button"
+          onClick={handleReactivate}
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white py-2.5 rounded-md text-sm font-semibold transition-colors disabled:opacity-50 shadow-luxury-sm cursor-pointer"
+        >
+          <Play className="h-4 w-4" strokeWidth={2} />
+          {isLoading ? 'Reativando...' : 'Reativar Lara'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => pauseAgent(30)}
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--primary))]/[0.10] hover:bg-[hsl(var(--primary))]/[0.18] text-[hsl(var(--primary))] py-2.5 rounded-md text-sm font-semibold transition-colors border border-[hsl(var(--primary))]/30 disabled:opacity-50 cursor-pointer"
+        >
+          <Pause className="h-4 w-4" strokeWidth={2} />
+          {isLoading ? 'Pausando...' : 'Pausar Lara · 30 min'}
+        </button>
+      )}
+
+      {/* AÇÃO SECUNDÁRIA · escolher tempo customizado (ou adicionar) */}
+      <div className="flex items-center justify-between">
+        <span className="font-meta uppercase text-[9px] tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+          {isPaused ? 'Adicionar tempo' : 'Outras durações'}
         </span>
 
         <div className="relative">
           <button
+            type="button"
             onClick={() => {
               if (dropdownOpen) {
                 closeAll();
@@ -126,10 +152,10 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
               }
             }}
             disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] rounded-md text-[hsl(var(--foreground))] hover:bg-[hsl(var(--chat-border))] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[10.5px] font-meta uppercase tracking-[0.12em] bg-white/[0.02] border border-white/[0.06] rounded-md text-[hsl(var(--muted-foreground))] hover:bg-white/[0.05] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
           >
-            {isLoading ? '...' : '+ 30 min'}
-            <ChevronDown className="h-3 w-3" />
+            {isLoading ? '...' : 'Escolher'}
+            <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
           </button>
 
           {dropdownOpen && !customOpen && (
@@ -227,16 +253,8 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
         </div>
       </div>
 
-      {isPaused && (
-        <button
-          onClick={handleReactivate}
-          disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--success))] hover:opacity-90 text-white py-2 rounded-md text-sm font-medium transition-opacity disabled:opacity-50 mt-3 shadow-luxury-sm"
-        >
-          <Play className="h-4 w-4" />
-          Reativar Assistente
-        </button>
-      )}
+      {/* Botao 'Reativar Assistente' duplicado abaixo REMOVIDO · agora o
+          botao primario no topo ja faz isso (evita 2 botoes mesma acao) */}
     </div>
   );
 }
