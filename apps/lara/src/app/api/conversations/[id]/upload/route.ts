@@ -40,14 +40,20 @@ const ALLOWED_DOC = [
   'text/plain',
 ];
 
+/** Strip params do MIME · 'audio/webm;codecs=opus' → 'audio/webm' */
+function baseMime(mime: string): string {
+  return (mime.split(';')[0] ?? '').trim().toLowerCase();
+}
+
 function classify(mime: string): {
   type: 'image' | 'audio' | 'video' | 'document';
   maxSize: number;
 } | null {
-  if (ALLOWED_IMAGE.includes(mime)) return { type: 'image', maxSize: MAX_IMAGE };
-  if (ALLOWED_AUDIO.includes(mime)) return { type: 'audio', maxSize: MAX_AUDIO };
-  if (ALLOWED_VIDEO.includes(mime)) return { type: 'video', maxSize: MAX_VIDEO };
-  if (ALLOWED_DOC.includes(mime)) return { type: 'document', maxSize: MAX_DOC };
+  const base = baseMime(mime);
+  if (ALLOWED_IMAGE.includes(base)) return { type: 'image', maxSize: MAX_IMAGE };
+  if (ALLOWED_AUDIO.includes(base)) return { type: 'audio', maxSize: MAX_AUDIO };
+  if (ALLOWED_VIDEO.includes(base)) return { type: 'video', maxSize: MAX_VIDEO };
+  if (ALLOWED_DOC.includes(base)) return { type: 'document', maxSize: MAX_DOC };
   return null;
 }
 
@@ -71,7 +77,7 @@ function extFromMime(mime: string): string {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
     'text/plain': 'txt',
   };
-  return map[mime] ?? 'bin';
+  return map[baseMime(mime)] ?? 'bin';
 }
 
 export async function POST(

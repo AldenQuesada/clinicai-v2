@@ -44,11 +44,17 @@ const ALLOWED_DOC = [
   'text/plain',
 ]
 
+/** Strip params do MIME · 'audio/webm;codecs=opus' → 'audio/webm' */
+function baseMime(mime: string): string {
+  return (mime.split(';')[0] ?? '').trim().toLowerCase()
+}
+
 function classifyClient(mime: string): { type: StagedMedia['mediaType']; max: number } {
-  if (ALLOWED_IMAGE.includes(mime)) return { type: 'image', max: MAX_IMAGE }
-  if (ALLOWED_AUDIO.includes(mime)) return { type: 'audio', max: MAX_AUDIO }
-  if (ALLOWED_VIDEO.includes(mime)) return { type: 'video', max: MAX_VIDEO }
-  if (ALLOWED_DOC.includes(mime)) return { type: 'document', max: MAX_DOC }
+  const base = baseMime(mime)
+  if (ALLOWED_IMAGE.includes(base)) return { type: 'image', max: MAX_IMAGE }
+  if (ALLOWED_AUDIO.includes(base)) return { type: 'audio', max: MAX_AUDIO }
+  if (ALLOWED_VIDEO.includes(base)) return { type: 'video', max: MAX_VIDEO }
+  if (ALLOWED_DOC.includes(base)) return { type: 'document', max: MAX_DOC }
   return { type: 'unsupported', max: 0 }
 }
 

@@ -136,10 +136,26 @@ export async function POST(
     // 2. Send por media_id · branch por tipo
     let sendResult;
     const captionTrim = content?.trim() || undefined;
+    const baseMimeType = String(mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType === 'image') {
       sendResult = await wa.sendImageById(conv.phone, upRes.mediaId, captionTrim);
     } else if (mediaType === 'audio') {
-      sendResult = await wa.sendAudioById(conv.phone, upRes.mediaId);
+      // P-07 · Meta Cloud API nao aceita audio/webm pra voice notes · so
+      // ogg/opus, mp3, mp4, aac, amr. Browser Chrome grava em webm.
+      // Fallback: enviar como document pro Meta (paciente recebe como anexo
+      // de audio · clica e ouve). UI nossa salva como 'audio' no DB pra
+      // renderizar com AudioPlayer no chat.
+      // TODO: transcodificar webm → ogg/opus server-side via ffmpeg.
+      if (baseMimeType === 'audio/webm') {
+        sendResult = await wa.sendDocumentById(
+          conv.phone,
+          upRes.mediaId,
+          safeFilename,
+          captionTrim,
+        );
+      } else {
+        sendResult = await wa.sendAudioById(conv.phone, upRes.mediaId);
+      }
     } else if (mediaType === 'document') {
       sendResult = await wa.sendDocumentById(conv.phone, upRes.mediaId, safeFilename, captionTrim);
     } else if (mediaType === 'video') {
