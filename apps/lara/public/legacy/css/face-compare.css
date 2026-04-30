@@ -1,0 +1,969 @@
+/* ============================================================
+   Face Compare — Premium ANTES vs DEPOIS
+   Clinica Mirian de Paula Brandbook
+   ============================================================ */
+
+/* ── Overlay ───────────────────────────────────────────────── */
+.fmc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99995;
+  background: #0A0A0A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fmcFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fmcFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Container ─────────────────────────────────────────────── */
+.fmc-container {
+  width: 100%;
+  max-width: 1100px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0A0A0A;
+  position: relative;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+.fmc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: linear-gradient(180deg, rgba(44,44,44,0.95), rgba(10,10,10,0.95));
+  border-bottom: 1px solid rgba(200,169,126,0.12);
+  flex-shrink: 0;
+  backdrop-filter: blur(12px);
+  z-index: 2;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fmc-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.fmc-brand-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 300;
+  color: #F5F0E8;
+  letter-spacing: 0.05em;
+}
+
+.fmc-brand-sub {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #C8A97E;
+  margin-top: 1px;
+}
+
+/* Mode Toggle */
+.fmc-modes {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+
+.fmc-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(245,240,232,0.4);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-mode-btn:hover {
+  color: rgba(245,240,232,0.7);
+  background: rgba(255,255,255,0.05);
+}
+
+.fmc-mode-btn.active {
+  background: rgba(200,169,126,0.15);
+  color: #C8A97E;
+  box-shadow: 0 0 20px rgba(200,169,126,0.1);
+}
+
+.fmc-mode-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Auto Timer Button ────────────────────────────────────── */
+.fmc-auto-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid rgba(200,169,126,0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(200,169,126,0.6);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.05em;
+}
+
+.fmc-auto-btn:hover {
+  background: rgba(200,169,126,0.1);
+  color: #C8A97E;
+  border-color: rgba(200,169,126,0.4);
+}
+
+.fmc-auto-btn.active {
+  background: rgba(200,169,126,0.2);
+  color: #C8A97E;
+  border-color: #C8A97E;
+  box-shadow: 0 0 20px rgba(200,169,126,0.15);
+}
+
+.fmc-auto-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fmc-auto-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ── Angle Tabs ───────────────────────────────────────────── */
+.fmc-angle-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 24px;
+  background: rgba(20,20,20,0.95);
+  border-bottom: 1px solid rgba(200,169,126,0.06);
+  flex-shrink: 0;
+}
+
+.fmc-angle-tab {
+  padding: 5px 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(245,240,232,0.35);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.fmc-angle-tab:hover {
+  color: rgba(245,240,232,0.6);
+  background: rgba(255,255,255,0.03);
+}
+
+.fmc-angle-tab.active {
+  color: #C8A97E;
+  background: rgba(200,169,126,0.1);
+}
+
+.fmc-angle-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: #C8A97E;
+  border-radius: 1px;
+}
+
+/* Actions */
+.fmc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fmc-btn-export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #C8A97E, #A8895E);
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 12px rgba(200,169,126,0.3);
+}
+
+.fmc-btn-export:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(200,169,126,0.4);
+}
+
+.fmc-btn-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(245,240,232,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-btn-close:hover {
+  background: rgba(255,255,255,0.1);
+  color: #F5F0E8;
+}
+
+/* ── Viewport ──────────────────────────────────────────────── */
+.fmc-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0A0A0A;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+}
+
+/* Zoom Container — wraps all mode wraps for synchronized zoom */
+.fmc-zoom-container {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Mode wrap transition */
+.fmc-mode-wrap {
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+}
+
+/* ── Slider Mode ───────────────────────────────────────────── */
+.fmc-slider-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.fmc-img-before,
+.fmc-img-after {
+  position: absolute;
+  inset: 0;
+}
+
+.fmc-img-before img,
+.fmc-img-after img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px 0 4px 0;
+  user-select: none;
+  -webkit-user-drag: none;
+  image-rendering: high-quality;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-img-after {
+  clip-path: inset(0 0 0 50%);
+  transition: clip-path 0.02s ease-out;
+}
+
+/* Slider Line */
+.fmc-slider-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  background: linear-gradient(180deg,
+    rgba(200,169,126,0.3),
+    #C8A97E 20%,
+    #C8A97E 80%,
+    rgba(200,169,126,0.3)
+  );
+  z-index: 10;
+  pointer-events: none;
+  box-shadow:
+    0 0 8px rgba(200,169,126,0.4),
+    0 0 24px rgba(200,169,126,0.15);
+  transition: left 0.15s ease-out;
+}
+
+/* Handle */
+.fmc-slider-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C8A97E, #DFC5A0);
+  border: 3px solid rgba(255,255,255,0.9);
+  cursor: ew-resize;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 12px rgba(0,0,0,0.4),
+    0 0 30px rgba(200,169,126,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 11;
+}
+
+.fmc-slider-handle:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.5),
+    0 0 40px rgba(200,169,126,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.fmc-handle-arrows {
+  display: flex;
+  gap: 8px;
+  color: #fff;
+}
+
+.fmc-handle-arrows-h {
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Fade Mode ─────────────────────────────────────────────── */
+.fmc-fade-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.fmc-fade-before,
+.fmc-fade-after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px 0 4px 0;
+  object-fit: contain;
+  user-select: none;
+}
+
+.fmc-fade-after {
+  opacity: 0;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Side-by-Side Mode ─────────────────────────────────────── */
+.fmc-side-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.fmc-side-panel {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0A0A0A;
+  transition: box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-side-panel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 15%;
+  user-select: none;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+}
+
+.fmc-side-divider {
+  width: 2px;
+  flex-shrink: 0;
+  background: #C8A97E;
+  z-index: 2;
+}
+
+/* ── Horizontal Split Mode ─────────────────────────────────── */
+.fmc-horiz-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.fmc-horiz-before,
+.fmc-horiz-after {
+  position: absolute;
+  inset: 0;
+}
+
+.fmc-horiz-before img,
+.fmc-horiz-after img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  image-rendering: high-quality;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-horiz-after {
+  clip-path: inset(50% 0 0 0);
+  transition: clip-path 0.02s ease-out;
+}
+
+/* Horizontal Slider Line */
+.fmc-horiz-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  background: linear-gradient(90deg,
+    rgba(200,169,126,0.3),
+    #C8A97E 20%,
+    #C8A97E 80%,
+    rgba(200,169,126,0.3)
+  );
+  z-index: 10;
+  pointer-events: none;
+  box-shadow:
+    0 0 8px rgba(200,169,126,0.4),
+    0 0 24px rgba(200,169,126,0.15);
+  transition: top 0.15s ease-out;
+}
+
+.fmc-horiz-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C8A97E, #DFC5A0);
+  border: 3px solid rgba(255,255,255,0.9);
+  cursor: ns-resize;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 12px rgba(0,0,0,0.4),
+    0 0 30px rgba(200,169,126,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 11;
+}
+
+.fmc-horiz-handle:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.5),
+    0 0 40px rgba(200,169,126,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+/* ── Labels ────────────────────────────────────────────────── */
+.fmc-label {
+  position: absolute;
+  bottom: 20px;
+  padding: 6px 18px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  color: #F5F0E8;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 5;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-label-before {
+  left: 20px;
+  background: linear-gradient(135deg, rgba(44,44,44,0.8), rgba(44,44,44,0.6));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.fmc-label-after {
+  right: 20px;
+  background: linear-gradient(135deg, rgba(200,169,126,0.7), rgba(168,137,94,0.6));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(200,169,126,0.3);
+  color: #fff;
+}
+
+/* ── Watermark ─────────────────────────────────────────────── */
+.fmc-watermark {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 10px;
+  font-style: italic;
+  color: rgba(200,169,126,0.15);
+  pointer-events: none;
+  z-index: 6;
+  letter-spacing: 0.03em;
+}
+
+/* ── Zoom Indicator ────────────────────────────────────────── */
+.fmc-zoom-indicator {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 10px;
+  background: rgba(200,169,126,0.15);
+  border: 1px solid rgba(200,169,126,0.25);
+  border-radius: 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #C8A97E;
+  pointer-events: none;
+  z-index: 6;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Controls ──────────────────────────────────────────────── */
+.fmc-controls {
+  padding: 12px 24px;
+  background: rgba(10,10,10,0.95);
+  border-top: 1px solid rgba(200,169,126,0.08);
+  flex-shrink: 0;
+}
+
+.fmc-slider-control,
+.fmc-fade-control,
+.fmc-zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.fmc-fade-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(200,169,126,0.6);
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Premium range slider */
+.fmc-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 300px;
+  max-width: 60%;
+  height: 4px;
+  background: linear-gradient(90deg,
+    rgba(200,169,126,0.15),
+    rgba(200,169,126,0.3),
+    rgba(200,169,126,0.15)
+  );
+  border-radius: 2px;
+  outline: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C8A97E, #DFC5A0);
+  cursor: pointer;
+  border: 2px solid #0A0A0A;
+  box-shadow:
+    0 0 12px rgba(200,169,126,0.4),
+    0 2px 6px rgba(0,0,0,0.3);
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.fmc-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C8A97E, #DFC5A0);
+  cursor: pointer;
+  border: 2px solid #0A0A0A;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+.fmc-footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: rgba(44,44,44,0.5);
+  border-top: 1px solid rgba(200,169,126,0.06);
+  flex-shrink: 0;
+}
+
+.fmc-patient-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(245,240,232,0.6);
+}
+
+.fmc-date {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  color: rgba(200,169,126,0.4);
+}
+
+/* ── Icon Buttons (Annotate, Metrics) ─────────────────────── */
+.fmc-btn-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(200,169,126,0.2);
+  background: transparent;
+  color: rgba(200,169,126,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-btn-icon:hover {
+  background: rgba(200,169,126,0.1);
+  color: #C8A97E;
+  border-color: rgba(200,169,126,0.4);
+}
+
+.fmc-btn-icon.active {
+  background: rgba(200,169,126,0.2);
+  color: #C8A97E;
+  border-color: #C8A97E;
+  box-shadow: 0 0 12px rgba(200,169,126,0.15);
+}
+
+/* ── GIF Export Button ────────────────────────────────────── */
+.fmc-btn-gif {
+  background: linear-gradient(135deg, #A8895E, #8A7050);
+}
+
+.fmc-btn-gif:hover {
+  background: linear-gradient(135deg, #C8A97E, #A8895E);
+}
+
+/* ── Zone Markers ─────────────────────────────────────────── */
+.fmc-zone-markers {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 24px;
+  background: rgba(15,15,15,0.95);
+  border-bottom: 1px solid rgba(200,169,126,0.06);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fmc-zone-btn {
+  padding: 3px 10px;
+  border: 1px solid rgba(200,169,126,0.2);
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(245,240,232,0.4);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-zone-btn:hover {
+  color: rgba(245,240,232,0.7);
+  border-color: rgba(200,169,126,0.4);
+  background: rgba(200,169,126,0.05);
+}
+
+.fmc-zone-btn.active {
+  background: rgba(200,169,126,0.2);
+  color: #C8A97E;
+  border-color: #C8A97E;
+}
+
+.fmc-zone-reset {
+  color: rgba(239,68,68,0.5);
+  border-color: rgba(239,68,68,0.2);
+}
+
+.fmc-zone-reset:hover {
+  color: #EF4444;
+  border-color: rgba(239,68,68,0.4);
+  background: rgba(239,68,68,0.05);
+}
+
+/* ── Annotations Layer ────────────────────────────────────── */
+.fmc-annotations-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.fmc-annotation-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 9;
+}
+
+.fmc-annotation-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(200,169,126,0.85);
+  border: 2px solid #fff;
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fmc-annotation-marker:hover .fmc-annotation-num {
+  transform: scale(1.15);
+}
+
+.fmc-annotation-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 4px 10px;
+  background: rgba(44,44,44,0.95);
+  border: 1px solid rgba(200,169,126,0.25);
+  border-radius: 6px;
+  color: #F5F0E8;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 10;
+}
+
+.fmc-annotation-marker:hover .fmc-annotation-tooltip {
+  display: block;
+}
+
+.fmc-annotation-clear {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px;
+  background: rgba(239,68,68,0.1);
+  color: rgba(239,68,68,0.7);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(8px);
+  z-index: 9;
+}
+
+.fmc-annotation-clear:hover {
+  background: rgba(239,68,68,0.2);
+  color: #EF4444;
+  border-color: #EF4444;
+}
+
+/* ── Metrics Overlay ──────────────────────────────────────── */
+.fmc-metrics-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 50px;
+}
+
+.fmc-metrics-panel {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(10,10,10,0.75);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(200,169,126,0.1);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.fmc-metrics-before {
+  position: absolute;
+  bottom: 50px;
+  left: 16px;
+}
+
+.fmc-metrics-after {
+  position: absolute;
+  bottom: 50px;
+  right: 16px;
+}
+
+.fmc-metrics-center {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.fmc-metrics-deltas {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(10,10,10,0.85);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(200,169,126,0.15);
+}
+
+.fmc-metric-badge {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  color: #C8A97E;
+  white-space: nowrap;
+}
+
+.fmc-metric-delta {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fmc-metric-positive {
+  color: #10B981;
+}
+
+.fmc-metric-negative {
+  color: #EF4444;
+}
+
+.fmc-metric-na {
+  color: rgba(245,240,232,0.3);
+}
+
+.fmc-metrics-sep {
+  color: rgba(200,169,126,0.2);
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .fmc-header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .fmc-modes { order: 3; width: 100%; justify-content: center; }
+  .fmc-mode-btn { padding: 6px 10px; font-size: 10px; }
+  .fmc-range { width: 200px; }
+  .fmc-label { font-size: 14px; padding: 4px 12px; }
+  .fmc-angle-tabs { padding: 4px 12px; }
+  .fmc-angle-tab { padding: 4px 12px; font-size: 9px; }
+  .fmc-auto-btn { padding: 5px 10px; }
+  .fmc-zone-markers { padding: 4px 12px; gap: 3px; }
+  .fmc-zone-btn { padding: 2px 8px; font-size: 7px; }
+  .fmc-btn-icon { width: 30px; height: 30px; }
+  .fmc-metrics-panel { padding: 4px 8px; gap: 4px; }
+  .fmc-metric-badge, .fmc-metric-delta { font-size: 8px; }
+  .fmc-annotation-num { width: 18px; height: 18px; font-size: 8px; }
+  .fmc-btn-gif { padding: 6px 10px; font-size: 10px; }
+}
+
+@media (max-width: 600px) {
+  .fmc-side-wrap {
+    flex-direction: column;
+  }
+  .fmc-side-divider {
+    width: 100%;
+    height: 2px;
+  }
+  .fmc-side-panel .fmc-label-before { left: 10px; bottom: 10px; }
+  .fmc-side-panel .fmc-label-after { right: 10px; bottom: 10px; }
+}

@@ -1,0 +1,231 @@
+/* =============================================================================
+ * ClinicAI — B2B Sprint 3 UI (health snapshot + insights panel)
+ * =============================================================================
+ * Complementa css/b2b.css (legado). Isolado pra evitar colisão com
+ * .b2b-insight-card (toast legado) e .b2b-health-* (dashboard agregado).
+ * ============================================================================= */
+
+/* ─── Health Snapshot Widget (per-partnership detail) ─────────────────────── */
+
+.b2b-hsnap {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 14px 0;
+}
+.b2b-hsnap-loading, .b2b-hsnap-empty, .b2b-hsnap-err {
+  color: var(--b2b-text-muted, #9CA3AF);
+  font-size: 12px;
+  text-align: center;
+  padding: 18px 8px;
+}
+.b2b-hsnap-err { color: #EF4444; }
+
+.b2b-hsnap-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.b2b-hsnap-refresh {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--b2b-text-muted, #9CA3AF);
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 120ms ease;
+}
+.b2b-hsnap-refresh:hover { color: var(--b2b-text, #F5F5F5); border-color: rgba(255,255,255,0.3); }
+.b2b-hsnap-refresh:disabled { opacity: 0.5; cursor: default; }
+
+.b2b-hsnap-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.b2b-hsnap-ring {
+  position: relative;
+  flex: 0 0 80px;
+  width: 80px; height: 80px;
+}
+.b2b-hsnap-score {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--ring-color, #9CA3AF);
+  line-height: 1;
+}
+.b2b-hsnap-score strong { font-size: 22px; font-weight: 700; }
+.b2b-hsnap-score small  { font-size: 10px; color: var(--b2b-text-muted, #9CA3AF); margin-top: 2px; }
+
+.b2b-hsnap-right {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.b2b-hsnap-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.b2b-hsnap-triggers {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px 0;
+}
+.b2b-hsnap-triggers li {
+  font-size: 12px;
+  color: var(--b2b-text, #F5F5F5);
+  padding: 4px 0 4px 18px;
+  position: relative;
+  line-height: 1.4;
+}
+.b2b-hsnap-triggers li::before {
+  content: '▸';
+  position: absolute; left: 2px;
+  color: #F59E0B;
+}
+
+.b2b-hsnap-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.b2b-hsnap-metric {
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.b2b-hsnap-metric span {
+  font-size: 15px; font-weight: 600;
+  color: var(--b2b-text, #F5F5F5);
+}
+.b2b-hsnap-metric small {
+  font-size: 10px; letter-spacing: 0.3px;
+  color: var(--b2b-text-muted, #9CA3AF);
+}
+
+/* ─── Insights Panel (dashboard top 3 score-ranked) ───────────────────────── */
+
+.b2b-insights-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 14px 0;
+}
+.b2b-insights-loading, .b2b-insights-err {
+  color: var(--b2b-text-muted, #9CA3AF);
+  font-size: 12px;
+  text-align: center;
+  padding: 18px 8px;
+}
+.b2b-insights-err { color: #EF4444; }
+
+.b2b-insights-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.b2b-insights-hdr small {
+  font-size: 11px;
+  color: var(--b2b-text-muted, #9CA3AF);
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.b2b-insights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.b2b-inspanel-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 3px solid #6B7280;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.b2b-inspanel-card-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.b2b-inspanel-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.b2b-inspanel-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.b2b-inspanel-score {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--b2b-text, #F5F5F5);
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.b2b-inspanel-content {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--b2b-text, #F5F5F5);
+  margin: 0 0 8px 0;
+}
+.b2b-inspanel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.b2b-inspanel-partner-link {
+  background: transparent;
+  border: none;
+  color: var(--b2b-accent, #3B82F6);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+.b2b-inspanel-partner-link:hover { text-decoration: underline; }
+
+.b2b-inspanel-btns {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Compact btn utility (Sprint 3 only — doesn't exist in b2b.css base) */
+.b2b-btn.b2b-btn-xs {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.b2b-btn.b2b-btn-ghost {
+  background: transparent;
+  border-color: rgba(255,255,255,0.15);
+  color: var(--b2b-text-muted, #9CA3AF);
+}
+.b2b-btn.b2b-btn-ghost:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--b2b-text, #F5F5F5);
+}

@@ -1,0 +1,335 @@
+/* =============================================================================
+ * ClinicAI — B2B Config (aba Config do painel B2B)
+ * =============================================================================
+ * 5 seções colapsáveis. Reusa .bcomm-* do editor de disparos (inputs, btns).
+ * Namespace .bcfg-* exclusivo.
+ * ============================================================================= */
+
+.bcfg-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.bcfg-active-head {
+  padding: 4px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.bcfg-active-body {
+  display: flex; flex-direction: column; gap: 12px;
+  min-height: 200px;
+}
+
+.bcfg-section-sub {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.4px;
+  color: var(--bcomm-gold, #C9A96E);
+  margin: 6px 0 8px;
+}
+
+.bcfg-body {
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ─── Empty / error / loading ────────────────────────────────────────── */
+
+.bcfg-empty,
+.bcfg-empty-loading {
+  padding: 20px 12px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+  font-size: 13px; text-align: center;
+}
+.bcfg-err-block {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #FCA5A5;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.bcfg-err {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #FCA5A5;
+}
+.bcfg-err::before { content: '⚠ '; }
+
+.bcfg-hint {
+  font-size: 12.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+  margin: 0;
+  line-height: 1.5;
+}
+.bcfg-dim { color: var(--bcomm-text-dim, #6B7280); font-size: 11px; }
+
+/* ─── Forms genéricas ─────────────────────────────────────────────────── */
+
+.bcfg-field {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.bcfg-field-lbl {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+}
+.bcfg-field-lbl em { color: #F59E0B; font-style: normal; font-weight: 700; }
+
+.bcfg-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bcfg-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+.bcfg-checks { display: flex; flex-wrap: wrap; gap: 14px; padding: 4px 0; }
+.bcfg-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px;
+  color: var(--bcomm-text, #F5F5F5);
+  cursor: pointer;
+}
+.bcfg-check input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--bcomm-gold, #C9A96E);
+}
+
+.bcfg-form-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  font-size: 13px;
+  color: var(--bcomm-text, #F5F5F5);
+}
+.bcfg-form-actions {
+  display: flex; gap: 8px; align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+}
+.bcfg-form-actions > small { margin-right: auto; }
+
+/* ─── Admins list ─────────────────────────────────────────────────────── */
+
+.bcfg-admin-list {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 10px;
+}
+.bcfg-admin-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px; align-items: center;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+}
+.bcfg-admin-row-inactive { opacity: 0.55; }
+.bcfg-admin-row:hover { border-color: var(--bcomm-border-str, rgba(255,255,255,0.14)); }
+.bcfg-admin-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bcfg-admin-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--bcomm-text, #F5F5F5);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.bcfg-admin-phone {
+  font-size: 11.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+  font-family: ui-monospace, monospace;
+}
+.bcfg-admin-notes {
+  font-size: 11px;
+  color: var(--bcomm-text-dim, #6B7280);
+  font-style: italic;
+}
+.bcfg-admin-caps {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 10.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+}
+.bcfg-cap { white-space: nowrap; }
+.bcfg-admin-acts { display: flex; gap: 6px; }
+
+.bcfg-admin-form {
+  background: rgba(201,169,110,0.04);
+  border: 1px solid rgba(201,169,110,0.22);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.bcfg-pill {
+  display: inline-block;
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: 1px;
+}
+.bcfg-pill-inactive { background: rgba(156,163,175,0.18); color: var(--bcomm-text-mut, #9CA3AF); }
+.bcfg-pill-default  { background: rgba(201,169,110,0.18); color: var(--bcomm-gold, #C9A96E); }
+
+/* ─── Combos list (Padrões > Combos de voucher) ──────────────────────── */
+.bcfg-combo-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.bcfg-combo-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px; align-items: center;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+}
+.bcfg-combo-row-inactive { opacity: 0.55; }
+.bcfg-combo-row:hover { border-color: var(--bcomm-border-str, rgba(255,255,255,0.14)); }
+.bcfg-combo-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bcfg-combo-lbl {
+  font-size: 13px; font-weight: 600;
+  color: var(--bcomm-text, #F5F5F5);
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.bcfg-combo-desc {
+  font-size: 11.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+}
+.bcfg-combo-acts { display: flex; gap: 6px; }
+.bcfg-combo-form {
+  background: rgba(201,169,110,0.04);
+  border: 1px solid rgba(201,169,110,0.22);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ─── Health cards ────────────────────────────────────────────────────── */
+
+.bcfg-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.bcfg-hcard {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.bcfg-hcard-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--bcomm-text, #F5F5F5);
+}
+.bcfg-hcard-body { display: flex; flex-direction: column; gap: 4px; }
+.bcfg-hcard-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 11.5px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--bcomm-border, rgba(255,255,255,0.08));
+}
+.bcfg-hcard-row:last-child { border-bottom: none; }
+.bcfg-hcard-row span { color: var(--bcomm-text-mut, #9CA3AF); }
+.bcfg-hcard-row strong {
+  color: var(--bcomm-text, #F5F5F5);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.bcfg-hstat {
+  display: inline-block;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.bcfg-hstat-ok   { background: rgba(16,185,129,0.15); color: #10B981; }
+.bcfg-hstat-warn { background: rgba(245,158,11,0.15); color: #F59E0B; }
+
+/* ─── Audit log ───────────────────────────────────────────────────────── */
+
+.bcfg-audit-toolbar {
+  display: flex; gap: 8px; align-items: center;
+  padding-bottom: 6px;
+}
+.bcfg-audit-toolbar > small { margin-left: auto; }
+
+.bcfg-audit-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.bcfg-audit-row {
+  display: grid;
+  grid-template-columns: 100px 140px 1fr 2fr;
+  gap: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--bcomm-text, #F5F5F5);
+  font: inherit;
+  cursor: pointer;
+  align-items: center;
+}
+.bcfg-audit-row:hover:not([disabled]) {
+  background: rgba(255,255,255,0.02);
+  border-color: var(--bcomm-border, rgba(255,255,255,0.08));
+}
+.bcfg-audit-row[disabled] { cursor: default; opacity: 0.7; }
+.bcfg-audit-time {
+  font-size: 11px; font-family: ui-monospace, monospace;
+  color: var(--bcomm-text-mut, #9CA3AF);
+}
+.bcfg-audit-action {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.bcfg-audit-part {
+  font-size: 12px; color: var(--bcomm-text, #F5F5F5);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bcfg-audit-detail {
+  font-size: 11.5px;
+  color: var(--bcomm-text-mut, #9CA3AF);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, monospace;
+}
+
+@media (max-width: 640px) {
+  .bcfg-audit-row { grid-template-columns: 1fr; gap: 3px; padding: 8px; }
+}
+
+/* ─── Links + About ───────────────────────────────────────────────────── */
+
+.bcfg-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.bcfg-link {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--bcomm-text, #F5F5F5);
+  font-size: 13px;
+  transition: all 120ms ease;
+}
+.bcfg-link:hover {
+  border-color: var(--bcomm-gold, #C9A96E);
+  background: rgba(201,169,110,0.05);
+}
+.bcfg-link small { margin-left: auto; }
+
+.bcfg-about {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bcomm-border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+}
+.bcfg-about-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed var(--bcomm-border, rgba(255,255,255,0.08));
+}
+.bcfg-about-row:last-child { border-bottom: none; }
+.bcfg-about-row span { color: var(--bcomm-text-mut, #9CA3AF); }
+.bcfg-about-row strong { color: var(--bcomm-text, #F5F5F5); font-family: ui-monospace, monospace; font-size: 11.5px; }
