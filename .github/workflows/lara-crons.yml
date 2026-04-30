@@ -18,6 +18,9 @@ on:
     - cron: '15 * * * *'  # offset 15min pra não esbarrar com mira-voucher-followup
     # /api/cron/orcamento-followup · 1x/dia 13h UTC = 10h SP · Camada 10a
     - cron: '0 13 * * *'
+    # /api/cron/divergence-check · 1x/dia 09h30 UTC = 06h30 SP · Camada 12c
+    # Soak window 2026-04-28 → 2026-05-28 · valida legacy vs v2 nas 4 tabelas
+    - cron: '30 9 * * *'
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
@@ -28,6 +31,7 @@ on:
         options:
           - reactivate
           - orcamento-followup
+          - divergence-check
 
 jobs:
   dispatch:
@@ -44,6 +48,7 @@ jobs:
             case "${{ github.event.schedule }}" in
               "15 * * * *") ENDPOINTS="reactivate" ;;
               "0 13 * * *") ENDPOINTS="orcamento-followup" ;;
+              "30 9 * * *") ENDPOINTS="divergence-check" ;;
               *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
           fi

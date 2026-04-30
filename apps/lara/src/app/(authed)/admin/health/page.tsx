@@ -31,6 +31,25 @@ import { isAtLeast } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
+// Camada 12c · shape do RPC divergence_report() (mig 85)
+interface DivergenceResult {
+  table: string
+  legacy_total: number | null
+  legacy_active: number | null
+  current_total: number
+  current_active: number
+  status: 'ok' | 'divergent'
+  severity: 'info' | 'warning' | 'critical'
+  message: string | null
+}
+interface DivergenceReport {
+  ran_at: string
+  status: 'completed' | 'legacy_dropped'
+  message?: string
+  results?: DivergenceResult[]
+  summary?: { total: number; ok: number; divergent: number; critical: number }
+}
+
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function formatRelative(iso: string | null): string {
@@ -56,7 +75,7 @@ function formatDateTime(iso: string | null): string {
 }
 
 export default async function AdminHealthPage() {
-  const { ctx, repos } = await loadServerReposContext()
+  const { ctx, repos, supabase } = await loadServerReposContext()
 
   if (!isAtLeast(ctx.role ?? null, 'admin')) {
     redirect('/dashboard?error=forbidden_admin')
@@ -101,6 +120,17 @@ export default async function AdminHealthPage() {
       lastRunAt: null,
     })),
   ])
+
+  // Camada 12c · soak window divergence (RPC mig 85)
+  // Defensivo: RPC pode nao existir se mig 85 ainda nao aplicada · catch silencioso
+  const divergenceReport: DivergenceReport | null = await (supabase as unknown as {
+    rpc: (
+      name: string,
+    ) => Promise<{ data: unknown; error: unknown }>
+  })
+    .rpc('divergence_report')
+    .then((r) => (r.error ? null : (r.data as DivergenceReport | null)))
+    .catch(() => null)
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -254,6 +284,81 @@ export default async function AdminHealthPage() {
         </Card>
       )}
 
+      {/* Camada 12c · Soak window divergence */}
+      {divergenceReport && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Soak window · divergência legacy vs v2</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {divergenceReport.status === 'legacy_dropped' ? (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Schema legacy droppado · soak window encerrado. {divergenceReport.message}
+              </p>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded bg-[var(--card)]/40 px-2 py-0.5">
+                    Total: {divergenceReport.summary?.total ?? 0}
+                  </span>
+                  <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                    OK: {divergenceReport.summary?.ok ?? 0}
+                  </span>
+                  {(divergenceReport.summary?.divergent ?? 0) > 0 && (
+                    <span className="rounded bg-amber-500/15 px-2 py-0.5 text-amber-300">
+                      Divergente: {divergenceReport.summary?.divergent}
+                    </span>
+                  )}
+                  {(divergenceReport.summary?.critical ?? 0) > 0 && (
+                    <span className="rounded bg-rose-500/15 px-2 py-0.5 text-rose-300">
+                      Crítico: {divergenceReport.summary?.critical}
+                    </span>
+                  )}
+                </div>
+                <table className="w-full text-xs">
+                  <thead className="border-b border-[var(--border)] text-[10px] font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
+                    <tr>
+                      <th className="py-1 text-left">Tabela</th>
+                      <th className="py-1 text-right">Legacy active</th>
+                      <th className="py-1 text-right">v2 active</th>
+                      <th className="py-1 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(divergenceReport.results ?? []).map((r: DivergenceResult) => (
+                      <tr key={r.table} className="border-b border-[var(--border)]/30">
+                        <td className="py-1 text-[var(--foreground)]">{r.table}</td>
+                        <td className="py-1 text-right text-[var(--muted-foreground)]">
+                          {r.legacy_active ?? '—'}
+                        </td>
+                        <td className="py-1 text-right text-[var(--foreground)]">
+                          {r.current_active}
+                        </td>
+                        <td
+                          className={`py-1 text-right ${
+                            r.severity === 'critical'
+                              ? 'text-rose-300'
+                              : r.severity === 'warning'
+                                ? 'text-amber-300'
+                                : 'text-emerald-300'
+                          }`}
+                        >
+                          {r.status === 'ok' ? '✅ ok' : `⚠️ ${r.message}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-[10px] text-[var(--muted-foreground)]/60">
+                  Ran at: {new Date(divergenceReport.ran_at).toLocaleString('pt-BR')} ·
+                  RPC <code>divergence_report()</code> (mig 85) · cron daily 06h30 SP
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sanity migrations · static info v1 */}
       <Card>
         <CardHeader>
@@ -261,14 +366,12 @@ export default async function AdminHealthPage() {
         </CardHeader>
         <CardContent>
           <p className="text-xs text-[var(--muted-foreground)]">
-            Migs aplicadas em prod (2026-04-29):{' '}
+            Migs aplicadas em prod (2026-04-29 / 30):{' '}
             <code className="rounded bg-[var(--card)]/40 px-1">72</code>{' '}
             <code className="rounded bg-[var(--card)]/40 px-1">82</code>{' '}
             <code className="rounded bg-[var(--card)]/40 px-1">83</code>{' '}
-            <code className="rounded bg-[var(--card)]/40 px-1">84</code>
-          </p>
-          <p className="mt-2 text-[10px] text-[var(--muted-foreground)]/60">
-            Auto-detect via <code>pg_proc</code> chega em 12a se virar pedido.
+            <code className="rounded bg-[var(--card)]/40 px-1">84</code>{' '}
+            <code className="rounded bg-[var(--card)]/40 px-1">85</code>
           </p>
         </CardContent>
       </Card>
