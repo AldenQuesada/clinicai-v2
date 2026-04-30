@@ -31,7 +31,10 @@ export default function ChatPage() {
     lastSseEventAtRef,
   } = useConversations();
 
-  const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(true);
+  // Polish 2026-04-30 · painel direito colapsado por default · expande
+  // automaticamente quando uma conversa e selecionada (ao trocar tambem).
+  // Se user fechar via x, fica fechado ate trocar de conversa.
+  const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(false);
   const [isNewConvOpen, setIsNewConvOpen] = useState(false);
 
   // Polish 2026-04-30 · busca + sort lifted da ConversationList pro topbar
@@ -104,6 +107,17 @@ export default function ChatPage() {
   useEffect(() => {
     updateTabTitle(insights.urgentes + insights.aguardando);
   }, [insights.urgentes, insights.aguardando]);
+
+  // Polish 2026-04-30 · auto-expand do painel direito ao selecionar conversa
+  // (e auto-colapsar ao desselecionar). Watcher do conversation_id · evita
+  // re-trigger em mudancas de metadata (last_message_at, etc) na mesma conv.
+  useEffect(() => {
+    if (selectedConversation?.conversation_id) {
+      setIsLeadPanelExpanded(true);
+    } else {
+      setIsLeadPanelExpanded(false);
+    }
+  }, [selectedConversation?.conversation_id]);
 
   const handleSendMessage = () => {
     if (selectedConversation) {
@@ -267,7 +281,7 @@ export default function ChatPage() {
               <UserPlus className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Novos leads</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Novos leads</p>
               <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${novosLeads > 0 ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>{novosLeads}</p>
             </div>
           </div>
@@ -279,7 +293,7 @@ export default function ChatPage() {
               <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Urgentes</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Urgentes</p>
               <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
             </div>
           </div>
@@ -291,7 +305,7 @@ export default function ChatPage() {
               <Clock className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Aguardando você</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Aguardando você</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
             </div>
           </div>
@@ -303,7 +317,7 @@ export default function ChatPage() {
               <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Lara ativa</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Lara ativa</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
             </div>
           </div>
@@ -315,7 +329,7 @@ export default function ChatPage() {
               <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Resolvidos hoje</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Resolvidos hoje</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
             </div>
           </div>
@@ -332,20 +346,32 @@ export default function ChatPage() {
         </button>
         </div>
 
-        {/* ZONA DIREITA · sobre painel direito (w-80) · titulo "Perfil do lead" + close */}
-        <div className="w-80 shrink-0 border-b border-l border-white/[0.06] flex items-center justify-between px-5">
-          <span className="font-display text-[16px] text-[hsl(var(--foreground))]">
-            Perfil do <em className="text-[hsl(var(--primary))] not-italic font-display italic">lead</em>
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsLeadPanelExpanded((v) => !v)}
-            title={isLeadPanelExpanded ? 'Esconder painel' : 'Mostrar painel'}
-            className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04]"
+        {/* ZONA DIREITA · sobre painel direito · sincroniza largura com
+            isLeadPanelExpanded (w-80 expandido / w-14 colapsado) pra evitar
+            desalinhamento visual quando o user fecha o painel */}
+        {isLeadPanelExpanded ? (
+          <div className="w-80 shrink-0 border-b border-l border-white/[0.06] flex items-center justify-between px-5">
+            <span className="font-display text-[16px] text-[hsl(var(--foreground))]">
+              Perfil do <em className="text-[hsl(var(--primary))] not-italic font-display italic">lead</em>
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsLeadPanelExpanded(false)}
+              title="Esconder painel"
+              className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04]"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <div
+            onClick={() => setIsLeadPanelExpanded(true)}
+            title="Mostrar painel"
+            className="w-14 shrink-0 border-b border-l border-white/[0.06] flex items-center justify-center cursor-pointer hover:bg-white/[0.04] transition-colors"
           >
-            ×
-          </button>
-        </div>
+            <span className="text-[hsl(var(--muted-foreground))] text-lg leading-none">‹</span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">

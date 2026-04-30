@@ -95,7 +95,11 @@ export function LeadInfoPanel({
 
   if (!selectedConversation) {
     return (
-      <div className="w-80 border-l border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]" />
+      <div className="w-80 border-l border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center px-6">
+        <p className="text-[12px] text-[hsl(var(--muted-foreground))] italic font-display text-center opacity-70 leading-relaxed">
+          Selecione uma conversa pra ver o perfil do lead.
+        </p>
+      </div>
     );
   }
 
