@@ -284,7 +284,7 @@ export function MessageArea({
             </div>
             {/* Barra fina vertical divisoria */}
             <div className="w-px bg-white/[0.06] my-3" />
-            {/* Sumario do copiloto AI inline · texto minimal · ocupa o resto */}
+            {/* Sumario do copiloto AI inline · estetica editorial flipbook */}
             {onRefreshCopilot && (
               <div className="flex items-center flex-1 pl-4 pr-2 gap-2.5 min-w-0">
                 <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-[1px]" strokeWidth={1.5} />
@@ -295,11 +295,11 @@ export function MessageArea({
                       <span className="truncate">{copilotSummaryError}</span>
                     </span>
                   ) : copilotSummaryLoading && !copilotSummary ? (
-                    <span className="text-[11px] text-[hsl(var(--muted-foreground))] italic font-display opacity-80">
+                    <span className="text-[12px] text-[hsl(var(--muted-foreground))] italic font-display opacity-80">
                       Lara analisando o lead...
                     </span>
                   ) : (
-                    <span className="text-[11.5px] text-[hsl(var(--foreground))]/90 leading-snug line-clamp-2 block">
+                    <span className="copilot-prose text-[12.5px] text-[hsl(var(--foreground))]/95 leading-snug line-clamp-2 block">
                       {copilotSummary}
                     </span>
                   )}

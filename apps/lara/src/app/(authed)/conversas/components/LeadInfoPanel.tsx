@@ -157,6 +157,13 @@ export function LeadInfoPanel({
           </button>
         </div>
 
+        {/* Agent Pause Section · subiu pro topo (logo apos action buttons) */}
+        <AgentPauseSection
+          key={`${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
+          conversationId={selectedConversation.conversation_id}
+          onStatusChange={onStatusChange}
+        />
+
         {/* SA-06 · Pipeline visual da jornada (Quiz → Procedimento) */}
         <PipelineBar phase={selectedConversation.phase} />
 
@@ -265,13 +272,6 @@ export function LeadInfoPanel({
           </div>
         </div>
       </div>
-
-      {/* Agent Pause Section at the bottom */}
-      <AgentPauseSection 
-        key={`${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-        conversationId={selectedConversation.conversation_id} 
-        onStatusChange={onStatusChange}
-      />
     </div>
   );
 }

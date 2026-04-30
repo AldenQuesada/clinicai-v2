@@ -105,6 +105,28 @@
     font-weight: 400;
   }
 
+  /* Montserrat · uppercase pequeno editorial · meta info */
+  .font-meta {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+  }
+
+  /* Copilot AI prose · estetica editorial (mirror docs/audits)
+   * Separadores "·" viram champagne · ja existia naturalmente mas
+   * agora com cor garantida.
+   */
+  .copilot-prose {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 300;
+  }
+  .copilot-prose em {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    color: var(--b2b-champagne, #E8D9A8);
+    font-style: italic;
+    font-weight: 400;
+  }
+
   /* Eyebrow · letterspacing 4px gold */
   .eyebrow {
     font-size: 10px;

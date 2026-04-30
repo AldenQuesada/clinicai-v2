@@ -159,7 +159,7 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Linha 2 · tabs status full-width · sem competir por espaco */}
+      {/* Linha 2 · tabs status · fundo so na ativa (champagne soft) */}
       <div className="px-3 pt-3 shrink-0">
         <div className="grid grid-cols-4 gap-1">
           {[
@@ -171,11 +171,19 @@ export function ConversationList({
             <button
               key={s.id}
               onClick={() => onStatusFilterChange(s.id as any)}
-              className={`px-1 py-1.5 text-[10px] font-semibold rounded transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
+              className={`font-meta px-1 py-1.5 text-[9.5px] uppercase rounded transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
                 statusFilter === s.id
-                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
+                  ? 'text-[hsl(var(--primary))]'
+                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               }`}
+              style={
+                statusFilter === s.id
+                  ? {
+                      background: 'rgba(201,169,110,0.15)',
+                      border: '1px solid rgba(201,169,110,0.3)',
+                    }
+                  : { background: 'transparent', border: '1px solid transparent' }
+              }
             >
               {s.label}
             </button>
@@ -276,18 +284,26 @@ export function ConversationList({
           </div>
         )}
 
-        {/* Tabs de Filtro (Só aparecem nas Abertas) */}
+        {/* Tabs de Filtro (Só aparecem nas Abertas) · fundo so na ativa */}
         {statusFilter === 'active' && !showFilters && (
-          <div className="flex bg-white/[0.02] p-0.5 rounded-md border border-white/[0.04]">
+          <div className="flex gap-1">
             {tabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 text-[10.5px] py-1.5 rounded-sm transition-colors cursor-pointer ${
+                className={`font-meta flex-1 text-[9.5px] uppercase py-1.5 rounded transition-colors cursor-pointer ${
                   activeTab === tab
-                    ? 'bg-white/[0.05] text-[hsl(var(--foreground))] font-medium'
-                    : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] font-normal'
+                    ? 'text-[hsl(var(--primary))]'
+                    : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
                 }`}
+                style={
+                  activeTab === tab
+                    ? {
+                        background: 'rgba(201,169,110,0.15)',
+                        border: '1px solid rgba(201,169,110,0.3)',
+                      }
+                    : { background: 'transparent', border: '1px solid transparent' }
+                }
               >
                 {tab}
               </button>

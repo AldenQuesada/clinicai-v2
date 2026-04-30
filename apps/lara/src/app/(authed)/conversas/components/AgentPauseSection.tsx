@@ -98,7 +98,7 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
   };
 
   return (
-    <div className="border-t border-[hsl(var(--chat-border))] p-4 bg-[hsl(var(--chat-panel-bg))] shrink-0">
+    <div className="border-b border-white/[0.06] p-4 bg-[hsl(var(--chat-panel-bg))] shrink-0">
       {isPaused && (
         <div className="flex items-center justify-between mb-3 bg-[hsl(var(--warning))]/10 px-3 py-2 rounded-md border border-[hsl(var(--warning))]/20">
           <span className="text-sm text-[hsl(var(--warning))] flex items-center gap-2 font-medium">

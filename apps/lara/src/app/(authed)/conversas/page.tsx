@@ -12,7 +12,7 @@ import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
 import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -189,15 +189,18 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
-      {/* Barra de Insights (Top Bar) · KPIs centralizados */}
-      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center px-6 shrink-0 z-10">
+      {/* Barra de Insights (Top Bar) · KPIs centralizados + refresh a direita */}
+      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-6 shrink-0 z-10 relative">
+        {/* spacer esquerda · simetrico ao botao da direita */}
+        <div className="w-9 shrink-0" />
+
         <div className="flex items-center gap-7">
           <div className="flex items-center gap-3">
             <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
               <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Urgentes</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Urgentes</p>
               <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
             </div>
           </div>
@@ -209,7 +212,7 @@ export default function ChatPage() {
               <Clock className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Aguardando você</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Aguardando você</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
             </div>
           </div>
@@ -221,7 +224,7 @@ export default function ChatPage() {
               <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Lara ativa</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Lara ativa</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
             </div>
           </div>
@@ -233,11 +236,21 @@ export default function ChatPage() {
               <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em]">Resolvidos hoje</p>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Resolvidos hoje</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
             </div>
           </div>
         </div>
+
+        {/* Refresh do sistema · sync manual de conversas + insights */}
+        <button
+          type="button"
+          onClick={refreshAll}
+          title="Atualizar conversas e KPIs"
+          className="w-9 h-9 shrink-0 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:border-[hsl(var(--primary))]/40 hover:bg-[hsl(var(--primary))]/[0.06] transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
+        </button>
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
