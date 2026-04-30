@@ -1,9 +1,15 @@
 /**
  * Cron: mira-anomaly-check.
  *
- * Schedule: 01:00 diario (cron `0 1 * * *`).
+ * Schedule: 09:00 SP diario (cron `0 9 * * *`). Era 01h, mas anomaly check
+ * mandava broadcast pra todo admin de madrugada · agora roda dentro do
+ * horario comercial padrao + tem `defer:true` como rede de seguranca caso
+ * clinica especifica abra mais tarde (vide mig 800-88 + business-hours.ts).
+ *
  * Detecta gaps operacionais (zero agenda 24h, NaN financeiro, etc) e
- * notifica admin.
+ * notifica admin · category='financeiro' agora respeita subscription
+ * (admin que marcou "so financeiro" no /configuracoes recebe; quem desligou
+ * categoria financeiro nao).
  *
  * RPC esperado: `wa_pro_anomaly_check`. Sem RPC: detecta zero appointments
  * D+1 inteiro (heuristica minima · dispara so se ZERO).
@@ -39,15 +45,20 @@ export async function GET(req: NextRequest) {
       return { anomalies: 0, dispatched: { recipients: 0, sent: 0, failed: 0 } }
     }
 
-    // SISTEMICO · anomalia operacional (zero agenda, NaN financeiro) eh sinal
-    // critico que admin precisa ver mesmo com subscriptions individuais
-    // desligadas. Decisao: NAO filtrar por permissions.msg · mantem broadcast.
+    // FINANCEIRO · anomalia operacional (zero agenda, NaN financeiro) afeta
+    // receita · admin que opta por "so financeiro" precisa receber. Outros
+    // que desligaram a categoria nao recebem (regra antes nao respeitada ·
+    // tudo era broadcast). defer:true · se clinica fechada na hora do cron,
+    // enfileira pra proxima janela em vez de perder.
     const dispatch = await dispatchAdminText({
       supabase,
       repos,
       clinicId,
       eventKey: 'mira.cron.anomaly_check',
       text,
+      category: 'financeiro',
+      msgKey: 'financeiro.anomaly_check',
+      defer: true,
     })
 
     return { anomalies: 1, dispatched: dispatch }

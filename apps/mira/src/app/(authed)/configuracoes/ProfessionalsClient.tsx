@@ -70,6 +70,7 @@ const PERMISSION_MESSAGES: Record<Category, MessageDef[]> = {
     { key: 'financeiro.monthly_goal', label: 'Meta mensal · atingida ou em risco' },
     { key: 'financeiro.churn_alert', label: 'Alerta de churn financeiro' },
     { key: 'financeiro.ai_cost_cap', label: 'Custo IA acima do cap' },
+    { key: 'financeiro.anomaly_check', label: 'Anomalia operacional (zero agenda, NaN receita)' },
   ],
   b2b: [
     { key: 'b2b.daily_top_insight', label: 'Top insight diario · 8h SP' },

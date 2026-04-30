@@ -88,8 +88,8 @@ const JOBS: CronJob[] = [
     endpoints: ['mira-preconsult-alerts'],
   },
   {
-    label: 'anomaly-check · 01h SP diario',
-    schedule: '0 1 * * *',
+    label: 'anomaly-check · 09h SP diario (era 01h · ver mig 800-88 quiet hours)',
+    schedule: '0 9 * * *',
     endpoints: ['mira-anomaly-check'],
   },
   {

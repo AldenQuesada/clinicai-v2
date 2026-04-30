@@ -6,10 +6,17 @@
  * ativas via Evolution Mira instance. Audit em b2b_comm_dispatch_log com
  * recipient_role='admin'.
  *
- * Subscriptions individuais (mig 800-30+): caller pode passar `category` +
- * `msgKey` pra honrar permissions.msg[<key>] dos wa_numbers professional_private.
- * Cron sistemico (anomaly_check etc.) que afeta todos admins NAO passa esses
- * params · entrega broadcast garantido.
+ * Subscriptions individuais (mig 800-30+): caller passa `category` + `msgKey`
+ * pra honrar permissions.msg[<key>] dos wa_numbers professional_private. Crons
+ * que omitem ambos (broadcast sistemico) entregam sem filtro.
+ *
+ * Guard de horario (mig 800-88): se `bypassQuietHours !== true`, checa
+ * `_b2b_is_within_business_hours(clinicId)` antes de mandar:
+ *   - `defer=false` (default) · loga 'skipped_quiet_hours' + retorna 0 sent
+ *   - `defer=true`             · enfileira via b2b_pending_dispatches (audit
+ *                                 trail · drain manual ou cron novo se
+ *                                 entrega garantida for desejada)
+ *   - `bypassQuietHours=true`  · ignora guard (admin commands urgentes)
  *
  * Best-effort: erros nao param o cron, sao reportados no payload final.
  */
@@ -23,6 +30,10 @@ import {
   type PermissionCategory,
 } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import {
+  isWithinBusinessHours,
+  enqueueAdminDispatchForLater,
+} from '@/lib/business-hours'
 const log = createLogger({ app: 'mira' }).child({ helper: 'admin-dispatch' })
 
 export interface AdminPhone {
@@ -45,6 +56,12 @@ export interface DispatchAdminResult {
   failed: number
   /** Quantos wa_numbers foram silenciados pela subscription individual. */
   mutedBySubscription?: number
+  /** True se foi pulado pelo guard de horario (defer=false default). */
+  skippedQuietHours?: boolean
+  /** Pending id se foi enfileirado (defer=true). */
+  queuedPendingId?: string | null
+  /** Quando o pending vai disparar (ISO). */
+  queuedScheduledFor?: string | null
 }
 
 export async function dispatchAdminText(opts: {
@@ -58,7 +75,62 @@ export async function dispatchAdminText(opts: {
   category?: PermissionCategory
   /** Key da mensagem · ex: 'agenda.daily_summary'. Obrigatorio se category. */
   msgKey?: string
+  /** Quando true, ignora guard de horario comercial. Default false. */
+  bypassQuietHours?: boolean
+  /**
+   * Quando true E fora do horario, enfileira em b2b_pending_dispatches em
+   * vez de skipar. Default false (mensagem perdida com log). Use pra
+   * alertas importantes que devem chegar quando clinica abrir.
+   */
+  defer?: boolean
 }): Promise<DispatchAdminResult> {
+  // ─── Guard de horario ────────────────────────────────────────────────
+  if (!opts.bypassQuietHours) {
+    const within = await isWithinBusinessHours(opts.supabase, opts.clinicId)
+    if (!within) {
+      if (opts.defer) {
+        const { pendingId, scheduledFor } = await enqueueAdminDispatchForLater(
+          opts.supabase,
+          {
+            clinicId: opts.clinicId,
+            eventKey: opts.eventKey,
+            text: opts.text,
+            category: opts.category,
+            msgKey: opts.msgKey,
+          },
+        )
+        log.info(
+          {
+            event_key: opts.eventKey,
+            category: opts.category,
+            msg_key: opts.msgKey,
+            pending_id: pendingId,
+            scheduled_for: scheduledFor?.toISOString(),
+          },
+          'admin_dispatch.deferred_quiet_hours',
+        )
+        return {
+          recipients: 0,
+          sent: 0,
+          failed: 0,
+          skippedQuietHours: true,
+          queuedPendingId: pendingId,
+          queuedScheduledFor: scheduledFor?.toISOString() ?? null,
+        }
+      }
+
+      log.info(
+        {
+          event_key: opts.eventKey,
+          category: opts.category,
+          msg_key: opts.msgKey,
+        },
+        'admin_dispatch.skipped_quiet_hours',
+      )
+      return { recipients: 0, sent: 0, failed: 0, skippedQuietHours: true }
+    }
+  }
+
   // Caminho com subscription · usa wa_numbers professional_private (com
   // permissions.msg) pra filtrar quem optou por nao receber esta msg.
   if (opts.category && opts.msgKey) {
