@@ -60,6 +60,11 @@ jobs:
       - name: Run E2E
         env:
           LARA_E2E_URL: ${{ vars.LARA_E2E_URL || 'https://lara.miriandpaula.com.br' }}
+          # Camada 11d · happy path specs · so rodam se 4 secrets setadas
+          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+          TEST_USER_EMAIL_OWNER: ${{ secrets.TEST_USER_EMAIL_OWNER }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           CI: 'true'
         run: pnpm -F @clinicai/lara e2e
 
@@ -70,3 +75,15 @@ jobs:
           name: playwright-report
           path: apps/lara/playwright-report/
           retention-days: 7
+
+      - name: Cleanup E2E test data (defensive · roda mesmo em fail)
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        # Skip silenciosamente se token nao setado · setup parcial
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
+            node scripts/e2e-cleanup.mjs || echo "::warning::cleanup falhou · checar dados orfaos"
+          else
+            echo "::warning::SUPABASE_ACCESS_TOKEN nao setada · cleanup pulado"
+          fi

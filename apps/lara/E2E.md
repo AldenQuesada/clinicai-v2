@@ -20,101 +20,79 @@ pnpm -F @clinicai/lara e2e
 pnpm -F @clinicai/lara e2e:ui
 ```
 
-## Specs atuais (4 · todos sem auth real)
+## Specs atuais
 
-| Spec | Cobre | Hit DB? |
-|------|-------|---------|
-| `e2e/public-login.spec.ts` | `/login` renderiza form email + sem erros JS | Não |
-| `e2e/public-orcamento.spec.ts` | `/orcamento/<token-invalido>` retorna 404 | Sim (service_role lookup, mas resultado é null → notFound()) |
-| `e2e/auth-gate.spec.ts` | Middleware redireciona `/crm`, `/crm/orcamentos`, `/crm/agenda`, `/conversas` pra `/login` quando sem cookie · preserva querystring | Não |
-| `e2e/visual-login.spec.ts` | Snapshot baseline visual de `/login` desktop 1280x720 (maxDiff 2%) | Não |
+| Spec | Cobre | Auth | Hit DB? |
+|------|-------|------|---------|
+| `e2e/public-login.spec.ts` | `/login` renderiza form email + sem erros JS | Não | Não |
+| `e2e/public-orcamento.spec.ts` | `/orcamento/<token-invalido>` retorna 404 | Não | Sim (service_role · null) |
+| `e2e/auth-gate.spec.ts` | Middleware redireciona /crm, /crm/orcamentos, /crm/agenda, /conversas pra /login · preserva querystring | Não | Não |
+| `e2e/visual-login.spec.ts` | Snapshot baseline visual de /login (skip ate baseline commited) | Não | Não |
+| `e2e/authed/lead-to-orcamento.spec.ts` | **Happy path**: lead seed → criar orçamento → marcar enviado → aprovar | **Sim** | Sim (cria/deleta com is_e2e_test=true) |
 
-## Happy path E2E (Camada 11d · pendente)
+## Happy path E2E · setup (Camada 11d entregue)
 
-`apps/lara/e2e/_fixtures/auth.ts` tem o **esqueleto pronto** com API `test.use({ authedAs: 'owner' })`. Hoje o stub falha com mensagem clara apontando aqui. Pra completar:
+Decisão: usar **mesma clínica Mirian** com **isolamento via tag** `metadata.is_e2e_test=true`. Razão: single-tenant em prod (não há outra clínica); criar segundo projeto Supabase exigia migrar todas as 80+ migs. Trade-off é cleanup defensivo via script.
 
-### Passo 1 · Criar projeto Supabase de test
+### Passo 1 (você, 1 vez) · Criar test user
 
-Conta Supabase free tier · projeto separado de prod. Razão: happy path E2E faz writes (cria leads, orçamentos, appointments) e não pode poluir prod.
-
-### Passo 2 · Setar env vars (GitHub repo + local)
-
-```
-TEST_SUPABASE_URL=https://<test-project>.supabase.co
-TEST_SUPABASE_ANON_KEY=eyJhbGc...
-TEST_USER_EMAIL_OWNER=test-owner@miriandpaula.com.br
-TEST_USER_PASSWORD=<gerar-via-openssl>
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... pnpm e2e:setup
 ```
 
-GitHub: Settings → Secrets and variables → Actions → New secret.
-Local: `.env.test` (gitignored) ou `direnv`.
+O script:
+1. Cria user `e2e-test@miriandpaula.com.br` no Supabase Auth (senha aleatória)
+2. Insere em `clinic_members` vinculando o user à clínica Mirian com role=owner
+3. Imprime as 4 env vars pra você copiar
 
-### Passo 3 · Implementar `loginAs` em `_fixtures/auth.ts`
+**Idempotente** — se rodar de novo, reutiliza o user existente. Se quiser senha nova, mude `TEST_EMAIL` ou delete o user via dashboard.
 
-Substituir `_stubLogin` por:
+### Passo 2 (você, 1 vez) · Adicionar 4 secrets no GitHub
+
+Settings → Secrets and variables → Actions → New repository secret:
+
+```
+TEST_SUPABASE_URL          (já tem · https://oqboitkpcvuaudouwvkl.supabase.co)
+TEST_SUPABASE_ANON_KEY     (output do e2e:setup)
+TEST_USER_EMAIL_OWNER      (e2e-test@miriandpaula.com.br)
+TEST_USER_PASSWORD         (output do e2e:setup · senha gerada)
+```
+
+Bonus: `SUPABASE_ACCESS_TOKEN` pra cleanup automático no CI (workflow já configurado pra usar).
+
+### Passo 3 · Pronto
+
+Próximo PR que mexe em `apps/lara/**`, `packages/repositories/**` ou `packages/ui/**` vai disparar Playwright incluindo o happy path. Se as 4 secrets não estiverem setadas, o spec autenticado falha com erro claro.
+
+### Cleanup
+
+Cada spec autenticado:
+1. Cria com `metadata.is_e2e_test=true`
+2. Faz cleanup explícito em `afterAll()` (delete por id)
+3. CI roda `pnpm e2e:cleanup` defensivo após (independente de fail/pass)
+
+Manual quando suspeitar de leak:
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... pnpm e2e:cleanup
+```
+
+### Adicionar mais specs autenticados
 
 ```typescript
-import { createBrowserClient } from '@clinicai/supabase'
+// e2e/authed/<nome>.spec.ts
+import { test, expect, getAuthedSupabase } from '../_fixtures/auth'
 
-async function loginAs(page: Page, role: AuthRole): Promise<void> {
-  const env = assertTestEnvs()
-  const sb = createBrowserClient(env.url, env.anonKey)
-  const { data, error } = await sb.auth.signInWithPassword({
-    email: env.email,
-    password: env.password,
-  })
-  if (error) throw new Error(`[e2e/auth] login failed · ${error.message}`)
+test.use({ authedAs: 'owner' })
 
-  // Inject cookies que Supabase SSR espera (formato sb-<project-ref>-auth-token)
-  const projectRef = new URL(env.url).hostname.split('.')[0]
-  await page.context().addCookies([
-    {
-      name: `sb-${projectRef}-auth-token`,
-      value: JSON.stringify([data.session!.access_token, data.session!.refresh_token]),
-      domain: 'localhost', // ou .miriandpaula.com.br em prod-like
-      path: '/',
-      httpOnly: false,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ])
-}
+test('meu cenario', async ({ page }) => {
+  // page já vem com session do test user
+  await page.goto('/crm/...')
+  // ...
+})
 ```
 
-### Passo 4 · Seed script (`e2e/_fixtures/seed.ts`)
-
-Inserir no test project (via service_role):
-- 1 clínica de test
-- 1 user owner
-- 3-5 leads em estados conhecidos (novo, qualificado, perdido)
-- 1-2 orçamentos (draft, sent)
-- 1-2 appointments (agendado, finalizado)
-
-Limpar com `truncate cascade` antes de cada run global setup.
-
-### Passo 5 · Specs auth-only em `e2e/authed/`
-
-Cenários prioritários:
-
-**`e2e/authed/lead-to-orcamento.spec.ts`**
-1. Login owner
-2. `/crm/leads` → click no primeiro lead "novo"
-3. Click "Criar orçamento" → form
-4. Preencher items (1 procedimento, R$ 200) + validade 30d
-5. Submit → redirect `/crm/orcamentos/<id>`
-6. Click "Marcar enviado" → status muda
-7. Click "Marcar aprovado" → modal confirmação → confirm
-8. Assert: badge mostra "Aprovado" + lead source orig agora desativado
-
-**`e2e/authed/agenda-flow.spec.ts`**
-1. Login owner
-2. `/crm/agenda/novo` → form com lead pré-selecionado
-3. Preencher data/hora/duração
-4. Submit → redirect `/crm/agenda/<id>`
-5. ActionsBar: "Marcar chegada" → status `na_clinica`
-6. "Finalizar" → wizard 3 outcomes
-7. Selecionar "Paciente" → form datos clínicos → submit
-8. Assert: status `finalizado` + paciente promovido (verificar via `/crm/pacientes`)
+Cenários prioritários ainda pendentes (12d):
+- `agenda-flow.spec.ts`: criar appt → confirmar → atender → finalizar wizard 3 outcomes
 
 ## CI
 
