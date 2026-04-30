@@ -212,8 +212,24 @@ export default function ChatPage() {
         {/* spacer esquerda · simetrico ao botao da direita */}
         <div className="w-9 shrink-0" />
 
-        <div className="flex items-center gap-7">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
+          {/* Novos Leads · 1o (esquerda) · contatos novos hoje (00:00 BRT) */}
+          <div
+            title="Contatos novos cadastrados hoje (não inclui mensagens novas de leads existentes)"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]"
+          >
+            <div className={`p-1.5 rounded-md ${novosLeads > 0 ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
+              <UserPlus className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Novos leads</p>
+              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${novosLeads > 0 ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>{novosLeads}</p>
+            </div>
+          </div>
+
+          <div className="w-px h-9 bg-white/[0.06]" />
+
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
             <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
               <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
@@ -225,7 +241,7 @@ export default function ChatPage() {
 
           <div className="w-px h-9 bg-white/[0.06]" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
             <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
               <Clock className="w-4 h-4" strokeWidth={1.5} />
             </div>
@@ -237,7 +253,7 @@ export default function ChatPage() {
 
           <div className="w-px h-9 bg-white/[0.06]" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
             <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
               <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
             </div>
@@ -249,26 +265,13 @@ export default function ChatPage() {
 
           <div className="w-px h-9 bg-white/[0.06]" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
             <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
               <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div>
               <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Resolvidos hoje</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
-            </div>
-          </div>
-
-          <div className="w-px h-9 bg-white/[0.06]" />
-
-          {/* 5o KPI · Novos Leads · contatos criados hoje (00:00 BRT-) */}
-          <div className="flex items-center gap-3" title="Contatos novos cadastrados hoje (não inclui mensagens novas de leads existentes)">
-            <div className={`p-1.5 rounded-md ${novosLeads > 0 ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
-              <UserPlus className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Novos leads</p>
-              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${novosLeads > 0 ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>{novosLeads}</p>
             </div>
           </div>
         </div>
