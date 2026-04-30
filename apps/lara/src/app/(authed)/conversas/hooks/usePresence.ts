@@ -55,7 +55,17 @@ export function usePresence({ channelKey, user, trackTyping = false }: UsePresen
   useEffect(() => {
     if (!channelKey || !user?.user_id) return
 
-    const supabase = createBrowserClient()
+    // Defensivo · se Supabase config faltar (env NEXT_PUBLIC_SUPABASE_URL/
+    // ANON_KEY ausente no build), nao quebra a pagina inteira · presenca
+    // fica off ate o operador setar as envs no Easypanel e re-deploy.
+    let supabase: ReturnType<typeof createBrowserClient>
+    try {
+      supabase = createBrowserClient()
+    } catch (err) {
+      console.warn('[usePresence] Supabase browser client indisponivel · presenca desabilitada:', err)
+      return
+    }
+
     const channelName = `presence:${channelKey}`
     const channel = supabase.channel(channelName, {
       config: {
