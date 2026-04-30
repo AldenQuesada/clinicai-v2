@@ -101,15 +101,30 @@ export function ConversationList({
         if (filterFunnel === 'procedimentos' && !f.includes('procedimento')) return false;
       }
 
-      // 4. Filtro por Tag
-      if (filterTag !== 'all' && !conv.tags?.includes(filterTag)) return false;
+      // 4. Filtro por Tag SEMÂNTICA · usa computeConversationTags pra incluir
+      //    tags derivadas (URGENTE, LARA, VOCÊ, FULL FACE, PROCEDIMENTO, OLHEIRAS,
+      //    QUER AGENDAR, PERGUNTOU PREÇO) + tags do banco (conv.tags[])
+      if (filterTag !== 'all') {
+        const semanticTags = computeConversationTags(conv).map((t) => t.label);
+        const rawTags = conv.tags ?? [];
+        const allConvTags = [...semanticTags, ...rawTags];
+        if (!allConvTags.includes(filterTag)) return false;
+      }
 
-      // 5. Filtro por Data
+      // 5. Filtro por Data · presets + DATA ESPECÍFICA (YYYY-MM-DD)
       if (filterDate !== 'all' && conv.last_message_at) {
         const msgDate = new Date(conv.last_message_at);
         if (filterDate === 'today' && !isToday(msgDate)) return false;
-        if (filterDate === 'yesterday' && !isYesterday(msgDate)) return false;
-        if (filterDate === 'week' && !isAfter(msgDate, subDays(new Date(), 7))) return false;
+        else if (filterDate === 'yesterday' && !isYesterday(msgDate)) return false;
+        else if (filterDate === 'week' && !isAfter(msgDate, subDays(new Date(), 7))) return false;
+        else if (/^\d{4}-\d{2}-\d{2}$/.test(filterDate)) {
+          // Data específica · compara YYYY-MM-DD do msgDate vs filterDate
+          const y = msgDate.getFullYear();
+          const m = String(msgDate.getMonth() + 1).padStart(2, '0');
+          const d = String(msgDate.getDate()).padStart(2, '0');
+          const msgYmd = `${y}-${m}-${d}`;
+          if (msgYmd !== filterDate) return false;
+        }
       }
 
       return true;
@@ -234,7 +249,8 @@ export function ConversationList({
               </select>
             </div>
 
-            {/* Filtro por Tag */}
+            {/* Filtro por Tag SEMÂNTICA · derivadas do computeConversationTags
+                + tags livres do banco · ordenadas por relevância */}
             <div className="space-y-1">
               <label className="text-[9px] text-[hsl(var(--muted-foreground))] flex items-center gap-1 uppercase font-bold">
                 <TagIcon className="h-3 w-3" /> Tag
@@ -244,28 +260,70 @@ export function ConversationList({
                 onChange={(e) => setFilterTag(e.target.value)}
                 className="w-full bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-xs rounded px-2 py-1 outline-none text-[hsl(var(--foreground))]"
               >
-                <option value="all">Todas as Tags</option>
-                {allTags.map(tag => (
-                  <option key={tag} value={tag}>{tag}</option>
-                ))}
+                <option value="all">Todas as tags</option>
+                <optgroup label="Estado">
+                  <option value="URGENTE">URGENTE</option>
+                  <option value="QUER AGENDAR">QUER AGENDAR</option>
+                  <option value="PERGUNTOU PREÇO">PERGUNTOU PREÇO</option>
+                </optgroup>
+                <optgroup label="Quem conduz">
+                  <option value="LARA">LARA conduzindo</option>
+                  <option value="VOCÊ">VOCÊ assumiu</option>
+                </optgroup>
+                <optgroup label="Funil">
+                  <option value="FULL FACE">FULL FACE</option>
+                  <option value="OLHEIRAS">OLHEIRAS</option>
+                  <option value="PROCEDIMENTO">PROCEDIMENTO</option>
+                </optgroup>
+                {allTags.length > 0 && (
+                  <optgroup label="Tags do CRM">
+                    {allTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
-             {/* Filtro por Data */}
+             {/* Filtro por Data · presets + datepicker pra dia específico */}
             <div className="space-y-1">
               <label className="text-[9px] text-[hsl(var(--muted-foreground))] flex items-center gap-1 uppercase font-bold">
                 <Calendar className="h-3 w-3" /> Período
               </label>
               <select
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
+                value={/^\d{4}-\d{2}-\d{2}$/.test(filterDate) ? 'specific' : filterDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === 'specific') {
+                    // Pre-popula com hoje no formato YYYY-MM-DD
+                    const today = new Date();
+                    const y = today.getFullYear();
+                    const m = String(today.getMonth() + 1).padStart(2, '0');
+                    const d = String(today.getDate()).padStart(2, '0');
+                    setFilterDate(`${y}-${m}-${d}`);
+                  } else {
+                    setFilterDate(v);
+                  }
+                }}
                 className="w-full bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-xs rounded px-2 py-1 outline-none text-[hsl(var(--foreground))]"
               >
                 <option value="all">Qualquer data</option>
                 <option value="today">Hoje</option>
                 <option value="yesterday">Ontem</option>
                 <option value="week">Últimos 7 dias</option>
+                <option value="specific">Dia específico...</option>
               </select>
+              {/* Datepicker visivel quando 'Dia específico' selecionado */}
+              {/^\d{4}-\d{2}-\d{2}$/.test(filterDate) && (
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="w-full bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-xs rounded px-2 py-1 outline-none text-[hsl(var(--foreground))] mt-1"
+                />
+              )}
             </div>
 
             <button
