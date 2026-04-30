@@ -26,6 +26,9 @@ interface AssignmentSectionProps {
   initialAssignedTo: string | null;
   initialAssignedAt: string | null;
   onChange?: () => void;
+  /** compact: linha única (~36px) com 'Atendendo: X · [Liberar]' · usado
+      na ZONA AGIR do painel direito. Default false (modo full original). */
+  compact?: boolean;
 }
 
 /** Avatar pequeno · 24px · usa avatar_url se disponivel · senão inicial Cormorant gold */
@@ -61,6 +64,7 @@ export function AssignmentSection({
   initialAssignedTo,
   initialAssignedAt,
   onChange,
+  compact = false,
 }: AssignmentSectionProps) {
   const { members, me, isLoading: isMembersLoading, findById } = useClinicMembers();
   const { assignedTo, isLoading, error, assignTo, unassign } = useAssignment({
@@ -92,6 +96,59 @@ export function AssignmentSection({
     setDropdownOpen(false);
     await assignTo(userId);
   };
+
+  // Modo compact · linha única (~36px) usada na ZONA AGIR do painel direito
+  if (compact) {
+    return (
+      <div ref={containerRef} className="px-5 py-2 border-b border-white/[0.06] flex items-center justify-between gap-2 relative">
+        <span className="font-meta uppercase text-[9px] tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+          Atendendo
+        </span>
+        {!assignedTo ? (
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((v) => !v)}
+            className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors cursor-pointer inline-flex items-center gap-1"
+          >
+            <span>+ Atribuir</span>
+            <ChevronDown className="w-3 h-3" strokeWidth={1.5} />
+          </button>
+        ) : isMine ? (
+          <span className="inline-flex items-center gap-2 text-[11px] text-[hsl(var(--foreground))]">
+            <span className="font-display italic text-[hsl(var(--primary))]">Você</span>
+            <button
+              type="button"
+              onClick={() => unassign()}
+              disabled={isLoading}
+              title="Liberar conversa"
+              className="font-meta uppercase text-[8.5px] tracking-[0.15em] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--danger))] transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Liberar
+            </button>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2 text-[11px] text-[hsl(var(--warning))]">
+            <AlertTriangle className="w-3 h-3" strokeWidth={2} />
+            <span className="font-display italic">{assignedMember?.firstName ?? 'outro'}</span>
+            {me && (
+              <button
+                type="button"
+                onClick={() => handlePick(me)}
+                disabled={isLoading}
+                className="font-meta uppercase text-[8.5px] tracking-[0.15em] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--warning))] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Assumir
+              </button>
+            )}
+          </span>
+        )}
+        {/* Dropdown só aparece pra "+ Atribuir" no modo compact */}
+        {!assignedTo && dropdownOpen && (
+          <MembersDropdown members={members} me={me} onPick={handlePick} />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div ref={containerRef}>

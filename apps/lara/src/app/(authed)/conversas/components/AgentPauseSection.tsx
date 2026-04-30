@@ -38,7 +38,15 @@ function toDatetimeLocalValue(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function AgentPauseSection({ conversationId, onStatusChange }: { conversationId: string, onStatusChange?: () => void }) {
+interface AgentPauseSectionProps {
+  conversationId: string
+  onStatusChange?: () => void
+  /** 'pill' = linha compacta (~32px) sem controles · só status atual.
+      'full' = bloco completo (banner + botão grande + dropdown · default). */
+  mode?: 'pill' | 'full'
+}
+
+export function AgentPauseSection({ conversationId, onStatusChange, mode = 'full' }: AgentPauseSectionProps) {
   const { pauseStatus, isLoading, pauseAgent, reactivateAgent } = usePauseStatus(conversationId);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -96,6 +104,30 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
     const secs = Math.floor((minutes * 60) % 60);
     return `${hrs > 0 ? String(hrs).padStart(2, '0') + ':' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+
+  // Modo pill · linha compacta (~32px) só com status atual · sem controles
+  if (mode === 'pill') {
+    return (
+      <div className="px-5 py-2 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-meta uppercase text-[9px] tracking-[0.18em] text-[hsl(var(--muted-foreground))] flex items-center gap-2">
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full ${
+                isPaused ? 'bg-[hsl(var(--warning))]' : 'bg-[hsl(var(--success))] animate-pulse'
+              }`}
+            />
+            {isPaused ? 'Lara pausada' : 'Lara conduzindo'}
+          </span>
+          {isPaused && remainingTime > 0 && (
+            <span className="text-[11px] text-[hsl(var(--warning))] font-mono tabular-nums opacity-90 inline-flex items-center gap-1.5">
+              <Clock className="w-3 h-3" strokeWidth={1.5} />
+              {formatRemainingTime(remainingTime)}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="border-b border-white/[0.06] p-4 bg-[hsl(var(--chat-panel-bg))] shrink-0 space-y-3">
