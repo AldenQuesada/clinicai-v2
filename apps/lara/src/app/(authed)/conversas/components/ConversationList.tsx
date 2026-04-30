@@ -30,6 +30,9 @@ interface ConversationListProps {
   /** Callback notificando se ha filtros avancados ativos · controla
       destaque do botao Filter na topbar (champagne quando ativo) */
   onAdvancedFiltersActiveChange?: (active: boolean) => void;
+  /** activeTab lifted pra topbar (KPIs clicaveis filtram a lista) */
+  activeTab: string;
+  onActiveTabChange: (tab: string) => void;
   /** P-12 Fase 3 · atendentes online no inbox (presence) — não usados aqui agora
       mas mantidos pra compat futura se quisermos avatar dentro da sidebar */
   onlineUsers?: PresenceUser[];
@@ -53,8 +56,9 @@ export function ConversationList({
   showFilters,
   onToggleFilters,
   onAdvancedFiltersActiveChange,
+  activeTab,
+  onActiveTabChange,
 }: ConversationListProps) {
-  const [activeTab, setActiveTab] = useState('Todas');
   
   // Estados dos Filtros Avançados
   const [filterFunnel, setFilterFunnel] = useState<string>('all');
@@ -123,7 +127,7 @@ export function ConversationList({
     setFilterFunnel('all');
     setFilterTag('all');
     setFilterDate('all');
-    setActiveTab('Todas');
+    onActiveTabChange('Todas');
     // searchQuery vive no parent agora · clearFilters local nao limpa busca
   };
 
@@ -280,7 +284,7 @@ export function ConversationList({
             {tabs.map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => onActiveTabChange(tab)}
                 title={tab}
                 className={`font-meta uppercase flex-1 min-w-0 transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer ${
                   activeTab === tab

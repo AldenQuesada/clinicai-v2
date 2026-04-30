@@ -14,7 +14,7 @@ import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter } from 'lucide-react';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter, CheckCircle, Archive, Stethoscope } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -44,6 +44,7 @@ export default function ChatPage() {
   const [filteredCount, setFilteredCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [hasAdvFiltersActive, setHasAdvFiltersActive] = useState(false);
+  const [activeTab, setActiveTab] = useState('Todas');
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -289,73 +290,130 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · sobre chat (flex-1) · KPIs CENTRALIZADOS · refresh
-            absolute right pra nao competir pelo espaco horizontal · evita
-            invadir a zona direita (Perfil do lead). */}
-        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0 relative">
+        {/* ZONA CENTRAL · sobre chat (flex-1) · KPIs CLICAVEIS centralizados.
+            px-12 generoso pra nao invadir as zonas laterais. Cada KPI filtra
+            a lista quando clicado (cursor-pointer + hover translate + ring) */}
+        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-12 min-w-0">
 
-        <div className="flex items-center gap-5">
-          {/* Novos Leads · 1o (esquerda) · contatos novos hoje (00:00 BRT) */}
-          <div
-            title="Contatos novos cadastrados hoje (não inclui mensagens novas de leads existentes)"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]"
-          >
-            <div className={`p-1.5 rounded-md ${novosLeads > 0 ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
-              <UserPlus className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Novos leads</p>
-              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${novosLeads > 0 ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>{novosLeads}</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          {(() => {
+            const isActive = (tabName: string) =>
+              statusFilter === 'active' && activeTab === tabName;
+            const isResolvedActive = statusFilter === 'resolved';
+            const kpis = [
+              {
+                id: 'novos',
+                icon: UserPlus,
+                label: 'Novos leads',
+                value: novosLeads,
+                color: 'primary',
+                accent: novosLeads > 0,
+                active: false, // novos leads nao tem filtro 1:1, click leva pra Todas
+                title: 'Contatos novos cadastrados hoje · clique pra ver todas as conversas abertas',
+                onClick: () => {
+                  setStatusFilter('active');
+                  setActiveTab('Todas');
+                },
+              },
+              {
+                id: 'urgentes',
+                icon: AlertCircle,
+                label: 'Urgentes',
+                value: urgentes,
+                color: 'danger',
+                accent: urgentes > 0,
+                active: isActive('Urgentes'),
+                title: 'Conversas urgentes · clique pra filtrar',
+                onClick: () => {
+                  setStatusFilter('active');
+                  setActiveTab('Urgentes');
+                },
+              },
+              {
+                id: 'aguardando',
+                icon: Clock,
+                label: 'Aguardando você',
+                value: aguardando,
+                color: 'warning',
+                accent: true,
+                active: isActive('Aguardando'),
+                title: 'Aguardando você responder · clique pra filtrar',
+                onClick: () => {
+                  setStatusFilter('active');
+                  setActiveTab('Aguardando');
+                },
+              },
+              {
+                id: 'lara',
+                icon: MessageCircle,
+                label: 'Lara ativa',
+                value: laraAtiva,
+                color: 'primary',
+                accent: true,
+                active: isActive('Lara Ativa'),
+                title: 'Lara conduzindo · clique pra filtrar',
+                onClick: () => {
+                  setStatusFilter('active');
+                  setActiveTab('Lara Ativa');
+                },
+              },
+              {
+                id: 'resolvidos',
+                icon: CheckCircle2,
+                label: 'Resolvidos hoje',
+                value: resolvidosHoje,
+                color: 'success',
+                accent: true,
+                active: isResolvedActive,
+                title: 'Resolvidos hoje · clique pra ver a aba Feitas',
+                onClick: () => {
+                  setStatusFilter('resolved');
+                },
+              },
+            ];
 
-          <div className="w-px h-9 bg-white/[0.06]" />
-
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
-            <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
-              <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Urgentes</p>
-              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${urgentes > 0 ? 'text-[hsl(var(--danger))]' : 'text-[hsl(var(--foreground))]'}`}>{urgentes}</p>
-            </div>
-          </div>
-
-          <div className="w-px h-9 bg-white/[0.06]" />
-
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
-            <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
-              <Clock className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Aguardando você</p>
-              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{aguardando}</p>
-            </div>
-          </div>
-
-          <div className="w-px h-9 bg-white/[0.06]" />
-
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
-            <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-              <MessageCircle className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Lara ativa</p>
-              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{laraAtiva}</p>
-            </div>
-          </div>
-
-          <div className="w-px h-9 bg-white/[0.06]" />
-
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm hover:bg-white/[0.02]">
-            <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">
-              <CheckCircle2 className="w-4 h-4" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap">Resolvidos hoje</p>
-              <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
-            </div>
-          </div>
+            return kpis.map((k, idx) => {
+              const Icon = k.icon;
+              const colorVar = `hsl(var(--${k.color}))`;
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  title={k.title}
+                  onClick={k.onClick}
+                  className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200 ease-out hover:-translate-y-[3px] hover:shadow-luxury-sm ${
+                    k.active
+                      ? 'bg-[hsl(var(--primary))]/[0.06] ring-1 ring-[hsl(var(--primary))]/40'
+                      : 'hover:bg-white/[0.03]'
+                  }`}
+                  style={{ marginLeft: idx === 0 ? 0 : 4 }}
+                >
+                  <div
+                    className="p-1.5 rounded-md transition-colors"
+                    style={{
+                      background: k.accent ? `${colorVar.replace(')', ' / 0.10)').replace('hsl', 'hsl')}` : 'rgba(255,255,255,0.03)',
+                      color: k.accent ? colorVar : 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    <Icon className="w-4 h-4" strokeWidth={1.5} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase whitespace-nowrap group-hover:text-[hsl(var(--foreground))] transition-colors">
+                      {k.label}
+                    </p>
+                    <p
+                      className="font-display text-2xl leading-none mt-0.5 tabular-nums"
+                      style={{
+                        color: k.accent && k.value > 0 ? colorVar : 'hsl(var(--foreground))',
+                      }}
+                    >
+                      {k.value}
+                    </p>
+                  </div>
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* Refresh button moveu pra topbar zona esquerda (junto com Filter/Sort/New)
@@ -363,18 +421,48 @@ export default function ChatPage() {
         </div>
 
         {/* ZONA DIREITA · sobre painel direito · sincroniza largura com
-            isLeadPanelExpanded (w-80 expandido / w-14 colapsado) pra evitar
-            desalinhamento visual quando o user fecha o painel */}
+            isLeadPanelExpanded (w-80 expandido / w-14 colapsado).
+            Quando expandido + selectedConversation: 3 action buttons
+            (Resolver/Arquivar/Transferir) + titulo + close */}
         {isLeadPanelExpanded ? (
-          <div className="w-80 shrink-0 border-b border-l border-white/[0.06] flex items-center justify-between px-5">
-            <span className="font-display text-[16px] text-[hsl(var(--foreground))]">
+          <div className="w-80 shrink-0 border-b border-l border-white/[0.06] flex items-center px-3 gap-1">
+            {selectedConversation ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleAction('resolve')}
+                  title="Resolver conversa"
+                  className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <CheckCircle className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAction('archive')}
+                  title="Arquivar conversa"
+                  className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning))]/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <Archive className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAction('transfer')}
+                  title={`Transferir para ${displayResponsible()}`}
+                  className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <Stethoscope className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                <div className="w-px h-5 bg-white/[0.06] mx-1 shrink-0" />
+              </>
+            ) : null}
+            <span className="font-display text-[14px] text-[hsl(var(--foreground))] flex-1 truncate">
               Perfil do <em className="text-[hsl(var(--primary))] not-italic font-display italic">lead</em>
             </span>
             <button
               type="button"
               onClick={() => setIsLeadPanelExpanded(false)}
               title="Esconder painel"
-              className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04]"
+              className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04] shrink-0"
             >
               ×
             </button>
@@ -409,6 +497,8 @@ export default function ChatPage() {
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters((v) => !v)}
           onAdvancedFiltersActiveChange={setHasAdvFiltersActive}
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
           onlineUsers={inboxOnline}
           me={me}
           footerHint={

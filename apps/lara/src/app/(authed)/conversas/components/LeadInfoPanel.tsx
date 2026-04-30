@@ -110,38 +110,9 @@ export function LeadInfoPanel({
       {/* Header 'Perfil do lead' MOVIDO pro topbar global em 2026-04-30 */}
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {/* Action Buttons · text-buttons Montserrat (DNA flipbook) · sem ASSUMIR
-            (redundante · ja esta no AssumeReleaseBar do chat). 3 verbos curtos
-            separados por '·' translucido. Hover = cor semantica em Montserrat
-            8.5px tracking 0.18em · proposta B da revisao UIX 2026-04-30 */}
-        <div className="flex items-center justify-center gap-1 py-3 border-b border-white/[0.06] bg-white/[0.015]">
-          <button
-            type="button"
-            onClick={() => onAction?.('resolve')}
-            title="Resolver conversa"
-            className="font-meta uppercase text-[9.5px] tracking-[0.18em] px-3 py-1.5 rounded-sm transition-colors text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--success))]/[0.10] hover:text-[hsl(var(--success))] cursor-pointer"
-          >
-            Resolver
-          </button>
-          <span className="text-[hsl(var(--muted-foreground))] opacity-25 select-none text-xs">·</span>
-          <button
-            type="button"
-            onClick={() => onAction?.('archive')}
-            title="Arquivar conversa"
-            className="font-meta uppercase text-[9.5px] tracking-[0.18em] px-3 py-1.5 rounded-sm transition-colors text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--warning))]/[0.10] hover:text-[hsl(var(--warning))] cursor-pointer"
-          >
-            Arquivar
-          </button>
-          <span className="text-[hsl(var(--muted-foreground))] opacity-25 select-none text-xs">·</span>
-          <button
-            type="button"
-            onClick={() => onAction?.('transfer')}
-            title={`Transferir para ${responsavelLabel}`}
-            className="font-meta uppercase text-[9.5px] tracking-[0.18em] px-3 py-1.5 rounded-sm transition-colors text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]/[0.10] hover:text-[hsl(var(--accent))] cursor-pointer"
-          >
-            Transferir
-          </button>
-        </div>
+        {/* Action buttons (Resolver/Arquivar/Transferir) MOVERAM pra topbar
+            zona direita em 2026-04-30 \xb7 painel direito ganha mais altura
+            pras informacoes do lead aparecerem sem scroll. */}
 
         {/* Agent Pause Section · indicador de tempo restante quando pausado */}
         <AgentPauseSection
