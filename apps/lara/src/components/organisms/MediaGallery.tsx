@@ -83,7 +83,61 @@ export function MediaGallery({
 
   return (
     <>
-      {/* Filtros · padrao Mira (b2b-tab + b2b-chip) */}
+      {/* Header bar · botao "+ Nova foto" CHAMPAGNE FUNCIONAL + contagem
+          (substitui floating bottom-right e botao do PageHero) */}
+      <div
+        className="flex items-center justify-between mb-5"
+        style={{
+          paddingBottom: 14,
+          borderBottom: '1px solid rgba(245, 240, 232, 0.06)',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'Montserrat, sans-serif',
+            fontSize: 9.5,
+            fontWeight: 500,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: 'rgba(245, 240, 232, 0.5)',
+          }}
+        >
+          {items.length} {items.length === 1 ? 'foto' : 'fotos'}
+          <span style={{ opacity: 0.4, margin: '0 8px' }}>·</span>
+          <span style={{ color: '#C9A96E' }}>{items.filter((m) => m.is_active).length} em uso</span>
+        </div>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setUploadOpen(true)}
+            style={{
+              fontFamily: 'Montserrat, sans-serif',
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              background: '#C9A96E',
+              color: '#1A1814',
+              border: '1px solid #C9A96E',
+              padding: '9px 18px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'opacity 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.88')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            aria-label="Nova foto"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+            Nova foto
+          </button>
+        )}
+      </div>
+
+      {/* Filtros */}
       <div className="mb-6">
         <MediaFilters
           funnel={funnelFilter}
@@ -96,10 +150,19 @@ export function MediaGallery({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="b2b-empty">
+        <div
+          style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: 18,
+            fontStyle: 'italic',
+            color: 'rgba(245, 240, 232, 0.45)',
+            textAlign: 'center',
+            padding: '60px 20px',
+          }}
+        >
           {items.length === 0
-            ? 'O banco está vazio. Use "Nova foto" para subir a primeira imagem.'
-            : 'Nenhuma imagem bate com os filtros atuais.'}
+            ? 'Nenhuma foto ainda. Clique em "Nova foto" pra subir a primeira.'
+            : 'Nenhuma foto bate com esses filtros.'}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -113,19 +176,6 @@ export function MediaGallery({
             />
           ))}
         </div>
-      )}
-
-      {/* Floating upload trigger · estilo Mira (não sticky bottom-right exagerado) */}
-      {canManage && (
-        <button
-          type="button"
-          onClick={() => setUploadOpen(true)}
-          className="fixed bottom-6 right-6 b2b-btn b2b-btn-primary shadow-lg"
-          aria-label="Nova foto"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nova foto
-        </button>
       )}
 
       <MediaEditDrawer media={editingItem} onClose={() => setEditingId(null)} />

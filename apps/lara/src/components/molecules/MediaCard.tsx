@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * MediaCard · molecula · cartao de foto · estilo Mira (.luxury-card).
+ * MediaCard · cartão de foto · DNA design v2
+ * (Cormorant regular pra captions · Montserrat 8.5px tracking 0.18em pra
+ *  metadata · linhas finas border-white/[0.06] · champagne em destaques).
  *
- * - Card .luxury-card · bg b2b-bg-1, border b2b-border, hover border-strong
- * - Imagem aspect 4:5 (retrato natural pra antes/depois)
- * - Caption Cormorant italic + meta uppercase tracking
- * - Hover overlay simples com .b2b-btn pra acoes
+ * - Imagem 1:1 object-contain · não corta rosto
+ * - Caption Cormorant regular (não italic forçado, evita "fake oblique")
+ * - Pills queixas em font-meta uppercase · status em badge minimal
+ * - Hover: actions Editar/Toggle aparecem com fade
  */
 
 import { useState, useTransition } from 'react'
@@ -17,16 +19,33 @@ export interface MediaCardData {
   filename: string
   url: string
   funnel: string | null
+  category?: string
   queixas: string[]
   caption: string | null
   is_active: boolean
 }
 
+const META: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif',
+  fontSize: 8.5,
+  fontWeight: 500,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+}
+
 function parseCaption(raw: string | null): { primary: string; secondary: string | null } {
-  if (!raw) return { primary: 'Sem caption', secondary: null }
+  if (!raw) return { primary: 'Sem legenda', secondary: null }
   const parts = raw.split(/\s*·\s*/)
   if (parts.length >= 2) return { primary: parts[0], secondary: parts.slice(1).join(' · ') }
   return { primary: parts[0], secondary: null }
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  before_after: '',
+  consulta: 'Consulta',
+  anovator: 'Anovator',
+  biometria: 'Biometria',
+  clinica: 'Clínica',
 }
 
 export function MediaCard({
@@ -56,12 +75,11 @@ export function MediaCard({
   }
 
   const cap = parseCaption(media.caption)
+  const categoryLabel = media.category ? CATEGORY_LABEL[media.category] : ''
 
   return (
     <article
-      className={`luxury-card overflow-hidden cursor-pointer group ${
-        media.is_active ? '' : 'opacity-50'
-      }`}
+      className={`group cursor-pointer transition-opacity ${media.is_active ? '' : 'opacity-50'}`}
       onClick={() => onEdit(media.id)}
       tabIndex={0}
       role="button"
@@ -71,16 +89,27 @@ export function MediaCard({
           onEdit(media.id)
         }
       }}
+      style={{
+        background: 'rgba(255, 255, 255, 0.015)',
+        border: '1px solid rgba(245, 240, 232, 0.06)',
+        borderRadius: 4,
+        overflow: 'hidden',
+        transition: 'border-color 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.3)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(245, 240, 232, 0.06)'
+      }}
     >
-      {/* Imagem · aspect 1:1 (square · fits faces sem cortar muito) ·
-          object-contain pra mostrar a foto inteira (letterboxing minimo
-          quando a foto nao for square · evita cortar testa/queixo) */}
+      {/* Imagem · aspect 1:1 object-contain */}
       <div
-        className="relative bg-[var(--b2b-bg-2)] overflow-hidden"
-        style={{ aspectRatio: '1 / 1' }}
+        className="relative overflow-hidden"
+        style={{ aspectRatio: '1 / 1', background: 'rgba(255, 255, 255, 0.025)' }}
       >
         {imgError ? (
-          <div className="absolute inset-0 flex items-center justify-center text-[var(--b2b-text-muted)]">
+          <div className="absolute inset-0 flex items-center justify-center" style={{ color: 'rgba(245, 240, 232, 0.3)' }}>
             <ImageIcon className="w-8 h-8 opacity-50" />
           </div>
         ) : (
@@ -95,37 +124,91 @@ export function MediaCard({
           />
         )}
 
-        {/* Status pill no canto · padrao Mira (.b2b-pill) */}
-        <div className="absolute top-3 right-3">
+        {/* Badge categoria (canto top-left) · só pra institucionais */}
+        {categoryLabel && (
+          <div
+            className="absolute top-2 left-2"
+            style={{
+              ...META,
+              fontSize: 8,
+              padding: '3px 7px',
+              borderRadius: 2,
+              color: '#C9A96E',
+              background: 'rgba(26, 24, 20, 0.85)',
+              border: '1px solid rgba(201, 169, 110, 0.3)',
+              backdropFilter: 'blur(6px)',
+            }}
+          >
+            {categoryLabel}
+          </div>
+        )}
+
+        {/* Status · canto top-right */}
+        <div className="absolute top-2 right-2">
           <span
-            className={`b2b-pill ${
-              media.is_active ? 'b2b-pill-tier' : ''
-            }`}
-            style={{ backdropFilter: 'blur(6px)' }}
+            style={{
+              ...META,
+              fontSize: 8,
+              padding: '3px 7px',
+              borderRadius: 2,
+              color: media.is_active ? '#6EE7B7' : 'rgba(245, 240, 232, 0.5)',
+              background: media.is_active
+                ? 'rgba(16, 185, 129, 0.12)'
+                : 'rgba(26, 24, 20, 0.85)',
+              border: media.is_active
+                ? '1px solid rgba(16, 185, 129, 0.3)'
+                : '1px solid rgba(245, 240, 232, 0.1)',
+              backdropFilter: 'blur(6px)',
+            }}
           >
             {media.is_active ? 'em uso' : 'arquivada'}
           </span>
         </div>
 
-        {/* Hover overlay com acoes · b2b-btn */}
+        {/* Hover actions */}
         {canManage && (
-          <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-2">
+          <div
+            className="absolute inset-x-0 bottom-0 p-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-1.5"
+            style={{
+              background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
+            }}
+          >
             <button
               type="button"
               onClick={handleEdit}
-              className="b2b-btn b2b-btn-primary"
-              style={{ padding: '6px 12px', fontSize: '11px' }}
+              style={{
+                ...META,
+                fontSize: 9,
+                background: '#C9A96E',
+                color: '#1A1814',
+                border: '1px solid #C9A96E',
+                padding: '5px 10px',
+                borderRadius: 3,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
             >
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3 h-3" strokeWidth={2} />
               Editar
             </button>
             <button
               type="button"
               onClick={handleToggle}
               disabled={pending}
-              className="b2b-btn"
-              style={{ padding: '6px 10px', fontSize: '11px' }}
               title={media.is_active ? 'Arquivar' : 'Reativar'}
+              style={{
+                background: 'transparent',
+                color: 'rgba(245, 240, 232, 0.85)',
+                border: '1px solid rgba(245, 240, 232, 0.2)',
+                padding: '5px 8px',
+                borderRadius: 3,
+                cursor: pending ? 'not-allowed' : 'pointer',
+                opacity: pending ? 0.5 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
             >
               {media.is_active ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
@@ -133,15 +216,14 @@ export function MediaCard({
         )}
       </div>
 
-      {/* Footer · caption + meta · padding compacto */}
+      {/* Footer · caption + meta */}
       <div style={{ padding: '10px 12px 12px' }}>
         <p
           className="font-display"
           style={{
-            fontSize: 16,
-            lineHeight: 1.15,
-            color: 'var(--b2b-ivory)',
-            fontStyle: 'italic',
+            fontSize: 14,
+            lineHeight: 1.25,
+            color: 'rgba(245, 240, 232, 0.92)',
             fontWeight: 400,
             margin: 0,
           }}
@@ -151,11 +233,11 @@ export function MediaCard({
         {cap.secondary && (
           <p
             style={{
-              fontSize: 10,
-              color: 'var(--b2b-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: 1.2,
+              ...META,
+              fontSize: 8.5,
+              color: 'rgba(245, 240, 232, 0.4)',
               marginTop: 4,
+              margin: '4px 0 0',
             }}
           >
             {cap.secondary}
@@ -164,12 +246,33 @@ export function MediaCard({
         {media.queixas.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
             {media.queixas.slice(0, 3).map((q) => (
-              <span key={q} className="b2b-pill" style={{ fontSize: 9, padding: '1px 6px' }}>
+              <span
+                key={q}
+                style={{
+                  ...META,
+                  fontSize: 8,
+                  padding: '2px 6px',
+                  borderRadius: 2,
+                  background: 'rgba(255, 255, 255, 0.025)',
+                  color: 'rgba(245, 240, 232, 0.6)',
+                  border: '1px solid rgba(245, 240, 232, 0.06)',
+                }}
+              >
                 {q}
               </span>
             ))}
             {media.queixas.length > 3 && (
-              <span className="b2b-pill" style={{ fontSize: 9, padding: '1px 6px' }}>
+              <span
+                style={{
+                  ...META,
+                  fontSize: 8,
+                  padding: '2px 6px',
+                  borderRadius: 2,
+                  background: 'rgba(255, 255, 255, 0.025)',
+                  color: 'rgba(245, 240, 232, 0.5)',
+                  border: '1px solid rgba(245, 240, 232, 0.06)',
+                }}
+              >
                 +{media.queixas.length - 3}
               </span>
             )}
