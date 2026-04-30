@@ -173,6 +173,80 @@ export class ConversationRepository {
   }
 
   /**
+   * P-12 · atribui conversa a um membro da clinic via RPC atomico
+   * (wa_conversation_assign). Retorna estado final · UI reconcilia
+   * em race entre 2 atendentes.
+   */
+  async assignConversation(
+    conversationId: string,
+    userId: string,
+  ): Promise<{
+    ok: boolean
+    error?: string
+    assignedTo?: string
+    assignedAt?: string
+  }> {
+    const { data, error } = await this.supabase.rpc('wa_conversation_assign', {
+      p_conversation_id: conversationId,
+      p_user_id: userId,
+    })
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+    // RPC retorna jsonb · supabase devolve o objeto direto
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = (data as any) ?? {}
+    return {
+      ok: result.ok === true,
+      error: result.error ?? undefined,
+      assignedTo: result.assigned_to ?? undefined,
+      assignedAt: result.assigned_at ?? undefined,
+    }
+  }
+
+  /**
+   * P-12 · libera conversa (assigned_to = NULL).
+   */
+  async unassignConversation(
+    conversationId: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await this.supabase.rpc('wa_conversation_unassign', {
+      p_conversation_id: conversationId,
+    })
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = (data as any) ?? {}
+    return {
+      ok: result.ok === true,
+      error: result.error ?? undefined,
+    }
+  }
+
+  /**
+   * P-12 · le assignment atual de uma conversa (sem JOIN com profiles ·
+   * o caller resolve o profile via useClinicMembers cache pra evitar N+1).
+   */
+  async getAssignment(conversationId: string): Promise<{
+    assignedTo: string | null
+    assignedAt: string | null
+  } | null> {
+    const { data } = await this.supabase
+      .from('wa_conversations')
+      .select('assigned_to, assigned_at')
+      .eq('id', conversationId)
+      .maybeSingle()
+    if (!data) return null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = data as any
+    return {
+      assignedTo: row.assigned_to ?? null,
+      assignedAt: row.assigned_at ?? null,
+    }
+  }
+
+  /**
    * Conta conversations num filtro · usado pelo dashboard pra cards.
    * Composição estilo: { aiEnabled?, statuses?, lastMessageSince? }.
    */

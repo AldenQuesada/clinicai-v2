@@ -116,6 +116,13 @@ export interface ConversationDTO {
    * sempre caia em env global. Camada 3.5 fixa.
    */
   waNumberId: string | null
+  /**
+   * P-12 multi-atendente · profile id atribuido a esta conversa.
+   * Soft-lock visual · null quando nao atribuida. Mig 87.
+   */
+  assignedTo: string | null
+  /** P-12 · timestamp do ultimo assign · null quando unassigned. */
+  assignedAt: string | null
 }
 
 /**

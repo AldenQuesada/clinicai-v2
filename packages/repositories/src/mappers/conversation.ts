@@ -24,5 +24,7 @@ export function mapConversationRow(row: any): ConversationDTO {
     lastLeadMsg: row.last_lead_msg ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
     waNumberId: row.wa_number_id ?? null,
+    assignedTo: row.assigned_to ?? null,
+    assignedAt: row.assigned_at ?? null,
   }
 }

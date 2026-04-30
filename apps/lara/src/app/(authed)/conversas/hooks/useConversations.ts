@@ -18,6 +18,10 @@ export interface Conversation {
   tags: string[];
   queixas: string[];
   channel?: 'cloud' | 'legacy' | string;
+  /** P-12 · profile id atribuido (null = sem atribuicao). */
+  assigned_to?: string | null;
+  /** P-12 · ISO do ultimo assign. */
+  assigned_at?: string | null;
 }
 
 export const playNotificationSound = () => {

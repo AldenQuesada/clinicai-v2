@@ -477,12 +477,26 @@
         </div>
       </div>
 
-      <div class="item" data-id="P-12">
-        <div class="check"><input type="checkbox" /></div>
+      <div class="item checked" data-id="P-12">
+        <div class="check"><input type="checkbox" checked /></div>
         <div class="body">
-          <div class="id">P-12</div>
-          <div class="title">Sem multi-atendente — quem está vendo? quem assumiu?</div>
-          <div class="desc">Sem indicador "Beatriz está vendo essa conversa", sem assign explícito, sem lock. 2 atendentes podem responder ao mesmo tempo.</div>
+          <div class="id">P-12 · Fase 1+2 done · 2026-04-30</div>
+          <div class="title">Multi-atendente · assignment explícito (Fase 1+2 entregue · 80% do valor)</div>
+          <div class="desc">
+            <strong>Fase 1 (server)</strong>: mig 87 (assigned_to + assigned_at + index parcial),
+            RPCs <code>wa_conversation_assign</code>/<code>wa_conversation_unassign</code> SECURITY DEFINER,
+            POST/DELETE <code>/api/conversations/[id]/assign</code>, GET <code>/api/clinic/members</code>
+            (lista + me).<br/>
+            <strong>Fase 2 (UI)</strong>: <code>AssignmentSection</code> no LeadInfoPanel acima
+            de "Etapa Atual" · 3 estados (sem assign / atribuído a mim / atribuído a outro
+            com warning soft-lock) · dropdown de membros com avatar + atalho "Atribuir a mim"
+            · hooks <code>useClinicMembers</code> (cache 5min) + <code>useAssignment</code>
+            (otimista).<br/>
+            <strong>Pendente Fases 3+4</strong>: presence em tempo real (Supabase Realtime
+            <code>channel.track</code>) + indicador "Mirian digitando..." · validar com
+            Mirian se ainda confunde "quem está olhando" antes de empilhar.
+          </div>
+          <div class="ref">db/migrations/20260800000087_clinicai_v2_p12_conversation_assignment.sql · components/AssignmentSection.tsx · hooks/useAssignment.ts · hooks/useClinicMembers.ts · doc: docs/audits/2026-04-29-p12-multi-atendente-projeto.html</div>
         </div>
         <div class="meta">
           <span class="priority p2">P2</span>

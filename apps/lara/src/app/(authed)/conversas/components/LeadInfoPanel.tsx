@@ -1,6 +1,7 @@
 import { Calendar, Tag, ShieldAlert, UserPlus, CheckCircle, Archive, Stethoscope, ExternalLink, CalendarPlus, User } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import { AgentPauseSection } from './AgentPauseSection';
+import { AssignmentSection } from './AssignmentSection';
 import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
@@ -148,6 +149,14 @@ export function LeadInfoPanel({
               onPick={(action) => onPickAction?.(action)}
             />
           )}
+
+          {/* P-12 · Atribuído a (multi-atendente) · acima de Etapa Atual */}
+          <AssignmentSection
+            conversationId={selectedConversation.conversation_id}
+            initialAssignedTo={selectedConversation.assigned_to ?? null}
+            initialAssignedAt={selectedConversation.assigned_at ?? null}
+            onChange={onStatusChange}
+          />
 
           {/* Tags / Pipeline Data */}
           <div>

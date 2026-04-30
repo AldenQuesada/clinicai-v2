@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
         lead_score: lead?.leadScore || 0,
         channel: isCloud ? 'cloud' : 'legacy',
         is_urgent: isUrgent(c.aiEnabled, c.lastLeadMsg),
+        // P-12 · multi-atendente
+        assigned_to: c.assignedTo,
+        assigned_at: c.assignedAt,
       };
     });
 
