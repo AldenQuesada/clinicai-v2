@@ -41,7 +41,7 @@ async function loadMedia(): Promise<{ media: GalleryMediaItem[]; canManage: bool
 }
 
 function noun(n: number) {
-  return n === 1 ? 'imagem' : 'imagens'
+  return n === 1 ? 'foto' : 'fotos'
 }
 
 export default async function MediaPage() {
@@ -56,24 +56,35 @@ export default async function MediaPage() {
   return (
     <PageContainer variant="narrow">
       <PageHero
-        kicker="Painel · Lara"
-        title={<>Banco de <em>mídias</em></>}
-        lede="Imagens e áudios que a Lara consome durante as conversas."
+        kicker="Lara"
+        title={<>Banco de <em>fotos</em></>}
+        lede="Fotos antes/depois que a Lara envia automaticamente nas conversas."
         actions={
           canManage ? (
             <Link href="#upload" className="b2b-btn b2b-btn-primary">
               <Plus className="w-3.5 h-3.5" />
-              Nova foto
+              Nova
             </Link>
           ) : undefined
         }
       />
 
-      {/* Head: count */}
+      {/* Head minimalista · Montserrat 8.5px tracking 0.18em (DNA /conversas) */}
       <div className="b2b-list-head">
-        <div className="b2b-list-count">
-          {media.length} {noun(media.length)} ·{' '}
-          <span style={{ color: 'var(--b2b-champagne)' }}>{activeCount} em uso</span>
+        <div
+          className="b2b-list-count"
+          style={{
+            fontFamily: 'Montserrat, sans-serif',
+            fontSize: '9px',
+            fontWeight: 500,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: 'rgba(245, 240, 232, 0.5)',
+          }}
+        >
+          {media.length} {noun(media.length)}
+          <span style={{ opacity: 0.4, margin: '0 8px' }}>·</span>
+          <span style={{ color: '#C9A96E' }}>{activeCount} em uso</span>
         </div>
       </div>
 

@@ -1,22 +1,8 @@
 'use client'
 
 /**
- * MediaEditDrawer · modal de edicao de foto · CLONE 1:1 do
- * PartnershipModalShell.tsx + .b2b-modal-hdr/.b2b-modal-body da Mira.
- *
- * Estrutura (espelho exato):
- *   <div class="b2b-overlay">
- *     <div class="b2b-modal" style="maxWidth:720">
- *       <header class="b2b-modal-hdr"><h2>...</h2><button class="b2b-close">×</button></header>
- *       <div class="b2b-modal-body">
- *         <form>
- *           [b2b-form-sec, b2b-grid-2, b2b-field, b2b-input, b2b-form-actions]
- *         </form>
- *       </div>
- *     </div>
- *   </div>
- *
- * Esc fecha · click no overlay fecha · autofocus no caption.
+ * MediaEditDrawer · modal edicao · DNA design v2 (Cormorant + Montserrat
+ * 8.5px tracking 0.18em + linhas finas + champagne italic).
  */
 
 import { useEffect, useRef } from 'react'
@@ -35,22 +21,40 @@ export interface MediaEditData {
 }
 
 const VALID_QUEIXAS = [
-  'geral',
-  'olheiras',
-  'sulcos',
-  'flacidez',
-  'contorno',
-  'papada',
-  'textura',
-  'rugas',
-  'rejuvenescimento',
-  'fullface',
-  'firmeza',
-  'manchas',
-  'mandibula',
-  'perfil',
-  'bigode_chines',
-]
+  'geral', 'olheiras', 'sulcos', 'flacidez', 'contorno', 'papada',
+  'textura', 'rugas', 'rejuvenescimento', 'fullface', 'firmeza',
+  'manchas', 'mandibula', 'perfil', 'bigode_chines',
+] as const
+
+const META_LABEL: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif',
+  fontSize: '8.5px',
+  fontWeight: 500,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'rgba(245, 240, 232, 0.55)',
+}
+
+const META_HINT: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif',
+  fontSize: '9.5px',
+  fontWeight: 400,
+  letterSpacing: '0.08em',
+  color: 'rgba(245, 240, 232, 0.4)',
+}
+
+const SECTION_DIVIDER: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif',
+  fontSize: '8.5px',
+  fontWeight: 600,
+  letterSpacing: '0.22em',
+  textTransform: 'uppercase',
+  color: '#C9A96E',
+  paddingBottom: 6,
+  marginBottom: 12,
+  borderBottom: '1px solid rgba(245, 240, 232, 0.06)',
+  marginTop: 18,
+}
 
 export function MediaEditDrawer({
   media,
@@ -84,14 +88,30 @@ export function MediaEditDrawer({
       className="b2b-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Editar mídia"
+      aria-label="Editar foto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="b2b-modal" style={{ maxWidth: 720 }}>
-        <header className="b2b-modal-hdr">
-          <h2>Editar mídia</h2>
+      <div className="b2b-modal" style={{ maxWidth: 680 }}>
+        <header
+          className="b2b-modal-hdr"
+          style={{
+            borderBottom: '1px solid rgba(245, 240, 232, 0.06)',
+            padding: '20px 28px 16px',
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: 26,
+              fontWeight: 400,
+              margin: 0,
+              letterSpacing: '-0.2px',
+            }}
+          >
+            Editar <em style={{ color: '#C9A96E', fontStyle: 'italic' }}>foto</em>
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -103,23 +123,23 @@ export function MediaEditDrawer({
           </button>
         </header>
 
-        <div className="b2b-modal-body">
-          {/* Preview da imagem · grid 2 cols (img + filename) */}
+        <div className="b2b-modal-body" style={{ padding: '4px 28px 24px' }}>
+          {/* Preview · img + filename */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '180px 1fr',
+              gridTemplateColumns: '160px 1fr',
               gap: 16,
-              marginBottom: 20,
+              margin: '20px 0 4px',
               alignItems: 'start',
             }}
           >
             <div
               style={{
                 aspectRatio: '4 / 5',
-                background: 'var(--b2b-bg-2)',
-                border: '1px solid var(--b2b-border)',
-                borderRadius: 6,
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(245, 240, 232, 0.06)',
+                borderRadius: 4,
                 overflow: 'hidden',
               }}
             >
@@ -131,23 +151,14 @@ export function MediaEditDrawer({
               />
             </div>
             <div style={{ minWidth: 0 }}>
+              <div style={{ ...META_LABEL, marginBottom: 6 }}>Arquivo</div>
               <div
                 style={{
                   fontSize: 11,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  color: 'var(--b2b-text-muted)',
-                  marginBottom: 6,
-                }}
-              >
-                Arquivo
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: 'var(--b2b-text-dim)',
+                  color: 'rgba(245, 240, 232, 0.5)',
                   fontFamily: 'ui-monospace, monospace',
                   wordBreak: 'break-all',
+                  letterSpacing: '0.02em',
                 }}
               >
                 {media.filename}
@@ -156,10 +167,11 @@ export function MediaEditDrawer({
           </div>
 
           <form action={updateMediaAction.bind(null, media.id)} onSubmit={() => onClose()}>
-            <div className="b2b-form-sec">Identificação</div>
+            {/* ── Identificação ──────────────────────────── */}
+            <div style={SECTION_DIVIDER}>Identificação</div>
             <div className="b2b-field">
-              <label className="b2b-field-lbl" htmlFor="caption">
-                Caption
+              <label style={META_LABEL} htmlFor="caption">
+                Legenda
               </label>
               <input
                 ref={captionRef}
@@ -167,24 +179,19 @@ export function MediaEditDrawer({
                 name="caption"
                 className="b2b-input"
                 defaultValue={media.caption ?? ''}
-                placeholder='ex: "Miriam Poppi, 52 anos · Resultado real Dra. Mirian de Paula"'
+                placeholder="ex: Miriam, 52 · resultado real"
               />
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--b2b-text-muted)',
-                  marginTop: 4,
-                }}
-              >
-                Vai como legenda da foto pro paciente · padrão: nome + idade + assinatura.
+              <div style={{ ...META_HINT, marginTop: 6 }}>
+                Vai como caption no WhatsApp · padrão: nome + idade
               </div>
             </div>
 
-            <div className="b2b-form-sec">Categorização</div>
+            {/* ── Categorização ─────────────────────────── */}
+            <div style={SECTION_DIVIDER}>Categorização</div>
             <div className="b2b-grid-2">
               <div className="b2b-field">
-                <label className="b2b-field-lbl" htmlFor="funnel">
-                  Funnel
+                <label style={META_LABEL} htmlFor="funnel">
+                  Funil
                 </label>
                 <select
                   id="funnel"
@@ -198,20 +205,21 @@ export function MediaEditDrawer({
                 </select>
               </div>
               <div className="b2b-field">
-                <label className="b2b-field-lbl" htmlFor="phase">
-                  Fase (opcional)
+                <label style={META_LABEL} htmlFor="phase">
+                  Fase
                 </label>
                 <input
                   id="phase"
                   name="phase"
                   className="b2b-input"
                   defaultValue={media.phase ?? ''}
+                  placeholder="—"
                 />
               </div>
             </div>
 
             <div className="b2b-field">
-              <label className="b2b-field-lbl" htmlFor="queixas">
+              <label style={META_LABEL} htmlFor="queixas">
                 Queixas
               </label>
               <input
@@ -221,20 +229,14 @@ export function MediaEditDrawer({
                 defaultValue={media.queixas.join(', ')}
                 placeholder="olheiras, sulcos, flacidez..."
               />
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--b2b-text-muted)',
-                  marginTop: 4,
-                }}
-              >
-                Separadas por vírgula · só entram tags válidas: {VALID_QUEIXAS.join(', ')}.
+              <div style={{ ...META_HINT, marginTop: 6 }}>
+                {VALID_QUEIXAS.join(' · ')}
               </div>
             </div>
 
             <div className="b2b-grid-2">
               <div className="b2b-field">
-                <label className="b2b-field-lbl" htmlFor="sort_order">
+                <label style={META_LABEL} htmlFor="sort_order">
                   Ordem
                 </label>
                 <input
@@ -248,11 +250,54 @@ export function MediaEditDrawer({
               <div />
             </div>
 
-            <div className="b2b-form-actions">
-              <button type="button" onClick={onClose} className="b2b-btn">
+            {/* ── Actions ───────────────────────────────── */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginTop: 24,
+                paddingTop: 16,
+                borderTop: '1px solid rgba(245, 240, 232, 0.06)',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  background: 'transparent',
+                  border: '1px solid rgba(245, 240, 232, 0.12)',
+                  color: 'rgba(245, 240, 232, 0.7)',
+                  padding: '9px 18px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
                 Cancelar
               </button>
-              <button type="submit" className="b2b-btn b2b-btn-primary">
+              <button
+                type="submit"
+                style={{
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  background: '#C9A96E',
+                  border: '1px solid #C9A96E',
+                  color: '#1A1814',
+                  padding: '9px 22px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
                 Salvar
               </button>
             </div>
