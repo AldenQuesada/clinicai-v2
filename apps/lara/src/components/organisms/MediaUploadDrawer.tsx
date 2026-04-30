@@ -58,6 +58,7 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>('')
   const [clientError, setClientError] = useState<string>('')
+  const [selectedQueixas, setSelectedQueixas] = useState<string[]>([])
   const router = useRouter()
 
   const [state, formAction, isPending] = useActionState<UploadResult | null, FormData>(
@@ -88,6 +89,7 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
     setPreviewUrl(null)
     setFileName('')
     setClientError('')
+    setSelectedQueixas([])
     onClose()
   }
 
@@ -330,14 +332,42 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
               <label style={META_LABEL} htmlFor="up-queixas">
                 Queixas
               </label>
-              <input
-                id="up-queixas"
-                name="queixas"
-                className="b2b-input"
-                placeholder="olheiras, sulcos, flacidez..."
-              />
-              <div style={{ ...META_HINT, marginTop: 6 }}>
-                {VALID_QUEIXAS.join(' · ')}
+              {/* Chips clicaveis · sem digitacao livre · server filtra apenas
+                  tags conhecidas de KNOWN_PHOTO_TAGS · evita queixa perdida. */}
+              <input type="hidden" name="queixas" value={selectedQueixas.join(',')} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {VALID_QUEIXAS.map((q) => {
+                  const active = selectedQueixas.includes(q)
+                  return (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() =>
+                        setSelectedQueixas((prev) =>
+                          active ? prev.filter((x) => x !== q) : [...prev, q],
+                        )
+                      }
+                      style={{
+                        ...META_LABEL,
+                        fontSize: 9,
+                        padding: '4px 10px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        background: active ? 'rgba(201, 169, 110, 0.15)' : 'transparent',
+                        color: active ? '#C9A96E' : 'rgba(245, 240, 232, 0.5)',
+                        border: active
+                          ? '1px solid rgba(201, 169, 110, 0.4)'
+                          : '1px solid rgba(245, 240, 232, 0.1)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {q}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ ...META_HINT, marginTop: 8 }}>
+                Clique pra marcar/desmarcar · {selectedQueixas.length} selecionada{selectedQueixas.length === 1 ? '' : 's'}
               </div>
             </div>
 

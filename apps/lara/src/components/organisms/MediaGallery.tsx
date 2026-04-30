@@ -178,8 +178,19 @@ export function MediaGallery({
         </div>
       )}
 
-      <MediaEditDrawer media={editingItem} onClose={() => setEditingId(null)} />
-      <MediaUploadDrawer open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      {/* key={editingId} forca re-mount entre edits · resseta useActionState
+          (state.ok=true ficava stuck depois da 1a save · 2a save nao disparava
+          useEffect porque boolean nao mudava · bug 2026-04-30) */}
+      <MediaEditDrawer
+        key={editingId ?? 'closed'}
+        media={editingItem}
+        onClose={() => setEditingId(null)}
+      />
+      <MediaUploadDrawer
+        key={uploadOpen ? 'upload-open' : 'upload-closed'}
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+      />
     </>
   )
 }

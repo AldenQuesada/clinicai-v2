@@ -4,9 +4,11 @@
  * MediaEditDrawer · modal edicao · DNA design v2 (Cormorant + Montserrat
  * 8.5px tracking 0.18em + linhas finas + champagne italic).
  * useActionState pra capturar erro do server action inline (era throw silencioso).
+ * Queixas como CHIPS CLICAVEIS (era input texto livre · queixas invalidas
+ * eram descartadas silenciosamente pelo parseQueixas).
  */
 
-import { useEffect, useRef, useActionState } from 'react'
+import { useEffect, useRef, useState, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateMediaAction, type UpdateResult } from '@/app/(authed)/midia/actions'
 
@@ -77,6 +79,12 @@ export function MediaEditDrawer({
   const captionRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  // Queixas como state local · controlled · chips clicaveis.
+  // Inicializa com queixas atuais da media (filtra pra so manter validas).
+  const [selectedQueixas, setSelectedQueixas] = useState<string[]>(
+    media ? media.queixas.filter((q) => (VALID_QUEIXAS as readonly string[]).includes(q)) : [],
+  )
+
   // useActionState pra capturar erro inline (antes era throw silencioso).
   // ID vem via hidden input 'media_id' (era bind · causava instabilidade).
   const [state, formAction, isPending] = useActionState<UpdateResult | null, FormData>(
@@ -94,12 +102,14 @@ export function MediaEditDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.ok])
 
+  // Foco inicial no caption · sem .select() (que pintava texto azul ao
+  // abrir e confundia user achando que tinha erro). Roda so na 1a vez
+  // (mudanca de media.id) · evita refoco stuck durante pending state.
   useEffect(() => {
     if (media && captionRef.current) {
       captionRef.current.focus()
-      captionRef.current.select()
     }
-  }, [media])
+  }, [media?.id])
 
   useEffect(() => {
     if (!media) return
@@ -286,18 +296,48 @@ export function MediaEditDrawer({
             )}
 
             <div className="b2b-field">
-              <label style={META_LABEL} htmlFor="queixas">
+              <label style={META_LABEL} htmlFor="queixas-chips">
                 Queixas
               </label>
-              <input
-                id="queixas"
-                name="queixas"
-                className="b2b-input"
-                defaultValue={media.queixas.join(', ')}
-                placeholder="olheiras, sulcos, flacidez..."
-              />
-              <div style={{ ...META_HINT, marginTop: 6 }}>
-                {VALID_QUEIXAS.join(' · ')}
+              {/* Chips clicaveis · sem digitacao livre · evita queixa "perdida"
+                  que o parseQueixas server-side descartaria silenciosamente. */}
+              <input type="hidden" name="queixas" value={selectedQueixas.join(',')} />
+              <div
+                id="queixas-chips"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}
+              >
+                {VALID_QUEIXAS.map((q) => {
+                  const active = selectedQueixas.includes(q)
+                  return (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() =>
+                        setSelectedQueixas((prev) =>
+                          active ? prev.filter((x) => x !== q) : [...prev, q],
+                        )
+                      }
+                      style={{
+                        ...META_LABEL,
+                        fontSize: 9,
+                        padding: '4px 10px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        background: active ? 'rgba(201, 169, 110, 0.15)' : 'transparent',
+                        color: active ? '#C9A96E' : 'rgba(245, 240, 232, 0.5)',
+                        border: active
+                          ? '1px solid rgba(201, 169, 110, 0.4)'
+                          : '1px solid rgba(245, 240, 232, 0.1)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {q}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ ...META_HINT, marginTop: 8 }}>
+                Clique pra marcar/desmarcar · {selectedQueixas.length} selecionada{selectedQueixas.length === 1 ? '' : 's'}
               </div>
             </div>
 
