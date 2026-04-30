@@ -191,7 +191,16 @@ export async function updateMediaAction(
       ? (categoryRaw as AllowedCategory)
       : undefined
 
-    await repos.mediaBank.update(ctx.clinic_id, id, {
+    console.log('[updateMediaAction] applying patch · id=', id, 'clinic=', ctx.clinic_id, 'patch keys=', {
+      caption: caption !== null,
+      queixas: queixas.length > 0,
+      funnel,
+      phase: phase !== null,
+      sortOrder,
+      category,
+    })
+
+    const result = await repos.mediaBank.update(ctx.clinic_id, id, {
       caption,
       queixas,
       funnel,
@@ -199,6 +208,15 @@ export async function updateMediaAction(
       sortOrder: Number.isFinite(sortOrder) ? sortOrder : undefined,
       category,
     })
+
+    console.log('[updateMediaAction] result:', result)
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error ?? `Update sem rows afetadas (RLS ou id ${id} nao existe)`,
+      }
+    }
 
     revalidatePath('/midia')
     return { ok: true }

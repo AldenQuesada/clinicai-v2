@@ -163,7 +163,11 @@ export class WaMediaBankRepository {
     return data ? mapRow(data) : null
   }
 
-  async update(clinicId: string, id: string, patch: UpdateMediaInput): Promise<void> {
+  async update(
+    clinicId: string,
+    id: string,
+    patch: UpdateMediaInput,
+  ): Promise<{ ok: boolean; rowsAffected: number; error?: string }> {
     const update: Record<string, unknown> = {}
     if (patch.filename !== undefined) update.filename = patch.filename
     if (patch.caption !== undefined) update.caption = patch.caption
@@ -174,13 +178,31 @@ export class WaMediaBankRepository {
     if (patch.isActive !== undefined) update.is_active = patch.isActive
     if (patch.sortOrder !== undefined) update.sort_order = patch.sortOrder
 
-    if (Object.keys(update).length === 0) return
+    if (Object.keys(update).length === 0) {
+      return { ok: true, rowsAffected: 0 }
+    }
 
-    await this.supabase
+    // .select() retorna as rows afetadas · permite detectar RLS bloqueando
+    // (rowsAffected=0 mas error=null = silenciosamente bloqueado)
+    const { data, error } = await this.supabase
       .from('wa_media_bank')
       .update(update)
       .eq('clinic_id', clinicId)
       .eq('id', id)
+      .select('id')
+
+    if (error) {
+      return { ok: false, rowsAffected: 0, error: error.message }
+    }
+    const rowsAffected = Array.isArray(data) ? data.length : 0
+    return {
+      ok: rowsAffected > 0,
+      rowsAffected,
+      error:
+        rowsAffected === 0
+          ? `Nenhuma row atualizada (id=${id} clinic_id=${clinicId} · RLS ou id invalido)`
+          : undefined,
+    }
   }
 
   async toggleActive(clinicId: string, id: string, isActive: boolean): Promise<void> {
