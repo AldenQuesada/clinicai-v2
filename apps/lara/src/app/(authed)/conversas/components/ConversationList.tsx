@@ -333,17 +333,26 @@ export function ConversationList({
             Nenhuma conversa encontrada com esses filtros.
           </div>
         ) : (
-          filteredConversations.map((conv) => (
+          filteredConversations.map((conv) => {
+            const isSelected = selectedConversation?.conversation_id === conv.conversation_id;
+            return (
             <div
               key={conv.conversation_id}
               onClick={() => onSelectConversation(conv)}
-              className={`px-4 py-3.5 border-b border-white/[0.04] cursor-pointer transition-all hover:bg-white/[0.02] relative ${
-                selectedConversation?.conversation_id === conv.conversation_id ? 'bg-[hsl(var(--primary))]/[0.04]' : ''
+              className={`group px-4 py-3.5 border-b border-white/[0.04] cursor-pointer transition-colors duration-150 relative ${
+                isSelected
+                  ? 'bg-[hsl(var(--primary))]/[0.05]'
+                  : 'hover:bg-white/[0.025]'
               }`}
             >
-              {selectedConversation?.conversation_id === conv.conversation_id && (
-                <div className="absolute left-0 top-3 bottom-3 w-[2px] bg-[hsl(var(--primary))] rounded-r" />
-              )}
+              {/* Barrinha esquerda · sempre presente · selecionada gold sólido, hover gold soft, idle invisível */}
+              <div
+                className={`absolute left-0 top-3 bottom-3 w-[2px] rounded-r transition-all duration-150 ${
+                  isSelected
+                    ? 'bg-[hsl(var(--primary))]'
+                    : 'bg-[hsl(var(--primary))]/0 group-hover:bg-[hsl(var(--primary))]/35'
+                }`}
+              />
               <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
                   {/* Avatar minimal · circulo translucido com inicial Cormorant */}
@@ -408,7 +417,8 @@ export function ConversationList({
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
 
         {/* P-02: Sentinel + indicador de loading infinite scroll */}

@@ -12,7 +12,7 @@ import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
 import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -185,7 +185,7 @@ export default function ChatPage() {
   });
 
   // P-03/P-04: KPIs vem do useInsights global · nao calculados do array filtrado
-  const { urgentes, aguardando, laraAtiva, resolvidosHoje } = insights;
+  const { urgentes, aguardando, laraAtiva, resolvidosHoje, novosLeads } = insights;
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
@@ -238,6 +238,19 @@ export default function ChatPage() {
             <div>
               <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Resolvidos hoje</p>
               <p className="font-display text-2xl leading-none mt-0.5 tabular-nums text-[hsl(var(--foreground))]">{resolvidosHoje}</p>
+            </div>
+          </div>
+
+          <div className="w-px h-9 bg-white/[0.06]" />
+
+          {/* 5o KPI · Novos Leads · contatos criados hoje (00:00 BRT-) */}
+          <div className="flex items-center gap-3" title="Contatos novos cadastrados hoje (não inclui mensagens novas de leads existentes)">
+            <div className={`p-1.5 rounded-md ${novosLeads > 0 ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
+              <UserPlus className="w-4 h-4" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="font-meta text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Novos leads</p>
+              <p className={`font-display text-2xl leading-none mt-0.5 tabular-nums ${novosLeads > 0 ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>{novosLeads}</p>
             </div>
           </div>
         </div>
@@ -299,6 +312,7 @@ export default function ChatPage() {
           copilotSmartReplies={copilot?.smart_replies || []}
           onRefreshCopilot={() => refreshCopilot(true)}
           onSendInternalNote={sendInternalNote}
+          onAssumeReleaseChange={refreshAll}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}

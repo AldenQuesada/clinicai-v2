@@ -21,11 +21,18 @@ export interface Insights {
   aguardando: number
   laraAtiva: number
   resolvidosHoje: number
+  novosLeads: number
 }
 
 const REFRESH_INTERVAL_MS = 30_000
 
-const ZERO: Insights = { urgentes: 0, aguardando: 0, laraAtiva: 0, resolvidosHoje: 0 }
+const ZERO: Insights = {
+  urgentes: 0,
+  aguardando: 0,
+  laraAtiva: 0,
+  resolvidosHoje: 0,
+  novosLeads: 0,
+}
 
 export function useInsights() {
   const [insights, setInsights] = useState<Insights>(ZERO)

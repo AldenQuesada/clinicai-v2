@@ -6,6 +6,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SmartReplies } from './SmartReplies';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
+import { AssumeReleaseBar } from './AssumeReleaseBar';
 import { useQuickTemplates, type QuickTemplate } from '../hooks/useQuickTemplates';
 import { useClinicInfo } from '../hooks/useClinicInfo';
 import type { Conversation } from '../hooks/useConversations';
@@ -116,6 +117,8 @@ interface MessageAreaProps {
   onRefreshCopilot?: () => void;
   /** Sprint C · SC-03 (W-11): envia nota interna · cor amarela · so atendentes veem */
   onSendInternalNote?: (content: string) => void;
+  /** Callback pra refresh de conversa+insights apos toggle assumir/devolver */
+  onAssumeReleaseChange?: () => void;
 }
 
 export function MessageArea({
@@ -137,6 +140,7 @@ export function MessageArea({
   copilotSmartReplies = [],
   onRefreshCopilot,
   onSendInternalNote,
+  onAssumeReleaseChange,
 }: MessageAreaProps) {
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
@@ -323,6 +327,14 @@ export function MessageArea({
         );
       })()}
 
+      {/* Barra de toggle ASSUMIR / DEVOLVER · sempre visível, alterna no mesmo lugar */}
+      <AssumeReleaseBar
+        key={`${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
+        conversationId={selectedConversation.conversation_id}
+        aiEnabled={selectedConversation.ai_enabled}
+        onStatusChange={onAssumeReleaseChange}
+      />
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
         {isLoadingMessages ? (
@@ -463,12 +475,7 @@ export function MessageArea({
       <div className={`p-4 border-t border-[hsl(var(--chat-border))] shrink-0 relative ${
         isNoteMode ? 'bg-[#FBBF24]/5' : 'bg-[hsl(var(--chat-bg))]'
       }`}>
-        {selectedConversation.ai_enabled && !isNoteMode && (
-           <div className="mb-2.5 text-[10.5px] text-[hsl(var(--primary))] flex items-center justify-center gap-1.5 py-1 opacity-80">
-             <span className="inline-block w-1 h-1 rounded-full bg-[hsl(var(--primary))] animate-pulse" />
-             <span>Lara ativa · enviar mensagem pausa por 30min</span>
-           </div>
-        )}
+        {/* Linha "Lara ativa · pausa 30min" REMOVIDA · agora vive na AssumeReleaseBar acima */}
         {isNoteMode && (
           <div className="mb-2 text-xs text-[#FBBF24] flex items-center justify-center bg-[#FBBF24]/10 py-1 rounded-md gap-1.5">
             <StickyNote className="w-3 h-3" />

@@ -113,35 +113,7 @@ export function LeadInfoPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <div className="p-5 flex flex-col items-center border-b border-white/[0.06]">
-          {(() => {
-            const phoneOnly = !selectedConversation.lead_name ||
-              selectedConversation.lead_name === selectedConversation.phone ||
-              /^\d+$/.test(selectedConversation.lead_name);
-            const initial = phoneOnly ? '·' : (selectedConversation.lead_name || '?').trim().charAt(0).toUpperCase();
-            return (
-              <>
-                {/* Avatar minimal · circulo translucido grande com inicial Cormorant gold */}
-                <div className="w-14 h-14 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-3">
-                  <span className="font-display text-[24px] text-[hsl(var(--primary))] italic leading-none">{initial}</span>
-                </div>
-                {phoneOnly ? (
-                  <>
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] text-center">Lead sem cadastro</p>
-                    <p className="text-[13px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-1.5 text-center">{selectedConversation.phone}</p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="font-display text-[18px] text-[hsl(var(--foreground))] leading-tight text-center break-words max-w-full">{selectedConversation.lead_name}</h3>
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-1">{selectedConversation.phone}</p>
-                  </>
-                )}
-              </>
-            );
-          })()}
-        </div>
-
-        {/* Action Buttons Bar · cores semanticas · linhas finas */}
+        {/* Action Buttons Bar · cores semanticas · agora no topo (avatar+phone moveram pro chat header) */}
         <div className="flex items-center justify-center gap-3 py-3.5 border-b border-white/[0.06] bg-white/[0.015]">
           <button onClick={() => onAction?.('assume')} title="Assumir Conversa" className="p-2 rounded-full bg-white/[0.03] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))] transition-colors cursor-pointer">
             <UserPlus className="w-4 h-4" strokeWidth={1.5} />
@@ -157,7 +129,7 @@ export function LeadInfoPanel({
           </button>
         </div>
 
-        {/* Agent Pause Section · subiu pro topo (logo apos action buttons) */}
+        {/* Agent Pause Section · indicador de tempo restante quando pausado */}
         <AgentPauseSection
           key={`${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
           conversationId={selectedConversation.conversation_id}
