@@ -24,6 +24,12 @@ interface ConversationListProps {
   sortOrder: 'newest' | 'oldest';
   /** Callback pra receber a contagem filtrada (pra exibir no topbar) */
   onFilteredCountChange?: (count: number) => void;
+  /** showFilters lifted pra topbar (botao Filter mora ao lado da busca) */
+  showFilters: boolean;
+  onToggleFilters: () => void;
+  /** Callback notificando se ha filtros avancados ativos · controla
+      destaque do botao Filter na topbar (champagne quando ativo) */
+  onAdvancedFiltersActiveChange?: (active: boolean) => void;
   /** P-12 Fase 3 · atendentes online no inbox (presence) — não usados aqui agora
       mas mantidos pra compat futura se quisermos avatar dentro da sidebar */
   onlineUsers?: PresenceUser[];
@@ -44,9 +50,11 @@ export function ConversationList({
   searchQuery,
   sortOrder,
   onFilteredCountChange,
+  showFilters,
+  onToggleFilters,
+  onAdvancedFiltersActiveChange,
 }: ConversationListProps) {
   const [activeTab, setActiveTab] = useState('Todas');
-  const [showFilters, setShowFilters] = useState(false);
   
   // Estados dos Filtros Avançados
   const [filterFunnel, setFilterFunnel] = useState<string>('all');
@@ -126,6 +134,12 @@ export function ConversationList({
     onFilteredCountChange?.(filteredConversations.length);
   }, [filteredConversations.length, onFilteredCountChange]);
 
+  // Notifica parent quando filtros avancados ficam ativos (pra destacar botao
+  // Filter na topbar em champagne quando algum filtro tiver valor != 'all')
+  useEffect(() => {
+    onAdvancedFiltersActiveChange?.(hasActiveAdvancedFilters);
+  }, [hasActiveAdvancedFilters, onAdvancedFiltersActiveChange]);
+
   // P-02: Scroll infinito · IntersectionObserver dispara onLoadMore quando
   // sentinel entra no viewport. rootMargin 200px adianta o trigger antes
   // de chegar no fim · UX sem "puxar" · sem dependencia externa.
@@ -194,7 +208,7 @@ export function ConversationList({
           <div className="bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-lg p-3 space-y-3 shadow-luxury-md z-20 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-widest">Filtros</span>
-              <button onClick={() => setShowFilters(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
+              <button onClick={() => onToggleFilters()} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
                 <X className="h-3 w-3" />
               </button>
             </div>
@@ -260,9 +274,9 @@ export function ConversationList({
         )}
 
         {/* Tabs de Filtro (Só aparecem nas Abertas) · mesma DNA das tabs status
-            + Filter button integrado a direita (em vez de linha solta acima) */}
+            · Filter button mora na TOPBAR esquerda agora (junto com sort/new) */}
         {statusFilter === 'active' && !showFilters && (
-          <div className="flex gap-1 items-center">
+          <div className="flex gap-1">
             {tabs.map(tab => (
               <button
                 key={tab}
@@ -288,35 +302,6 @@ export function ConversationList({
                 {tab}
               </button>
             ))}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-1 rounded-sm transition-colors shrink-0 ${
-                hasActiveAdvancedFilters
-                  ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
-                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-              }`}
-              title="Filtros avancados (funil/tag/periodo)"
-            >
-              <Filter className="h-3 w-3" strokeWidth={1.5} />
-            </button>
-          </div>
-        )}
-
-        {/* Quando NAO esta em 'Abertas' (Dra/Feitas/Arquiv), filter button
-            sozinho a direita (substitui as inner tabs ausentes nessas abas) */}
-        {statusFilter !== 'active' && !showFilters && (
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-1 rounded-sm transition-colors ${
-                hasActiveAdvancedFilters
-                  ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
-                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-              }`}
-              title="Filtros avancados (funil/tag/periodo)"
-            >
-              <Filter className="h-3 w-3" strokeWidth={1.5} />
-            </button>
           </div>
         )}
       </div>

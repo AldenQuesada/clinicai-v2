@@ -14,7 +14,7 @@ import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown } from 'lucide-react';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -37,11 +37,13 @@ export default function ChatPage() {
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(false);
   const [isNewConvOpen, setIsNewConvOpen] = useState(false);
 
-  // Polish 2026-04-30 · busca + sort lifted da ConversationList pro topbar
-  // global · libera ~120px na sidebar pra mais conversas visiveis
+  // Polish 2026-04-30 · busca + sort + filter lifted da ConversationList pro
+  // topbar global · libera ~120px na sidebar pra mais conversas visiveis
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [filteredCount, setFilteredCount] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [hasAdvFiltersActive, setHasAdvFiltersActive] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -247,6 +249,18 @@ export default function ChatPage() {
           </div>
           <button
             type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            title="Filtros avancados (funil/tag/periodo)"
+            className={`p-1.5 rounded-md transition-colors shrink-0 ${
+              showFilters || hasAdvFiltersActive
+                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
             onClick={() => setSortOrder((p) => (p === 'newest' ? 'oldest' : 'newest'))}
             title="Inverter ordem"
             className={`p-1.5 rounded-md transition-colors shrink-0 ${
@@ -264,6 +278,14 @@ export default function ChatPage() {
             className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors shrink-0"
           >
             <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            onClick={refreshAll}
+            title="Atualizar conversas e KPIs"
+            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -336,15 +358,8 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Refresh · absolute right pra nao deslocar os KPIs centrais */}
-        <button
-          type="button"
-          onClick={refreshAll}
-          title="Atualizar conversas e KPIs"
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 shrink-0 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:border-[hsl(var(--primary))]/40 hover:bg-[hsl(var(--primary))]/[0.06] transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
-        </button>
+        {/* Refresh button moveu pra topbar zona esquerda (junto com Filter/Sort/New)
+            · zona central agora e EXCLUSIVA dos KPIs · sem competir por espaco */}
         </div>
 
         {/* ZONA DIREITA · sobre painel direito · sincroniza largura com
@@ -391,6 +406,9 @@ export default function ChatPage() {
           onSearchChange={setSearchQuery}
           sortOrder={sortOrder}
           onFilteredCountChange={setFilteredCount}
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters((v) => !v)}
+          onAdvancedFiltersActiveChange={setHasAdvFiltersActive}
           onlineUsers={inboxOnline}
           me={me}
           footerHint={
