@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useCallback } from 'react';
-import { Send, Loader, UserCircle, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck } from 'lucide-react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SmartReplies } from './SmartReplies';
@@ -255,42 +255,73 @@ export function MessageArea({
 
   return (
     <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full min-w-0">
-      {/* Header · v2 design contract · trata caso lead_name === phone */}
+      {/* Header · v2 · avatar minimal + nome/phone + barra divisora + summary inline */}
       {(() => {
         const phoneOnly = !selectedConversation.lead_name ||
           selectedConversation.lead_name === selectedConversation.phone ||
           /^\d+$/.test(selectedConversation.lead_name);
+        const initial = phoneOnly ? '?' : (selectedConversation.lead_name || '?').trim().charAt(0).toUpperCase();
         return (
-          <div className="h-16 border-b border-white/[0.06] flex items-center px-6 gap-3 shrink-0">
-            <UserCircle className="h-9 w-9 text-[hsl(var(--muted-foreground))]" strokeWidth={1.25} />
-            <div className="flex-1 min-w-0">
-              {phoneOnly ? (
-                <>
-                  <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] leading-tight">Sem nome</p>
-                  <p className="text-[13px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-0.5">{selectedConversation.phone}</p>
-                </>
-              ) : (
-                <>
-                  <h2 className="font-display text-[16px] text-[hsl(var(--foreground))] leading-tight truncate">{selectedConversation.lead_name}</h2>
-                  <p className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5">{selectedConversation.phone}</p>
-                </>
-              )}
+          <div className="h-16 border-b border-white/[0.06] flex items-stretch px-5 shrink-0">
+            {/* Avatar minimal · circulo translucido com inicial em Cormorant gold */}
+            <div className="flex items-center gap-3 shrink-0 pr-4">
+              <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center shrink-0">
+                <span className="font-display text-[14px] text-[hsl(var(--primary))] italic leading-none">{initial}</span>
+              </div>
+              <div className="min-w-0">
+                {phoneOnly ? (
+                  <>
+                    <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] leading-tight">Sem nome</p>
+                    <p className="text-[12.5px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-0.5 leading-tight">{selectedConversation.phone}</p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="font-display text-[15px] text-[hsl(var(--foreground))] leading-tight truncate max-w-[180px]">{selectedConversation.lead_name}</h2>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5 leading-tight">{selectedConversation.phone}</p>
+                  </>
+                )}
+              </div>
             </div>
+            {/* Barra fina vertical divisoria */}
+            <div className="w-px bg-white/[0.06] my-3" />
+            {/* Sumario do copiloto AI inline · texto minimal · ocupa o resto */}
+            {onRefreshCopilot && (
+              <div className="flex items-center flex-1 pl-4 pr-2 gap-2.5 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-[1px]" strokeWidth={1.5} />
+                <div className="flex-1 min-w-0">
+                  {copilotSummaryError ? (
+                    <span className="text-[11px] text-[hsl(var(--danger))] inline-flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3" strokeWidth={1.5} />
+                      <span className="truncate">{copilotSummaryError}</span>
+                    </span>
+                  ) : copilotSummaryLoading && !copilotSummary ? (
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))] italic font-display opacity-80">
+                      Lara analisando o lead...
+                    </span>
+                  ) : (
+                    <span className="text-[11.5px] text-[hsl(var(--foreground))]/90 leading-snug line-clamp-2 block">
+                      {copilotSummary}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onRefreshCopilot}
+                  disabled={copilotSummaryLoading}
+                  title={
+                    copilotCached && copilotGeneratedAt
+                      ? `Cache de ${new Date(copilotGeneratedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · clique pra regenerar`
+                      : 'Regenerar análise'
+                  }
+                  className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-50 shrink-0 self-center"
+                >
+                  <RefreshCw className={`w-3 h-3 ${copilotSummaryLoading ? 'animate-spin' : ''}`} strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
           </div>
         );
       })()}
-
-      {/* Sprint B · W-02: Copiloto AI · TLDR do lead */}
-      {onRefreshCopilot && (
-        <CopilotSummary
-          summary={copilotSummary}
-          isLoading={copilotSummaryLoading}
-          error={copilotSummaryError}
-          generatedAt={copilotGeneratedAt}
-          cached={copilotCached}
-          onRefresh={onRefreshCopilot}
-        />
-      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">

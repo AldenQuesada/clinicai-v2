@@ -49,11 +49,13 @@ export function AppHeaderThin({ user }: { user: UserMenuProfile }) {
           Lara · Clinica AI
         </p>
         <span
-          className="font-display"
           style={{
-            fontSize: 18,
+            fontSize: 20,
             color: 'var(--b2b-ivory)',
             fontStyle: 'italic',
+            fontFamily: '"Cormorant Garamond", Georgia, serif',
+            fontWeight: 400,
+            letterSpacing: -0.2,
           }}
         >
           {section.label}

@@ -1,4 +1,4 @@
-import { Search, UserCircle, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
+import { Search, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
@@ -132,35 +132,14 @@ export function ConversationList({
 
   return (
     <div className="w-80 border-r border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] relative">
-      {/* Header fundido · "Conversas N" + tabs status + ações · economiza 1 linha vertical */}
-      <div className="h-16 border-b border-white/[0.06] flex items-center px-3 gap-2 shrink-0">
-        <div className="flex items-baseline gap-1.5 px-2 shrink-0">
-          <span className="font-display text-[14px] text-[hsl(var(--foreground))] leading-none">Conversas</span>
+      {/* Linha 1 · Conversas N + sort + new · degrau separado */}
+      <div className="h-11 border-b border-white/[0.06] flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-display text-[15px] text-[hsl(var(--foreground))] italic leading-none">Conversas</span>
           <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
         </div>
-        <div className="grid grid-cols-4 gap-0.5 flex-1">
-          {[
-            { id: 'active', label: 'Abert.' },
-            { id: 'dra', label: 'Dra.' },
-            { id: 'resolved', label: 'Feitas' },
-            { id: 'archived', label: 'Arq.' }
-          ].map(s => (
-            <button
-              key={s.id}
-              onClick={() => onStatusFilterChange(s.id as any)}
-              title={s.id === 'dra' ? 'Dra. Mirian' : s.id === 'resolved' ? 'Resolvidas' : s.id === 'archived' ? 'Arquivadas' : 'Abertas'}
-              className={`px-1 py-1 text-[9.5px] font-semibold rounded transition-all ${
-                statusFilter === s.id
-                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-           <button
+        <div className="flex items-center gap-0.5">
+          <button
             onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
             className={`p-1.5 rounded-md transition-colors ${sortOrder === 'oldest' ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
             title="Inverter Ordem"
@@ -177,6 +156,30 @@ export function ConversationList({
               <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Linha 2 · tabs status full-width · sem competir por espaco */}
+      <div className="px-3 pt-3 shrink-0">
+        <div className="grid grid-cols-4 gap-1">
+          {[
+            { id: 'active', label: 'Abertas' },
+            { id: 'dra', label: 'Dra. Mirian' },
+            { id: 'resolved', label: 'Feitas' },
+            { id: 'archived', label: 'Arquivadas' }
+          ].map(s => (
+            <button
+              key={s.id}
+              onClick={() => onStatusFilterChange(s.id as any)}
+              className={`px-1 py-1.5 text-[10px] font-semibold rounded transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
+                statusFilter === s.id
+                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -318,7 +321,16 @@ export function ConversationList({
               )}
               <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
-                  <UserCircle className="h-9 w-9 text-[hsl(var(--muted-foreground))]" strokeWidth={1.25} />
+                  {/* Avatar minimal · circulo translucido com inicial Cormorant */}
+                  <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center shrink-0">
+                    <span className="font-display text-[13px] text-[hsl(var(--primary))]/80 italic leading-none">
+                      {(() => {
+                        const name = conv.lead_name || '';
+                        const phoneOnly = !name || name === conv.phone || /^\d+$/.test(name);
+                        return phoneOnly ? '·' : name.trim().charAt(0).toUpperCase();
+                      })()}
+                    </span>
+                  </div>
                   {conv.channel === 'cloud' && (
                     <div className="absolute -bottom-0.5 -right-0.5 bg-[hsl(var(--success))] rounded-full p-0.5 ring-2 ring-[hsl(var(--chat-panel-bg))]" title="WhatsApp Cloud API">
                       <div className="w-2.5 h-2.5 text-white flex items-center justify-center">
