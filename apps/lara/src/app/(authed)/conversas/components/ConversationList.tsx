@@ -159,7 +159,7 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Linha 2 · tabs status · fundo so na ativa (champagne soft) */}
+      {/* Linha 2 · tabs status · estetica .badge-serious flipbook (Montserrat 8.5px · square 2px · padding 2/7) */}
       <div className="px-3 pt-3 shrink-0">
         <div className="grid grid-cols-4 gap-1">
           {[
@@ -171,19 +171,23 @@ export function ConversationList({
             <button
               key={s.id}
               onClick={() => onStatusFilterChange(s.id as any)}
-              className={`font-meta px-1 py-1.5 text-[9.5px] uppercase rounded transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
+              title={s.label}
+              className={`font-meta uppercase transition-colors whitespace-nowrap overflow-hidden text-ellipsis ${
                 statusFilter === s.id
                   ? 'text-[hsl(var(--primary))]'
                   : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               }`}
-              style={
-                statusFilter === s.id
-                  ? {
-                      background: 'rgba(201,169,110,0.15)',
-                      border: '1px solid rgba(201,169,110,0.3)',
-                    }
-                  : { background: 'transparent', border: '1px solid transparent' }
-              }
+              style={{
+                fontSize: '8.5px',
+                letterSpacing: '0.15em',
+                fontWeight: 500,
+                padding: '4px 7px',
+                borderRadius: 2,
+                background: statusFilter === s.id ? 'rgba(201,169,110,0.15)' : 'transparent',
+                border: statusFilter === s.id
+                  ? '1px solid rgba(201,169,110,0.3)'
+                  : '1px solid transparent',
+              }}
             >
               {s.label}
             </button>
@@ -284,26 +288,30 @@ export function ConversationList({
           </div>
         )}
 
-        {/* Tabs de Filtro (Só aparecem nas Abertas) · fundo so na ativa */}
+        {/* Tabs de Filtro (Só aparecem nas Abertas) · mesma DNA das tabs status */}
         {statusFilter === 'active' && !showFilters && (
           <div className="flex gap-1">
             {tabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`font-meta flex-1 text-[9.5px] uppercase py-1.5 rounded transition-colors cursor-pointer ${
+                title={tab}
+                className={`font-meta uppercase flex-1 transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer ${
                   activeTab === tab
                     ? 'text-[hsl(var(--primary))]'
                     : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
                 }`}
-                style={
-                  activeTab === tab
-                    ? {
-                        background: 'rgba(201,169,110,0.15)',
-                        border: '1px solid rgba(201,169,110,0.3)',
-                      }
-                    : { background: 'transparent', border: '1px solid transparent' }
-                }
+                style={{
+                  fontSize: '8.5px',
+                  letterSpacing: '0.15em',
+                  fontWeight: 500,
+                  padding: '4px 7px',
+                  borderRadius: 2,
+                  background: activeTab === tab ? 'rgba(201,169,110,0.15)' : 'transparent',
+                  border: activeTab === tab
+                    ? '1px solid rgba(201,169,110,0.3)'
+                    : '1px solid transparent',
+                }}
               >
                 {tab}
               </button>
