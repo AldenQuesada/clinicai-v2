@@ -57,13 +57,14 @@ interface CronJob {
 // jobs), igual ao router do GitHub Actions. Mantem paridade exata.
 const JOBS: CronJob[] = [
   {
-    label: 'cada-minuto · state cleanup + reminder + b2b voucher dispatch + pending dispatches + webhook queue',
+    label: 'cada-minuto · state cleanup + reminder + b2b voucher dispatch + pending dispatches + admin pending + webhook queue',
     schedule: '* * * * *',
     endpoints: [
       'mira-state-cleanup',
       'mira-state-reminder-check',
       'b2b-voucher-dispatch-worker',
       'b2b-pending-dispatches-worker',
+      'b2b-admin-pending-worker',
       'webhook-processing-worker',
     ],
   },
@@ -142,6 +143,28 @@ const JOBS: CronJob[] = [
     label: 'voucher-post-purchase-upsell · 14h SP diario (D+7 pos atendimento)',
     schedule: '0 14 * * *',
     endpoints: ['mira-voucher-post-purchase-upsell'],
+  },
+  // Crons financeiros · category=financeiro (mig 800-89 · admin que marca
+  // "so financeiro" passa a receber de fato)
+  {
+    label: 'financeiro-daily-revenue · 08h SP seg-sab (mig 800-89)',
+    schedule: '0 8 * * 1-6',
+    endpoints: ['mira-financeiro-daily-revenue'],
+  },
+  {
+    label: 'financeiro-monthly-goal · 09h SP qua e sex (mig 800-89)',
+    schedule: '0 9 * * 3,5',
+    endpoints: ['mira-financeiro-monthly-goal'],
+  },
+  {
+    label: 'financeiro-churn-alert · 09h SP sexta (mig 800-89)',
+    schedule: '0 9 * * 5',
+    endpoints: ['mira-financeiro-churn-alert'],
+  },
+  {
+    label: 'financeiro-ai-cost-cap · 09h SP segunda (mig 800-89 · estrutural · espera mira_ai_usage)',
+    schedule: '0 9 * * 1',
+    endpoints: ['mira-financeiro-ai-cost-cap'],
   },
 ]
 
