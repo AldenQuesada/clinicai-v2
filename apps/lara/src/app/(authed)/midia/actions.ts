@@ -39,66 +39,99 @@ async function assertCanManage() {
   return { ctx, repos, supabase }
 }
 
-export async function uploadMediaAction(formData: FormData) {
-  const { ctx, repos, supabase } = await assertCanManage()
+export interface UploadResult {
+  ok: boolean
+  error?: string
+  url?: string
+}
 
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error('Arquivo obrigatorio')
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    throw new Error('Arquivo maior que 5MB · comprima antes')
-  }
+/**
+ * Server Action de upload · retorna { ok, error } em vez de throw silencioso
+ * (audit 2026-04-30 · drawer fechava antes do user ver erro). Cliente usa
+ * useFormState/useTransition pra renderizar erro inline.
+ */
+export async function uploadMediaAction(
+  _prev: UploadResult | null,
+  formData: FormData,
+): Promise<UploadResult> {
+  try {
+    const { ctx, repos, supabase } = await assertCanManage()
 
-  const funnelRaw = String(formData.get('funnel') || '')
-  const funnel = parseFunnel(funnelRaw)
-  if (!funnel) throw new Error('Funnel obrigatorio (olheiras ou fullface)')
+    const file = formData.get('file')
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: 'Arquivo obrigatorio' }
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { ok: false, error: 'Arquivo maior que 5MB · comprima antes' }
+    }
 
-  const queixasRaw = String(formData.get('queixas') || '')
-  const queixas = parseQueixas(queixasRaw)
+    const funnelRaw = String(formData.get('funnel') || '')
+    const funnel = parseFunnel(funnelRaw)
+    if (!funnel) {
+      return { ok: false, error: 'Selecione o funil (olheiras ou fullface)' }
+    }
 
-  const caption = String(formData.get('caption') || '').trim() || null
-  const phase = String(formData.get('phase') || '').trim() || null
-  const sortOrder = Number(formData.get('sort_order') || 0)
+    const queixasRaw = String(formData.get('queixas') || '')
+    const queixas = parseQueixas(queixasRaw)
 
-  // Filename: usa nome do upload, sanitizado · prefixa timestamp pra evitar colisao
-  const originalName = sanitizeFilename(file.name)
-  const ts = Date.now()
-  const filename = `${ts}-${originalName}`
-  const storagePath = `before-after/${funnel}/${filename}`
+    const caption = String(formData.get('caption') || '').trim() || null
+    const phase = String(formData.get('phase') || '').trim() || null
+    const sortOrder = Number(formData.get('sort_order') || 0)
 
-  // Sobe pro Storage
-  const arrayBuffer = await file.arrayBuffer()
-  const { error: uploadError } = await supabase.storage
-    .from('media')
-    .upload(storagePath, arrayBuffer, {
-      contentType: file.type || 'image/jpeg',
-      upsert: false,
+    // Filename: usa nome do upload, sanitizado · prefixa timestamp pra evitar colisao
+    const originalName = sanitizeFilename(file.name)
+    const ts = Date.now()
+    const filename = `${ts}-${originalName}`
+    const storagePath = `before-after/${funnel}/${filename}`
+
+    // Sobe pro Storage
+    const arrayBuffer = await file.arrayBuffer()
+    const { error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(storagePath, arrayBuffer, {
+        contentType: file.type || 'image/jpeg',
+        upsert: false,
+      })
+    if (uploadError) {
+      console.error('[uploadMediaAction] storage upload error:', uploadError)
+      return { ok: false, error: `Upload pro storage falhou: ${uploadError.message}` }
+    }
+
+    const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+    const publicUrl = urlData?.publicUrl
+    if (!publicUrl) {
+      await supabase.storage.from('media').remove([storagePath])
+      return { ok: false, error: 'Storage nao retornou URL publica' }
+    }
+
+    const created = await repos.mediaBank.create(ctx.clinic_id, {
+      filename,
+      url: publicUrl,
+      funnel,
+      queixas,
+      caption,
+      phase,
+      sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+      isActive: true,
     })
-  if (uploadError) {
-    throw new Error(`Upload falhou: ${uploadError.message}`)
+
+    if (!created) {
+      // Insert no banco falhou silenciosamente · rollback storage
+      console.error('[uploadMediaAction] mediaBank.create returned null · rollback storage')
+      await supabase.storage.from('media').remove([storagePath])
+      return {
+        ok: false,
+        error: 'Insert no banco falhou (RLS ou clinic_id mismatch) · contate suporte',
+      }
+    }
+
+    revalidatePath('/midia')
+    return { ok: true, url: publicUrl }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erro desconhecido'
+    console.error('[uploadMediaAction] uncaught error:', e)
+    return { ok: false, error: msg }
   }
-
-  const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath)
-  const publicUrl = urlData?.publicUrl
-  if (!publicUrl) {
-    // rollback
-    await supabase.storage.from('media').remove([storagePath])
-    throw new Error('Storage nao retornou URL publica')
-  }
-
-  await repos.mediaBank.create(ctx.clinic_id, {
-    filename,
-    url: publicUrl,
-    funnel,
-    queixas,
-    caption,
-    phase,
-    sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
-    isActive: true,
-  })
-
-  revalidatePath('/midia')
 }
 
 export async function updateMediaAction(id: string, formData: FormData) {

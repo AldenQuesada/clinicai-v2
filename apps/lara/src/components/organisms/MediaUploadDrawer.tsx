@@ -3,10 +3,13 @@
 /**
  * MediaUploadDrawer · modal upload · CLONE 1:1 do padrao Mira (.b2b-overlay/.b2b-modal).
  * Estrutura igual ao MediaEditDrawer · diferenca: input file + preview blob.
+ *
+ * 2026-04-30 · refatorado pra usar useActionState (React 19) · captura erro
+ * do server action e renderiza inline em vez de fechar o drawer silencioso.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import { uploadMediaAction } from '@/app/(authed)/midia/actions'
+import { useEffect, useState, useActionState } from 'react'
+import { uploadMediaAction, type UploadResult } from '@/app/(authed)/midia/actions'
 
 const VALID_QUEIXAS = [
   'geral',
@@ -29,7 +32,22 @@ const VALID_QUEIXAS = [
 export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>('')
-  const [error, setError] = useState<string>('')
+  const [clientError, setClientError] = useState<string>('')
+
+  // Server action result (erro / sucesso) · React 19 useActionState
+  const [state, formAction, isPending] = useActionState<UploadResult | null, FormData>(
+    uploadMediaAction,
+    null,
+  )
+
+  // Quando server action retorna ok=true, fecha o drawer e reseta tudo.
+  // Quando retorna ok=false, mantém aberto e mostra erro inline.
+  useEffect(() => {
+    if (state?.ok) {
+      handleClose()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.ok])
 
   useEffect(() => {
     if (!open) return
@@ -45,25 +63,25 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
     setFileName('')
-    setError('')
+    setClientError('')
     onClose()
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    setError('')
+    setClientError('')
     if (!file) {
       setPreviewUrl(null)
       setFileName('')
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError('Arquivo maior que 5MB · comprima antes')
+      setClientError('Arquivo maior que 5MB · comprima antes')
       e.target.value = ''
       return
     }
     if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
-      setError('Apenas JPG, PNG ou WebP')
+      setClientError('Apenas JPG, PNG ou WebP')
       e.target.value = ''
       return
     }
@@ -100,9 +118,8 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
 
         <div className="b2b-modal-body">
           <form
-            action={uploadMediaAction}
+            action={formAction}
             encType="multipart/form-data"
-            onSubmit={() => handleClose()}
           >
             {/* Dropzone · file input invisivel sobre area decorativa */}
             <div className="b2b-form-sec">Arquivo</div>
@@ -190,7 +207,12 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
                 {fileName}
               </div>
             )}
-            {error && <div className="b2b-form-err">{error}</div>}
+            {clientError && <div className="b2b-form-err">{clientError}</div>}
+            {state && !state.ok && state.error && (
+              <div className="b2b-form-err" style={{ marginTop: 8 }}>
+                <strong>Falhou ao subir:</strong> {state.error}
+              </div>
+            )}
 
             <div className="b2b-form-sec">Identificação</div>
             <div className="b2b-field">
@@ -271,15 +293,15 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
             </div>
 
             <div className="b2b-form-actions">
-              <button type="button" onClick={handleClose} className="b2b-btn">
+              <button type="button" onClick={handleClose} className="b2b-btn" disabled={isPending}>
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={!previewUrl}
+                disabled={!previewUrl || isPending}
                 className="b2b-btn b2b-btn-primary"
               >
-                Subir foto
+                {isPending ? 'Subindo...' : 'Subir foto'}
               </button>
             </div>
           </form>
