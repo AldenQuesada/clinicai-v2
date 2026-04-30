@@ -335,7 +335,6 @@ export default function ChatPage() {
           copilotSmartReplies={copilot?.smart_replies || []}
           onRefreshCopilot={() => refreshCopilot(true)}
           onSendInternalNote={sendInternalNote}
-          onAssumeReleaseChange={refreshAll}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}

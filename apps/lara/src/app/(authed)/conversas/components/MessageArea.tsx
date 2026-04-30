@@ -6,7 +6,6 @@ import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SmartReplies } from './SmartReplies';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
-import { AssumeReleaseBar } from './AssumeReleaseBar';
 import { PresenceLine } from './PresenceLine';
 import { MediaPreviewBar } from './MediaPreviewBar';
 import { useClinicMembers } from '../hooks/useClinicMembers';
@@ -124,8 +123,6 @@ interface MessageAreaProps {
   onRefreshCopilot?: () => void;
   /** Sprint C · SC-03 (W-11): envia nota interna · cor amarela · so atendentes veem */
   onSendInternalNote?: (content: string) => void;
-  /** Callback pra refresh de conversa+insights apos toggle assumir/devolver */
-  onAssumeReleaseChange?: () => void;
 }
 
 export function MessageArea({
@@ -147,7 +144,6 @@ export function MessageArea({
   copilotSmartReplies = [],
   onRefreshCopilot,
   onSendInternalNote,
-  onAssumeReleaseChange,
 }: MessageAreaProps) {
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
@@ -398,13 +394,9 @@ export function MessageArea({
         );
       })()}
 
-      {/* Barra de toggle ASSUMIR / DEVOLVER · sempre visível, alterna no mesmo lugar */}
-      <AssumeReleaseBar
-        key={`${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-        conversationId={selectedConversation.conversation_id}
-        aiEnabled={selectedConversation.ai_enabled}
-        onStatusChange={onAssumeReleaseChange}
-      />
+      {/* AssumeReleaseBar removido 2026-04-30 · controle de pausa concentrado
+          no AgentPauseSection do painel direito (fonte unica de verdade) ·
+          chat ganha mais espaco vertical pras mensagens. */}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
