@@ -13,6 +13,16 @@
  */
 import { test, expect, getAuthedSupabase } from '../_fixtures/auth'
 
+// Skip todo o describe se 4 envs nao setadas · evita CI fail enquanto
+// usuario nao ativou (rodou pnpm e2e:setup + colou secrets no GitHub).
+// Quando setado, spec roda normalmente.
+const HAS_TEST_ENVS =
+  !!process.env.TEST_SUPABASE_URL &&
+  !!process.env.TEST_SUPABASE_ANON_KEY &&
+  !!process.env.TEST_USER_EMAIL_OWNER &&
+  !!process.env.TEST_USER_PASSWORD
+test.skip(!HAS_TEST_ENVS, 'TEST_SUPABASE_* envs ausentes · ver E2E.md secao Happy path E2E setup')
+
 test.use({ authedAs: 'owner' })
 
 const E2E_TAG = 'is_e2e_test'
