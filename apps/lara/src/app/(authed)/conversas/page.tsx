@@ -12,6 +12,8 @@ import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
 import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useClinicMembers } from './hooks/useClinicMembers';
+import { usePresence } from './hooks/usePresence';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus } from 'lucide-react';
 
 export default function ChatPage() {
@@ -60,6 +62,22 @@ export default function ChatPage() {
   // P-08: nome da responsavel pro transfer (multi-tenant) · evita "Dra. Mirian"
   // hardcoded · le de clinics.settings.responsible_name (jsonb).
   const { displayResponsible } = useClinicInfo();
+
+  // P-12 Fase 3 · presença inbox-level · avatares dos atendentes online
+  const { members, me, clinicId, findById } = useClinicMembers();
+  const myMember = me ? findById(me) : null;
+  const presenceUser = me && myMember
+    ? {
+        user_id: me,
+        full_name: myMember.fullName || 'Você',
+        avatar_url: myMember.avatarUrl,
+      }
+    : null;
+  const inboxChannelKey = clinicId ? `clinic-${clinicId}:inbox` : null;
+  const { onlineUsers: inboxOnline } = usePresence({
+    channelKey: inboxChannelKey,
+    user: presenceUser,
+  });
 
   // Sprint B (W-01 + W-02 + W-03): copiloto AI · 1 chamada Anthropic ·
   // summary, next_actions, smart_replies em 1 hook.
@@ -279,6 +297,8 @@ export default function ChatPage() {
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
           onNewConversation={() => setIsNewConvOpen(true)}
+          onlineUsers={inboxOnline}
+          me={me}
           footerHint={
             !isModalOpen ? (
               <span>

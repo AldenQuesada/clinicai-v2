@@ -7,6 +7,9 @@ import { CopilotSummary } from './CopilotSummary';
 import { SmartReplies } from './SmartReplies';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
 import { AssumeReleaseBar } from './AssumeReleaseBar';
+import { PresenceLine } from './PresenceLine';
+import { useClinicMembers } from '../hooks/useClinicMembers';
+import { usePresence } from '../hooks/usePresence';
 import { useQuickTemplates, type QuickTemplate } from '../hooks/useQuickTemplates';
 import { useClinicInfo } from '../hooks/useClinicInfo';
 import type { Conversation } from '../hooks/useConversations';
@@ -145,6 +148,26 @@ export function MessageArea({
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
 
+  // P-12 Fase 3+4 · presence conversation-level + typing indicator
+  const { me, clinicId, findById } = useClinicMembers();
+  const myMember = me ? findById(me) : null;
+  const presenceUser = me && myMember
+    ? {
+        user_id: me,
+        full_name: myMember.fullName || 'Você',
+        avatar_url: myMember.avatarUrl,
+      }
+    : null;
+  const convChannelKey =
+    clinicId && selectedConversation
+      ? `clinic-${clinicId}:conversation-${selectedConversation.conversation_id}`
+      : null;
+  const { onlineUsers: convOnline, sendTyping } = usePresence({
+    channelKey: convChannelKey,
+    user: presenceUser,
+    trackTyping: true,
+  });
+
   // Sprint C · SC-05: agrupa msgs por dia (memo · evita recompute em re-render)
   const groupedMessages = useMemo<GroupedMessages>(
     () => groupMessagesByDay(messages),
@@ -204,6 +227,11 @@ export function MessageArea({
       // user apagou a "/" · fecha (preserva texto · so esconde dropdown)
       closeDropdown();
     }
+    // P-12 Fase 4 · typing indicator · só quando há conteúdo (vazio = parou)
+    // e nao em modo nota (nota nao e "msg pro paciente")
+    if (!isNoteMode) {
+      sendTyping(val.trim().length > 0);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -245,6 +273,7 @@ export function MessageArea({
     // Fluxo normal · Enter envia (quando dropdown fechado)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      sendTyping(false); // P-12 Fase 4 · stop typing antes de enviar
       onSendMessage();
     }
   };
@@ -284,6 +313,8 @@ export function MessageArea({
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5 leading-tight">{selectedConversation.phone}</p>
                   </>
                 )}
+                {/* P-12 Fase 3+4 · "X vendo · Y digitando..." */}
+                <PresenceLine online={convOnline} me={me} />
               </div>
             </div>
             {/* Barra fina vertical divisoria */}
@@ -555,6 +586,7 @@ export function MessageArea({
                   setIsNoteMode(false);
                 }
               } else {
+                sendTyping(false); // P-12 Fase 4 · stop typing
                 onSendMessage();
               }
             }}

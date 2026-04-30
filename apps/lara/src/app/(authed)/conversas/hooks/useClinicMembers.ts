@@ -25,6 +25,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 interface CachedPayload {
   items: ClinicMember[]
   me: string | null
+  clinicId: string | null
 }
 
 let cache: { payload: CachedPayload; fetchedAt: number } | null = null
@@ -37,6 +38,7 @@ async function fetchMembers(): Promise<CachedPayload> {
   return {
     items: (json.items ?? []) as ClinicMember[],
     me: (json.me ?? null) as string | null,
+    clinicId: (json.clinic_id ?? null) as string | null,
   }
 }
 
@@ -60,6 +62,7 @@ async function getMembers(force = false): Promise<CachedPayload> {
 export function useClinicMembers() {
   const [members, setMembers] = useState<ClinicMember[]>(cache?.payload.items ?? [])
   const [me, setMe] = useState<string | null>(cache?.payload.me ?? null)
+  const [clinicId, setClinicId] = useState<string | null>(cache?.payload.clinicId ?? null)
   const [isLoading, setIsLoading] = useState(!cache)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,6 +76,7 @@ export function useClinicMembers() {
         if (!cancelled) {
           setMembers(payload.items)
           setMe(payload.me)
+          setClinicId(payload.clinicId)
           setError(null)
         }
       } catch (e) {
@@ -100,12 +104,14 @@ export function useClinicMembers() {
   return {
     members,
     me,
+    clinicId,
     isLoading,
     error,
     refresh: async () => {
       const p = await getMembers(true)
       setMembers(p.items)
       setMe(p.me)
+      setClinicId(p.clinicId)
     },
     findById: (id: string | null | undefined): ClinicMember | null => {
       if (!id) return null

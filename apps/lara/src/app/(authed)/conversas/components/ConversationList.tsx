@@ -2,6 +2,8 @@ import { Search, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as Tag
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
+import { PresenceAvatars } from './PresenceAvatars';
+import type { PresenceUser } from '../hooks/usePresence';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
 
 interface ConversationListProps {
@@ -17,6 +19,10 @@ interface ConversationListProps {
   onNewConversation?: () => void;
   /** P-15 · hint opcional renderizado abaixo da lista (atalhos de teclado) */
   footerHint?: ReactNode;
+  /** P-12 Fase 3 · atendentes online no inbox (presence) */
+  onlineUsers?: PresenceUser[];
+  /** P-12 Fase 3 · id do user logado · pra excluir do stack de avatares */
+  me?: string | null;
 }
 
 export function ConversationList({
@@ -31,6 +37,8 @@ export function ConversationList({
   onStatusFilterChange,
   onNewConversation,
   footerHint,
+  onlineUsers = [],
+  me = null,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('Todas');
@@ -133,11 +141,17 @@ export function ConversationList({
 
   return (
     <div className="w-80 border-r border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] relative">
-      {/* Linha 1 · Conversas N + sort + new · degrau separado */}
+      {/* Linha 1 · Conversas N + presence + sort + new · degrau separado */}
       <div className="h-11 border-b border-white/[0.06] flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-display text-[15px] text-[hsl(var(--foreground))] italic leading-none">Conversas</span>
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-baseline gap-1.5 shrink-0">
+            <span className="font-display text-[15px] text-[hsl(var(--foreground))] italic leading-none">Conversas</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
+          </div>
+          {/* P-12 Fase 3 · avatares dos atendentes online */}
+          {onlineUsers.length > 0 && me && (
+            <PresenceAvatars online={onlineUsers} me={me} max={3} />
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <button
