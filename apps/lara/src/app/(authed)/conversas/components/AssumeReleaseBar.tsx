@@ -14,7 +14,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Pause, Play, ChevronDown, Sunrise, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { Play, ChevronDown, Sunrise, Calendar as CalendarIcon } from 'lucide-react';
 import { usePauseStatus } from '../hooks/usePauseStatus';
 
 interface AssumeReleaseBarProps {
@@ -127,30 +127,19 @@ export function AssumeReleaseBar({
 
   return (
     <div className="border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] shrink-0 px-5 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        {/* Lado esquerdo · status textual */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          {showAssume ? (
-            <>
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))] animate-pulse shrink-0" />
-              <span className="font-meta text-[10px] uppercase tracking-[0.18em] text-[hsl(var(--success))] shrink-0">Lara conduzindo</span>
-              <span className="text-[11px] text-[hsl(var(--muted-foreground))] truncate opacity-70 hidden sm:inline">
-                · enviar mensagem pausa por 30min
-              </span>
-            </>
-          ) : (
-            <>
-              <Pause className="w-3 h-3 text-[hsl(var(--warning))] shrink-0" strokeWidth={2} />
-              <span className="font-meta text-[10px] uppercase tracking-[0.18em] text-[hsl(var(--warning))] shrink-0">Você assumiu</span>
-              {remaining > 0 && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[hsl(var(--warning))] font-mono tabular-nums opacity-90">
-                  <Clock className="w-3 h-3" strokeWidth={1.5} />
-                  {formatRemaining(remaining)}
-                </span>
-              )}
-            </>
-          )}
-        </div>
+      <div className={`flex items-center gap-3 ${showAssume ? 'justify-between' : 'justify-end'}`}>
+        {/* Lado esquerdo · status textual · so quando Lara ativa
+            (quando voce assumiu, status vai pra dentro do botao a direita
+            evitando duplicacao visual · proposta A da revisao UIX 2026-04-30) */}
+        {showAssume && (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))] animate-pulse shrink-0" />
+            <span className="font-meta text-[10px] uppercase tracking-[0.18em] text-[hsl(var(--success))] shrink-0">Lara conduzindo</span>
+            <span className="text-[11px] text-[hsl(var(--muted-foreground))] truncate opacity-70 hidden sm:inline">
+              · enviar mensagem pausa por 30min
+            </span>
+          </div>
+        )}
 
         {/* Lado direito · botão toggle + dropdown */}
         <div ref={containerRef} className="relative flex items-center gap-1.5 shrink-0">
@@ -172,11 +161,13 @@ export function AssumeReleaseBar({
               <ChevronDown className="w-3 h-3" strokeWidth={2} />
             </button>
           ) : (
+            // Botao verde com cronometro EMBUTIDO · sem ilha de status separada
+            // Estrutura: Play + 'Devolver para Lara' + separador + cronometro
             <button
               type="button"
               disabled={isLoading}
               onClick={handleRelease}
-              className="font-meta inline-flex items-center gap-1.5 uppercase text-[10px] tracking-[0.16em] px-3 py-1.5 rounded-sm transition-colors disabled:opacity-50"
+              className="font-meta inline-flex items-center gap-2 uppercase text-[10px] tracking-[0.16em] px-3.5 py-1.5 rounded-sm transition-colors disabled:opacity-50"
               style={{
                 background: 'rgba(16,185,129,0.12)',
                 color: '#6EE7B7',
@@ -186,7 +177,15 @@ export function AssumeReleaseBar({
               }}
             >
               <Play className="w-3 h-3" strokeWidth={2} />
-              {isLoading ? '...' : 'Devolver para Lara'}
+              <span>{isLoading ? '...' : 'Devolver para Lara'}</span>
+              {remaining > 0 && (
+                <>
+                  <span className="opacity-40 normal-case font-mono">·</span>
+                  <span className="font-mono tabular-nums normal-case tracking-normal text-[11px] opacity-95">
+                    {formatRemaining(remaining)}
+                  </span>
+                </>
+              )}
             </button>
           )}
 
