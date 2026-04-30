@@ -132,18 +132,18 @@ export function MediaEditDrawer({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="b2b-modal" style={{ maxWidth: 680 }}>
+      <div className="b2b-modal" style={{ maxWidth: 920, width: '100%' }}>
         <header
           className="b2b-modal-hdr"
           style={{
             borderBottom: '1px solid rgba(245, 240, 232, 0.06)',
-            padding: '20px 28px 16px',
+            padding: '18px 28px 14px',
           }}
         >
           <h2
             style={{
               fontFamily: 'Cormorant Garamond, Georgia, serif',
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: 400,
               margin: 0,
               letterSpacing: '-0.2px',
@@ -162,138 +162,150 @@ export function MediaEditDrawer({
           </button>
         </header>
 
-        <div className="b2b-modal-body" style={{ padding: '4px 28px 24px' }}>
-          {/* Preview · img + filename */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '160px 1fr',
-              gap: 16,
-              margin: '20px 0 4px',
-              alignItems: 'start',
-            }}
-          >
-            <div
-              style={{
-                aspectRatio: '4 / 5',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(245, 240, 232, 0.06)',
-                borderRadius: 4,
-                overflow: 'hidden',
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={media.url}
-                alt={media.caption || media.filename}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ ...META_LABEL, marginBottom: 6 }}>Arquivo</div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'rgba(245, 240, 232, 0.5)',
-                  fontFamily: 'ui-monospace, monospace',
-                  wordBreak: 'break-all',
-                  letterSpacing: '0.02em',
-                }}
-              >
-                {media.filename}
-              </div>
-            </div>
-          </div>
-
+        {/* Body sem scroll · 2 colunas (preview esq + form dir) */}
+        <div
+          className="b2b-modal-body"
+          style={{
+            padding: '20px 28px 22px',
+            overflow: 'hidden', // sobrescreve overflow-y:auto do .b2b-modal-body
+          }}
+        >
           <form action={formAction}>
-            {/* Hidden id · ler do formData no server (sem bind) */}
             <input type="hidden" name="media_id" value={media.id} />
 
-            {/* ── Identificação ──────────────────────────── */}
-            <div style={SECTION_DIVIDER}>Identificação</div>
-            <div className="b2b-field">
-              <label style={META_LABEL} htmlFor="caption">
-                Legenda
-              </label>
-              <input
-                ref={captionRef}
-                id="caption"
-                name="caption"
-                className="b2b-input"
-                defaultValue={media.caption ?? ''}
-                placeholder="ex: Miriam, 52 · resultado real"
-              />
-              <div style={{ ...META_HINT, marginTop: 6 }}>
-                Vai como caption no WhatsApp · padrão: nome + idade
-              </div>
-            </div>
-
-            {/* ── Categorização ─────────────────────────── */}
-            <div style={SECTION_DIVIDER}>Categorização</div>
-            <div className="b2b-field">
-              <label style={META_LABEL} htmlFor="category">
-                Categoria
-              </label>
-              <select
-                id="category"
-                name="category"
-                className="b2b-input"
-                defaultValue={media.category ?? 'before_after'}
-              >
-                {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="b2b-grid-2">
-              <div className="b2b-field">
-                <label style={META_LABEL} htmlFor="funnel">
-                  Funil <span style={{ ...META_HINT, marginLeft: 4 }}>(só Antes/Depois)</span>
-                </label>
-                <select
-                  id="funnel"
-                  name="funnel"
-                  className="b2b-input"
-                  defaultValue={media.funnel ?? ''}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '220px 1fr',
+                gap: 24,
+                alignItems: 'start',
+              }}
+            >
+              {/* ── COLUNA ESQUERDA · preview + filename ──────────── */}
+              <div>
+                <div
+                  style={{
+                    aspectRatio: '4 / 5',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(245, 240, 232, 0.06)',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                  }}
                 >
-                  <option value="">—</option>
-                  <option value="olheiras">olheiras</option>
-                  <option value="fullface">fullface</option>
-                </select>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={media.url}
+                    alt={media.caption || media.filename}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <div style={{ ...META_LABEL, marginTop: 12, marginBottom: 4 }}>Arquivo</div>
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    color: 'rgba(245, 240, 232, 0.5)',
+                    fontFamily: 'ui-monospace, monospace',
+                    wordBreak: 'break-all',
+                    letterSpacing: '0.02em',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {media.filename}
+                </div>
               </div>
-              <div className="b2b-field">
-                <label style={META_LABEL} htmlFor="phase">
-                  Fase
-                </label>
-                <input
-                  id="phase"
-                  name="phase"
-                  className="b2b-input"
-                  defaultValue={media.phase ?? ''}
-                  placeholder="—"
-                />
-              </div>
-            </div>
 
-            {/* Erro do server action */}
-            {state && !state.ok && state.error && (
-              <div
-                style={{
-                  fontFamily: 'Montserrat, sans-serif',
-                  fontSize: 10.5,
-                  letterSpacing: '0.06em',
-                  color: '#FCA5A5',
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  padding: '8px 12px',
-                  borderRadius: 4,
-                  marginTop: 12,
-                }}
-              >
-                <span style={{ fontWeight: 600, marginRight: 6 }}>FALHOU</span>
-                {state.error}
-              </div>
-            )}
+              {/* ── COLUNA DIREITA · form ──────────────────────── */}
+              <div>
+                {/* Identificação */}
+                <div className="b2b-field" style={{ marginBottom: 14 }}>
+                  <label style={META_LABEL} htmlFor="caption">
+                    Legenda
+                  </label>
+                  <input
+                    ref={captionRef}
+                    id="caption"
+                    name="caption"
+                    className="b2b-input"
+                    defaultValue={media.caption ?? ''}
+                    placeholder="ex: Miriam, 52 · resultado real"
+                  />
+                  <div style={{ ...META_HINT, marginTop: 4 }}>
+                    Vai como caption no WhatsApp · padrão: nome + idade
+                  </div>
+                </div>
+
+                {/* Categorização · grid 2 cols compactado */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 10,
+                    marginBottom: 14,
+                  }}
+                >
+                  <div className="b2b-field" style={{ margin: 0 }}>
+                    <label style={META_LABEL} htmlFor="category">
+                      Categoria
+                    </label>
+                    <select
+                      id="category"
+                      name="category"
+                      className="b2b-input"
+                      defaultValue={media.category ?? 'before_after'}
+                    >
+                      {CATEGORY_OPTIONS.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="b2b-field" style={{ margin: 0 }}>
+                    <label style={META_LABEL} htmlFor="funnel">
+                      Funil
+                    </label>
+                    <select
+                      id="funnel"
+                      name="funnel"
+                      className="b2b-input"
+                      defaultValue={media.funnel ?? ''}
+                    >
+                      <option value="">—</option>
+                      <option value="olheiras">olheiras</option>
+                      <option value="fullface">fullface</option>
+                    </select>
+                  </div>
+                  <div className="b2b-field" style={{ margin: 0 }}>
+                    <label style={META_LABEL} htmlFor="phase">
+                      Fase
+                    </label>
+                    <input
+                      id="phase"
+                      name="phase"
+                      className="b2b-input"
+                      defaultValue={media.phase ?? ''}
+                      placeholder="—"
+                    />
+                  </div>
+                </div>
+
+                {/* Erro do server action */}
+                {state && !state.ok && state.error && (
+                  <div
+                    style={{
+                      fontFamily: 'Montserrat, sans-serif',
+                      fontSize: 10.5,
+                      letterSpacing: '0.06em',
+                      color: '#FCA5A5',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      padding: '8px 12px',
+                      borderRadius: 4,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, marginRight: 6 }}>FALHOU</span>
+                    {state.error}
+                  </div>
+                )}
 
             <div className="b2b-field">
               <label style={META_LABEL} htmlFor="queixas-chips">
@@ -336,34 +348,34 @@ export function MediaEditDrawer({
                   )
                 })}
               </div>
-              <div style={{ ...META_HINT, marginTop: 8 }}>
+              <div style={{ ...META_HINT, marginTop: 6 }}>
                 Clique pra marcar/desmarcar · {selectedQueixas.length} selecionada{selectedQueixas.length === 1 ? '' : 's'}
               </div>
             </div>
 
-            <div className="b2b-grid-2">
-              <div className="b2b-field">
-                <label style={META_LABEL} htmlFor="sort_order">
-                  Ordem
-                </label>
-                <input
-                  id="sort_order"
-                  name="sort_order"
-                  type="number"
-                  className="b2b-input"
-                  defaultValue={media.sort_order}
-                />
+            {/* Ordem · campo pequeno no final da coluna direita */}
+            <div className="b2b-field" style={{ marginTop: 12, maxWidth: 140 }}>
+              <label style={META_LABEL} htmlFor="sort_order">
+                Ordem
+              </label>
+              <input
+                id="sort_order"
+                name="sort_order"
+                type="number"
+                className="b2b-input"
+                defaultValue={media.sort_order}
+              />
+            </div>
               </div>
-              <div />
             </div>
 
-            {/* ── Actions ───────────────────────────────── */}
+            {/* ── Actions full-width fora do grid 2-col ───── */}
             <div
               style={{
                 display: 'flex',
                 gap: 8,
-                marginTop: 24,
-                paddingTop: 16,
+                marginTop: 18,
+                paddingTop: 14,
                 borderTop: '1px solid rgba(245, 240, 232, 0.06)',
                 justifyContent: 'flex-end',
               }}
