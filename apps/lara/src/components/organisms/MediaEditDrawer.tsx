@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { updateMediaAction, type UpdateResult } from '@/app/(authed)/midia/actions'
 
 export interface MediaEditData {
@@ -74,6 +75,7 @@ export function MediaEditDrawer({
   onClose: () => void
 }) {
   const captionRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
 
   // useActionState pra capturar erro inline (antes era throw silencioso).
   // ID vem via hidden input 'media_id' (era bind · causava instabilidade).
@@ -83,7 +85,12 @@ export function MediaEditDrawer({
   )
 
   useEffect(() => {
-    if (state?.ok) onClose()
+    if (state?.ok) {
+      // 2026-04-30 · revalidatePath no server invalida cache mas o client com
+      // os items na prop fica stale · router.refresh() forca re-fetch da page.
+      router.refresh()
+      onClose()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.ok])
 

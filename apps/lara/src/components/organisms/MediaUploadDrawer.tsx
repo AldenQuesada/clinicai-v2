@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { uploadMediaAction, type UploadResult } from '@/app/(authed)/midia/actions'
 
 const VALID_QUEIXAS = [
@@ -57,6 +58,7 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>('')
   const [clientError, setClientError] = useState<string>('')
+  const router = useRouter()
 
   const [state, formAction, isPending] = useActionState<UploadResult | null, FormData>(
     uploadMediaAction,
@@ -64,7 +66,10 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
   )
 
   useEffect(() => {
-    if (state?.ok) handleClose()
+    if (state?.ok) {
+      router.refresh() // forca re-fetch da galeria pra mostrar a foto nova
+      handleClose()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.ok])
 
