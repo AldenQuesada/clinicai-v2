@@ -167,17 +167,18 @@ export interface UpdateResult {
 }
 
 /**
- * Server Action de update · retorna { ok, error } pra useActionState capturar.
- * Bind: updateMediaAction.bind(null, mediaId).
+ * Server Action de update · id vem via hidden input 'media_id' no form
+ * (era bind, causava instabilidade no useActionState do React 19).
+ * Retorna { ok, error } pra useActionState capturar.
  */
 export async function updateMediaAction(
-  id: string,
   _prev: UpdateResult | null,
   formData: FormData,
 ): Promise<UpdateResult> {
   try {
     const { ctx, repos } = await assertCanManage()
-    if (!id) return { ok: false, error: 'id obrigatorio' }
+    const id = String(formData.get('media_id') || '').trim()
+    if (!id) return { ok: false, error: 'media_id obrigatorio (hidden input ausente)' }
 
     const caption = String(formData.get('caption') || '').trim() || null
     const queixas = parseQueixas(String(formData.get('queixas') || ''))

@@ -75,13 +75,10 @@ export function MediaEditDrawer({
 }) {
   const captionRef = useRef<HTMLInputElement>(null)
 
-  // Bind do action ao id da media · useActionState pra capturar erro inline
-  // (antes era throw silencioso · drawer fechava em onSubmit sem feedback).
-  const boundAction = media
-    ? updateMediaAction.bind(null, media.id)
-    : (async () => ({ ok: false, error: 'Sem media' })) as never
+  // useActionState pra capturar erro inline (antes era throw silencioso).
+  // ID vem via hidden input 'media_id' (era bind · causava instabilidade).
   const [state, formAction, isPending] = useActionState<UpdateResult | null, FormData>(
-    boundAction,
+    updateMediaAction,
     null,
   )
 
@@ -192,6 +189,9 @@ export function MediaEditDrawer({
           </div>
 
           <form action={formAction}>
+            {/* Hidden id · ler do formData no server (sem bind) */}
+            <input type="hidden" name="media_id" value={media.id} />
+
             {/* ── Identificação ──────────────────────────── */}
             <div style={SECTION_DIVIDER}>Identificação</div>
             <div className="b2b-field">
