@@ -101,11 +101,26 @@ function readFromFile(key: keyof typeof FILE_PATHS): string | null {
   }
 }
 
+/**
+ * Cláusula pétrea (2026-04-30 · pedido user):
+ * DB é fonte canônica. Filesystem é fallback degradado COM LOG LOUD.
+ *
+ * Ordem:
+ *  1. DB (`clinic_data.lara_*`) → se valor não-vazio, USA E RETORNA.
+ *  2. Filesystem `.md` → fallback que NUNCA deveria ser usado em prod.
+ *     Sempre que cair aqui, log warn `prompt.layer.fs_fallback` com clinic_id
+ *     + key pra alertar admin que a layer não está seedada no DB.
+ *
+ * Pra forçar strict (throw em vez de fallback), set
+ * LARA_PROMPT_DB_STRICT=true no env. Default: fallback com log alto.
+ */
 async function readPromptLayer(
   clinicId: string | null,
   key: keyof typeof PROMPT_KEYS,
 ): Promise<string | null> {
-  // 1. Tenta DB override · ClinicDataRepository.getSetting (ADR-012)
+  let dbErr: string | null = null;
+
+  // 1. DB-FIRST · clinic_data override é canônico
   if (clinicId) {
     try {
       const supabase = createServerClient();
@@ -119,17 +134,38 @@ async function readPromptLayer(
         value &&
         typeof value === 'object' &&
         'content' in value &&
-        typeof (value as { content: unknown }).content === 'string'
+        typeof (value as { content: unknown }).content === 'string' &&
+        ((value as { content: string }).content).trim().length > 0
       ) {
         return (value as { content: string }).content;
       }
-    } catch {
-      // falha silenciosa · cai pro filesystem
+      // Valor existia mas vazio · tratamos como ausente
+      dbErr = 'db_value_empty';
+    } catch (e) {
+      dbErr = e instanceof Error ? e.message : 'db_query_error';
     }
+  } else {
+    dbErr = 'no_clinic_id';
   }
 
-  // 2. Fallback pro arquivo no repo
-  return readFromFile(key);
+  // 2. FILESYSTEM FALLBACK · log alto pra alertar admin
+  const strict = process.env.LARA_PROMPT_DB_STRICT === 'true';
+  const fsContent = readFromFile(key);
+
+  if (strict) {
+    // Em modo strict, lançar pra forcar diagnostico
+    throw new Error(
+      `[ai.service] DB layer '${PROMPT_KEYS[key]}' vazio (${dbErr ?? 'unknown'}) · LARA_PROMPT_DB_STRICT=true · configure via /prompts.`,
+    );
+  }
+
+  // Modo padrão · loga warn pra alertar
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((globalThis as any).console?.warn ?? (() => {}))(
+    `[ai.service] PROMPT.LAYER.FS_FALLBACK · clinic_id=${clinicId} key=${PROMPT_KEYS[key]} reason=${dbErr ?? 'unknown'} · DB vazio, lendo .md (filesystem). Pra cláusula pétrea, configure no /prompts.`,
+  );
+
+  return fsContent;
 }
 
 async function getSystemPromptText(
