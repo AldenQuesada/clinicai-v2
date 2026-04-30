@@ -95,12 +95,7 @@ export function LeadInfoPanel({
 
   if (!selectedConversation) {
     return (
-      <div className="w-80 border-l border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]">
-        <div className="h-[72px] border-b border-[hsl(var(--chat-border))] flex items-center px-4 justify-between">
-          <span className="text-sm font-medium text-[hsl(var(--foreground))]">Detalhes</span>
-          <button onClick={onToggleExpand} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer">×</button>
-        </div>
-      </div>
+      <div className="w-80 border-l border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-panel-bg))]" />
     );
   }
 
@@ -108,10 +103,7 @@ export function LeadInfoPanel({
 
   return (
     <div className="w-80 border-l border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] h-full">
-      <div className="h-16 border-b border-white/[0.06] flex items-center px-5 justify-between shrink-0">
-        <span className="font-display text-[16px] text-[hsl(var(--foreground))]">Perfil do <em className="text-[hsl(var(--primary))] not-italic font-display italic">lead</em></span>
-        <button onClick={onToggleExpand} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04]">×</button>
-      </div>
+      {/* Header 'Perfil do lead' MOVIDO pro topbar global em 2026-04-30 */}
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {/* Action Buttons · text-buttons Montserrat (DNA flipbook) · sem ASSUMIR

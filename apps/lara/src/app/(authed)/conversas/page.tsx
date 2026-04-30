@@ -14,7 +14,7 @@ import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus } from 'lucide-react';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -33,6 +33,12 @@ export default function ChatPage() {
 
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(true);
   const [isNewConvOpen, setIsNewConvOpen] = useState(false);
+
+  // Polish 2026-04-30 · busca + sort lifted da ConversationList pro topbar
+  // global · libera ~120px na sidebar pra mais conversas visiveis
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [filteredCount, setFilteredCount] = useState(0);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -207,9 +213,48 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
-      {/* Barra de Insights (Top Bar) · KPIs centralizados + refresh a direita */}
-      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-between px-6 shrink-0 z-10 relative">
-        {/* spacer esquerda · simetrico ao botao da direita */}
+      {/* Topbar · 3 zonas alinhadas com as colunas (sidebar | chat | painel) ·
+          libera as laterais pra busca + Perfil do lead, KPIs ficam enquadrados
+          dentro da area central (proposta user 2026-04-30) */}
+      <div className="h-16 bg-[hsl(var(--chat-panel-bg))] flex shrink-0 z-10 relative">
+        {/* ZONA ESQUERDA · sobre sidebar (w-80) · busca + count + sort + new */}
+        <div className="w-80 shrink-0 border-b border-r border-white/[0.06] flex items-center gap-2 px-4">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" strokeWidth={1.5} />
+            <input
+              placeholder="Buscar conversas..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/[0.02] border border-white/[0.04] rounded-md py-1.5 pl-8 pr-12 text-[12px] focus:outline-none focus:border-[hsl(var(--primary))]/40 focus:ring-1 focus:ring-[hsl(var(--primary))]/20 text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))]/60 transition-colors"
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70 pointer-events-none">
+              {filteredCount}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSortOrder((p) => (p === 'newest' ? 'oldest' : 'newest'))}
+            title="Inverter ordem"
+            className={`p-1.5 rounded-md transition-colors shrink-0 ${
+              sortOrder === 'oldest'
+                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+            }`}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsNewConvOpen(true)}
+            title="Nova conversa manual"
+            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors shrink-0"
+          >
+            <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* ZONA CENTRAL · sobre chat (flex-1) · KPIs + refresh */}
+        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-between px-6 min-w-0">
         <div className="w-9 shrink-0" />
 
         <div className="flex items-center gap-5">
@@ -285,6 +330,22 @@ export default function ChatPage() {
         >
           <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
         </button>
+        </div>
+
+        {/* ZONA DIREITA · sobre painel direito (w-80) · titulo "Perfil do lead" + close */}
+        <div className="w-80 shrink-0 border-b border-l border-white/[0.06] flex items-center justify-between px-5">
+          <span className="font-display text-[16px] text-[hsl(var(--foreground))]">
+            Perfil do <em className="text-[hsl(var(--primary))] not-italic font-display italic">lead</em>
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsLeadPanelExpanded((v) => !v)}
+            title={isLeadPanelExpanded ? 'Esconder painel' : 'Mostrar painel'}
+            className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-lg cursor-pointer leading-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/[0.04]"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -299,7 +360,10 @@ export default function ChatPage() {
           onSelectConversation={setSelectedConversation}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
-          onNewConversation={() => setIsNewConvOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          sortOrder={sortOrder}
+          onFilteredCountChange={setFilteredCount}
           onlineUsers={inboxOnline}
           me={me}
           footerHint={

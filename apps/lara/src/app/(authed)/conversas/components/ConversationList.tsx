@@ -1,4 +1,4 @@
-import { Search, MessageSquarePlus, Filter, ArrowUpDown, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
+import { Filter, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
@@ -16,12 +16,17 @@ interface ConversationListProps {
   onSelectConversation: (c: Conversation) => void;
   statusFilter: 'active' | 'archived' | 'resolved' | 'dra';
   onStatusFilterChange: (status: 'active' | 'archived' | 'resolved' | 'dra') => void;
-  onNewConversation?: () => void;
   /** P-15 · hint opcional renderizado abaixo da lista (atalhos de teclado) */
   footerHint?: ReactNode;
-  /** P-12 Fase 3 · atendentes online no inbox (presence) */
+  /** Polish 2026-04-30 · busca lifted pro topbar global */
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  sortOrder: 'newest' | 'oldest';
+  /** Callback pra receber a contagem filtrada (pra exibir no topbar) */
+  onFilteredCountChange?: (count: number) => void;
+  /** P-12 Fase 3 · atendentes online no inbox (presence) — não usados aqui agora
+      mas mantidos pra compat futura se quisermos avatar dentro da sidebar */
   onlineUsers?: PresenceUser[];
-  /** P-12 Fase 3 · id do user logado · pra excluir do stack de avatares */
   me?: string | null;
 }
 
@@ -35,15 +40,13 @@ export function ConversationList({
   onSelectConversation,
   statusFilter,
   onStatusFilterChange,
-  onNewConversation,
   footerHint,
-  onlineUsers = [],
-  me = null,
+  searchQuery,
+  sortOrder,
+  onFilteredCountChange,
 }: ConversationListProps) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('Todas');
   const [showFilters, setShowFilters] = useState(false);
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   
   // Estados dos Filtros Avançados
   const [filterFunnel, setFilterFunnel] = useState<string>('all');
@@ -112,11 +115,16 @@ export function ConversationList({
     setFilterFunnel('all');
     setFilterTag('all');
     setFilterDate('all');
-    setSearchQuery('');
     setActiveTab('Todas');
+    // searchQuery vive no parent agora · clearFilters local nao limpa busca
   };
 
   const hasActiveAdvancedFilters = filterFunnel !== 'all' || filterTag !== 'all' || filterDate !== 'all';
+
+  // Notifica parent da contagem filtrada (pra exibir badge "Conversas N" no topbar)
+  useEffect(() => {
+    onFilteredCountChange?.(filteredConversations.length);
+  }, [filteredConversations.length, onFilteredCountChange]);
 
   // P-02: Scroll infinito · IntersectionObserver dispara onLoadMore quando
   // sentinel entra no viewport. rootMargin 200px adianta o trigger antes
@@ -141,38 +149,8 @@ export function ConversationList({
 
   return (
     <div className="w-80 border-r border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] relative">
-      {/* Linha 1 · Conversas N + presence + sort + new · degrau separado */}
-      <div className="h-11 border-b border-white/[0.06] flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-baseline gap-1.5 shrink-0">
-            <span className="font-display text-[15px] text-[hsl(var(--foreground))] italic leading-none">Conversas</span>
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums opacity-70">{filteredConversations.length}</span>
-          </div>
-          {/* P-12 Fase 3 · avatares dos atendentes online */}
-          {onlineUsers.length > 0 && me && (
-            <PresenceAvatars online={onlineUsers} me={me} max={3} />
-          )}
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-            className={`p-1.5 rounded-md transition-colors ${sortOrder === 'oldest' ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
-            title="Inverter Ordem"
-          >
-            <ArrowUpDown className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          {onNewConversation && (
-            <button
-              type="button"
-              onClick={onNewConversation}
-              title="Nova conversa manual"
-              className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors"
-            >
-              <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Linha 1 (Conversas + count + sort + new + busca) MOVIDA pro topbar global
+          em 2026-04-30 · libera ~120px verticais pra mais conversas visiveis */}
 
       {/* Linha 2 · tabs status · estetica .badge-serious flipbook (Montserrat 8.5px · square 2px · padding 2/7) */}
       <div className="px-3 pt-3 shrink-0">
@@ -211,16 +189,8 @@ export function ConversationList({
       </div>
 
       <div className="p-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" strokeWidth={1.5} />
-            <input
-              placeholder="Buscar..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/[0.02] border border-white/[0.04] rounded-md py-1.5 pl-8 pr-3 text-[12px] focus:outline-none focus:border-[hsl(var(--primary))]/40 focus:ring-1 focus:ring-[hsl(var(--primary))]/20 text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))]/60 transition-colors"
-            />
-          </div>
+        {/* Botao de filtros avancados · busca movida pro topbar global */}
+        <div className="flex items-center justify-end">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-1.5 rounded-md border transition-all ${
@@ -228,11 +198,12 @@ export function ConversationList({
                 ? 'bg-[hsl(var(--primary))] border-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                 : 'bg-white/[0.02] border-white/[0.04] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
             }`}
+            title="Filtros avancados"
           >
             <Filter className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>
         </div>
-        
+
         {/* Painel de Filtros Avançados */}
         {showFilters && (
           <div className="bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-lg p-3 space-y-3 shadow-luxury-md z-20 animate-in fade-in slide-in-from-top-2">
