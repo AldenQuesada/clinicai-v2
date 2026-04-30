@@ -267,9 +267,10 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · sobre chat (flex-1) · KPIs + refresh */}
-        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-between px-6 min-w-0">
-        <div className="w-9 shrink-0" />
+        {/* ZONA CENTRAL · sobre chat (flex-1) · KPIs CENTRALIZADOS · refresh
+            absolute right pra nao competir pelo espaco horizontal · evita
+            invadir a zona direita (Perfil do lead). */}
+        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0 relative">
 
         <div className="flex items-center gap-5">
           {/* Novos Leads · 1o (esquerda) · contatos novos hoje (00:00 BRT) */}
@@ -335,12 +336,12 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Refresh do sistema · sync manual de conversas + insights */}
+        {/* Refresh · absolute right pra nao deslocar os KPIs centrais */}
         <button
           type="button"
           onClick={refreshAll}
           title="Atualizar conversas e KPIs"
-          className="w-9 h-9 shrink-0 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:border-[hsl(var(--primary))]/40 hover:bg-[hsl(var(--primary))]/[0.06] transition-colors"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 shrink-0 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:border-[hsl(var(--primary))]/40 hover:bg-[hsl(var(--primary))]/[0.06] transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
         </button>

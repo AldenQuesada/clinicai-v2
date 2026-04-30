@@ -188,23 +188,8 @@ export function ConversationList({
         </div>
       </div>
 
-      <div className="p-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
-        {/* Botao de filtros avancados · busca movida pro topbar global */}
-        <div className="flex items-center justify-end">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`p-1.5 rounded-md border transition-all ${
-              showFilters || hasActiveAdvancedFilters
-                ? 'bg-[hsl(var(--primary))] border-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                : 'bg-white/[0.02] border-white/[0.04] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
-            }`}
-            title="Filtros avancados"
-          >
-            <Filter className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-        </div>
-
-        {/* Painel de Filtros Avançados */}
+      <div className="px-3 pt-2.5 pb-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
+        {/* Painel de Filtros Avançados (renderiza em cima quando aberto) */}
         {showFilters && (
           <div className="bg-[hsl(var(--chat-panel-bg))] border border-[hsl(var(--chat-border))] rounded-lg p-3 space-y-3 shadow-luxury-md z-20 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center justify-between">
@@ -274,15 +259,16 @@ export function ConversationList({
           </div>
         )}
 
-        {/* Tabs de Filtro (Só aparecem nas Abertas) · mesma DNA das tabs status */}
+        {/* Tabs de Filtro (Só aparecem nas Abertas) · mesma DNA das tabs status
+            + Filter button integrado a direita (em vez de linha solta acima) */}
         {statusFilter === 'active' && !showFilters && (
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
             {tabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 title={tab}
-                className={`font-meta uppercase flex-1 transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer ${
+                className={`font-meta uppercase flex-1 min-w-0 transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer ${
                   activeTab === tab
                     ? 'text-[hsl(var(--primary))]'
                     : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
@@ -302,6 +288,35 @@ export function ConversationList({
                 {tab}
               </button>
             ))}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-1 rounded-sm transition-colors shrink-0 ${
+                hasActiveAdvancedFilters
+                  ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+              }`}
+              title="Filtros avancados (funil/tag/periodo)"
+            >
+              <Filter className="h-3 w-3" strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+
+        {/* Quando NAO esta em 'Abertas' (Dra/Feitas/Arquiv), filter button
+            sozinho a direita (substitui as inner tabs ausentes nessas abas) */}
+        {statusFilter !== 'active' && !showFilters && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-1 rounded-sm transition-colors ${
+                hasActiveAdvancedFilters
+                  ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+              }`}
+              title="Filtros avancados (funil/tag/periodo)"
+            >
+              <Filter className="h-3 w-3" strokeWidth={1.5} />
+            </button>
           </div>
         )}
       </div>
