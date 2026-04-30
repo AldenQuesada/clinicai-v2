@@ -159,15 +159,9 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Linha 2 · tabs status full-width · fundo champagne soft (premium docs style) */}
+      {/* Linha 2 · tabs status full-width · sem competir por espaco */}
       <div className="px-3 pt-3 shrink-0">
-        <div
-          className="grid grid-cols-4 gap-1 p-1 rounded-lg"
-          style={{
-            background: 'rgba(201,169,110,0.06)',
-            border: '1px solid rgba(201,169,110,0.18)',
-          }}
-        >
+        <div className="grid grid-cols-4 gap-1">
           {[
             { id: 'active', label: 'Abertas' },
             { id: 'dra', label: 'Dra. Mirian' },
@@ -180,7 +174,7 @@ export function ConversationList({
               className={`px-1 py-1.5 text-[10px] font-semibold rounded transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
                 statusFilter === s.id
                   ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-white/[0.03]'
+                  : 'bg-white/[0.02] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/[0.04]'
               }`}
             >
               {s.label}
@@ -282,22 +276,16 @@ export function ConversationList({
           </div>
         )}
 
-        {/* Tabs de Filtro (Só aparecem nas Abertas) · estetica docs · champagne soft */}
+        {/* Tabs de Filtro (Só aparecem nas Abertas) */}
         {statusFilter === 'active' && !showFilters && (
-          <div
-            className="flex p-0.5 rounded-md"
-            style={{
-              background: 'rgba(201,169,110,0.04)',
-              border: '1px solid rgba(201,169,110,0.12)',
-            }}
-          >
+          <div className="flex bg-white/[0.02] p-0.5 rounded-md border border-white/[0.04]">
             {tabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex-1 text-[10.5px] py-1.5 rounded-sm transition-colors cursor-pointer ${
                   activeTab === tab
-                    ? 'bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] font-medium'
+                    ? 'bg-white/[0.05] text-[hsl(var(--foreground))] font-medium'
                     : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] font-normal'
                 }`}
               >

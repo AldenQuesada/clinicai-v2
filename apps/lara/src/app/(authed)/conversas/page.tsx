@@ -189,9 +189,9 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
-      {/* Barra de Insights (Top Bar) · KPIs distribuidos · ocupa largura toda */}
-      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center px-8 shrink-0 z-10">
-        <div className="flex items-center justify-between w-full max-w-[1100px] mx-auto">
+      {/* Barra de Insights (Top Bar) · KPIs centralizados */}
+      <div className="h-16 border-b border-white/[0.06] bg-[hsl(var(--chat-panel-bg))] flex items-center justify-center px-6 shrink-0 z-10">
+        <div className="flex items-center gap-7">
           <div className="flex items-center gap-3">
             <div className={`p-1.5 rounded-md ${urgentes > 0 ? 'bg-[hsl(var(--danger))]/10 text-[hsl(var(--danger))]' : 'bg-white/[0.03] text-[hsl(var(--muted-foreground))]'}`}>
               <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
@@ -202,6 +202,7 @@ export default function ChatPage() {
             </div>
           </div>
 
+          <div className="w-px h-9 bg-white/[0.06]" />
 
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-md bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))]">
@@ -213,6 +214,7 @@ export default function ChatPage() {
             </div>
           </div>
 
+          <div className="w-px h-9 bg-white/[0.06]" />
 
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
@@ -224,6 +226,7 @@ export default function ChatPage() {
             </div>
           </div>
 
+          <div className="w-px h-9 bg-white/[0.06]" />
 
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-md bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]">

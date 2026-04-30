@@ -282,27 +282,24 @@ export function MessageArea({
                 )}
               </div>
             </div>
-            {/* Sumario do copiloto AI · destacado · bg champagne sutil + border-l */}
+            {/* Barra fina vertical divisoria */}
+            <div className="w-px bg-white/[0.06] my-3" />
+            {/* Sumario do copiloto AI inline · texto minimal · ocupa o resto */}
             {onRefreshCopilot && (
-              <div className="flex items-center flex-1 ml-3 my-2.5 pl-4 pr-3 gap-2.5 min-w-0 rounded-md"
-                style={{
-                  background: 'rgba(201,169,110,0.06)',
-                  borderLeft: '2px solid rgba(201,169,110,0.5)',
-                }}
-              >
-                <Sparkles className="w-4 h-4 text-[hsl(var(--primary))] shrink-0 mt-[1px]" strokeWidth={1.5} />
+              <div className="flex items-center flex-1 pl-4 pr-2 gap-2.5 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-[1px]" strokeWidth={1.5} />
                 <div className="flex-1 min-w-0">
                   {copilotSummaryError ? (
-                    <span className="text-[12px] text-[hsl(var(--danger))] inline-flex items-center gap-1.5">
+                    <span className="text-[11px] text-[hsl(var(--danger))] inline-flex items-center gap-1.5">
                       <AlertTriangle className="w-3 h-3" strokeWidth={1.5} />
                       <span className="truncate">{copilotSummaryError}</span>
                     </span>
                   ) : copilotSummaryLoading && !copilotSummary ? (
-                    <span className="text-[12px] text-[hsl(var(--muted-foreground))] italic font-display opacity-80">
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))] italic font-display opacity-80">
                       Lara analisando o lead...
                     </span>
                   ) : (
-                    <span className="text-[12.5px] text-[hsl(var(--foreground))] leading-snug line-clamp-2 block">
+                    <span className="text-[11.5px] text-[hsl(var(--foreground))]/90 leading-snug line-clamp-2 block">
                       {copilotSummary}
                     </span>
                   )}
@@ -318,7 +315,7 @@ export function MessageArea({
                   }
                   className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-50 shrink-0 self-center"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${copilotSummaryLoading ? 'animate-spin' : ''}`} strokeWidth={1.5} />
+                  <RefreshCw className={`w-3 h-3 ${copilotSummaryLoading ? 'animate-spin' : ''}`} strokeWidth={1.5} />
                 </button>
               </div>
             )}
