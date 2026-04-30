@@ -604,6 +604,14 @@ export function MessageArea({
           </div>
         )}
 
+        {/* P-07 · erro do MediaRecorder (mic bloqueado, browser nao suporta, etc) */}
+        {audioRecorder.error && (
+          <div className="mb-2 text-[11px] text-[hsl(var(--danger))] flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.2]">
+            <AlertTriangle className="w-3 h-3 shrink-0" strokeWidth={2} />
+            <span className="truncate">Microfone: {audioRecorder.error}</span>
+          </div>
+        )}
+
         {/* P-07 · gravando audio · feedback hold-to-record */}
         {audioRecorder.isRecording && (
           <div className="mb-2 flex items-center gap-3 px-3 py-2 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.25]">

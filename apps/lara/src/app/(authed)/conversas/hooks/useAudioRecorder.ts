@@ -81,6 +81,10 @@ export function useAudioRecorder(onComplete: (file: File) => void) {
       setError('Gravacao de audio nao suportada neste navegador')
       return false
     }
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setError('Browser nao suporta acesso ao microfone (precisa HTTPS)')
+      return false
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -126,7 +130,22 @@ export function useAudioRecorder(onComplete: (file: File) => void) {
 
       return true
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'getUserMedia falhou')
+      // Mapeia erros tecnicos pra msg PT-BR clara
+      const name = e instanceof DOMException ? e.name : ''
+      let msg: string
+      if (name === 'NotAllowedError') {
+        msg = 'permissao negada. Clique no cadeado da URL e libere o microfone'
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        msg = 'nenhum microfone encontrado no dispositivo'
+      } else if (name === 'NotReadableError' || name === 'AbortError') {
+        msg = 'microfone em uso por outro programa'
+      } else if (name === 'SecurityError') {
+        msg = 'bloqueado por politica de seguranca (precisa HTTPS + Permissions-Policy)'
+      } else {
+        msg = e instanceof Error ? e.message : 'getUserMedia falhou'
+      }
+      console.warn('[useAudioRecorder] getUserMedia falhou:', e)
+      setError(msg)
       cleanup()
       return false
     }
