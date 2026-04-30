@@ -31,7 +31,9 @@
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:types": "node scripts/generate-types.mjs",
-    "db:apply": "node scripts/apply-migration.mjs"
+    "db:apply": "node scripts/apply-migration.mjs",
+    "e2e:setup": "node scripts/e2e-setup.mjs",
+    "e2e:cleanup": "node scripts/e2e-cleanup.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",

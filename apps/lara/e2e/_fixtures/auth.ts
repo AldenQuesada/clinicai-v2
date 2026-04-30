@@ -1,46 +1,44 @@
 /**
- * E2E auth fixture · Camada 11c foundation.
+ * E2E auth fixture · Camada 11d (real implementation).
  *
- * Stub agora · cumpre 2 funcoes:
- *   1. Define a API que specs autenticados vao usar (`test.use({ authedAs: 'owner' })`)
- *   2. Falha LOUD quando alguem tenta usar sem completar setup do test project
+ * Login via Supabase Auth signInWithPassword + injecao de cookie SSR
+ * compativel com o middleware Lara (createMiddlewareClient @supabase/ssr).
  *
- * Por que stub:
- *   - Login real precisa de Supabase test project com user de teste seedado
- *   - JWT proprio do projeto (nao tenho secret JWT_SIGNING aqui)
- *   - Test data (lead, orcamento, appointment) precisa seed script
- *
- * Como completar (5 passos · ver E2E.md secao "Happy path E2E"):
- *   1. Criar projeto Supabase de test (separado de prod)
- *   2. Setar env vars: TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY,
+ * Setup necessario · ver E2E.md secao 'Happy path E2E':
+ *   1. Rodar `pnpm e2e:setup` 1x · cria test user no Supabase Auth +
+ *      vincula a clinic_members com role owner
+ *   2. Setar 4 env vars (GitHub Secrets + local .env.test ou direnv):
+ *      TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY,
  *      TEST_USER_EMAIL_OWNER, TEST_USER_PASSWORD
- *   3. Substituir o stub abaixo por chamada real a
- *      `supabase.auth.signInWithPassword(...)` + `page.context().addCookies(...)`
- *   4. Adicionar seed script (e2e/_fixtures/seed.ts) com lead/orcamento/appointment
- *      base em estados conhecidos
- *   5. Escrever happy path specs em e2e/authed/
  *
- * Uso (quando completo):
+ * Uso em specs:
+ *   import { test, expect } from './_fixtures/auth'
  *   test.use({ authedAs: 'owner' })
  *   test('cria orcamento', async ({ page }) => { ... })
+ *
+ * Cleanup automatico: a fixture nao limpa data criada pelo spec ·
+ * cada spec deve usar test.afterAll() chamando supabase delete por id, OU
+ * rodar `pnpm e2e:cleanup` apos a suite. Tudo criado por specs deve
+ * ter `metadata.is_e2e_test=true` · cleanup script filtra por essa tag.
  */
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 export type AuthRole = 'owner' | 'admin' | 'receptionist' | 'therapist' | 'unauth'
 
 interface AuthFixtures {
-  /**
-   * Configura sessao Supabase pro role · injeta cookie sb-access-token + refresh.
-   * 'unauth' explicito pra testes que querem confirmar gate (negativo).
-   */
   authedAs: AuthRole
 }
 
-/**
- * Confirma que envs de test estao setadas. Falha cedo com instrucao clara
- * em vez de crash misterioso no Playwright.
- */
-function assertTestEnvs(): { url: string; anonKey: string; email: string; password: string } {
+interface TestEnv {
+  url: string
+  anonKey: string
+  email: string
+  password: string
+  projectRef: string
+}
+
+function assertTestEnvs(): TestEnv {
   const url = process.env.TEST_SUPABASE_URL
   const anonKey = process.env.TEST_SUPABASE_ANON_KEY
   const email = process.env.TEST_USER_EMAIL_OWNER
@@ -55,38 +53,96 @@ function assertTestEnvs(): { url: string; anonKey: string; email: string; passwo
   if (missing.length > 0) {
     throw new Error(
       `[e2e/auth] Missing env vars · ${missing.join(', ')}.\n` +
-        `Setup necessario · ver apps/lara/E2E.md#happy-path-e2e.\n` +
-        `Stub atual nao consegue logar · use authedAs:'unauth' ou\n` +
-        `complete o setup pra rodar specs autenticados.`,
+        `Setup necessario · ver apps/lara/E2E.md secao 'Happy path E2E'.`,
     )
   }
 
-  return { url: url!, anonKey: anonKey!, email: email!, password: password! }
+  // Project ref vem do hostname · sb-<ref>-auth-token cookie usa esse formato
+  const projectRef = new URL(url!).hostname.split('.')[0]
+
+  return { url: url!, anonKey: anonKey!, email: email!, password: password!, projectRef }
+}
+
+let _client: SupabaseClient | null = null
+function getTestClient(env: TestEnv): SupabaseClient {
+  if (_client) return _client
+  _client = createClient(env.url, env.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  return _client
 }
 
 /**
- * Login real via Supabase Auth · futuro · NAO IMPLEMENTADO v1.
+ * Faz login via Supabase Auth · injeta cookie SSR no contexto da page.
  *
- * Quando completo: chama `auth.signInWithPassword`, extrai access_token +
- * refresh_token, monta cookies sb-<project>-auth-token (formato Supabase
- * SSR cookie), injeta via page.context().addCookies.
+ * Cookie format: `sb-<project-ref>-auth-token` com JSON encoded array
+ * (formato @supabase/ssr canonical · middleware Lara le isso).
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _stubLogin(_role: AuthRole): Promise<void> {
-  // Placeholder · ver doc no header.
-  assertTestEnvs() // intencional · falha loud com instrucao
-  throw new Error('[e2e/auth] loginAs nao implementado v1 · ver E2E.md')
+async function loginAs(role: AuthRole, page: Page): Promise<void> {
+  if (role === 'unauth') return
+
+  const env = assertTestEnvs()
+  const sb = getTestClient(env)
+
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: env.email,
+    password: env.password,
+  })
+  if (error) throw new Error(`[e2e/auth] login failed · ${error.message}`)
+  if (!data.session) throw new Error('[e2e/auth] login retornou sem session')
+
+  const cookieValue = JSON.stringify([
+    data.session.access_token,
+    data.session.refresh_token,
+    null,
+    null,
+    data.session.expires_at,
+  ])
+
+  // Domain depende do baseURL · localhost pra dev, host real pra preview/prod
+  const baseURL = process.env.LARA_E2E_URL ?? 'http://localhost:3005'
+  const domain = new URL(baseURL).hostname
+
+  await page.context().addCookies([
+    {
+      name: `sb-${env.projectRef}-auth-token`,
+      value: cookieValue,
+      domain,
+      path: '/',
+      httpOnly: false,
+      secure: baseURL.startsWith('https://'),
+      sameSite: 'Lax',
+    },
+  ])
 }
 
 export const test = base.extend<AuthFixtures>({
-  authedAs: [
-    async ({ page: _page }, use) => {
-      // Default: unauth (specs negativos · gate de auth)
-      // Quando authedAs eh override, _stubLogin deveria rodar · v1 throws.
-      await use('unauth')
-    },
-    { option: true },
-  ],
+  authedAs: ['unauth', { option: true }],
+  page: async ({ page, authedAs }, use) => {
+    if (authedAs !== 'unauth') {
+      await loginAs(authedAs, page)
+    }
+    await use(page)
+  },
 })
 
 export { expect }
+
+/**
+ * Helper exportado pra specs · cliente Supabase autenticado pra setup
+ * direto via SQL/RPC (criar lead seed, etc) sem passar pela UI.
+ *
+ * Usa anon key + login do test user (mesma sessao do browser).
+ */
+export async function getAuthedSupabase(): Promise<SupabaseClient> {
+  const env = assertTestEnvs()
+  const sb = getTestClient(env)
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: env.email,
+    password: env.password,
+  })
+  if (error || !data.session) {
+    throw new Error(`[e2e/auth] getAuthedSupabase login failed · ${error?.message}`)
+  }
+  return sb
+}
