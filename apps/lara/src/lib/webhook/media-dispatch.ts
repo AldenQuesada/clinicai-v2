@@ -30,6 +30,7 @@ import { createLogger, hashPhone } from '@clinicai/logger'
 const log = createLogger({ app: 'lara' })
 
 export type PhotoTag =
+  // Tags de queixa (resultados antes/depois · category=before_after)
   | 'geral'
   | 'olheiras'
   | 'sulcos'
@@ -45,12 +46,23 @@ export type PhotoTag =
   | 'mandibula'
   | 'perfil'
   | 'bigode_chines'
+  // Tags institucionais (category != before_after) · 2026-04-30
+  | 'consulta'
+  | 'anovator'
+  | 'biometria'
+  | 'clinica'
 
 const KNOWN_TAGS: PhotoTag[] = [
+  // Queixas antes/depois
   'geral', 'olheiras', 'sulcos', 'flacidez', 'contorno',
   'papada', 'textura', 'rugas', 'rejuvenescimento', 'fullface',
   'firmeza', 'manchas', 'mandibula', 'perfil', 'bigode_chines',
+  // Institucionais (consulta · equipamento · ambiente)
+  'consulta', 'anovator', 'biometria', 'clinica',
 ]
+
+/** Tags institucionais · usam `category` em vez de `funnel` ao buscar no bank. */
+const INSTITUTIONAL_TAGS = new Set<PhotoTag>(['consulta', 'anovator', 'biometria', 'clinica'])
 
 /**
  * Foto retornada pelo bank · `caption` traz nome+idade do paciente
@@ -177,6 +189,49 @@ function pickTwoFromDifferentPeople(photos: BankPhoto[]): BankPhoto[] {
 }
 
 /**
+ * Busca fotos institucionais por `category` · 2026-04-30.
+ * Não usa o RPC wa_get_media (que filtra por funnel/queixa) porque categorias
+ * institucionais (consulta/anovator/biometria/clinica) não têm queixa nem
+ * funnel necessariamente. Query direta na tabela com filtro ativo.
+ */
+async function fetchFromBankByCategory(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  clinicId: string,
+  category: string,
+): Promise<BankPhoto[]> {
+  try {
+    const { data, error } = await supabase
+      .from('wa_media_bank')
+      .select('id, url, filename, caption, queixas')
+      .eq('clinic_id', clinicId)
+      .eq('category', category)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+    if (error) {
+      log.warn({ err: error.message, category }, 'media.bank.category_query_error')
+      return []
+    }
+    if (!Array.isArray(data)) return []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as any[])
+      .filter((m) => !!m && typeof m.url === 'string')
+      .map<BankPhoto>((m) => ({
+        id: String(m.id),
+        url: String(m.url),
+        filename: typeof m.filename === 'string' ? m.filename : null,
+        caption: typeof m.caption === 'string' ? m.caption : null,
+        queixas: Array.isArray(m.queixas) ? (m.queixas as string[]) : null,
+        funnel: null,
+        phase: null,
+      }))
+  } catch (e) {
+    log.warn({ err: (e as Error)?.message, category }, 'media.bank.category_exception')
+    return []
+  }
+}
+
+/**
  * Chama RPC wa_get_media(p_funnel, p_queixa, p_phase) · retorna lista de fotos
  * categorizadas com nomes/captions. Retorna [] em caso de erro ou bank vazio.
  */
@@ -259,31 +314,46 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
   }
 
   const textCleaned = aiResponse.replace(matchText, '\n\n').trim()
-  // Funnel: tag explícita ou leadFunnel · default fullface (cobre maioria das tags)
-  const funnel =
-    tag === 'olheiras' ? 'olheiras' :
-    leadFunnel === 'olheiras' ? 'olheiras' :
-    'fullface'
 
-  // 1. Tenta RPC com queixa específica · paridade legacy
-  let photos = await fetchFromBank(supabase, funnel, tag)
+  // Tag institucional (consulta/anovator/biometria/clinica)? Busca por
+  // category direto na tabela · ignora funnel/queixa.
+  const isInstitutional = INSTITUTIONAL_TAGS.has(tag)
+  let photos: BankPhoto[] = []
   let source: MediaDispatchResult['source'] = 'rpc'
 
-  // 2. Sem fotos pra essa queixa · pega qualquer foto do funnel
-  if (photos.length === 0) {
-    photos = await fetchFromBank(supabase, funnel, null)
-    if (photos.length > 0) {
-      log.info({ tag, funnel, fallback: 'queixa_null' }, 'media.bank.queixa_fallback')
+  if (isInstitutional) {
+    photos = await fetchFromBankByCategory(supabase, clinic_id, tag)
+    if (photos.length === 0) {
+      // Fallback bucket pasta institucional (ex: media/consulta/*)
+      photos = await fallbackBucketList(supabase, tag)
+      if (photos.length > 0) source = 'bucket'
     }
-  }
+  } else {
+    // Funnel: tag explícita ou leadFunnel · default fullface (cobre maioria das tags)
+    const funnel =
+      tag === 'olheiras' ? 'olheiras' :
+      leadFunnel === 'olheiras' ? 'olheiras' :
+      'fullface'
 
-  // 3. Bank vazio · fallback bucket folder legacy (sem captions categorizadas)
-  if (photos.length === 0) {
-    const folder = funnel === 'olheiras' ? 'before-after/olheiras' : 'before-after/fullface'
-    photos = await fallbackBucketList(supabase, folder)
-    source = 'bucket'
-    if (photos.length > 0) {
-      log.info({ tag, folder }, 'media.bucket.legacy_fallback')
+    // 1. Tenta RPC com queixa específica · paridade legacy
+    photos = await fetchFromBank(supabase, funnel, tag)
+
+    // 2. Sem fotos pra essa queixa · pega qualquer foto do funnel
+    if (photos.length === 0) {
+      photos = await fetchFromBank(supabase, funnel, null)
+      if (photos.length > 0) {
+        log.info({ tag, funnel, fallback: 'queixa_null' }, 'media.bank.queixa_fallback')
+      }
+    }
+
+    // 3. Bank vazio · fallback bucket folder legacy (sem captions categorizadas)
+    if (photos.length === 0) {
+      const folder = funnel === 'olheiras' ? 'before-after/olheiras' : 'before-after/fullface'
+      photos = await fallbackBucketList(supabase, folder)
+      source = 'bucket'
+      if (photos.length > 0) {
+        log.info({ tag, folder }, 'media.bucket.legacy_fallback')
+      }
     }
   }
 
@@ -340,7 +410,8 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
 
   log.info(
     {
-      clinic_id, phone_hash: hashPhone(phone), tag, funnel,
+      clinic_id, phone_hash: hashPhone(phone), tag,
+      institutional: isInstitutional,
       photo_count: picked.length, source,
       filenames: picked.map((p) => p.filename).filter(Boolean),
     },

@@ -80,6 +80,7 @@ export interface UpdateMediaInput {
   filename?: string
   caption?: string | null
   funnel?: string | null
+  category?: string
   queixas?: string[]
   phase?: string | null
   isActive?: boolean
@@ -167,6 +168,7 @@ export class WaMediaBankRepository {
     if (patch.filename !== undefined) update.filename = patch.filename
     if (patch.caption !== undefined) update.caption = patch.caption
     if (patch.funnel !== undefined) update.funnel = patch.funnel
+    if (patch.category !== undefined) update.category = patch.category
     if (patch.queixas !== undefined) update.queixas = patch.queixas
     if (patch.phase !== undefined) update.phase = patch.phase
     if (patch.isActive !== undefined) update.is_active = patch.isActive

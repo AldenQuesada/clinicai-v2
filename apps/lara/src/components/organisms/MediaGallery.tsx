@@ -22,6 +22,7 @@ export interface GalleryMediaItem {
   filename: string
   url: string
   funnel: string | null
+  category: string
   queixas: string[]
   caption: string | null
   phase: string | null

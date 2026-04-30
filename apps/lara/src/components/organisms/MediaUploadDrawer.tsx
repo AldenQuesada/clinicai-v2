@@ -15,6 +15,14 @@ const VALID_QUEIXAS = [
   'manchas', 'mandibula', 'perfil', 'bigode_chines',
 ] as const
 
+const CATEGORY_OPTIONS = [
+  { value: 'before_after', label: 'Antes / Depois' },
+  { value: 'consulta', label: 'Consulta' },
+  { value: 'anovator', label: 'Anovator A5' },
+  { value: 'biometria', label: 'Biometria facial' },
+  { value: 'clinica', label: 'Clínica · ambiente' },
+] as const
+
 const META_LABEL: React.CSSProperties = {
   fontFamily: 'Montserrat, sans-serif',
   fontSize: '8.5px',
@@ -270,19 +278,37 @@ export function MediaUploadDrawer({ open, onClose }: { open: boolean; onClose: (
 
             {/* ── Categorização ─────────────────────────── */}
             <div style={SECTION_DIVIDER}>Categorização</div>
+            <div className="b2b-field">
+              <label style={META_LABEL} htmlFor="up-category">
+                Categoria <span style={{ color: '#C9A96E' }}>*</span>
+              </label>
+              <select
+                id="up-category"
+                name="category"
+                required
+                defaultValue="before_after"
+                className="b2b-input"
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <div style={{ ...META_HINT, marginTop: 6 }}>
+                Antes/Depois exige escolher funil · outras (consulta, anovator, biometria, clínica) ignoram funil.
+              </div>
+            </div>
             <div className="b2b-grid-2">
               <div className="b2b-field">
                 <label style={META_LABEL} htmlFor="up-funnel">
-                  Funil <span style={{ color: '#C9A96E' }}>*</span>
+                  Funil
                 </label>
                 <select
                   id="up-funnel"
                   name="funnel"
-                  required
                   defaultValue=""
                   className="b2b-input"
                 >
-                  <option value="" disabled>—</option>
+                  <option value="">—</option>
                   <option value="olheiras">olheiras</option>
                   <option value="fullface">fullface</option>
                 </select>

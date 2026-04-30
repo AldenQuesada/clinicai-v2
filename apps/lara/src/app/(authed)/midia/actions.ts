@@ -15,6 +15,20 @@ import { KNOWN_PHOTO_TAGS, type PhotoTag } from '@clinicai/repositories'
 const ALLOWED_FUNNELS = ['olheiras', 'fullface'] as const
 type AllowedFunnel = (typeof ALLOWED_FUNNELS)[number]
 
+/**
+ * Categorias da foto · separadas do funil de venda. Permite subir fotos
+ * institucionais (consulta, equipamento, ambiente) que a Lara invoca quando
+ * lead pergunta 'como é a consulta?'.
+ */
+const ALLOWED_CATEGORIES = [
+  'before_after', // antes/depois (default · resultados)
+  'consulta',     // foto da consulta · ambiente da sala / equipe
+  'anovator',     // Anovator A5 (composição corporal)
+  'biometria',    // biometria facial
+  'clinica',      // recepção, fachada, sala de espera
+] as const
+type AllowedCategory = (typeof ALLOWED_CATEGORIES)[number]
+
 function parseQueixas(raw: string): string[] {
   return raw
     .split(',')
@@ -65,10 +79,18 @@ export async function uploadMediaAction(
       return { ok: false, error: 'Arquivo maior que 5MB · comprima antes' }
     }
 
+    const categoryRaw = String(formData.get('category') || 'before_after').trim().toLowerCase()
+    const category = ALLOWED_CATEGORIES.includes(categoryRaw as AllowedCategory)
+      ? (categoryRaw as AllowedCategory)
+      : 'before_after'
+
     const funnelRaw = String(formData.get('funnel') || '')
     const funnel = parseFunnel(funnelRaw)
-    if (!funnel) {
-      return { ok: false, error: 'Selecione o funil (olheiras ou fullface)' }
+
+    // Funil só é obrigatório pra category=before_after (resultados são por funil).
+    // Outras categorias (consulta/anovator/biometria/clinica) são institucionais.
+    if (category === 'before_after' && !funnel) {
+      return { ok: false, error: 'Selecione o funil (olheiras ou fullface) pra antes/depois' }
     }
 
     const queixasRaw = String(formData.get('queixas') || '')
@@ -82,7 +104,11 @@ export async function uploadMediaAction(
     const originalName = sanitizeFilename(file.name)
     const ts = Date.now()
     const filename = `${ts}-${originalName}`
-    const storagePath = `before-after/${funnel}/${filename}`
+    // Path: before-after/{funnel}/ pra resultados · {category}/ pras institucionais
+    const storageFolder = category === 'before_after' && funnel
+      ? `before-after/${funnel}`
+      : category
+    const storagePath = `${storageFolder}/${filename}`
 
     // Sobe pro Storage
     const arrayBuffer = await file.arrayBuffer()
@@ -107,6 +133,7 @@ export async function uploadMediaAction(
     const created = await repos.mediaBank.create(ctx.clinic_id, {
       filename,
       url: publicUrl,
+      category,
       funnel,
       queixas,
       caption,
@@ -134,26 +161,51 @@ export async function uploadMediaAction(
   }
 }
 
-export async function updateMediaAction(id: string, formData: FormData) {
-  const { ctx, repos } = await assertCanManage()
-  if (!id) throw new Error('id obrigatorio')
+export interface UpdateResult {
+  ok: boolean
+  error?: string
+}
 
-  const caption = String(formData.get('caption') || '').trim() || null
-  const queixas = parseQueixas(String(formData.get('queixas') || ''))
-  const funnel = parseFunnel(String(formData.get('funnel') || ''))
-  const phase = String(formData.get('phase') || '').trim() || null
-  const sortOrderRaw = formData.get('sort_order')
-  const sortOrder = sortOrderRaw === null ? undefined : Number(sortOrderRaw)
+/**
+ * Server Action de update · retorna { ok, error } pra useActionState capturar.
+ * Bind: updateMediaAction.bind(null, mediaId).
+ */
+export async function updateMediaAction(
+  id: string,
+  _prev: UpdateResult | null,
+  formData: FormData,
+): Promise<UpdateResult> {
+  try {
+    const { ctx, repos } = await assertCanManage()
+    if (!id) return { ok: false, error: 'id obrigatorio' }
 
-  await repos.mediaBank.update(ctx.clinic_id, id, {
-    caption,
-    queixas,
-    funnel,
-    phase,
-    sortOrder: Number.isFinite(sortOrder) ? sortOrder : undefined,
-  })
+    const caption = String(formData.get('caption') || '').trim() || null
+    const queixas = parseQueixas(String(formData.get('queixas') || ''))
+    const funnel = parseFunnel(String(formData.get('funnel') || ''))
+    const phase = String(formData.get('phase') || '').trim() || null
+    const sortOrderRaw = formData.get('sort_order')
+    const sortOrder = sortOrderRaw === null ? undefined : Number(sortOrderRaw)
+    const categoryRaw = String(formData.get('category') || '').trim().toLowerCase()
+    const category = ALLOWED_CATEGORIES.includes(categoryRaw as AllowedCategory)
+      ? (categoryRaw as AllowedCategory)
+      : undefined
 
-  revalidatePath('/midia')
+    await repos.mediaBank.update(ctx.clinic_id, id, {
+      caption,
+      queixas,
+      funnel,
+      phase,
+      sortOrder: Number.isFinite(sortOrder) ? sortOrder : undefined,
+      category,
+    })
+
+    revalidatePath('/midia')
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erro desconhecido'
+    console.error('[updateMediaAction] error:', e)
+    return { ok: false, error: msg }
+  }
 }
 
 export async function toggleMediaActiveAction(id: string, isActive: boolean) {

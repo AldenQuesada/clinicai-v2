@@ -3,22 +3,32 @@
 /**
  * MediaEditDrawer · modal edicao · DNA design v2 (Cormorant + Montserrat
  * 8.5px tracking 0.18em + linhas finas + champagne italic).
+ * useActionState pra capturar erro do server action inline (era throw silencioso).
  */
 
-import { useEffect, useRef } from 'react'
-import { updateMediaAction } from '@/app/(authed)/midia/actions'
+import { useEffect, useRef, useActionState } from 'react'
+import { updateMediaAction, type UpdateResult } from '@/app/(authed)/midia/actions'
 
 export interface MediaEditData {
   id: string
   filename: string
   url: string
   funnel: string | null
+  category: string
   queixas: string[]
   caption: string | null
   phase: string | null
   sort_order: number
   is_active: boolean
 }
+
+const CATEGORY_OPTIONS = [
+  { value: 'before_after', label: 'Antes / Depois' },
+  { value: 'consulta', label: 'Consulta' },
+  { value: 'anovator', label: 'Anovator A5' },
+  { value: 'biometria', label: 'Biometria facial' },
+  { value: 'clinica', label: 'Clínica · ambiente' },
+] as const
 
 const VALID_QUEIXAS = [
   'geral', 'olheiras', 'sulcos', 'flacidez', 'contorno', 'papada',
@@ -64,6 +74,21 @@ export function MediaEditDrawer({
   onClose: () => void
 }) {
   const captionRef = useRef<HTMLInputElement>(null)
+
+  // Bind do action ao id da media · useActionState pra capturar erro inline
+  // (antes era throw silencioso · drawer fechava em onSubmit sem feedback).
+  const boundAction = media
+    ? updateMediaAction.bind(null, media.id)
+    : (async () => ({ ok: false, error: 'Sem media' })) as never
+  const [state, formAction, isPending] = useActionState<UpdateResult | null, FormData>(
+    boundAction,
+    null,
+  )
+
+  useEffect(() => {
+    if (state?.ok) onClose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.ok])
 
   useEffect(() => {
     if (media && captionRef.current) {
@@ -166,7 +191,7 @@ export function MediaEditDrawer({
             </div>
           </div>
 
-          <form action={updateMediaAction.bind(null, media.id)} onSubmit={() => onClose()}>
+          <form action={formAction}>
             {/* ── Identificação ──────────────────────────── */}
             <div style={SECTION_DIVIDER}>Identificação</div>
             <div className="b2b-field">
@@ -188,10 +213,25 @@ export function MediaEditDrawer({
 
             {/* ── Categorização ─────────────────────────── */}
             <div style={SECTION_DIVIDER}>Categorização</div>
+            <div className="b2b-field">
+              <label style={META_LABEL} htmlFor="category">
+                Categoria
+              </label>
+              <select
+                id="category"
+                name="category"
+                className="b2b-input"
+                defaultValue={media.category ?? 'before_after'}
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="b2b-grid-2">
               <div className="b2b-field">
                 <label style={META_LABEL} htmlFor="funnel">
-                  Funil
+                  Funil <span style={{ ...META_HINT, marginLeft: 4 }}>(só Antes/Depois)</span>
                 </label>
                 <select
                   id="funnel"
@@ -217,6 +257,26 @@ export function MediaEditDrawer({
                 />
               </div>
             </div>
+
+            {/* Erro do server action */}
+            {state && !state.ok && state.error && (
+              <div
+                style={{
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: 10.5,
+                  letterSpacing: '0.06em',
+                  color: '#FCA5A5',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  padding: '8px 12px',
+                  borderRadius: 4,
+                  marginTop: 12,
+                }}
+              >
+                <span style={{ fontWeight: 600, marginRight: 6 }}>FALHOU</span>
+                {state.error}
+              </div>
+            )}
 
             <div className="b2b-field">
               <label style={META_LABEL} htmlFor="queixas">
@@ -264,6 +324,7 @@ export function MediaEditDrawer({
               <button
                 type="button"
                 onClick={onClose}
+                disabled={isPending}
                 style={{
                   fontFamily: 'Montserrat, sans-serif',
                   fontSize: 10,
@@ -275,7 +336,8 @@ export function MediaEditDrawer({
                   color: 'rgba(245, 240, 232, 0.7)',
                   padding: '9px 18px',
                   borderRadius: 4,
-                  cursor: 'pointer',
+                  cursor: isPending ? 'not-allowed' : 'pointer',
+                  opacity: isPending ? 0.5 : 1,
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -283,22 +345,23 @@ export function MediaEditDrawer({
               </button>
               <button
                 type="submit"
+                disabled={isPending}
                 style={{
                   fontFamily: 'Montserrat, sans-serif',
                   fontSize: 10,
                   fontWeight: 600,
                   letterSpacing: '0.18em',
                   textTransform: 'uppercase',
-                  background: '#C9A96E',
+                  background: isPending ? 'rgba(201, 169, 110, 0.4)' : '#C9A96E',
                   border: '1px solid #C9A96E',
                   color: '#1A1814',
                   padding: '9px 22px',
                   borderRadius: 4,
-                  cursor: 'pointer',
+                  cursor: isPending ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s ease',
                 }}
               >
-                Salvar
+                {isPending ? 'Salvando…' : 'Salvar'}
               </button>
             </div>
           </form>

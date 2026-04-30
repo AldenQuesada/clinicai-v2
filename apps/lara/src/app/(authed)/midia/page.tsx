@@ -20,6 +20,7 @@ function toView(m: WaMediaBankDTO): GalleryMediaItem {
     filename: m.filename,
     url: m.url,
     funnel: m.funnel,
+    category: m.category,
     queixas: m.queixas,
     caption: m.caption,
     phase: m.phase,
