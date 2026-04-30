@@ -416,11 +416,11 @@ function ProfessionalRow({
 
   return (
     <div
-      className={`grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg hover:border-white/14 transition-colors ${
         n.isActive ? '' : 'opacity-60'
       }`}
     >
-      <div className="min-w-0 flex flex-col gap-0.5">
+      <div className="min-w-0 flex-1 basis-[180px] flex flex-col gap-0.5">
         <span className="text-sm font-semibold text-[#F5F0E8] truncate flex items-center gap-2 flex-wrap">
           {n.professionalName || n.label || '—'}
           {specialty ? (
@@ -481,7 +481,7 @@ function ProfessionalRow({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
         <button
           type="button"
           className="b2b-btn b2b-btn-xs"
