@@ -79,9 +79,21 @@ Quando confiante (~7-14 dias de soak verde):
    - Anamneses (módulo único ainda vivo no legacy · até 12b decidir destino)
 3. **Avise** se algo não funcionar — eu corrijo antes de dropar legacy
 
-## 12b · Decisão sobre anamnese (sua chamada)
+## 12b · Decisão tomada · dados legacy descartados (2026-04-30)
 
-Opções:
+`divergence_report()` (mig 85) revelou 323 leads + 1 paciente real em `legacy_2026_04_28.X` que clean-slate migration não copiou pra `public.X`.
+
+**Decisão Alden 2026-04-30:** dados legacy não serão migrados. Alden tem planilha atualizada e vai subir via CSV import quando quiser começar a usar o CRM v2 com dados reais. PR #30 (mig 90 que migrava 323 leads + Adilso) fechada sem aplicar.
+
+**Implicações:**
+- 12d (drop schema legacy) pode prosseguir em 28/05 sem perda real
+- v2 continua começando "vazio" até Alden subir planilha
+- Cron orcamento followup atual passa a ser no-op até ter dados (zero candidatos)
+- `/admin/health` continua mostrando warnings de divergência durante soak window (esperado · ignorar)
+
+## 12b' · Decisão sobre módulo anamnese (ainda pendente)
+
+Único módulo ainda vivo no legacy. 3 opções:
 
 **A. Migrar pra v2** · ~2-3 dias · port das tabelas (`anamnesis_templates`, `anamnesis_template_sessions`, `anamnesis_responses`) + UI nova em `apps/lara/src/app/crm/anamnese/`. Decom legacy completo no fim da soak.
 
@@ -90,6 +102,27 @@ Opções:
 **C. Substituir por SaaS externo** · indeterminado · se houver opção comercial melhor que vale o custo.
 
 Eu **recomendo B** se você usa anamnese < 3x/semana (não justifica migração). **A** se for diário e você quer tudo integrado.
+
+## CSV Import (futuro · após decisão de subir planilha)
+
+Quando você quiser subir a planilha de pacientes/leads, opções:
+
+**Opção 1 · Supabase Dashboard nativo (mais simples)**
+1. Dashboard → Table Editor → Selecionar tabela (`leads` ou `patients`)
+2. Botão "Insert" → "Import data from CSV"
+3. Mapear colunas
+4. Importar
+- ✅ Zero código
+- ❌ Manual · não dá pra automatizar fluxo recorrente
+
+**Opção 2 · Endpoint /admin/import (futuro)**
+- UI em Lara · upload CSV → preview → confirm → INSERT em batches
+- Validação Zod por linha · linhas inválidas viram CSV de erros pra você corrigir
+- Tag `metadata.imported_from_csv = '<timestamp>'` pra rollback
+- Estimativa: ~3-4h
+- Faz sentido se você for importar várias planilhas (ex: histórico mensal de novo)
+
+Quando quiser construir Opção 2, me avise.
 
 ## 12c · Cron daily de divergence
 
