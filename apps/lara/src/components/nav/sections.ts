@@ -16,6 +16,7 @@ import {
   Image as ImageIcon,
   Settings,
   ClipboardList,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -51,6 +52,16 @@ export const SECTIONS: readonly Section[] = [
     label: 'Leads',
     path: '/leads',
     icon: Users,
+    requires: 'patients:view',
+  },
+  {
+    // CRM landing /crm com sub-nav (Pacientes, Agenda, Orcamentos) ·
+    // Camadas 7/8/9 entregues 2026-04-29. Sem entrada no sidebar
+    // ate hoje · descoberto durante onboarding Alden 2026-04-30.
+    key: 'crm',
+    label: 'CRM',
+    path: '/crm',
+    icon: Briefcase,
     requires: 'patients:view',
   },
   {
