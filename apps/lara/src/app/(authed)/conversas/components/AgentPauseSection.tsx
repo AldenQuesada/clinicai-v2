@@ -112,13 +112,13 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
         </div>
       )}
 
-      {/* BOTÃO PRIMÁRIO · grande, proeminente · alterna PAUSAR/REATIVAR */}
+      {/* BOTÃO PRIMÁRIO · grande, com FUNDO SÓLIDO em ambos estados */}
       {isPaused ? (
         <button
           type="button"
           onClick={handleReactivate}
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white py-2.5 rounded-md text-sm font-semibold transition-colors disabled:opacity-50 shadow-luxury-sm cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--success))] hover:opacity-90 text-white py-3 rounded-md text-sm font-semibold transition-opacity disabled:opacity-50 shadow-luxury-sm cursor-pointer"
         >
           <Play className="h-4 w-4" strokeWidth={2} />
           {isLoading ? 'Reativando...' : 'Reativar Lara'}
@@ -128,7 +128,7 @@ export function AgentPauseSection({ conversationId, onStatusChange }: { conversa
           type="button"
           onClick={() => pauseAgent(30)}
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--primary))]/[0.10] hover:bg-[hsl(var(--primary))]/[0.18] text-[hsl(var(--primary))] py-2.5 rounded-md text-sm font-semibold transition-colors border border-[hsl(var(--primary))]/30 disabled:opacity-50 cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 bg-[hsl(var(--primary))] hover:opacity-90 text-[hsl(var(--primary-foreground))] py-3 rounded-md text-sm font-semibold transition-opacity disabled:opacity-50 shadow-luxury-sm cursor-pointer"
         >
           <Pause className="h-4 w-4" strokeWidth={2} />
           {isLoading ? 'Pausando...' : 'Pausar Lara · 30 min'}
