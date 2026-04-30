@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-04-29T14:58:22.747Z
+ * Ultima geracao: 2026-04-30T12:59:56.649Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -947,6 +947,42 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           slug?: string
+        }
+        Relationships: []
+      }
+      anatomy_quiz_areas: {
+        Row: {
+          active: boolean
+          created_at: string
+          key: string
+          label: string
+          notes: string | null
+          protocol: string
+          updated_at: string
+          weight: number
+          weight_b: number | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          key: string
+          label: string
+          notes?: string | null
+          protocol: string
+          updated_at?: string
+          weight: number
+          weight_b?: number | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          key?: string
+          label?: string
+          notes?: string | null
+          protocol?: string
+          updated_at?: string
+          weight?: number
+          weight_b?: number | null
         }
         Relationships: []
       }
@@ -3391,6 +3427,63 @@ export type Database = {
           },
         ]
       }
+      b2b_pending_dispatches: {
+        Row: {
+          attempts: number
+          clinic_id: string
+          created_at: string
+          dedup_key: string | null
+          edge_path: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          partnership_id: string | null
+          payload: Json
+          reason: string | null
+          request_id: number | null
+          scheduled_for: string
+          source_event_key: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          clinic_id?: string
+          created_at?: string
+          dedup_key?: string | null
+          edge_path: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          partnership_id?: string | null
+          payload: Json
+          reason?: string | null
+          request_id?: number | null
+          scheduled_for?: string
+          source_event_key?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          clinic_id?: string
+          created_at?: string
+          dedup_key?: string | null
+          edge_path?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          partnership_id?: string | null
+          payload?: Json
+          reason?: string | null
+          request_id?: number | null
+          scheduled_for?: string
+          source_event_key?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       b2b_plan_categories: {
         Row: {
           created_at: string
@@ -3889,6 +3982,57 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_voucher_dispatch_errors: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          detail: string | null
+          id: string
+          payload: Json | null
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          voucher_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          payload?: Json | null
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          voucher_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          payload?: Json | null
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_voucher_dispatch_errors_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_errors_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_vouchers"
             referencedColumns: ["id"]
           },
         ]
@@ -7849,6 +7993,74 @@ export type Database = {
             columns: ["current_revision_id"]
             isOneToOne: false
             referencedRelation: "lp_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lp_pixel_events: {
+        Row: {
+          created_at: string
+          custom_data: Json | null
+          event_id: string
+          event_name: string
+          fbtrace_id: string | null
+          has_user_data: boolean
+          http_status: number | null
+          id: number
+          ip_hash: string | null
+          lp_page_id: string | null
+          meta_response: Json | null
+          page_slug: string
+          provider: string
+          reason: string | null
+          status: string
+          trace_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          custom_data?: Json | null
+          event_id: string
+          event_name: string
+          fbtrace_id?: string | null
+          has_user_data?: boolean
+          http_status?: number | null
+          id?: number
+          ip_hash?: string | null
+          lp_page_id?: string | null
+          meta_response?: Json | null
+          page_slug: string
+          provider?: string
+          reason?: string | null
+          status: string
+          trace_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          custom_data?: Json | null
+          event_id?: string
+          event_name?: string
+          fbtrace_id?: string | null
+          has_user_data?: boolean
+          http_status?: number | null
+          id?: number
+          ip_hash?: string | null
+          lp_page_id?: string | null
+          meta_response?: Json | null
+          page_slug?: string
+          provider?: string
+          reason?: string | null
+          status?: string
+          trace_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lp_pixel_events_lp_page_id_fkey"
+            columns: ["lp_page_id"]
+            isOneToOne: false
+            referencedRelation: "lp_pages"
             referencedColumns: ["id"]
           },
         ]
@@ -12720,6 +12932,8 @@ export type Database = {
           ai_enabled: boolean | null
           ai_paused_until: string | null
           ai_persona: string | null
+          assigned_at: string | null
+          assigned_to: string | null
           cadence_paused: boolean | null
           cadence_step: number | null
           clinic_id: string
@@ -12753,6 +12967,8 @@ export type Database = {
           ai_enabled?: boolean | null
           ai_paused_until?: string | null
           ai_persona?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
           cadence_paused?: boolean | null
           cadence_step?: number | null
           clinic_id: string
@@ -12786,6 +13002,8 @@ export type Database = {
           ai_enabled?: boolean | null
           ai_paused_until?: string | null
           ai_persona?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
           cadence_paused?: boolean | null
           cadence_step?: number | null
           clinic_id?: string
@@ -12816,6 +13034,13 @@ export type Database = {
           wa_number_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_conversations_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wa_conversations_wa_number_id_fkey"
             columns: ["wa_number_id"]
@@ -14101,12 +14326,25 @@ export type Database = {
       }
       _aq_area_label: { Args: { p_key: string }; Returns: string }
       _aq_area_protocol: { Args: { p_key: string }; Returns: string }
-      _aq_area_weight: { Args: { p_key: string }; Returns: number }
+      _aq_area_weight:
+        | { Args: { p_key: string }; Returns: number }
+        | { Args: { p_key: string; p_phone?: string }; Returns: number }
       _aq_get_secret: { Args: { p_name: string }; Returns: string }
       _aq_increment_attempts: { Args: { p_id: string }; Returns: undefined }
       _aq_invoke_lara_edge_fn: { Args: never; Returns: number }
+      _aq_invoke_lara_v2: {
+        Args: never
+        Returns: {
+          claimed: boolean
+          dispatch_id: string
+          http_request_id: number
+        }[]
+      }
       _aq_lookup_lifecycle: { Args: { p_phone: string }; Returns: Json }
-      _aq_top_complaints: { Args: { p_areas: string[] }; Returns: Json }
+      _aq_top_complaints: {
+        Args: { p_areas: string[]; p_phone?: string; p_priority?: string }
+        Returns: Json
+      }
       _b2b_audit: {
         Args: {
           p_action: string
@@ -14126,11 +14364,19 @@ export type Database = {
         Args: { p_body?: Json; p_path: string }
         Returns: Json
       }
+      _b2b_is_within_business_hours: {
+        Args: { p_clinic_id: string; p_ts?: string }
+        Returns: boolean
+      }
       _b2b_mira_welcome_dispatch: {
         Args: { p_partnership_id: string }
         Returns: number
       }
       _b2b_monthly_report_tick: { Args: never; Returns: Json }
+      _b2b_next_window_start: {
+        Args: { p_after?: string; p_clinic_id: string }
+        Returns: string
+      }
       _b2b_normalize: { Args: { t: string }; Returns: string }
       _b2b_normalize_phone: { Args: { p_phone: string }; Returns: string }
       _b2b_notify_dispatch: {
@@ -14260,10 +14506,16 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: boolean
       }
+      _lp_pixel_events_purge: { Args: never; Returns: number }
       _lp_rate_limit_check: {
         Args: { p_endpoint: string; p_max_per_min: number }
         Returns: boolean
       }
+      _lp_rate_limit_check_by_ip: {
+        Args: { p_endpoint: string; p_ip: string; p_max_per_min: number }
+        Returns: boolean
+      }
+      _mag_current_clinic_id: { Args: never; Returns: string }
       _mag_current_hmac_secret: { Args: never; Returns: string }
       _mag_normalize_phone: { Args: { p_phone: string }; Returns: string }
       _mag_verify_lead_hash: {
@@ -14379,6 +14631,16 @@ export type Database = {
       }
       _strip_markdown: { Args: { p_text: string }; Returns: string }
       _today_br: { Args: never; Returns: string }
+      _trigger_log: {
+        Args: {
+          p_err_detail: string
+          p_err_message: string
+          p_row_data?: Json
+          p_table_name: string
+          p_trigger_name: string
+        }
+        Returns: undefined
+      }
       _vpi_active_challenge: {
         Args: never
         Returns: {
@@ -14590,6 +14852,11 @@ export type Database = {
       b2b_activities_list: { Args: { p_partnership_id: string }; Returns: Json }
       b2b_activity_delete: { Args: { p_id: string }; Returns: Json }
       b2b_activity_upsert: { Args: { p_payload: Json }; Returns: Json }
+      b2b_admin_pending_complete: {
+        Args: { p_error?: string; p_id: string; p_status: string }
+        Returns: Json
+      }
+      b2b_admin_pending_pick: { Args: { p_limit?: number }; Returns: Json }
       b2b_admin_phone_revoke: { Args: { p_phone_last8: string }; Returns: Json }
       b2b_admin_phone_upsert: { Args: { p_payload: Json }; Returns: Json }
       b2b_admin_phones_list: {
@@ -15096,6 +15363,10 @@ export type Database = {
         Args: { p_days?: number; p_partnership_id?: string }
         Returns: Json
       }
+      b2b_pending_dispatches_drain: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       b2b_pipeline_funnel: { Args: { p_days?: number }; Returns: Json }
       b2b_plan_category_ensure: {
         Args: { p_label?: string; p_pillar?: string; p_slug: string }
@@ -15519,6 +15790,7 @@ export type Database = {
       dashboard_kpis: { Args: never; Returns: Json }
       deactivate_staff: { Args: { p_user_id: string }; Returns: Json }
       delete_alexa_device: { Args: { p_id: string }; Returns: Json }
+      divergence_report: { Args: never; Returns: Json }
       fin_get_all_data: {
         Args: { p_month: number; p_year: number }
         Returns: Json
@@ -15877,6 +16149,10 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      lara_get_quiz_context: {
+        Args: { p_days?: number; p_phone: string }
+        Returns: Json
+      }
       lara_pick_template: { Args: { p_key: string }; Returns: Json }
       lara_voucher_followup_clear_stuck: { Args: never; Returns: Json }
       lara_voucher_followup_pick: {
@@ -16187,6 +16463,29 @@ export type Database = {
       lp_page_track_conversion: { Args: { p_slug: string }; Returns: Json }
       lp_page_track_view: { Args: { p_slug: string }; Returns: Json }
       lp_pages_apply_schedule: { Args: never; Returns: Json }
+      lp_pixel_event_log: {
+        Args: {
+          p_custom_data?: Json
+          p_event_id: string
+          p_event_name: string
+          p_fbtrace_id?: string
+          p_has_user_data?: boolean
+          p_http_status?: number
+          p_ip?: string
+          p_meta_response?: Json
+          p_provider?: string
+          p_reason?: string
+          p_slug: string
+          p_status: string
+          p_trace_id?: string
+          p_user_agent?: string
+        }
+        Returns: number
+      }
+      lp_pixel_events_recent: {
+        Args: { p_limit?: number; p_lp_page_id: string }
+        Returns: Json
+      }
       lp_recent_errors: { Args: { p_limit?: number }; Returns: Json }
       lp_recent_leads_count: {
         Args: { p_days?: number; p_slug?: string }
@@ -16534,6 +16833,22 @@ export type Database = {
       mira_cron_set_enabled: {
         Args: { p_enabled: boolean; p_job_name: string; p_notes?: string }
         Returns: Json
+      }
+      mira_financial_ai_cost_text: {
+        Args: { p_clinic_id: string }
+        Returns: string
+      }
+      mira_financial_churn_alert_text: {
+        Args: { p_clinic_id: string; p_silent_days?: number }
+        Returns: string
+      }
+      mira_financial_daily_revenue_text: {
+        Args: { p_clinic_id: string }
+        Returns: string
+      }
+      mira_financial_monthly_goal_text: {
+        Args: { p_clinic_id: string }
+        Returns: string
       }
       mira_state_cleanup_expired: { Args: never; Returns: number }
       mira_state_clear: {
@@ -17777,6 +18092,14 @@ export type Database = {
       wa_clear_stuck_locks: {
         Args: { p_older_than_sec?: number }
         Returns: number
+      }
+      wa_conversation_assign: {
+        Args: { p_conversation_id: string; p_user_id: string }
+        Returns: Json
+      }
+      wa_conversation_unassign: {
+        Args: { p_conversation_id: string }
+        Returns: Json
       }
       wa_daily_summary: { Args: never; Returns: number }
       wa_deactivate_any: { Args: { p_id: string }; Returns: Json }
