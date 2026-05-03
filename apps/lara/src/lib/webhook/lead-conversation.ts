@@ -67,7 +67,29 @@ export async function resolveConversation(
   const variants = phoneVariants(phone)
 
   const existing = await conversations.findActiveByPhoneVariants(clinic_id, variants)
-  if (existing) return existing
+  if (existing) {
+    // Mig 91 backfill · conv existente sem wa_number_id (legacy wa-inbound nao
+    // preenchia) recebe o resolved agora. Trigger fn_wa_conversations_inbox_role_sync
+    // sincroniza inbox_role automaticamente. Sem isso, mensagens novas no nº
+    // secretaria continuariam aparecendo em /conversas (inbox_role default 'sdr').
+    if (waNumberId && existing.waNumberId !== waNumberId) {
+      const patched = await conversations.setWaNumber(existing.id, waNumberId)
+      if (patched) {
+        log.info(
+          {
+            clinic_id,
+            phone_hash: hashPhone(phone),
+            conv_id: existing.id,
+            old_wn: existing.waNumberId,
+            new_wn: waNumberId,
+          },
+          'conversation.wa_number_id.backfilled',
+        )
+        return patched
+      }
+    }
+    return existing
+  }
 
   const created = await conversations.create(clinic_id, {
     phone,

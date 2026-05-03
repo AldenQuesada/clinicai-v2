@@ -135,6 +135,27 @@ export class ConversationRepository {
   }
 
   /**
+   * Mig 91 · seta wa_number_id em conv existente · trigger
+   * fn_wa_conversations_inbox_role_sync sincroniza inbox_role do wa_numbers.
+   * Usado pelo backfill de convs legacy criadas pela wa-inbound (que nao
+   * preenchia wa_number_id) quando recebe nova mensagem agora.
+   */
+  async setWaNumber(
+    conversationId: string,
+    waNumberId: string,
+  ): Promise<ConversationDTO | null> {
+    const { data, error } = await this.supabase
+      .from('wa_conversations')
+      .update({ wa_number_id: waNumberId })
+      .eq('id', conversationId)
+      .select()
+      .maybeSingle()
+
+    if (error || !data) return null
+    return mapConversationRow(data)
+  }
+
+  /**
    * Atualiza last_message_at + last_message_text (snapshot pro inbox).
    * Truncate text em 200 chars (mesma regra do webhook legado).
    */
