@@ -66,23 +66,41 @@ export function PipelineBar({ phase, funnel }: PipelineBarProps): JSX.Element {
 
   return (
     <div className="px-5 py-4 border-b border-white/[0.06]">
-      <div className="relative">
+      {/* Header com etapa atual em destaque */}
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <span className="font-meta uppercase text-[8.5px] tracking-[0.22em] text-[hsl(var(--muted-foreground))]">
+          Jornada
+        </span>
+        <span className="text-[12px] text-[hsl(var(--foreground))]">
+          <em className="text-[hsl(var(--primary))] not-italic font-display italic font-medium">
+            {currentLabel}
+          </em>
+          {fLabel && (
+            <span className="text-[hsl(var(--muted-foreground))] opacity-60 ml-1.5 text-[10.5px]">
+              · {fLabel}
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Dots SEM labels embaixo · cleaner. Tooltip nativo em cada dot. */}
+      <div className="relative px-1">
         {/* Linha conectora · base esmaecida */}
         <div
-          className="absolute top-[5px] left-[6px] right-[6px] h-px bg-white/[0.08]"
+          className="absolute top-1/2 left-2 right-2 h-px bg-white/[0.08] -translate-y-1/2"
           aria-hidden
         />
         {/* Linha conectora · progresso champagne */}
         {activeStep > 0 && (
           <div
-            className="absolute top-[5px] left-[6px] h-px bg-[hsl(var(--primary))] transition-all"
-            style={{ width: `calc((100% - 12px) * ${activeStep / (STEPS.length - 1)})` }}
+            className="absolute top-1/2 left-2 h-px bg-[hsl(var(--primary))] transition-all -translate-y-1/2"
+            style={{ width: `calc((100% - 16px) * ${activeStep / (STEPS.length - 1)})` }}
             aria-hidden
           />
         )}
 
-        {/* Dots compactos */}
-        <div className="relative flex justify-between">
+        {/* Dots */}
+        <div className="relative flex justify-between items-center">
           {STEPS.map((step, i) => {
             const isDone = i < activeStep;
             const isCurrent = i === activeStep;
@@ -92,39 +110,17 @@ export function PipelineBar({ phase, funnel }: PipelineBarProps): JSX.Element {
                 ? 'bg-[hsl(var(--primary))] border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]/40'
                 : 'bg-[hsl(var(--chat-panel-bg))] border-white/[0.12]';
 
-            const labelClass = isDone || isCurrent
-              ? 'text-[hsl(var(--foreground))]/70'
-              : 'text-[hsl(var(--muted-foreground))]/60';
-
             return (
-              <div key={step.key} className="flex flex-col items-center" style={{ flex: '0 0 auto' }}>
-                <div
-                  className={`w-2.5 h-2.5 rounded-full border transition-all ${dotClass}`}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`${step.label}${isCurrent ? ' (atual)' : isDone ? ' (concluido)' : ''}`}
-                />
-                <span className={`mt-1.5 font-meta text-[8.5px] tracking-[0.12em] uppercase ${labelClass}`}>
-                  {step.label}
-                </span>
-              </div>
+              <div
+                key={step.key}
+                className={`w-3 h-3 rounded-full border transition-all ${dotClass}`}
+                title={`${step.label}${isCurrent ? ' (atual)' : isDone ? ' (concluído)' : ' (futuro)'}`}
+                aria-current={isCurrent ? 'step' : undefined}
+                aria-label={step.label}
+              />
             );
           })}
         </div>
-      </div>
-
-      {/* Label da etapa atual + funil (substitui card 'Etapa atual' redundante) */}
-      <div className="mt-3 pt-3 border-t border-white/[0.04] flex items-baseline justify-between gap-2">
-        <span className="font-meta uppercase text-[8.5px] tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
-          Etapa
-        </span>
-        <span className="font-display text-[13px] text-[hsl(var(--foreground))]">
-          <em className="text-[hsl(var(--primary))] not-italic font-display italic">{currentLabel}</em>
-          {fLabel && (
-            <span className="text-[hsl(var(--muted-foreground))] opacity-70 ml-1.5 text-[11px]">
-              · {fLabel}
-            </span>
-          )}
-        </span>
       </div>
     </div>
   );

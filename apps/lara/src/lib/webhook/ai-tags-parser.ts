@@ -4,6 +4,7 @@
  * Tags suportadas (extraídas do output e aplicadas em side-effects):
  *   [SCORE:N]                    → atualiza lead.lead_score
  *   [ADD_TAG:nome]               → adiciona tag em lead.tags (array)
+ *   [QUEIXA:nome]                → adiciona queixa em lead.queixas_faciais
  *   [SET_FUNNEL:olheiras|fullface|procedimentos] → reclassifica funnel
  *   [ACIONAR_HUMANO]             → handoff (tratado fora · pausa IA + notifica)
  *
@@ -21,6 +22,18 @@ export interface ParsedTags {
   textCleaned: string
   tags: string[]
 }
+
+export interface ParsedQueixas {
+  textCleaned: string
+  queixas: string[]
+}
+
+/** Whitelist de queixas faciais reconhecidas · espelha KNOWN_PHOTO_TAGS */
+const KNOWN_QUEIXAS = [
+  'olheiras', 'sulcos', 'flacidez', 'contorno', 'papada',
+  'textura', 'rugas', 'firmeza', 'manchas', 'mandibula',
+  'perfil', 'bigode_chines', 'rejuvenescimento',
+]
 
 export interface ParsedFunnel {
   textCleaned: string
@@ -48,6 +61,28 @@ export function parseTags(text: string): ParsedTags {
     cleaned = cleaned.replace(m, '').trim()
   }
   return { textCleaned: cleaned, tags }
+}
+
+/**
+ * Parser de queixas faciais detectadas pela Lara durante o chat.
+ * Lara emite [QUEIXA:olheiras] · [QUEIXA:sulcos] etc quando paciente
+ * menciona o que incomoda. Filtra contra whitelist (KNOWN_QUEIXAS) e
+ * normaliza pra lowercase + underscore.
+ */
+export function parseQueixas(text: string): ParsedQueixas {
+  const matches = text.match(/\[QUEIXA:([^\]]+)\]/gi)
+  if (!matches?.length) return { textCleaned: text, queixas: [] }
+
+  let cleaned = text
+  const queixas: string[] = []
+  for (const m of matches) {
+    const raw = m.replace(/\[QUEIXA:/i, '').replace(']', '').trim().toLowerCase().replace(/\s+/g, '_')
+    if (KNOWN_QUEIXAS.includes(raw) && !queixas.includes(raw)) {
+      queixas.push(raw)
+    }
+    cleaned = cleaned.replace(m, '').trim()
+  }
+  return { textCleaned: cleaned, queixas }
 }
 
 export function parseFunnel(text: string): ParsedFunnel {

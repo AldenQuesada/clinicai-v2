@@ -128,18 +128,21 @@ export function LeadInfoPanel({
   const otherTags = (selectedConversation.tags ?? []).filter(
     (t) => !['pronto_agendar', 'perguntou_preco', 'urgente'].includes(t.toLowerCase()),
   );
-  const topAction = copilotActions[0] ?? null;
+  // 3 acoes na zona AGIR · escala de cores por importancia (rank no NextActions)
+  const hasActions = copilotActions.length > 0;
 
   return (
     <div className="w-80 border-l border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] h-full">
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {/* ─── ZONA AGIR · status Lara · atribuído · próxima ação ─── */}
+      {/* ═══ TOPO FIXO (shrink-0) · sempre visível ═══════════════════ */}
+      <div className="shrink-0">
+        {/* Status pill · linha de status atual da Lara */}
         <AgentPauseSection
           key={`pill-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
           conversationId={selectedConversation.conversation_id}
           onStatusChange={onStatusChange}
           mode="pill"
         />
+        {/* Atribuído a · linha compacta */}
         <AssignmentSection
           key={`assign-${selectedConversation.conversation_id}`}
           conversationId={selectedConversation.conversation_id}
@@ -148,12 +151,22 @@ export function LeadInfoPanel({
           onChange={onStatusChange}
           compact
         />
+        {/* Controle Lara FULL · botão grande Pausar/Reativar + dropdown · pinned */}
+        <AgentPauseSection
+          key={`full-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
+          conversationId={selectedConversation.conversation_id}
+          onStatusChange={onStatusChange}
+          mode="full"
+        />
+      </div>
 
-        {/* Próxima ação IA · destacada no topo (acionável) */}
-        {(topAction || copilotActionsLoading) && (
+      {/* ═══ ÁREA SCROLLÁVEL (flex-1) · resto do contexto do lead ═══ */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Próximas ações IA · 3 cards com escala de cores (rank 1>2>3) */}
+        {(hasActions || copilotActionsLoading) && (
           <div className="px-5 py-3 border-b border-white/[0.06]">
             <NextActions
-              actions={topAction ? [topAction] : []}
+              actions={copilotActions}
               isLoading={copilotActionsLoading}
               onPick={(a) => onPickAction?.(a)}
             />
@@ -286,15 +299,7 @@ export function LeadInfoPanel({
           </div>
         </div>
 
-        {/* Controle Lara FULL · pinned no fim (rodapé) · botão grande Pausar/Reativar
-            + dropdown de tempo. ZONA AGIR já tem o status pill no topo · este aqui
-            é a interação principal de pausar (+ adicionar tempo / personalizar). */}
-        <AgentPauseSection
-          key={`full-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-          conversationId={selectedConversation.conversation_id}
-          onStatusChange={onStatusChange}
-          mode="full"
-        />
+        {/* Controle Lara FULL agora vive no TOPO FIXO (acima) · removido daqui */}
       </div>
     </div>
   );

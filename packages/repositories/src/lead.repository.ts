@@ -135,6 +135,32 @@ export class LeadRepository {
   }
 
   /**
+   * Adiciona queixas faciais ao lead (set-union · evita duplicatas).
+   * Usado pelo webhook ao detectar [QUEIXA:olheiras] na resposta da Lara.
+   * Retorna array completo apos merge · [] se nada mudou ou falhou.
+   */
+  async addQueixas(leadId: string, newQueixas: string[]): Promise<string[]> {
+    if (!newQueixas.length) return []
+
+    const { data: row } = await this.supabase
+      .from('leads')
+      .select('queixas_faciais')
+      .eq('id', leadId)
+      .single()
+
+    const existing: string[] = Array.isArray(row?.queixas_faciais) ? row.queixas_faciais : []
+    const merged = Array.from(new Set([...existing, ...newQueixas]))
+
+    if (merged.length === existing.length) return existing
+
+    await this.supabase
+      .from('leads')
+      .update({ queixas_faciais: merged })
+      .eq('id', leadId)
+    return merged
+  }
+
+  /**
    * Atualiza phase direto · NAO registra phase_history. Use changePhase()
    * (RPC sdr_change_phase) quando precisar do audit trail.
    */

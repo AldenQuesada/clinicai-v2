@@ -32,6 +32,7 @@ import { detectFunnel, shouldOverrideFunnel } from '@/lib/webhook/funnel-detect'
 import {
   parseScore,
   parseTags,
+  parseQueixas,
   parseFunnel,
   hasHandoffTag,
   stripHandoffTag,
@@ -613,6 +614,18 @@ async function processInboundMessage(
       const newlyAdded = tagsParsed.tags.filter((t) => finalTags.includes(t));
       for (const tag of newlyAdded) {
         log.info({ clinic_id, phone_hash: hashPhone(phone), tag }, 'lead.tag.added');
+      }
+    }
+
+    // Queixas faciais detectadas pela Lara no chat (ex: "tenho olheiras")
+    // 2026-04-30 · agora vem do chat tambem, nao so do quiz.
+    const queixasParsed = parseQueixas(aiResponse);
+    if (queixasParsed.queixas.length > 0) {
+      aiResponse = queixasParsed.textCleaned;
+      const finalQueixas = await repos.leads.addQueixas(lead.id, queixasParsed.queixas);
+      const newlyAdded = queixasParsed.queixas.filter((q) => finalQueixas.includes(q));
+      for (const q of newlyAdded) {
+        log.info({ clinic_id, phone_hash: hashPhone(phone), queixa: q }, 'lead.queixa.detected_chat');
       }
     }
 
