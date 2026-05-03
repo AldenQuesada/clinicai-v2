@@ -28,8 +28,14 @@ export function useMessages(
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const lastCountRef = useRef(0);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  /**
+   * Scroll pro final da lista. Suporta 2 modos:
+   *  - 'instant' · zero animacao · usado em carga inicial (evita ficar no meio
+   *    quando ha muitas msgs ou imagens carregando ainda)
+   *  - 'smooth' · animado · usado quando mensagem nova chega (UX agradavel)
+   */
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'instant' = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
   }, []);
 
   const fetchMessages = useCallback(async (id: string, silent = false) => {
@@ -70,11 +76,20 @@ export function useMessages(
             }
           }
           
+          // Primeira carga (lastCountRef era 0 antes deste batch) usa
+          // scroll INSTANT · evita animacao parar no meio com imagens
+          // ainda carregando. Mensagens novas (polling subsequente) usam
+          // smooth pra dar feedback visual.
+          const isInitialLoad = lastCountRef.current === 0 && newCount > 0;
           setMessages(formatted);
           lastCountRef.current = newCount;
           if (newCount > 0) {
-            setTimeout(scrollToBottom, 100);
-            setTimeout(scrollToBottom, 600); // 2º empurrãozinho cobrindo o milissegundo de atraso das imagens carregarem!
+            const behavior: 'smooth' | 'instant' = isInitialLoad ? 'instant' : 'smooth';
+            // 3 empurroes em janelas crescentes · cobre layout shift quando
+            // imagens, audios e documentos terminam de carregar
+            setTimeout(() => scrollToBottom(behavior), 50);
+            setTimeout(() => scrollToBottom(behavior), 400);
+            setTimeout(() => scrollToBottom(behavior), 1200);
           }
         }
       }
