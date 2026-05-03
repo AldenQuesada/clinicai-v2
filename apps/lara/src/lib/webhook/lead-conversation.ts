@@ -75,30 +75,31 @@ export async function resolveConversation(
   const { conversations, clinic_id, phone, lead, pushName, waNumberId } = opts
   const variants = phoneVariants(phone)
 
-  const existing = await conversations.findActiveByPhoneVariants(clinic_id, variants)
-  if (existing) {
-    // Mig 91 backfill · conv existente sem wa_number_id (legacy wa-inbound nao
-    // preenchia) recebe o resolved agora. Trigger fn_wa_conversations_inbox_role_sync
-    // sincroniza inbox_role automaticamente. Sem isso, mensagens novas no nº
-    // secretaria continuariam aparecendo em /conversas (inbox_role default 'sdr').
-    if (waNumberId && existing.waNumberId !== waNumberId) {
-      const patched = await conversations.setWaNumber(existing.id, waNumberId)
+  // Mig 100/101 · busca scopeada por canal (waNumberId)
+  // Cada wa_number tem sua conv com o paciente · admin/clínica que tem 2
+  // canais (Lara IA + Secretaria humana) mantém 2 convs separadas pro
+  // mesmo nº fisico. Sem este scope, conv "rodava" entre canais.
+  let existing = waNumberId
+    ? await conversations.findActiveByPhoneVariants(clinic_id, variants, waNumberId)
+    : await conversations.findActiveByPhoneVariants(clinic_id, variants)
+
+  // Fallback compat · conv legacy SEM wa_number_id quando webhook fornece um
+  // (wa-inbound antiga não preenchia) → adota canal atual UMA vez.
+  if (!existing && waNumberId) {
+    const orphan = await conversations.findActiveByPhoneVariants(clinic_id, variants)
+    if (orphan && !orphan.waNumberId) {
+      const patched = await conversations.setWaNumber(orphan.id, waNumberId)
       if (patched) {
         log.info(
-          {
-            clinic_id,
-            phone_hash: hashPhone(phone),
-            conv_id: existing.id,
-            old_wn: existing.waNumberId,
-            new_wn: waNumberId,
-          },
-          'conversation.wa_number_id.backfilled',
+          { clinic_id, phone_hash: hashPhone(phone), conv_id: orphan.id, new_wn: waNumberId },
+          'conversation.wa_number_id.adopted_orphan',
         )
-        return patched
+        existing = patched
       }
     }
-    return existing
   }
+
+  if (existing) return existing
 
   // Canonical no INSERT · ver comentário em resolveLead
   const canonical = canonicalPhoneBR(phone) || phone

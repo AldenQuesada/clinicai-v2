@@ -23,14 +23,21 @@ export class ConversationRepository {
   /**
    * Busca conversation em qualquer variante de telefone (status amplo).
    * Auto-revive: se status='archived', flipa pra 'active' antes de retornar.
+   *
+   * Mig 100/101 · multi-canal:
+   *   Se waNumberId fornecido → filtra por canal (cada wa_number tem sua conv
+   *   pro mesmo paciente). Caso de admin testando 2 canais ou paciente que
+   *   contata clinic via Lara IA + Secretaria humana usa 2 convs separadas.
+   *   Se waNumberId NULL/omitido → busca em qualquer canal (legacy compat).
    */
   async findActiveByPhoneVariants(
     clinicId: string,
     variants: string[],
+    waNumberId?: string | null,
   ): Promise<ConversationDTO | null> {
     if (!variants.length) return null
 
-    const { data } = await this.supabase
+    let q = this.supabase
       .from('wa_conversations')
       .select('*')
       .eq('clinic_id', clinicId)
@@ -38,7 +45,13 @@ export class ConversationRepository {
       .in('status', ['active', 'paused', 'archived'])
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .limit(1)
-      .maybeSingle()
+
+    // Scope por canal · permite 2 convs (1 por wa_number) pro mesmo paciente
+    if (waNumberId) {
+      q = q.eq('wa_number_id', waNumberId)
+    }
+
+    const { data } = await q.maybeSingle()
 
     if (!data) return null
 
