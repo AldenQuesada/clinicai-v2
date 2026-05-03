@@ -27,6 +27,7 @@ import {
   resolveLead,
   resolveConversation,
 } from '@/lib/webhook/lead-conversation';
+import { transcribeAudio } from '@/services/transcription.service';
 
 const log = createLogger({ app: 'lara' });
 
@@ -252,6 +253,31 @@ export async function POST(request: NextRequest) {
             { instance, contentType: dl.contentType, ext, bytes: dl.buffer.length },
             'webhook_evolution.media.uploaded',
           );
+        }
+
+        // Transcricao automatica de audio · secretaria le texto rapido
+        // sem precisar dar play. Mantem mediaUrl pro player tambem (quem
+        // quiser escutar). Groq Whisper · custo baixo (~$0.0004/min).
+        if (contentType === 'audio') {
+          try {
+            const transcript = await transcribeAudio(
+              dl.buffer,
+              dl.contentType,
+              `audio.${dl.contentType.includes('mpeg') ? 'mp3' : 'ogg'}`,
+            );
+            if (transcript && transcript.trim().length > 0) {
+              content = transcript.trim();
+              log.info(
+                { instance, chars: content.length },
+                'webhook_evolution.audio.transcribed',
+              );
+            }
+          } catch (err) {
+            log.warn(
+              { instance, err: (err as Error)?.message },
+              'webhook_evolution.audio.transcribe_failed',
+            );
+          }
         }
       } else {
         log.warn({ instance, contentType }, 'webhook_evolution.media.download_failed');
