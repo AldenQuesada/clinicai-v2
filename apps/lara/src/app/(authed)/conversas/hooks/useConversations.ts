@@ -22,6 +22,10 @@ export interface Conversation {
   assigned_to?: string | null;
   /** P-12 · ISO do ultimo assign. */
   assigned_at?: string | null;
+  /** Mig 91 · 'sdr' (Lara) ou 'secretaria' · denorm de wa_numbers.inbox_role */
+  inbox_role?: 'sdr' | 'secretaria';
+  /** Mig 91 · ISO do handoff Lara→Secretaria (NULL = sem handoff). */
+  handoff_to_secretaria_at?: string | null;
 }
 
 export const playNotificationSound = () => {
@@ -89,7 +93,9 @@ interface ListResponse {
 
 const PAGE_SIZE = 50;
 
-export function useConversations() {
+export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
+  // Mig 91 · default 'sdr' (compat com /conversas existente).
+  const inbox = opts?.inbox ?? 'sdr';
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -113,7 +119,9 @@ export function useConversations() {
   const fetchConversations = useCallback(async () => {
     try {
       // P-02: refresh recarrega so a 1a pagina · cursor reseta
-      const res = await fetch(`/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}`);
+      const res = await fetch(
+        `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&inbox=${inbox}`,
+      );
       if (res.ok) {
         const payload: ListResponse = await res.json();
         const data = payload.items;
@@ -213,7 +221,7 @@ export function useConversations() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter]); // Depende apenas do statusFilter
+  }, [statusFilter, inbox]); // Mig 91 · re-fetch quando inbox muda
 
   /**
    * P-02: Carrega proxima pagina via cursor (last_message_at < cursor).
@@ -224,7 +232,7 @@ export function useConversations() {
     if (!cursorRef.current || isLoadingMore) return;
     setIsLoadingMore(true);
     try {
-      const url = `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&before=${encodeURIComponent(cursorRef.current)}`;
+      const url = `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&before=${encodeURIComponent(cursorRef.current)}&inbox=${inbox}`;
       const res = await fetch(url);
       if (res.ok) {
         const payload: ListResponse = await res.json();
@@ -242,7 +250,7 @@ export function useConversations() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [statusFilter, isLoadingMore]);
+  }, [statusFilter, isLoadingMore, inbox]);
 
   useEffect(() => {
     // 1. Carga inicial

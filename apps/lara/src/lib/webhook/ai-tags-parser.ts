@@ -95,9 +95,40 @@ export function parseFunnel(text: string): ParsedFunnel {
 }
 
 export function hasHandoffTag(text: string): boolean {
-  return text.includes('[ACIONAR_HUMANO]')
+  return /\[ACIONAR_HUMANO(?::[a-z_]+)?\]/i.test(text)
 }
 
 export function stripHandoffTag(text: string): string {
-  return text.replace(/\[ACIONAR_HUMANO\]/g, '').trim()
+  return text.replace(/\[ACIONAR_HUMANO(?::[a-z_]+)?\]/gi, '').trim()
+}
+
+/**
+ * Parser de handoff target (Mig 91 · handoff Lara→Secretaria).
+ *
+ * Tags suportadas:
+ *   [ACIONAR_HUMANO]              → target='default' · pausa IA 24h + notify generico
+ *   [ACIONAR_HUMANO:secretaria]   → target='secretaria' · dispara RPC handoff secretaria
+ *
+ * Quando target='secretaria', caller chama RPC wa_conversation_handoff_secretaria
+ * (atomic: pausa Lara 30d + dispara inbox_notification kind='handoff_secretaria').
+ */
+export interface ParsedHandoff {
+  hasHandoff: boolean
+  target: 'default' | 'secretaria' | null
+  textCleaned: string
+}
+
+export function parseHandoffTarget(text: string): ParsedHandoff {
+  const match = text.match(/\[ACIONAR_HUMANO(?::([a-z_]+))?\]/i)
+  if (!match) return { hasHandoff: false, target: null, textCleaned: text }
+
+  const rawTarget = (match[1] ?? '').toLowerCase()
+  const target: ParsedHandoff['target'] =
+    rawTarget === 'secretaria' ? 'secretaria' : 'default'
+
+  return {
+    hasHandoff: true,
+    target,
+    textCleaned: text.replace(/\[ACIONAR_HUMANO(?::[a-z_]+)?\]/gi, '').trim(),
+  }
 }

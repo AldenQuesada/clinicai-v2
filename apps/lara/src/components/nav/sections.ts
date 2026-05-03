@@ -9,6 +9,7 @@
 import {
   LayoutDashboard,
   MessageSquare,
+  MessageSquareText,
   Users,
   Send,
   FileText,
@@ -45,6 +46,15 @@ export const SECTIONS: readonly Section[] = [
     label: 'Conversas',
     path: '/conversas',
     icon: MessageSquare,
+    requires: 'lara:view-conversas',
+  },
+  {
+    // Mig 91 · inbox dedicada da clinica (numero da secretaria) ·
+    // mostra inbound direto + handoffs Lara→secretaria · sem AI.
+    key: 'secretaria',
+    label: 'Secretaria',
+    path: '/secretaria',
+    icon: MessageSquareText,
     requires: 'lara:view-conversas',
   },
   {

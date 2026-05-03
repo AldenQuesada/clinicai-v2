@@ -34,8 +34,7 @@ import {
   parseTags,
   parseQueixas,
   parseFunnel,
-  hasHandoffTag,
-  stripHandoffTag,
+  parseHandoffTarget,
 } from '@/lib/webhook/ai-tags-parser';
 import { resolveMediaDispatch } from '@/lib/webhook/media-dispatch';
 import { getLaraConfig } from '@/lib/lara-config';
@@ -229,6 +228,7 @@ async function processInboundMessage(
     phone,
     lead,
     pushName,
+    waNumberId: wa_number_id,
   });
   if (!conv) return;
 
@@ -427,6 +427,40 @@ async function processInboundMessage(
 
   await repos.conversations.updateLastMessage(conv.id, textContent, true, sentAtStr);
 
+  // 6.4 Mig 91 · bifurcacao por inbox_role.
+  // Quando a conversa pertence a um numero da SECRETARIA, NAO acionamos
+  // generateResponse · so persistimos a mensagem e disparamos inbox_notification.
+  // Casos cobertos:
+  //   (a) Lead chega direto no numero da clinica (nao passou pela Lara)
+  //   (b) Lead em conversa que ja foi handoff (mesma logica)
+  if (conv.inboxRole === 'secretaria') {
+    log.info(
+      { clinic_id, phone_hash: hashPhone(phone), conv_id: conv.id },
+      'webhook.secretaria.inbound · skipping AI generation',
+    );
+    try {
+      await repos.inboxNotifications.create({
+        clinicId: clinic_id,
+        conversationId: conv.id,
+        source: 'system',
+        reason: 'inbound_secretaria',
+        payload: {
+          kind: 'inbound_secretaria',
+          phone,
+          lead_id: lead.id,
+          lead_name: lead.name,
+          message_preview: textContent?.slice(0, 120) || '',
+        },
+      });
+    } catch (notifErr) {
+      log.warn(
+        { clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message },
+        'webhook.secretaria.notify.failed',
+      );
+    }
+    return;
+  }
+
   // 6.5 DEBOUNCE 5s · agrupa fotos/áudios disparados juntos
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -567,36 +601,66 @@ async function processInboundMessage(
       }, 'ai.call.done');
     }
 
-    // 10.5 Human handoff · pausa IA 24h
-    if (hasHandoffTag(aiResponse)) {
-      aiResponse = stripHandoffTag(aiResponse);
+    // 10.5 Human handoff · 2 targets desde Mig 91:
+    //   - target='secretaria'  → RPC wa_conversation_handoff_secretaria
+    //                            (pausa Lara 30d + notify dedicada)
+    //   - target='default'     → flow legado (pausa IA 24h + notify generico)
+    const handoff = parseHandoffTarget(aiResponse);
+    if (handoff.hasHandoff) {
+      aiResponse = handoff.textCleaned;
 
-      const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      await repos.conversations.updateAiPause(conv.id, {
-        pausedUntil: pauseUntil,
-        aiEnabled: false,
-        pausedBy: 'human_handoff',
-      });
-
-      try {
-        await repos.inboxNotifications.create({
-          clinicId: clinic_id,
-          conversationId: conv.id,
-          source: 'lara',
-          reason: 'transbordo_humano',
-          payload: {
-            phone,
-            lead_name: lead.name,
-            lead_id: lead.id,
-            funnel: leadFunnel,
-            message_preview: textContent?.slice(0, 120) || '',
+      if (handoff.target === 'secretaria') {
+        // RPC atomic · pausa Lara 30d + dispara inbox_notification kind=handoff_secretaria.
+        // Mig 91 · types ainda nao regenerados, cast service client (mesmo
+        // padrao de lara_get_quiz_context na mig 853).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: handoffRes, error: handoffErr } = await (supabase as any).rpc(
+          'wa_conversation_handoff_secretaria',
+          {
+            p_conversation_id: conv.id,
+            p_reason: `Lara passou pra secretaria · funnel=${leadFunnel ?? '-'}`,
           },
+        );
+        if (handoffErr) {
+          log.error(
+            { clinic_id, phone_hash: hashPhone(phone), err: handoffErr.message },
+            'handoff.secretaria.rpc.error',
+          );
+        } else {
+          log.info(
+            { clinic_id, phone_hash: hashPhone(phone), result: handoffRes },
+            'handoff.secretaria.activated',
+          );
+        }
+      } else {
+        // Flow legado · pausa IA 24h + notify generico (transbordo_humano).
+        const pauseUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await repos.conversations.updateAiPause(conv.id, {
+          pausedUntil: pauseUntil,
+          aiEnabled: false,
+          pausedBy: 'human_handoff',
         });
-      } catch (notifErr) {
-        log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message }, 'inbox_notification.failed');
-      }
 
-      log.info({ clinic_id, phone_hash: hashPhone(phone) }, 'handoff.activated');
+        try {
+          await repos.inboxNotifications.create({
+            clinicId: clinic_id,
+            conversationId: conv.id,
+            source: 'lara',
+            reason: 'transbordo_humano',
+            payload: {
+              phone,
+              lead_name: lead.name,
+              lead_id: lead.id,
+              funnel: leadFunnel,
+              message_preview: textContent?.slice(0, 120) || '',
+            },
+          });
+        } catch (notifErr) {
+          log.warn({ clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message }, 'inbox_notification.failed');
+        }
+
+        log.info({ clinic_id, phone_hash: hashPhone(phone) }, 'handoff.activated');
+      }
     }
 
     // 10.5.5 Score / Tags / Funnel

@@ -3,6 +3,7 @@ import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
 import { AgentPauseSection } from './AgentPauseSection';
 import { AssignmentSection } from './AssignmentSection';
+import { HandoffSecretariaSection } from './HandoffSecretariaSection';
 import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
@@ -33,6 +34,11 @@ interface LeadInfoPanelProps {
   copilotActions?: NextActionItem[];
   copilotActionsLoading?: boolean;
   onPickAction?: (action: NextActionItem) => void;
+  /**
+   * Mig 91 · 'sdr' default (mostra AgentPauseSection + NextActions IA + Handoff
+   * button). 'secretaria' oculta tudo de IA · zona AGIR mostra so Assignment.
+   */
+  inboxRole?: 'sdr' | 'secretaria';
 }
 
 /** Score badge · "Sem quiz" quando 0 (lead não fez), buckets coloridos quando >0 */
@@ -96,7 +102,9 @@ export function LeadInfoPanel({
   copilotActions = [],
   copilotActionsLoading = false,
   onPickAction,
+  inboxRole = 'sdr',
 }: LeadInfoPanelProps) {
+  const isSecretaria = inboxRole === 'secretaria';
   if (!isExpanded) {
     return (
       <div
@@ -135,14 +143,16 @@ export function LeadInfoPanel({
     <div className="w-80 border-l border-white/[0.06] flex flex-col bg-[hsl(var(--chat-panel-bg))] h-full">
       {/* ═══ TOPO FIXO (shrink-0) · sempre visível ═══════════════════ */}
       <div className="shrink-0">
-        {/* Status pill · linha de status atual da Lara */}
-        <AgentPauseSection
-          key={`pill-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-          conversationId={selectedConversation.conversation_id}
-          onStatusChange={onStatusChange}
-          mode="pill"
-        />
-        {/* Atribuído a · linha compacta */}
+        {/* Status pill · linha de status atual da Lara · so em SDR inbox */}
+        {!isSecretaria && (
+          <AgentPauseSection
+            key={`pill-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
+            conversationId={selectedConversation.conversation_id}
+            onStatusChange={onStatusChange}
+            mode="pill"
+          />
+        )}
+        {/* Atribuído a · linha compacta · em ambos inboxes (P-12 multi-atendente) */}
         <AssignmentSection
           key={`assign-${selectedConversation.conversation_id}`}
           conversationId={selectedConversation.conversation_id}
@@ -151,19 +161,31 @@ export function LeadInfoPanel({
           onChange={onStatusChange}
           compact
         />
-        {/* Controle Lara FULL · botão grande Pausar/Reativar + dropdown · pinned */}
-        <AgentPauseSection
-          key={`full-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-          conversationId={selectedConversation.conversation_id}
-          onStatusChange={onStatusChange}
-          mode="full"
-        />
+        {/* Mig 91 · Passar pra secretaria · so aparece em sdr inbox sem handoff */}
+        {!isSecretaria && (
+          <HandoffSecretariaSection
+            key={`handoff-${selectedConversation.conversation_id}-${selectedConversation.handoff_to_secretaria_at ?? 'none'}`}
+            conversationId={selectedConversation.conversation_id}
+            inboxRole={selectedConversation.inbox_role}
+            handoffAt={selectedConversation.handoff_to_secretaria_at}
+            onChange={onStatusChange}
+          />
+        )}
+        {/* Controle Lara FULL · botão grande Pausar/Reativar + dropdown · so em SDR */}
+        {!isSecretaria && (
+          <AgentPauseSection
+            key={`full-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
+            conversationId={selectedConversation.conversation_id}
+            onStatusChange={onStatusChange}
+            mode="full"
+          />
+        )}
       </div>
 
       {/* ═══ ÁREA SCROLLÁVEL (flex-1) · resto do contexto do lead ═══ */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {/* Próximas ações IA · 3 cards com escala de cores (rank 1>2>3) */}
-        {(hasActions || copilotActionsLoading) && (
+        {/* Próximas ações IA · 3 cards com escala de cores · so em SDR inbox */}
+        {!isSecretaria && (hasActions || copilotActionsLoading) && (
           <div className="px-5 py-3 border-b border-white/[0.06]">
             <NextActions
               actions={copilotActions}

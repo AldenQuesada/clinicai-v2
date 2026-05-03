@@ -52,12 +52,18 @@ interface ResolveConversationOpts {
   phone: string
   lead: LeadDTO
   pushName: string
+  /**
+   * Mig 91 · webhook resolve via wa_numbers_resolve_by_phone_number_id ·
+   * passar pra criar conversation linkada ao numero certo (trigger sincroniza
+   * inbox_role automaticamente).
+   */
+  waNumberId?: string | null
 }
 
 export async function resolveConversation(
   opts: ResolveConversationOpts,
 ): Promise<ConversationDTO | null> {
-  const { conversations, clinic_id, phone, lead, pushName } = opts
+  const { conversations, clinic_id, phone, lead, pushName, waNumberId } = opts
   const variants = phoneVariants(phone)
 
   const existing = await conversations.findActiveByPhoneVariants(clinic_id, variants)
@@ -67,6 +73,7 @@ export async function resolveConversation(
     phone,
     leadId: lead.id,
     displayName: pushName || lead.name || phone,
+    waNumberId: waNumberId ?? null,
   })
   if (!created) {
     log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'conversation.create.failed')

@@ -38,9 +38,16 @@ export async function GET(request: NextRequest) {
     const limitRaw = parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10);
     const limit = Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(limitRaw) ? limitRaw : DEFAULT_LIMIT));
 
+    // Mig 91 · ?inbox=sdr|secretaria (default 'sdr' · /conversas mostra SDR,
+    // /secretaria mostra inbox 'secretaria'). Aplicado server-side no query
+    // pra paginacao cursor funcionar corretamente.
+    const inboxParam = searchParams.get('inbox');
+    const inboxRole: 'sdr' | 'secretaria' = inboxParam === 'secretaria' ? 'secretaria' : 'sdr';
+
     const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam, {
       limit,
       beforeIso,
+      inboxRole,
     });
 
     // Resolve leads em batch (1 query) · evita N+1 e mantem inbox rapido
@@ -75,6 +82,9 @@ export async function GET(request: NextRequest) {
         // P-12 · multi-atendente
         assigned_to: c.assignedTo,
         assigned_at: c.assignedAt,
+        // Mig 91 · inbox routing + handoff Lara→Secretaria
+        inbox_role: c.inboxRole,
+        handoff_to_secretaria_at: c.handoffToSecretariaAt,
       };
     });
 

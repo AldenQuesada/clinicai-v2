@@ -69,6 +69,10 @@ export class ConversationRepository {
         display_name: input.displayName ?? null,
         status: input.status ?? 'active',
         ai_enabled: input.aiEnabled ?? true,
+        // Mig 91 · trigger fn_wa_conversations_inbox_role_sync copia inbox_role
+        // do wa_numbers automaticamente quando wa_number_id e setado. Sem
+        // wa_number_id, default 'sdr' (legacy/Evolution).
+        wa_number_id: input.waNumberId ?? null,
         created_at: now,
         last_message_at: now,
       })
@@ -95,7 +99,7 @@ export class ConversationRepository {
   async listByStatus(
     clinicId: string,
     filter: StatusFilter = 'active',
-    opts?: { limit?: number; beforeIso?: string },
+    opts?: { limit?: number; beforeIso?: string; inboxRole?: 'sdr' | 'secretaria' },
   ): Promise<ConversationDTO[]> {
     let statuses: ConversationStatus[] = ['active', 'paused']
     if (filter === 'archived') statuses = ['archived']
@@ -118,6 +122,12 @@ export class ConversationRepository {
 
     if (opts?.beforeIso) {
       q = q.lt('last_message_at', opts.beforeIso)
+    }
+
+    // Mig 91 · filter por inbox · /conversas (sdr=Lara) vs /secretaria.
+    // Default 'sdr' quando omitido (compat com callers existentes).
+    if (opts?.inboxRole) {
+      q = q.eq('inbox_role', opts.inboxRole)
     }
 
     const { data } = await q
@@ -221,6 +231,35 @@ export class ConversationRepository {
     return {
       ok: result.ok === true,
       error: result.error ?? undefined,
+    }
+  }
+
+  /**
+   * Mig 91 · handoff atomico Lara→Secretaria via RPC.
+   * Pausa Lara 30d + dispara inbox_notification (kind=handoff_secretaria).
+   * Idempotente · retorna already_handed_off=true em re-chamada.
+   */
+  async handoffSecretaria(
+    conversationId: string,
+    reason?: string,
+  ): Promise<{ ok: boolean; error?: string; alreadyHandedOff?: boolean }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'wa_conversation_handoff_secretaria',
+      {
+        p_conversation_id: conversationId,
+        p_reason: reason ?? null,
+      },
+    )
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = (data as any) ?? {}
+    return {
+      ok: result.ok === true,
+      error: result.error ?? undefined,
+      alreadyHandedOff: result.already_handed_off === true,
     }
   }
 

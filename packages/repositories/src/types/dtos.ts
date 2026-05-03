@@ -123,6 +123,25 @@ export interface ConversationDTO {
   assignedTo: string | null
   /** P-12 · timestamp do ultimo assign · null quando unassigned. */
   assignedAt: string | null
+  /**
+   * Mig 91 · qual inbox alimenta esta conversa.
+   *  - 'sdr'        · Lara · /conversas
+   *  - 'secretaria' · clinic · /secretaria
+   *
+   * Cache denormalizado do wa_numbers.inbox_role (sync via trigger). Quando
+   * waNumberId e null (legacy/Evolution), default 'sdr'.
+   */
+  inboxRole: 'sdr' | 'secretaria'
+  /**
+   * Mig 91 · timestamp do handoff Lara→Secretaria (NULL = sem handoff).
+   * Quando preenchido: Lara pausada 30d, secretaria notificada via inbox.
+   */
+  handoffToSecretariaAt: string | null
+  /**
+   * Mig 91 · profile que disparou o handoff manual (botao no painel).
+   * NULL quando IA decidiu via tag [ACIONAR_HUMANO:secretaria] no webhook.
+   */
+  handoffToSecretariaBy: string | null
 }
 
 /**

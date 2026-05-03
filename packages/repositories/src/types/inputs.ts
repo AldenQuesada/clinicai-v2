@@ -87,6 +87,12 @@ export interface CreateConversationInput {
   displayName?: string | null
   status?: ConversationStatus
   aiEnabled?: boolean
+  /**
+   * FK pra wa_numbers.id · webhook deve passar o waNumberId resolvido pelo
+   * phone_number_id da Meta. Trigger fn_wa_conversations_inbox_role_sync
+   * (mig 91) copia o inbox_role do wa_numbers automaticamente.
+   */
+  waNumberId?: string | null
 }
 
 export interface SaveInboundMessageInput {

@@ -26,5 +26,8 @@ export function mapConversationRow(row: any): ConversationDTO {
     waNumberId: row.wa_number_id ?? null,
     assignedTo: row.assigned_to ?? null,
     assignedAt: row.assigned_at ?? null,
+    inboxRole: (row.inbox_role === 'secretaria' ? 'secretaria' : 'sdr') as 'sdr' | 'secretaria',
+    handoffToSecretariaAt: row.handoff_to_secretaria_at ?? null,
+    handoffToSecretariaBy: row.handoff_to_secretaria_by ?? null,
   }
 }
