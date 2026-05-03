@@ -20,6 +20,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { createLogger, hashPhone } from '@clinicai/logger';
+import { EvolutionService } from '@clinicai/whatsapp';
+import { v4 as uuidv4 } from 'uuid';
 import { makeRepos } from '@/lib/repos';
 import {
   resolveLead,
@@ -152,9 +154,23 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Extract content · text/extended/image_caption/video_caption/audio
+  // Resolve credenciais Evolution pra essa instance (Mih)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: waRow } = await (supabase as any)
+    .from('wa_numbers')
+    .select('api_url, api_key, instance_id')
+    .eq('id', wa_number_id)
+    .maybeSingle();
+
+  // Extract content + tipo · text/audio/image/video/sticker/document
   const msg = data?.message ?? {};
-  const audioMsg = (msg as Record<string, unknown>).audioMessage;
+  const msgRec = msg as Record<string, unknown>;
+  const audioMsg = msgRec.audioMessage;
+  const imageMsg = msgRec.imageMessage;
+  const videoMsg = msgRec.videoMessage;
+  const stickerMsg = msgRec.stickerMessage;
+  const documentMsg = msgRec.documentMessage;
+
   let content: string =
     msg?.conversation ||
     msg?.extendedTextMessage?.text ||
@@ -163,23 +179,27 @@ export async function POST(request: NextRequest) {
     '';
 
   let contentType = 'text';
-  if (!content && audioMsg) {
-    // Audio nao transcrevemos aqui · atendente humano escuta direto.
-    // Salvamos placeholder · UI mostra "audio recebido" e aponta pro arquivo.
-    content = '[audio recebido]';
+  let needsDownload = false;
+  if (audioMsg) {
     contentType = 'audio';
-  } else if ((msg as Record<string, unknown>).imageMessage) {
+    if (!content) content = '[audio recebido]';
+    needsDownload = true;
+  } else if (imageMsg) {
     contentType = 'image';
     if (!content) content = '[imagem recebida]';
-  } else if ((msg as Record<string, unknown>).videoMessage) {
+    needsDownload = true;
+  } else if (videoMsg) {
     contentType = 'video';
     if (!content) content = '[video recebido]';
-  } else if ((msg as Record<string, unknown>).stickerMessage) {
+    needsDownload = true;
+  } else if (stickerMsg) {
     contentType = 'sticker';
     content = '[sticker recebido]';
-  } else if ((msg as Record<string, unknown>).documentMessage) {
+    needsDownload = true;
+  } else if (documentMsg) {
     contentType = 'document';
     content = '[documento recebido]';
+    needsDownload = true;
   }
 
   if (!content) {
@@ -188,6 +208,61 @@ export async function POST(request: NextRequest) {
 
   const pushName = data?.pushName || '';
   const repos = makeRepos(supabase);
+
+  // Download da midia · Evolution baixa decriptado via /chat/getBase64FromMediaMessage
+  // Upload pra Storage Supabase · gera public URL pro chat renderizar
+  let mediaUrl: string | null = null;
+  if (needsDownload && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
+    try {
+      const evo = new EvolutionService({
+        apiUrl: String(waRow.api_url),
+        apiKey: String(waRow.api_key),
+        instance: String(waRow.instance_id),
+      });
+      const dl = await evo.downloadMedia({
+        remoteJid: key.remoteJid,
+        fromMe: false,
+        id: key.id,
+      } as Record<string, unknown>);
+      if (dl) {
+        const ext =
+          dl.contentType.includes('audio') ? (dl.contentType.includes('mpeg') ? 'mp3' : 'ogg')
+          : dl.contentType.includes('image/png') ? 'png'
+          : dl.contentType.includes('image') ? 'jpg'
+          : dl.contentType.includes('video/mp4') ? 'mp4'
+          : dl.contentType.includes('video') ? 'mp4'
+          : dl.contentType.includes('pdf') ? 'pdf'
+          : 'bin';
+        const storagePath = `wa-evolution-inbound/${clinic_id}/${uuidv4()}.${ext}`;
+        const { data: upData, error: upErr } = await supabase.storage
+          .from('media')
+          .upload(storagePath, dl.buffer, {
+            contentType: dl.contentType,
+            upsert: false,
+          });
+        if (upErr || !upData) {
+          log.warn(
+            { instance, err: upErr?.message, contentType: dl.contentType },
+            'webhook_evolution.media.upload_failed',
+          );
+        } else {
+          const { data: pub } = supabase.storage.from('media').getPublicUrl(storagePath);
+          mediaUrl = pub.publicUrl;
+          log.info(
+            { instance, contentType: dl.contentType, ext, bytes: dl.buffer.length },
+            'webhook_evolution.media.uploaded',
+          );
+        }
+      } else {
+        log.warn({ instance, contentType }, 'webhook_evolution.media.download_failed');
+      }
+    } catch (err) {
+      log.error(
+        { instance, err: (err as Error)?.message, contentType },
+        'webhook_evolution.media.exception',
+      );
+    }
+  }
 
   // Lead + conversation com wa_number_id correto (trigger sincroniza inbox_role)
   const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName });
@@ -219,7 +294,7 @@ export async function POST(request: NextRequest) {
     phone,
     content,
     contentType,
-    mediaUrl: null,
+    mediaUrl,
     sentAt: sentAtStr,
   });
   await repos.conversations.updateLastMessage(conv.id, content, true, sentAtStr);

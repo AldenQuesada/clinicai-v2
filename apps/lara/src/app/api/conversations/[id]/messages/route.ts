@@ -145,22 +145,63 @@ export async function POST(
     { id: conv.id, clinicId: conv.clinicId, waNumberId: conv.waNumberId },
   );
 
-  // Branch midia · Evolution V1 nao suporta upload-by-id Meta-style ·
-  // bloqueia media outbound em conversations Evolution (TODO V2: Evolution
-  // /message/sendMedia ou audio/image direto base64).
-  if (transport === 'evolution' && body.mediaPath) {
-    return NextResponse.json(
-      {
-        error: 'Envio de midia ainda nao suportado nesta inbox (Evolution) · use texto V1',
-        transport,
-      },
-      { status: 415 },
-    );
+  // ────────────────────────────────────────────────────────────────
+  // Branch MIDIA Evolution · sendImage/sendVoice via URL publica do Storage
+  // (Evolution baixa a URL e envia pelo WhatsApp · nao precisa upload-by-id)
+  // ────────────────────────────────────────────────────────────────
+  if (transport === 'evolution' && hasMedia) {
+    const { data: pub } = supabase.storage.from('media').getPublicUrl(mediaPath as string);
+    if (!pub?.publicUrl) {
+      return NextResponse.json({ error: 'Falha ao gerar URL publica' }, { status: 500 });
+    }
+    const captionTrim = content?.trim() || undefined;
+    const safeFilename = (fileName as string) || (mediaPath as string).split('/').pop() || 'file';
+    const baseMimeType = String(mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
+
+    const evo = wa as EvolutionService;
+    let sendResult;
+    if (mediaType === 'image') {
+      sendResult = await evo.sendImage(conv.phone, pub.publicUrl, captionTrim);
+    } else if (mediaType === 'audio') {
+      // Evolution sendWhatsAppAudio aceita URL · grava como PTT no destinatario.
+      // mp3 (lamejs) e ogg/opus funcionam · webm crú nao.
+      sendResult = await evo.sendVoice(conv.phone, pub.publicUrl);
+    } else if (mediaType === 'document') {
+      // sendImage com mediatype=document funciona via /message/sendMedia
+      // workaround simples · Evolution aceita generic media via mesma rota
+      const evoAny = wa as unknown as { sendImage: (p: string, u: string, c?: string) => Promise<{ ok: boolean; error?: string; messageId?: string | null }> };
+      sendResult = await evoAny.sendImage(conv.phone, pub.publicUrl, captionTrim);
+    } else {
+      return NextResponse.json({ error: `mediaType '${mediaType}' nao suportado em Evolution V1` }, { status: 415 });
+    }
+
+    const msgId = uuidv4();
+    await repos.messages.saveOutbound(conv.clinicId, {
+      id: msgId,
+      conversationId: id,
+      sender: 'humano',
+      content: captionTrim ?? '',
+      contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
+      mediaUrl: pub.publicUrl,
+      status: sendResult.ok ? 'sent' : 'failed',
+    });
+    if (sendResult.ok) {
+      const lastText = captionTrim || `[${mediaType}]`;
+      await repos.conversations.updateLastMessage(id, lastText, false);
+    }
+    void baseMimeType; void safeFilename;
+    return NextResponse.json({
+      ok: sendResult.ok,
+      message_id: msgId,
+      whatsappStatus: sendResult.ok ? 'sent' : 'error',
+      whatsappError: sendResult.ok ? null : sendResult.error,
+      mediaUrl: pub.publicUrl,
+      transport,
+    });
   }
 
   // ────────────────────────────────────────────────────────────────
-  // P-07 · Branch MIDIA · upload pra Meta + send by media_id
-  // Cast pra Cloud · Evolution ja foi bloqueado acima (transport check)
+  // P-07 · Branch MIDIA Cloud API · upload pra Meta + send by media_id
   // ────────────────────────────────────────────────────────────────
   const waCloud = wa as WhatsAppCloudService;
   if (hasMedia) {
