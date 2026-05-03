@@ -97,22 +97,61 @@ export async function GET(request: NextRequest) {
 
 // ── POST: Inbound message processing ─────────────────────────
 export async function POST(request: NextRequest) {
+  // Diag mig 108 · captura raw body ANTES de qualquer validacao pra debug
+  // ponta-a-ponta sem acesso a logs Easypanel.
+  const rawBody = await request.text();
+  const signatureHeader = request.headers.get('x-hub-signature-256');
+  const traceHeaders = {
+    'x-hub-signature-256': signatureHeader,
+    'x-forwarded-for': request.headers.get('x-forwarded-for'),
+    'user-agent': request.headers.get('user-agent'),
+    'content-type': request.headers.get('content-type'),
+  };
+  // Tenta extrair phone_number_id + from_phone + message_text
+  let parsedBody: any = null;
+  try { parsedBody = JSON.parse(rawBody); } catch {}
+  const phoneNumberIdTrace = parsedBody?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null;
+  const firstMsg = parsedBody?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  const fromPhoneTrace = firstMsg?.from ?? null;
+  const messageTextTrace = firstMsg?.text?.body ?? null;
+  const messageTypeTrace = firstMsg?.type ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const traceLog = async (extra: { signature_ok?: boolean; signature_reason?: string; result_status?: number; result_summary?: string }) => {
+    try {
+      const supabase = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('wa_webhook_log').insert({
+        endpoint: '/api/webhook/whatsapp',
+        method: 'POST',
+        signature_ok: extra.signature_ok ?? null,
+        signature_reason: extra.signature_reason ?? null,
+        phone_number_id: phoneNumberIdTrace,
+        from_phone: fromPhoneTrace,
+        message_text: messageTextTrace?.slice(0, 500) ?? null,
+        message_type: messageTypeTrace,
+        raw_body: rawBody.slice(0, 8000),
+        headers_subset: traceHeaders,
+        result_status: extra.result_status ?? null,
+        result_summary: extra.result_summary ?? null,
+      });
+    } catch (err) {
+      log.warn({ err: (err as Error)?.message }, 'webhook.trace_log.failed');
+    }
+  };
+
   try {
     // ── Audit fix N1: HMAC validation fail-CLOSED em prod ─────
-    // Lê raw body ANTES de JSON.parse (Next 16 requer text() primeiro).
-    // validateMetaSignature lança fail-closed se META_APP_SECRET ausente
-    // em produção · em dev/test, warn + bypass.
-    const rawBody = await request.text();
-    const signatureHeader = request.headers.get('x-hub-signature-256');
     const sig = validateMetaSignature(rawBody, signatureHeader);
 
     if (!sig.valid) {
+      await traceLog({ signature_ok: false, signature_reason: sig.reason, result_status: 401, result_summary: 'signature_rejected' });
       log.warn({ reason: sig.reason }, 'webhook.signature.rejected');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     if (sig.bypass) {
       log.warn({}, 'webhook.signature.bypassed_dev');
     }
+    await traceLog({ signature_ok: true, signature_reason: sig.bypass ? 'bypassed_dev' : 'valid', result_status: 200, result_summary: 'processing' });
 
     const body = JSON.parse(rawBody);
 
