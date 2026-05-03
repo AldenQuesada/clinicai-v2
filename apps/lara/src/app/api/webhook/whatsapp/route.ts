@@ -193,8 +193,10 @@ async function processInboundMessage(
   // ADR-028: clinic_id por request · NUNCA hardcoded
   const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
 
-  // Guard bot-to-bot · phone (contato) == um dos NOSSOS wa_numbers · skip
-  // (audit 2026-05-03 · evita pollution Mih/Mira/Marci cross-internal).
+  // Guard bot-to-bot · APENAS inbound (Cloud webhook so processa inbound
+  // por design · fromMe sai pelo nosso send service direto). Skipa quando
+  // contato eh um wa_number nosso (loop entre Lara/Mira/Mih · evita
+  // cross-pollution detectado 2026-05-03).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ownNumber } = await (supabase as any)
     .from('wa_numbers')

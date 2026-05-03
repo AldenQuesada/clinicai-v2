@@ -153,7 +153,12 @@ export async function POST(request: NextRequest) {
   // estamos numa interacao interna entre bots · skip processamento pra
   // evitar pollution do /secretaria com loops. (Audit 2026-05-03 mostrou
   // 3 convs cross-internal entre Mih/Mira/Marci.)
-  if (phone) {
+  // Guard bot-to-bot · APENAS pra INBOUND. Pra outbound do tel fisico,
+  // a clinica pode legitimamente enviar msg pra qualquer numero · inclusive
+  // outro wa_number nosso (ex: humano do Mih digita pra atender alguem que
+  // tem o phone que tambem virou nosso Mira). Bloquear ai cortaria envio
+  // legitimo · bug 2026-05-03 22:25 onde "agora de aqui para lá" sumiu.
+  if (phone && !isOutboundFromDevice) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: ownNumber } = await (supabase as any)
       .from('wa_numbers')
