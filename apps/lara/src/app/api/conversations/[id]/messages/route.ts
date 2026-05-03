@@ -10,9 +10,59 @@ import { loadServerContext } from '@clinicai/supabase';
 import {
   WhatsAppCloudService,
   createWhatsAppCloudFromWaNumber,
+  EvolutionService,
+  type WhatsAppProvider,
 } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
 import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * Mig 91/92 · resolve provider per-tenant baseado no wa_numbers do conv.
+ * Lê o row e instancia Cloud OU Evolution conforme phone_number_id/instance_id.
+ * Fallback Cloud env-global se conv.waNumberId for null (legacy).
+ */
+async function resolveProviderForConv(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  conv: { id: string; clinicId: string; waNumberId: string | null },
+): Promise<{ provider: WhatsAppProvider; transport: 'cloud' | 'evolution' | 'env_fallback' }> {
+  if (conv.waNumberId) {
+    const { data: row } = await supabase
+      .from('wa_numbers')
+      .select('id, phone_number_id, access_token, instance_id, api_url, api_key, is_active')
+      .eq('id', conv.waNumberId)
+      .maybeSingle();
+
+    if (row?.is_active) {
+      // Evolution · instance_id presente E api_url/api_key configurados
+      if (row.instance_id && row.api_url && row.api_key) {
+        return {
+          provider: new EvolutionService({
+            apiUrl: String(row.api_url),
+            apiKey: String(row.api_key),
+            instance: String(row.instance_id),
+          }),
+          transport: 'evolution',
+        };
+      }
+      // Cloud · phone_number_id + access_token
+      if (row.phone_number_id && row.access_token) {
+        const cloud = await createWhatsAppCloudFromWaNumber(supabase, conv.waNumberId);
+        if (cloud) return { provider: cloud, transport: 'cloud' };
+      }
+    }
+  }
+  // Fallback · env global (legacy · Lara antiga)
+  return {
+    provider: new WhatsAppCloudService({
+      wa_number_id: 'fallback-env',
+      clinic_id: conv.clinicId,
+      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    }),
+    transport: 'env_fallback',
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -89,24 +139,30 @@ export async function POST(
     });
   }
 
-  // Audit fix N7 (2026-04-27): WhatsApp service per-tenant.
-  let wa: WhatsAppCloudService | null = null;
-  if (conv.waNumberId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wa = await createWhatsAppCloudFromWaNumber(supabase as any, conv.waNumberId);
-  }
-  if (!wa) {
-    wa = new WhatsAppCloudService({
-      wa_number_id: 'fallback-env',
-      clinic_id: conv.clinicId,
-      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
-    });
+  // Mig 91/92 · provider per-tenant · Cloud OU Evolution baseado no wa_numbers
+  const { provider: wa, transport } = await resolveProviderForConv(
+    supabase,
+    { id: conv.id, clinicId: conv.clinicId, waNumberId: conv.waNumberId },
+  );
+
+  // Branch midia · Evolution V1 nao suporta upload-by-id Meta-style ·
+  // bloqueia media outbound em conversations Evolution (TODO V2: Evolution
+  // /message/sendMedia ou audio/image direto base64).
+  if (transport === 'evolution' && body.mediaPath) {
+    return NextResponse.json(
+      {
+        error: 'Envio de midia ainda nao suportado nesta inbox (Evolution) · use texto V1',
+        transport,
+      },
+      { status: 415 },
+    );
   }
 
   // ────────────────────────────────────────────────────────────────
   // P-07 · Branch MIDIA · upload pra Meta + send by media_id
+  // Cast pra Cloud · Evolution ja foi bloqueado acima (transport check)
   // ────────────────────────────────────────────────────────────────
+  const waCloud = wa as WhatsAppCloudService;
   if (hasMedia) {
     // Le blob do Storage com service-role (bucket `media` publico mas usamos
     // SDK pra resolver path corretamente sem expor public URL no fluxo critico)
@@ -125,7 +181,7 @@ export async function POST(
 
     // 1. Upload pra Meta · recebe media_id
     const safeFilename = (fileName as string) || (mediaPath as string).split('/').pop() || 'file';
-    const upRes = await wa.uploadMediaFromBuffer(buffer, mimeType as string, safeFilename);
+    const upRes = await waCloud.uploadMediaFromBuffer(buffer, mimeType as string, safeFilename);
     if (!upRes.ok) {
       return NextResponse.json(
         { error: `Meta upload falhou: ${upRes.error}` },
@@ -138,7 +194,7 @@ export async function POST(
     const captionTrim = content?.trim() || undefined;
     const baseMimeType = String(mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType === 'image') {
-      sendResult = await wa.sendImageById(conv.phone, upRes.mediaId, captionTrim);
+      sendResult = await waCloud.sendImageById(conv.phone, upRes.mediaId, captionTrim);
     } else if (mediaType === 'audio') {
       // P-07 · Meta Cloud API nao aceita audio/webm pra voice notes · so
       // ogg/opus, mp3, mp4, aac, amr. Browser Chrome grava em webm.
@@ -147,17 +203,17 @@ export async function POST(
       // renderizar com AudioPlayer no chat.
       // TODO: transcodificar webm → ogg/opus server-side via ffmpeg.
       if (baseMimeType === 'audio/webm') {
-        sendResult = await wa.sendDocumentById(
+        sendResult = await waCloud.sendDocumentById(
           conv.phone,
           upRes.mediaId,
           safeFilename,
           captionTrim,
         );
       } else {
-        sendResult = await wa.sendAudioById(conv.phone, upRes.mediaId);
+        sendResult = await waCloud.sendAudioById(conv.phone, upRes.mediaId);
       }
     } else if (mediaType === 'document') {
-      sendResult = await wa.sendDocumentById(conv.phone, upRes.mediaId, safeFilename, captionTrim);
+      sendResult = await waCloud.sendDocumentById(conv.phone, upRes.mediaId, safeFilename, captionTrim);
     } else if (mediaType === 'video') {
       // sem helper dedicado · usa _sendByMediaId via fallback pra documento (Meta aceita type=video tb)
       // mas pra UX correta, comentar como nao suportado por enquanto

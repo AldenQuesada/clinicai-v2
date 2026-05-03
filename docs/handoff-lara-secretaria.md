@@ -76,7 +76,9 @@ RPC é **idempotente** — re-chamar não duplica notificação.
 
 ## Operação
 
-### Cadastrar número da secretaria
+### Cadastrar número da secretaria — 2 caminhos suportados
+
+#### A) Via Cloud API (Meta) — recomendado p/ números novos
 
 1. Onboarding Meta Cloud API pro novo número (BSP/Embedded Signup) →
    gera `phone_number_id` + `access_token`
@@ -91,8 +93,33 @@ VALUES
    '<access_token>', '<verify_token>', 'oficial', 'secretaria', true);
 ```
 
-3. Configurar webhook Meta apontando pro mesmo `/api/webhook/whatsapp` (o
-   webhook resolve o número correto via `phone_number_id`)
+3. Configurar webhook Meta apontando pro `/api/webhook/whatsapp` (o
+   webhook Cloud API resolve o número via `phone_number_id`)
+
+#### B) Via Evolution API — usado pelo nº 5544991622986 (Mig 92)
+
+Quando o número fica em Evolution (Mih instance) e não em Cloud API:
+
+1. **wa_numbers** já tem `instance_id`, `api_url`, `api_key` populados
+2. Set `inbox_role='secretaria'` no row
+3. **Configurar webhook na Evolution** (UI da Evolution ou via API):
+   - URL: `https://lara.miriandpaula.com.br/api/webhook/whatsapp-evolution`
+   - Method: `POST`
+   - Header: `x-inbound-secret: <WA_INBOUND_SECRET>` (mesma env da Mira)
+   - Events: `messages.upsert`
+4. **Outbound automático** — endpoint `/api/conversations/[id]/messages`
+   detecta o transport pelo wa_numbers do conv (Evolution se tem
+   `instance_id`/`api_url`/`api_key` populados, Cloud caso contrário) e
+   instancia o provider correto (`EvolutionService` vs `WhatsAppCloudService`)
+
+**Limitação V1 Evolution outbound:** envio de mídia (áudio/imagem/PDF)
+ainda não implementado · só texto. Texto de saída funciona normal pelo
+mesmo endpoint (provider resolve via `wa_numbers`).
+
+**Identificação do número Evolution:** RPC `wa_numbers_resolve_by_instance(p_instance text)`
+(Mig 92) retorna `wa_number_id`, `clinic_id`, `inbox_role`, `phone` pra
+rotear no webhook. Ordem: ATIVO + `updated_at DESC` (resolve ambiguidade
+quando 2 números compartilham instance, ex: `mira-mirian`).
 
 ### V1 limitações conhecidas
 
