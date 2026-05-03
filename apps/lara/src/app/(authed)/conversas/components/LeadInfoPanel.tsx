@@ -8,8 +8,10 @@ import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
 import { NextAppointmentCard } from './NextAppointmentCard';
+import { useState } from 'react';
 import { SecretariaQuickActions } from './SecretariaQuickActions';
 import { PhoneCopyChip } from './PhoneCopyChip';
+import { StatusBadge } from './StatusBadge';
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
 
@@ -120,6 +122,8 @@ export function LeadInfoPanel({
   onAskDoctor,
 }: LeadInfoPanelProps) {
   const isSecretaria = inboxRole === 'secretaria';
+  // Quick Actions contextuais · status do appointment vem do NextAppointmentCard
+  const [appointmentStatus, setAppointmentStatus] = useState<string | null>(null);
   if (!isExpanded) {
     return (
       <div
@@ -217,8 +221,19 @@ export function LeadInfoPanel({
           </div>
         )}
 
-        {/* Roadmap A5 · próximo agendamento inline · evita trocar pra /crm/agenda */}
-        <NextAppointmentCard leadId={selectedConversation.lead_id ?? null} />
+        {/* Roadmap A5 · próximo agendamento inline · evita trocar pra /crm/agenda
+            Em /secretaria, expoe status pra Quick Actions decidirem botoes. */}
+        <NextAppointmentCard
+          leadId={selectedConversation.lead_id ?? null}
+          onStatusChange={isSecretaria ? setAppointmentStatus : undefined}
+        />
+
+        {/* /secretaria · Fase/Status visíveis pra secretaria entender contexto */}
+        {isSecretaria && (selectedConversation.phase || appointmentStatus) && (
+          <div className="px-5 py-3 border-b border-white/[0.06]">
+            <StatusBadge phase={selectedConversation.phase} appointmentStatus={appointmentStatus} />
+          </div>
+        )}
 
         {/* ─── ZONA ENTENDER · pipeline + score + queixas + tags ─── */}
         {/* Pipeline (dots) só em /conversas (Lara) · técnico demais pra secretaria */}
@@ -357,11 +372,15 @@ export function LeadInfoPanel({
         {/* Controle Lara FULL agora vive no TOPO FIXO (acima) · removido daqui */}
       </div>
 
-      {/* ═══ BAIXO FIXO (shrink-0) · só /secretaria · ações rápidas pinned ═══ */}
+      {/* ═══ BAIXO FIXO (shrink-0) · só /secretaria · ações rápidas pinned ═══
+          Botões mudam conforme phase + status do appointment · ver mapping
+          em SecretariaQuickActions.pickActions. */}
       {isSecretaria && (
         <div className="shrink-0 border-t border-white/[0.08] bg-[hsl(var(--chat-panel-bg))] px-4 py-3">
           <SecretariaQuickActions
             leadFirstName={(selectedConversation.lead_name || '').split(/\s+/)[0]}
+            phase={selectedConversation.phase}
+            appointmentStatus={appointmentStatus}
             onPick={(text) => onPickQuickAction?.(text)}
             onAskDoctor={onAskDoctor}
           />

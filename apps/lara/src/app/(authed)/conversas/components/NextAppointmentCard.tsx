@@ -22,6 +22,8 @@ interface AppointmentItem {
 
 interface Props {
   leadId: string | null;
+  /** Callback opcional · expoe o status do proximo appointment (ou null) pro caller */
+  onStatusChange?: (status: string | null) => void;
 }
 
 const SECTION_LABEL_STYLE: React.CSSProperties = {
@@ -51,13 +53,14 @@ function formatDate(date: string, time: string): string {
   return `${weekday.slice(0, 3)} ${day} ${month} · ${hhmm}`;
 }
 
-export function NextAppointmentCard({ leadId }: Props) {
+export function NextAppointmentCard({ leadId, onStatusChange }: Props) {
   const [next, setNext] = useState<AppointmentItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!leadId) {
       setNext(null);
+      onStatusChange?.(null);
       return;
     }
     let cancelled = false;
@@ -67,10 +70,15 @@ export function NextAppointmentCard({ leadId }: Props) {
       .then((data) => {
         if (cancelled) return;
         const items: AppointmentItem[] = data.items || [];
-        setNext(items[0] || null);
+        const first = items[0] || null;
+        setNext(first);
+        onStatusChange?.(first?.status ?? null);
       })
       .catch(() => {
-        if (!cancelled) setNext(null);
+        if (!cancelled) {
+          setNext(null);
+          onStatusChange?.(null);
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -78,6 +86,7 @@ export function NextAppointmentCard({ leadId }: Props) {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
   if (!leadId) return null;
