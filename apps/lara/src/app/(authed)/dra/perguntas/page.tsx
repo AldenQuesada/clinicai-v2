@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { Sparkles, Send, RotateCw, CheckCircle, MessageSquare, Clock } from 'lucide-react';
+import { Sparkles, RotateCw, CheckCircle, MessageSquare, Clock, Eye, EyeOff } from 'lucide-react';
 
 interface Question {
   id: string;
@@ -28,6 +28,15 @@ interface Question {
   conversation_id: string;
   lead_name: string | null;
   lead_phone: string | null;
+}
+
+interface MirrorMsg {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  sender: string;
+  content: string;
+  content_type: string;
+  sent_at: string;
 }
 
 function timeAgo(iso: string): string {
@@ -44,6 +53,10 @@ export default function DraPerguntasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<string | null>(null);
+  // Mirror conversa · keyed por conversation_id · lazy load on demand
+  const [mirrorOpen, setMirrorOpen] = useState<Record<string, boolean>>({});
+  const [mirrorMsgs, setMirrorMsgs] = useState<Record<string, MirrorMsg[]>>({});
+  const [mirrorLoading, setMirrorLoading] = useState<Record<string, boolean>>({});
 
   const fetchQuestions = useCallback(async () => {
     try {
@@ -69,6 +82,23 @@ export default function DraPerguntasPage() {
     const t = setInterval(fetchQuestions, 30000);
     return () => clearInterval(t);
   }, [fetchQuestions]);
+
+  async function toggleMirror(conversationId: string) {
+    const isOpen = !!mirrorOpen[conversationId];
+    setMirrorOpen((p) => ({ ...p, [conversationId]: !isOpen }));
+    if (!isOpen && !mirrorMsgs[conversationId]) {
+      setMirrorLoading((p) => ({ ...p, [conversationId]: true }));
+      try {
+        const r = await fetch(`/api/dra/conversations/${conversationId}/messages`);
+        if (r.ok) {
+          const data = await r.json();
+          setMirrorMsgs((p) => ({ ...p, [conversationId]: data.messages || [] }));
+        }
+      } finally {
+        setMirrorLoading((p) => ({ ...p, [conversationId]: false }));
+      }
+    }
+  }
 
   async function handleSend(id: string) {
     const finalAnswer = (editing[id] || '').trim();
@@ -164,11 +194,11 @@ export default function DraPerguntasPage() {
               </p>
             </div>
 
-            {/* Contexto · ultimas msgs do paciente */}
+            {/* Contexto · ultimas msgs do paciente · resumo IA */}
             {q.context_snapshot && (
               <details className="px-4 py-2 border-b border-white/[0.06] group">
                 <summary className="text-[11px] text-[hsl(var(--muted-foreground))] cursor-pointer hover:text-[hsl(var(--foreground))] flex items-center gap-1.5">
-                  <span className="text-[9.5px] uppercase tracking-[0.18em]">Contexto da conversa</span>
+                  <span className="text-[9.5px] uppercase tracking-[0.18em]">Resumo da conversa</span>
                   <span className="text-[9px] opacity-50 group-open:hidden">(toque para ver)</span>
                 </summary>
                 <pre className="text-[11.5px] text-[hsl(var(--muted-foreground))] mt-2 whitespace-pre-wrap leading-relaxed font-sans">
@@ -176,6 +206,83 @@ export default function DraPerguntasPage() {
                 </pre>
               </details>
             )}
+
+            {/* Espelho da conversa inteira · read-only · gated em owner/admin
+                · zero envio pra paciente · soh leitura. */}
+            <div className="border-b border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => toggleMirror(q.conversation_id)}
+                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors text-left"
+              >
+                <span className="flex items-center gap-1.5">
+                  {mirrorOpen[q.conversation_id] ? (
+                    <EyeOff className="w-3 h-3 text-[hsl(var(--muted-foreground))]" strokeWidth={1.5} />
+                  ) : (
+                    <Eye className="w-3 h-3 text-[hsl(var(--muted-foreground))]" strokeWidth={1.5} />
+                  )}
+                  <span className="text-[9.5px] uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+                    {mirrorOpen[q.conversation_id] ? 'Esconder conversa inteira' : 'Ver conversa inteira'}
+                  </span>
+                </span>
+                <span className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60">
+                  somente leitura
+                </span>
+              </button>
+              {mirrorOpen[q.conversation_id] && (
+                <div className="px-4 py-3 bg-black/[0.15] max-h-80 overflow-y-auto custom-scrollbar">
+                  {mirrorLoading[q.conversation_id] ? (
+                    <div className="text-center py-4 text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Carregando histórico…
+                    </div>
+                  ) : (mirrorMsgs[q.conversation_id]?.length ?? 0) === 0 ? (
+                    <div className="text-center py-4 text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Sem mensagens.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {(mirrorMsgs[q.conversation_id] || []).map((m) => {
+                        const isPatient = m.direction === 'inbound';
+                        return (
+                          <div
+                            key={m.id}
+                            className={`flex ${isPatient ? 'justify-start' : 'justify-end'}`}
+                          >
+                            <div
+                              className="max-w-[85%] rounded-lg px-3 py-2 text-[12.5px] leading-snug break-words"
+                              style={{
+                                background: isPatient ? 'rgba(255,255,255,0.04)' : 'rgba(201,169,110,0.10)',
+                                border: `1px solid ${isPatient ? 'rgba(255,255,255,0.06)' : 'rgba(201,169,110,0.18)'}`,
+                              }}
+                            >
+                              <p className="whitespace-pre-wrap text-[hsl(var(--foreground))]">
+                                {m.content_type === 'audio' && (m.content || '').startsWith('[audio')
+                                  ? '🎙 áudio (sem transcrição)'
+                                  : m.content_type === 'image'
+                                  ? `🖼 ${m.content || 'imagem'}`
+                                  : m.content_type === 'document'
+                                  ? `📎 ${m.content || 'documento'}`
+                                  : m.content}
+                              </p>
+                              <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-1 opacity-70">
+                                {new Date(m.sent_at).toLocaleString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                                {' · '}
+                                {isPatient ? 'paciente' : m.sender}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Resposta · IA pré-preencheu, Dra. edita */}
             <div className="px-4 py-3">
@@ -202,9 +309,12 @@ export default function DraPerguntasPage() {
                   color: '#1A1814',
                 }}
               >
-                <Send className="w-4 h-4" strokeWidth={2} />
-                {sending === q.id ? 'Enviando…' : 'Enviar pra secretaria'}
+                <CheckCircle className="w-4 h-4" strokeWidth={2} />
+                {sending === q.id ? 'Resolvendo…' : 'Resolvida · enviar pra Luciana'}
               </button>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center mt-2 opacity-70">
+                Sai da sua fila e a Luciana recebe a resposta no chat
+              </p>
             </div>
           </div>
         ))}

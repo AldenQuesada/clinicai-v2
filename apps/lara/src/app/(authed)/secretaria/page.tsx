@@ -129,7 +129,7 @@ export default function SecretariaPage() {
   };
   const isUrgent = (c: typeof conversations[number]) => c.is_urgent;
 
-  // Counts dos 6 KPIs · derivados local · zero fetch extra
+  // Counts dos 6 KPIs · derivados local · zero fetch extra (exceto Dra · ver abaixo)
   const abertasCount = conversations.filter((c) => c.status === 'active').length;
   const resolvidasCount = conversations.filter((c) => c.status === 'resolved').length;
   const todosCount = abertasCount + resolvidasCount; // E2 · sem arquivadas
@@ -139,8 +139,37 @@ export default function SecretariaPage() {
   const urgenteCount = conversations.filter(
     (c) => c.status === 'active' && isUrgent(c),
   ).length;
-  // Dra count vem do statusFilter='dra' separado · placeholder zero ate endpoint dedicado
-  const draCount = 0;
+
+  // Dra · pendentes vem de conversation_questions · fetch leve a cada 30s.
+  // conversationIds usado pra filtrar a lista quando KPI Dra ativo (espelho).
+  const [draPending, setDraPending] = useState<{
+    count: number;
+    conversation_ids: string[];
+  }>({ count: 0, conversation_ids: [] });
+  useEffect(() => {
+    let alive = true;
+    const fetchDra = async () => {
+      try {
+        const r = await fetch('/api/secretaria/dra-pending');
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!alive) return;
+        setDraPending({
+          count: typeof data?.count === 'number' ? data.count : 0,
+          conversation_ids: Array.isArray(data?.conversation_ids) ? data.conversation_ids : [],
+        });
+      } catch {
+        /* silent */
+      }
+    };
+    fetchDra();
+    const id = setInterval(fetchDra, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+  const draCount = draPending.count;
 
   // Tab title mostra urgentes como sinal mais forte de pendencia
   useEffect(() => {
@@ -151,17 +180,15 @@ export default function SecretariaPage() {
   // Mapping KPI → props legacy (statusFilter + activeTab) que a
   // ConversationList consome internamente. Mantém compat sem rework.
   //
-  //   todos       → statusFilter=null·active+resolved (ver useConversations)
+  //   todos       → statusFilter='active' (simplificacao · API nao tem 'all')
   //   abertas     → statusFilter='active'
   //   resolvidas  → statusFilter='resolved'
   //   aguardando  → statusFilter='active' + activeTab='Aguardando'
   //   urgente     → statusFilter='active' + activeTab='Urgentes'
-  //   dra         → statusFilter='dra'
+  //   dra         → statusFilter='active' + filtro local por conv_id (espelho)
   // ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (activeKpi === 'dra') setStatusFilter('dra');
-    else if (activeKpi === 'resolvidas') setStatusFilter('resolved');
-    else if (activeKpi === 'todos') setStatusFilter('active'); // simplificacao · API nao tem 'all'
+    if (activeKpi === 'resolvidas') setStatusFilter('resolved');
     else setStatusFilter('active');
   }, [activeKpi, setStatusFilter]);
 
@@ -169,6 +196,12 @@ export default function SecretariaPage() {
     activeKpi === 'aguardando' ? 'Aguardando'
     : activeKpi === 'urgente' ? 'Urgentes'
     : 'Todas';
+
+  // Filtro local pro KPI Dra · mostra so conversas com pergunta pendente
+  // (espelho · conv permanece em scope=Abertas, nao muda status no DB)
+  const filteredConversations = activeKpi === 'dra'
+    ? conversations.filter((c) => draPending.conversation_ids.includes(c.conversation_id))
+    : conversations;
 
   // Override defaults pra perfil sénior · onlyWhenHidden=false · idempotente
   // (não sobrescreve se user já mexeu nas prefs)
@@ -461,7 +494,7 @@ export default function SecretariaPage() {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ConversationList
-          conversations={conversations}
+          conversations={filteredConversations}
           selectedConversation={selectedConversation}
           isLoading={isLoadingConversations}
           isLoadingMore={isLoadingMore}
