@@ -22,8 +22,8 @@ export interface Conversation {
   assigned_to?: string | null;
   /** P-12 · ISO do ultimo assign. */
   assigned_at?: string | null;
-  /** Mig 91 · 'sdr' (Lara) ou 'secretaria' · denorm de wa_numbers.inbox_role */
-  inbox_role?: 'sdr' | 'secretaria';
+  /** Mig 91/96 · 'sdr' (Lara) · 'secretaria' · 'b2b' (Mira) · denorm de wa_numbers.inbox_role */
+  inbox_role?: 'sdr' | 'secretaria' | 'b2b';
   /** Mig 91 · ISO do handoff Lara→Secretaria (NULL = sem handoff). */
   handoff_to_secretaria_at?: string | null;
 }

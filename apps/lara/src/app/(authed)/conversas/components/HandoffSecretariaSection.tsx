@@ -19,7 +19,7 @@ import { ArrowRightLeft, Check, AlertCircle } from 'lucide-react'
 
 interface Props {
   conversationId: string
-  inboxRole: 'sdr' | 'secretaria' | undefined
+  inboxRole: 'sdr' | 'secretaria' | 'b2b' | undefined
   handoffAt: string | null | undefined
   onChange?: () => void
 }
