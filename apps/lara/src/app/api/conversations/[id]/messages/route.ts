@@ -14,6 +14,7 @@ import {
   type WhatsAppProvider,
 } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
+import { createServerClient } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -111,10 +112,18 @@ export async function POST(
     return NextResponse.json({ error: 'Content ou media obrigatorio' }, { status: 400 });
   }
 
-  const { supabase } = await loadServerContext();
+  // Auth · valida JWT/clinic_id ANTES de service_role pra escrita.
+  // wa_messages/wa_conversations sao RLS-hardened (authenticated nao tem
+  // INSERT/UPDATE) · service_role bypassa RLS · escopo multi-tenant
+  // garantido manualmente comparando conv.clinicId vs ctx.clinic_id abaixo.
+  const { ctx } = await loadServerContext();
+  const supabase = createServerClient();
   const repos = makeRepos(supabase);
 
   const conv = await repos.conversations.getById(id);
+  if (conv && conv.clinicId !== ctx.clinic_id) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
   if (!conv) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
   }

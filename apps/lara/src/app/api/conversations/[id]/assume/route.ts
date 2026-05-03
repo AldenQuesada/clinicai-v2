@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadServerContext } from '@clinicai/supabase';
 import { makeRepos } from '@/lib/repos';
+import { createServerClient } from '@/lib/supabase';
 import { pauseAgent } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
@@ -29,8 +30,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase } = await loadServerContext();
+  // Auth · valida JWT antes de service_role pra UPDATE wa_conversations
+  // (RLS hardened: authenticated nao tem UPDATE). Filtra por clinic_id
+  // manualmente pra preservar scope multi-tenant ADR-028.
+  const { ctx } = await loadServerContext();
+  const supabase = createServerClient();
   const repos = makeRepos(supabase);
+
+  // Confirma conv pertence à clinic do JWT
+  const conv = await repos.conversations.getById(id);
+  if (!conv || conv.clinicId !== ctx.clinic_id) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
 
   await repos.conversations.updateAiPause(id, {
     pausedUntil: null,

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { loadServerContext } from '@clinicai/supabase';
-import { makeRepos } from '@/lib/repos';
+import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +23,22 @@ export async function PATCH(
     return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
   }
 
-  const { supabase } = await loadServerContext();
-  const repos = makeRepos(supabase);
+  // Auth · valida JWT + clinic_id ANTES de usar service_role pra escrita.
+  // Tabela wa_conversations · authenticated NÃO tem UPDATE (RLS hardened) ·
+  // service_role bypassa RLS, mas filtramos manualmente por clinic_id pra
+  // manter scope multi-tenant ADR-028.
+  const { ctx } = await loadServerContext();
 
-  await repos.conversations.setStatus(id, status as AllowedStatus);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createServerClient() as any;
+  const { error } = await sb
+    .from('wa_conversations')
+    .update({ status: status as AllowedStatus, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('clinic_id', ctx.clinic_id);
 
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
