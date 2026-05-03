@@ -182,6 +182,56 @@ export class MessageRepository {
   }
 
   /**
+   * Bug 2026-05-03 (Evolution duplicate): paciente manda audio · Evolution
+   * envia 2 webhooks (audioMessage + textMessage com transcrição própria).
+   * App salvou as 2 · UI mostra "transcrição separada do áudio".
+   *
+   * Dedup contextual: ao salvar audio com transcrição, procura text recente
+   * (≤90s) na mesma conv com conteúdo similar e remove (audio vence · tem
+   * mediaUrl + transcrição).
+   *
+   * Match: primeiros 30 chars normalizados (lower · sem pontuação · sem
+   * espaços extras). Suficiente pra detectar transcrição vs texto·sem
+   * falsos positivos.
+   */
+  async deleteTextDuplicateOfAudio(
+    conversationId: string,
+    audioContent: string,
+    windowSeconds = 90,
+  ): Promise<number> {
+    const norm = (s: string): string =>
+      s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+    const audioNorm = norm(audioContent)
+    if (audioNorm.length < 8) return 0 // muito curto · risco falso positivo
+    // Prefix 15 chars · pega "para"/"pra" e diferenças similares na transcrição
+    const audioPrefix = audioNorm.slice(0, 15)
+
+    const since = new Date(Date.now() - windowSeconds * 1000).toISOString()
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('id, content')
+      .eq('conversation_id', conversationId)
+      .eq('content_type', 'text')
+      .eq('direction', 'inbound')
+      .gte('sent_at', since)
+      .order('sent_at', { ascending: false })
+      .limit(5)
+    if (!data || !data.length) return 0
+
+    const candidates = data.filter((m) => {
+      const k = norm((m as { content?: string }).content ?? '')
+      if (k.length < 8) return false
+      const textPrefix = k.slice(0, 15)
+      return textPrefix === audioPrefix
+    })
+    if (!candidates.length) return 0
+
+    const ids = candidates.map((c) => (c as { id: string }).id)
+    await this.supabase.from('wa_messages').delete().in('id', ids)
+    return ids.length
+  }
+
+  /**
    * Verifica se chegou nova mensagem inbound apos `sentAt` · usado pelo
    * debounce de 5s (agrupa fotos/áudios disparados juntos).
    */

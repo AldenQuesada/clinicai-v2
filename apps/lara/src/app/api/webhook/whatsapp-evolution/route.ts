@@ -330,6 +330,28 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json({ ok: false, error: 'save_failed' }, { status: 500 });
   }
+
+  // Bug 2 fix: Evolution às vezes envia 2 webhooks (audio + text-transcricao)
+  // pra mesma mensagem · resultando em UI com "transcricao separada do audio".
+  // Quando salvamos audio com transcrição embedded, removemos text duplicado
+  // recente (último 90s · audio vence porque tem mediaUrl + transcrição).
+  if (contentType === 'audio' && content && !content.startsWith('[audio')) {
+    try {
+      const removed = await repos.messages.deleteTextDuplicateOfAudio(conv.id, content, 90);
+      if (removed > 0) {
+        log.info(
+          { clinic_id, conv_id: conv.id, removed_text_dups: removed },
+          'webhook_evolution.audio.text_duplicates_removed',
+        );
+      }
+    } catch (err) {
+      log.warn(
+        { clinic_id, conv_id: conv.id, err: (err as Error)?.message },
+        'webhook_evolution.audio.dedup_failed',
+      );
+    }
+  }
+
   await repos.conversations.updateLastMessage(conv.id, content, true, sentAtStr);
 
   // Notify secretaria inbox
