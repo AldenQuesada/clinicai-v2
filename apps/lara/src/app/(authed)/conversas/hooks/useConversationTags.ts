@@ -51,8 +51,15 @@ export function computeConversationTags(conv: Conversation): ConversationTag[] {
     tags.push(T('PERGUNTOU PREÇO', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 3));
   }
 
-  // 4. LARA / VOCÊ · estado da conversa (mutuamente exclusivos)
-  if (conv.ai_enabled) {
+  // 4. Estado da conversa · varia por inbox (Mig 91/97/101)
+  //   sdr        · LARA (IA ativa) ou VOCÊ (humano assumiu)
+  //   secretaria · SECRETARIA (humano · sem IA)
+  //   b2b        · MIRA (B2B humano via Mira app)
+  if (conv.inbox_role === 'secretaria') {
+    tags.push(T('SECRETARIA', 'rgba(168,148,201,0.18)', '#A894C9', 'rgba(168,148,201,0.35)', 4));
+  } else if (conv.inbox_role === 'b2b') {
+    tags.push(T('MIRA', 'rgba(212,184,148,0.18)', '#D4B894', 'rgba(212,184,148,0.35)', 4));
+  } else if (conv.ai_enabled) {
     tags.push(T('LARA', 'rgba(16,185,129,0.12)', '#6EE7B7', 'rgba(16,185,129,0.30)', 4));
   } else {
     tags.push(T('VOCÊ', 'rgba(167,139,250,0.15)', '#C4B5FD', 'rgba(167,139,250,0.30)', 4));
