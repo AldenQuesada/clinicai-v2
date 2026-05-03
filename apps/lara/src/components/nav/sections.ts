@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Briefcase,
   Bell,
+  HelpCircle,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -32,6 +33,8 @@ export interface Section {
   requires: Action | null
   /** External · path eh URL absoluta ou static .html · usa <a target> em vez de <Link> */
   external?: boolean
+  /** Destaque visual (gold halo) · features novas/promocionais */
+  highlight?: boolean
 }
 
 export const SECTIONS: readonly Section[] = [
@@ -60,6 +63,16 @@ export const SECTIONS: readonly Section[] = [
     path: '/secretaria',
     icon: MessageSquareText,
     requires: 'secretaria:view-inbox',
+  },
+  {
+    // Mig 102 · Sprint 1 do roadmap · perguntas da secretaria pra Dra.
+    // Visivel pra owner/admin (Dra. acessa do celular dela)
+    key: 'dra-perguntas',
+    label: 'Perguntas da Secretaria',
+    path: '/dra/perguntas',
+    icon: HelpCircle,
+    requires: 'lara:edit-config',
+    highlight: true,
   },
   {
     // Settings de notificacao acessiveis pra role secretaria · reusa

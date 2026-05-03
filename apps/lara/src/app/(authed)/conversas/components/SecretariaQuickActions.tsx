@@ -59,18 +59,23 @@ const ACTIONS: QuickAction[] = [
 interface Props {
   leadFirstName?: string;
   onPick: (template: string) => void;
+  onAskDoctor?: () => void;
 }
 
-export function SecretariaQuickActions({ leadFirstName, onPick }: Props) {
+export function SecretariaQuickActions({ leadFirstName, onPick, onAskDoctor }: Props) {
   return (
     <div className="mb-2 grid grid-cols-2 gap-1.5">
       {ACTIONS.map((a) => {
         const Icon = a.icon;
+        const isAskDoctor = a.id === 'ajuda';
         return (
           <button
             key={a.id}
             type="button"
-            onClick={() => onPick(a.template(leadFirstName || ''))}
+            onClick={() => {
+              if (isAskDoctor && onAskDoctor) onAskDoctor();
+              else onPick(a.template(leadFirstName || ''));
+            }}
             className="flex items-center gap-2 px-3 py-2.5 rounded-md text-left transition-all hover:opacity-90 group"
             style={{
               background: `${a.color}14`,

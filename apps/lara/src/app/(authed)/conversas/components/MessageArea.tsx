@@ -7,6 +7,8 @@ import { CopilotSummary } from './CopilotSummary';
 import { SecretariaSummary } from './SecretariaSummary';
 import { SmartReplies } from './SmartReplies';
 import { SecretariaQuickActions } from './SecretariaQuickActions';
+import { AskDoctorModal } from './AskDoctorModal';
+import { DoctorAnswerCard } from './DoctorAnswerCard';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
 import { PresenceLine } from './PresenceLine';
 import { MediaPreviewBar } from './MediaPreviewBar';
@@ -154,6 +156,8 @@ export function MessageArea({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
+  const [showAskDoctor, setShowAskDoctor] = useState(false);
+  const [doctorAnswerKey, setDoctorAnswerKey] = useState(0);
   const dragCounterRef = useRef(0);
   const {
     staged,
@@ -657,10 +661,18 @@ export function MessageArea({
             Aparece so em conv com inbox_role='secretaria' · /conversas (Lara)
             mantém SmartReplies IA tradicional. */}
         {selectedConversation?.inbox_role === 'secretaria' ? (
-          <SecretariaQuickActions
-            leadFirstName={(selectedConversation?.lead_name || '').split(/\s+/)[0]}
-            onPick={(text) => onNewMessageChange(text)}
-          />
+          <>
+            <DoctorAnswerCard
+              conversationId={selectedConversation.conversation_id}
+              refreshKey={doctorAnswerKey}
+              onUseAnswer={(text) => onNewMessageChange(text)}
+            />
+            <SecretariaQuickActions
+              leadFirstName={(selectedConversation?.lead_name || '').split(/\s+/)[0]}
+              onPick={(text) => onNewMessageChange(text)}
+              onAskDoctor={() => setShowAskDoctor(true)}
+            />
+          </>
         ) : (
           /* Sprint B · W-03: smart replies acima do textarea (Lara IA) */
           <SmartReplies
@@ -824,6 +836,16 @@ export function MessageArea({
           </button>
         </div>
       </div>
+
+      {/* Sprint 1 · Modal pra secretaria perguntar pra Dra. Mirian */}
+      {showAskDoctor && selectedConversation && (
+        <AskDoctorModal
+          conversationId={selectedConversation.conversation_id}
+          leadFirstName={(selectedConversation.lead_name || '').split(/\s+/)[0]}
+          onClose={() => setShowAskDoctor(false)}
+          onSent={() => setDoctorAnswerKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }
