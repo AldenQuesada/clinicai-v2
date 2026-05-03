@@ -38,6 +38,9 @@ import {
   AlertCircle,
   Clock,
   Stethoscope,
+  Inbox,
+  CircleDot,
+  CheckCheck,
 } from 'lucide-react';
 
 export default function SecretariaPage() {
@@ -63,11 +66,12 @@ export default function SecretariaPage() {
   const [filteredCount, setFilteredCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [hasAdvFiltersActive, setHasAdvFiltersActive] = useState(false);
-  // KPI clicavel · default Aguardando (fila operacional da Luciana)
-  // null = nenhum KPI ativo = mostra todas conversas do scope
-  const [activeKpi, setActiveKpi] = useState<'aguardando' | 'urgente' | 'dra' | null>('aguardando');
-  // Status scope · 'open' (default) ou 'resolved' (pra calc indice resolucao)
-  const [statusScope, setStatusScope] = useState<'open' | 'resolved'>('open');
+  // 6 KPIs clicaveis numa linha:
+  //   ESCOPO  · todos | abertas | resolvidas (lente de status)
+  //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
+  // Default = aguardando (fila operacional da Luciana visivel direto)
+  type KpiId = 'todos' | 'abertas' | 'resolvidas' | 'aguardando' | 'urgente' | 'dra';
+  const [activeKpi, setActiveKpi] = useState<KpiId>('aguardando');
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -125,36 +129,41 @@ export default function SecretariaPage() {
   };
   const isUrgent = (c: typeof conversations[number]) => c.is_urgent;
 
-  const aguardandoCount = conversations.filter(isPatientWaiting).length;
-  const urgenteCount = conversations.filter(isUrgent).length;
-  // Dra count vem do statusFilter='dra' separado · placeholder usa is_urgent flag
-  // do servidor que ja indica perguntas em aberto pra Dra (TODO: endpoint dedicado)
+  // Counts dos 6 KPIs · derivados local · zero fetch extra
+  const abertasCount = conversations.filter((c) => c.status === 'active').length;
+  const resolvidasCount = conversations.filter((c) => c.status === 'resolved').length;
+  const todosCount = abertasCount + resolvidasCount; // E2 · sem arquivadas
+  const aguardandoCount = conversations.filter(
+    (c) => c.status === 'active' && isPatientWaiting(c),
+  ).length;
+  const urgenteCount = conversations.filter(
+    (c) => c.status === 'active' && isUrgent(c),
+  ).length;
+  // Dra count vem do statusFilter='dra' separado · placeholder zero ate endpoint dedicado
   const draCount = 0;
 
-  // Scope counts pro segmented Abertas/Resolvidas dentro da ConversationList
-  // (calculo aproximado · API ja filtra por statusFilter, mas mostramos ambos
-  // pra dar pista do indice de resolucao)
-  const scopeCounts = {
-    open: conversations.filter((c) => c.status === 'active').length,
-    resolved: conversations.filter((c) => c.status === 'resolved').length,
-  };
-
-  // Indice de resolucao (header tab title): mostra Aguardando como urgencia ativa
+  // Tab title mostra urgentes como sinal mais forte de pendencia
   useEffect(() => {
     updateTabTitle(urgenteCount);
   }, [urgenteCount]);
 
   // ─────────────────────────────────────────────────────────────────────
-  // Mapping KPI/scope → props legacy (statusFilter + activeTab) que a
+  // Mapping KPI → props legacy (statusFilter + activeTab) que a
   // ConversationList consome internamente. Mantém compat sem rework.
+  //
+  //   todos       → statusFilter=null·active+resolved (ver useConversations)
+  //   abertas     → statusFilter='active'
+  //   resolvidas  → statusFilter='resolved'
+  //   aguardando  → statusFilter='active' + activeTab='Aguardando'
+  //   urgente     → statusFilter='active' + activeTab='Urgentes'
+  //   dra         → statusFilter='dra'
   // ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (activeKpi === 'dra') {
-      setStatusFilter('dra');
-    } else {
-      setStatusFilter(statusScope === 'resolved' ? 'resolved' : 'active');
-    }
-  }, [activeKpi, statusScope, setStatusFilter]);
+    if (activeKpi === 'dra') setStatusFilter('dra');
+    else if (activeKpi === 'resolvidas') setStatusFilter('resolved');
+    else if (activeKpi === 'todos') setStatusFilter('active'); // simplificacao · API nao tem 'all'
+    else setStatusFilter('active');
+  }, [activeKpi, setStatusFilter]);
 
   const activeTab =
     activeKpi === 'aguardando' ? 'Aguardando'
@@ -278,19 +287,50 @@ export default function SecretariaPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · 3 KPIs CLICAVEIS · filtram a fila operacional
-            Click no KPI ativo desativa = mostra todas (sem filtro). 1 ativo
-            por vez. statusScope (Abertas/Resolvidas) na zona direita. */}
-        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-12 min-w-0">
-          <div className="flex items-center gap-2">
-            {[
+        {/* ZONA CENTRAL · 6 KPIs CLICAVEIS numa linha
+            ESCOPO: Todos · Abertas · Resolvidas (lente de status)
+            FILA:   Aguardando · Urgente · Dra (operacional)
+            Separador visual entre os 2 grupos. */}
+        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0">
+          <div className="flex items-center gap-1.5">
+            {([
+              // ── Grupo ESCOPO (cinza/discreto) ──
+              {
+                id: 'todos' as const,
+                icon: Inbox,
+                label: 'Todos',
+                value: todosCount,
+                color: 'foreground',
+                title: 'Todas as conversas (Abertas + Resolvidas) · sem arquivadas',
+                group: 'escopo' as const,
+              },
+              {
+                id: 'abertas' as const,
+                icon: CircleDot,
+                label: 'Abertas',
+                value: abertasCount,
+                color: 'primary',
+                title: 'Conversas ativas · em andamento',
+                group: 'escopo' as const,
+              },
+              {
+                id: 'resolvidas' as const,
+                icon: CheckCheck,
+                label: 'Resolvidas',
+                value: resolvidasCount,
+                color: 'success',
+                title: 'Conversas marcadas como resolvidas (indice = Resolvidas / Todos)',
+                group: 'escopo' as const,
+              },
+              // ── Grupo FILA (colorido) ──
               {
                 id: 'aguardando' as const,
                 icon: Clock,
                 label: 'Aguardando',
                 value: aguardandoCount,
                 color: 'warning',
-                title: 'Paciente respondeu, fila pra Luciana cuidar',
+                title: 'Paciente foi o ultimo a falar · fila pra Luciana cuidar',
+                group: 'fila' as const,
               },
               {
                 id: 'urgente' as const,
@@ -298,7 +338,8 @@ export default function SecretariaPage() {
                 label: 'Urgente',
                 value: urgenteCount,
                 color: 'destructive',
-                title: 'Conversas com tag URGENTE (palavra de urgencia detectada)',
+                title: 'Conversas com tag URGENTE (palavra-chave detectada)',
+                group: 'fila' as const,
               },
               {
                 id: 'dra' as const,
@@ -307,56 +348,65 @@ export default function SecretariaPage() {
                 value: draCount,
                 color: 'accent',
                 title: 'Perguntas que a secretaria transferiu pra Dra Mirian responder',
+                group: 'fila' as const,
               },
-            ].map((k, idx) => {
+            ]).map((k, idx, arr) => {
               const Icon = k.icon;
               const colorVar = `hsl(var(--${k.color}))`;
               const isActive = activeKpi === k.id;
+              const prev = arr[idx - 1];
+              const showDivider = !!prev && prev.group !== k.group;
               return (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => setActiveKpi(isActive ? null : k.id)}
-                  title={k.title}
-                  className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200 ease-out cursor-pointer ${
-                    isActive
-                      ? 'ring-1 -translate-y-[1px]'
-                      : 'hover:-translate-y-[3px] hover:bg-white/[0.03]'
-                  }`}
-                  style={{
-                    marginLeft: idx === 0 ? 0 : 4,
-                    background: isActive ? colorVar.replace(')', ' / 0.10)') : undefined,
-                    boxShadow: isActive ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.35)')}` : undefined,
-                  }}
-                >
-                  <div
-                    className="p-1.5 rounded-md transition-colors"
+                <div key={k.id} className="flex items-center gap-1.5">
+                  {showDivider && (
+                    <div className="w-px h-8 bg-white/[0.08] mx-1" aria-hidden="true" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveKpi(k.id)}
+                    title={k.title}
+                    className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 ease-out cursor-pointer ${
+                      isActive
+                        ? '-translate-y-[1px]'
+                        : 'hover:-translate-y-[2px] hover:bg-white/[0.03]'
+                    }`}
                     style={{
-                      background: colorVar.replace(')', ' / 0.10)'),
-                      color: colorVar,
+                      background: isActive ? colorVar.replace(')', ' / 0.10)') : undefined,
+                      boxShadow: isActive
+                        ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.35)')}`
+                        : undefined,
                     }}
                   >
-                    <Icon className="w-4 h-4" strokeWidth={1.5} />
-                  </div>
-                  <div className="text-left">
-                    <p
-                      className="font-meta text-[9px] uppercase whitespace-nowrap transition-colors"
+                    <div
+                      className="p-1 rounded-md transition-colors shrink-0"
                       style={{
-                        color: isActive ? colorVar : undefined,
+                        background: colorVar.replace(')', ' / 0.10)'),
+                        color: colorVar,
                       }}
                     >
-                      {k.label}
-                    </p>
-                    <p
-                      className="font-display text-2xl leading-none mt-0.5 tabular-nums"
-                      style={{
-                        color: k.value > 0 ? colorVar : 'hsl(var(--foreground))',
-                      }}
-                    >
-                      {k.value}
-                    </p>
-                  </div>
-                </button>
+                      <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </div>
+                    <div className="text-left">
+                      <p
+                        className="font-meta text-[8.5px] uppercase whitespace-nowrap transition-colors"
+                        style={{
+                          color: isActive ? colorVar : undefined,
+                          letterSpacing: '0.08em',
+                        }}
+                      >
+                        {k.label}
+                      </p>
+                      <p
+                        className="font-display text-xl leading-none mt-0.5 tabular-nums"
+                        style={{
+                          color: k.value > 0 ? colorVar : 'hsl(var(--foreground))',
+                        }}
+                      >
+                        {k.value}
+                      </p>
+                    </div>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -429,18 +479,14 @@ export default function SecretariaPage() {
           onAdvancedFiltersActiveChange={setHasAdvFiltersActive}
           activeTab={activeTab}
           onActiveTabChange={(tab) => {
-            // Mantem activeKpi sincronizado se user clicar em algum filtro
-            // legacy (nao deveria acontecer com simplifiedTabs=true mas guard)
+            // Guard · simplifiedTabs nao expoe sub-filtros, mas mantém sync
             if (tab === 'Aguardando') setActiveKpi('aguardando');
             else if (tab === 'Urgentes') setActiveKpi('urgente');
-            else setActiveKpi(null);
+            else setActiveKpi('abertas');
           }}
           onlineUsers={inboxOnline}
           me={me}
           simplifiedTabs
-          statusScope={statusScope}
-          onStatusScopeChange={setStatusScope}
-          scopeCounts={scopeCounts}
         />
 
         <MessageArea

@@ -215,48 +215,10 @@ export function ConversationList({
           em 2026-04-30 · libera ~120px verticais pra mais conversas visiveis */}
 
       {/* Linha 2 · tabs status · /conversas mantem 4 tabs · /secretaria
-          (simplifiedTabs=true) usa mini-segmented Abertas/Resolvidas (3 KPIs
-          clicaveis na topbar central cobrem o resto). */}
-      <div className="px-3 pt-3 shrink-0">
-        {simplifiedTabs ? (
-          <div className="grid grid-cols-2 gap-1">
-            {([
-              { id: 'open' as const, label: 'Abertas', count: scopeCounts?.open },
-              { id: 'resolved' as const, label: 'Resolvidas', count: scopeCounts?.resolved },
-            ]).map(s => {
-              const active = statusScope === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => onStatusScopeChange?.(s.id)}
-                  title={`${s.label}${typeof s.count === 'number' ? ` (${s.count})` : ''}`}
-                  className={`font-meta uppercase transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer flex items-center justify-center gap-1 ${
-                    active
-                      ? 'text-[hsl(var(--primary))]'
-                      : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-                  }`}
-                  style={{
-                    fontSize: '8.5px',
-                    letterSpacing: '0.15em',
-                    fontWeight: 500,
-                    padding: '4px 7px',
-                    borderRadius: 2,
-                    background: active ? 'rgba(201,169,110,0.15)' : 'transparent',
-                    border: active
-                      ? '1px solid rgba(201,169,110,0.3)'
-                      : '1px solid transparent',
-                  }}
-                >
-                  <span>{s.label}</span>
-                  {typeof s.count === 'number' && (
-                    <span className="tabular-nums opacity-70">{s.count}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
+          (simplifiedTabs=true) oculta · 6 KPIs clicaveis na topbar central
+          substituem (Todos/Abertas/Resolvidas + Aguardando/Urgente/Dra). */}
+      {!simplifiedTabs && (
+        <div className="px-3 pt-3 shrink-0">
           <div className="grid grid-cols-4 gap-1">
             {[
               { id: 'active', label: 'Abertas' },
@@ -289,8 +251,8 @@ export function ConversationList({
               </button>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="px-3 pt-2.5 pb-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
         {/* Painel de Filtros Avançados (renderiza em cima quando aberto) */}
