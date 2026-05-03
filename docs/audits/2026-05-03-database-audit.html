@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Auditoria Banco de Dados · Clínica AI · 2026-05-03</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, system-ui, sans-serif; max-width: 1100px; margin: 32px auto; padding: 0 24px; color: #1f2933; line-height: 1.55; }
+    h1 { font-size: 26px; border-bottom: 2px solid #C9A96E; padding-bottom: 8px; margin-bottom: 4px; }
+    h2 { font-size: 19px; margin-top: 36px; color: #1f2933; border-left: 3px solid #C9A96E; padding-left: 10px; }
+    h3 { font-size: 15px; margin-top: 22px; color: #4b5563; }
+    .meta { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
+    .card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+    .ok { background: #ecfdf5; border-color: #a7f3d0; }
+    .warn { background: #fffbeb; border-color: #fde68a; }
+    .bad { background: #fef2f2; border-color: #fecaca; }
+    .info { background: #eff6ff; border-color: #bfdbfe; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }
+    .pill.ok { background: #d1fae5; color: #047857; }
+    .pill.warn { background: #fef3c7; color: #92400e; }
+    .pill.bad { background: #fee2e2; color: #b91c1c; }
+    .pill.info { background: #dbeafe; color: #1e40af; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+    th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f9fafb; font-weight: 600; color: #374151; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'SF Mono', Monaco, Consolas, monospace; }
+    pre { background: #111827; color: #f9fafb; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+    .num { font-feature-settings: "tnum"; text-align: right; font-weight: 500; }
+    summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<h1>Auditoria Banco de Dados · Clínica AI</h1>
+<p class="meta">2026-05-03 · projeto Supabase <code>oqboitkpcvuaudouwvkl</code> · após mig 92 + backfill secretaria + delete <code>wa-inbound</code> legacy</p>
+
+<h2>1 · Resumo Executivo</h2>
+<div class="card info">
+  <div class="grid-2">
+    <div>
+      <strong>Schema saudável geral.</strong>
+      <ul>
+        <li><strong>257 tabelas</strong> · 24 MB total · ADR-028 (multi-tenant) e ADR-012 (Repository) consistentes</li>
+        <li><strong>0 conversations sem <code>wa_number_id</code></strong> (após backfill de hoje)</li>
+        <li><strong>1 vazamento crítico já fechado</strong> (resolveConversation backfill)</li>
+        <li><strong>253/257 tabelas</strong> com RLS + policies ativas</li>
+      </ul>
+    </div>
+    <div>
+      <strong>Bloat moderado. Drops recomendados:</strong>
+      <ul>
+        <li><span class="pill bad">imediato</span> 3 tabelas de backup (~530 KB)</li>
+        <li><span class="pill bad">imediato</span> 4 tabelas duplicadas conceituais</li>
+        <li><span class="pill warn">controlado</span> ~25 tabelas zero-bytes UNUSED em código</li>
+        <li><span class="pill warn">depois do legacy retire</span> 5 tabelas anamnesis/agenda/case-gallery (clinic-dashboard only)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Inventário Geral</h2>
+<table>
+  <tr><th>Métrica</th><th class="num">Valor</th><th>Observação</th></tr>
+  <tr><td>Total de tabelas</td><td class="num">257</td><td>Inclui Lara v2, Mira/B2B, Quiz, Magazine, Flipbook, Cashflow, LP Builder</td></tr>
+  <tr><td>Tabelas com FK</td><td class="num">253</td><td>931 colunas com FK · referential integrity ampla</td></tr>
+  <tr><td>Tamanho total</td><td class="num">24 MB</td><td>Schema enxuto · room for growth</td></tr>
+  <tr><td>Tabelas &lt;16 KB</td><td class="num">213</td><td>83% das tabelas · indica many features de uso baixo/sem uso</td></tr>
+  <tr><td>Tabelas zero-bytes</td><td class="num">64</td><td>25% nunca foram populadas · candidatas drop</td></tr>
+  <tr><td>RLS habilitado</td><td class="num">253</td><td>4 com RLS ON mas 0 policies (service_role only)</td></tr>
+</table>
+
+<h2>3 · Tabelas Críticas · Estado de Saúde</h2>
+<table>
+  <tr><th>Tabela</th><th class="num">Rows</th><th>Status</th><th>Observação</th></tr>
+  <tr><td><code>leads</code></td><td class="num">5</td><td><span class="pill ok">ok</span></td><td>5 leads ativos · esperado p/ início da operação</td></tr>
+  <tr><td><code>leads_audit</code></td><td class="num">121</td><td><span class="pill ok">ok</span></td><td>Audit trail crescendo conforme operação</td></tr>
+  <tr><td><code>patients</code></td><td class="num">2</td><td><span class="pill ok">ok</span></td><td>Modelo excludente (lead.deleted_at = patient existe)</td></tr>
+  <tr><td><code>wa_conversations</code></td><td class="num">73</td><td><span class="pill ok">ok</span></td><td>66 secretaria · 7 sdr (Lara real)</td></tr>
+  <tr><td><code>wa_messages</code></td><td class="num">531</td><td><span class="pill ok">ok</span></td><td>Histórico WhatsApp íntegro</td></tr>
+  <tr><td><code>wa_outbox</code></td><td class="num">118</td><td><span class="pill ok">ok</span></td><td>Fila de envio · trabalhada por edge <code>wa-outbox-worker</code></td></tr>
+  <tr><td><code>wa_pro_messages</code></td><td class="num">502</td><td><span class="pill ok">ok</span></td><td>Mira pro inbox</td></tr>
+  <tr><td><code>wa_numbers</code></td><td class="num">5</td><td><span class="pill ok">ok</span></td><td>1 secretaria + 1 sdr (Lara) + 2 mira + 1 auxiliar</td></tr>
+  <tr><td><code>clinic_data</code></td><td class="num">101</td><td><span class="pill ok">ok</span></td><td>Inclui 19 layers <code>lara_*</code> (DB-first canonical)</td></tr>
+  <tr><td><code>profiles</code></td><td class="num">5</td><td><span class="pill ok">ok</span></td><td>5 atendentes/admins</td></tr>
+  <tr><td><code>b2b_partnerships</code></td><td class="num">11</td><td><span class="pill ok">ok</span></td><td>10 ativos + 1 candidate</td></tr>
+  <tr><td><code>b2b_vouchers</code></td><td class="num">52</td><td><span class="pill ok">ok</span></td><td>Histórico voucher saudável</td></tr>
+  <tr><td><code>appointments</code></td><td class="num">3</td><td><span class="pill ok">ok</span></td><td>3 ativos pós-wipe 2026-04-24</td></tr>
+  <tr><td><code>orcamentos</code></td><td class="num">3</td><td><span class="pill ok">ok</span></td><td>3 ativos</td></tr>
+  <tr><td><code>inbox_notifications</code></td><td class="num">3</td><td><span class="pill ok">ok</span></td><td>Sino do dashboard funcionando</td></tr>
+  <tr><td><code>phase_history</code></td><td class="num">10</td><td><span class="pill ok">ok</span></td><td>Audit trail imutável (inserts only)</td></tr>
+  <tr><td><code>clinics</code></td><td class="num">1</td><td><span class="pill ok">ok</span></td><td>Mirian de Paula (single-tenant ativo)</td></tr>
+</table>
+
+<h2>4 · 🔥 DROP IMEDIATO (zero risco)</h2>
+
+<h3>4a · Tabelas de Backup</h3>
+<div class="card bad">
+  <p>Backups antigos · dados já consolidados nas tabelas vivas. Drop libera <strong>~530 KB</strong> e sinaliza intent claro.</p>
+  <table>
+    <tr><th>Tabela</th><th class="num">Rows</th><th class="num">Size</th><th>Observação</th></tr>
+    <tr><td><code>leads_backup_pre_refactor</code></td><td class="num">569</td><td class="num">512 KB</td><td>Backup do REFACTOR_LEAD_MODEL (Abr 2026) · refactor já consolidado</td></tr>
+    <tr><td><code>appointments_backup_pre_wipe_2026_04_24</code></td><td class="num">3</td><td class="num">8 KB</td><td>Backup do wipe de Abr 24 · não necessário</td></tr>
+    <tr><td><code>clinic_backup_log</code></td><td class="num">0</td><td class="num">8 KB</td><td>Tabela vazia · nunca foi usada</td></tr>
+  </table>
+</div>
+
+<h3>4b · Tabelas conceitualmente duplicadas (sem prefixo <code>wa_</code>)</h3>
+<div class="card bad">
+  <p>Versões antigas substituídas pelas com prefixo. Confirmadas <strong>UNUSED em todo código</strong> (Lara v2, Mira, dashboard legacy).</p>
+  <table>
+    <tr><th>Tabela legacy</th><th>Substituta canônica</th><th class="num">Rows</th><th>Status</th></tr>
+    <tr><td><code>conversations</code></td><td><code>wa_conversations</code> (73 rows)</td><td class="num">0</td><td><span class="pill bad">drop</span></td></tr>
+    <tr><td><code>messages</code></td><td><code>wa_messages</code> (531 rows)</td><td class="num">0</td><td><span class="pill bad">drop</span></td></tr>
+    <tr><td><code>notifications</code></td><td><code>inbox_notifications</code> (3 rows)</td><td class="num">0</td><td><span class="pill bad">drop</span></td></tr>
+    <tr><td><code>message_templates</code></td><td><code>wa_message_templates</code> (42 rows)</td><td class="num">0</td><td><span class="pill bad">drop</span></td></tr>
+  </table>
+</div>
+
+<h2>5 · 🟡 DROP CONTROLADO (zero-bytes + UNUSED em código)</h2>
+<div class="card warn">
+  <p>~25 tabelas criadas via migrations mas nunca chegaram a ser usadas (feature stub abandonada / experimento). Drop após confirmação visual sua.</p>
+  <table>
+    <tr><th>Tabela</th><th>Feature presumida</th><th>Por que drop</th></tr>
+    <tr><td><code>agenda_alerts_log</code></td><td>Agenda alerts</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>ai_interactions</code></td><td>Log de chamadas IA</td><td>0 rows · UNUSED · superseded por <code>budget_*</code></td></tr>
+    <tr><td><code>automation_flows</code></td><td>Flow builder</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>automation_logs</code></td><td>Flow builder</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>broadcast_recipients</code></td><td>Broadcast inboxes</td><td>0 rows · UNUSED · (broadcasts vazia mas USED_v2)</td></tr>
+    <tr><td><code>clinic_alexa_log</code></td><td>Alexa skill (?)</td><td>0 rows · UNUSED · projeto cancelado?</td></tr>
+    <tr><td><code>facial_analyses</code></td><td>Análise facial</td><td>0 rows · UNUSED em v2 (legacy criou)</td></tr>
+    <tr><td><code>facial_shares</code></td><td>Share facial</td><td>0 rows · UNUSED em v2</td></tr>
+    <tr><td><code>facial_share_access_log</code></td><td>Audit facial share</td><td>0 rows · UNUSED em v2</td></tr>
+    <tr><td><code>fin_annual_plan</code></td><td>Planejamento financeiro</td><td>0 rows · UNUSED · feature engavetada</td></tr>
+    <tr><td><code>fin_config</code></td><td>Config financeira</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>fm_share_rate_log</code></td><td>Rate limit share</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>fm_storage_cleanup_queue</code></td><td>Cleanup queue</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>lead_tags</code></td><td>Tags M2M</td><td>0 rows · superseded por <code>leads.tags[]</code> jsonb</td></tr>
+    <tr><td><code>lp_book_orders</code></td><td>LP Book funnel</td><td>0 rows · UNUSED · pode ter sido absorvido em <code>flipbook_*</code></td></tr>
+    <tr><td><code>lp_consents</code></td><td>LGPD consents LP</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>medical_record_attachments</code></td><td>Anexos prontuário</td><td>0 rows · UNUSED em v2</td></tr>
+    <tr><td><code>nps_responses</code></td><td>NPS antigo</td><td>0 rows · superseded por <code>b2b_nps_responses</code></td></tr>
+    <tr><td><code>pluggy_connections</code></td><td>Open Finance</td><td>0 rows · UNUSED · feature engavetada</td></tr>
+    <tr><td><code>tag_conflicts</code></td><td>Tag dedup</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>user_module_permissions</code></td><td>Permissões granulares</td><td>0 rows · superseded por <code>profiles.role</code></td></tr>
+    <tr><td><code>vpi_celebrations</code></td><td>VPI celebrations</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>retoque_campaigns</code></td><td>Retoque campaigns</td><td>0 rows · UNUSED</td></tr>
+    <tr><td><code>case_gallery</code></td><td>Galeria de casos</td><td>0 rows em v2 · USED_legacy_only (confirmar com Mirian se ainda usa em clinic-dashboard)</td></tr>
+    <tr><td><code>medical_record_attachments</code></td><td>Prontuário</td><td>0 rows · UNUSED em v2</td></tr>
+  </table>
+  <p><em>Decisão sua:</em> drop tudo agora vs. esperar próxima feature decidir reaproveitar nome.</p>
+</div>
+
+<h2>6 · ⛔ NÃO DROP · USED em legacy clinic-dashboard</h2>
+<div class="card warn">
+  <p>Tabelas vazias em produção mas referenciadas em código do clinic-dashboard antigo. Drop só depois do retire definitivo do legacy (memória <code>project_b2b_legacy_retirement</code> tem 3 etapas pendentes).</p>
+  <table>
+    <tr><th>Tabela</th><th>Onde é usada</th></tr>
+    <tr><td><code>anamnesis_answers</code></td><td><code>clinic-dashboard/js/form-render.js</code></td></tr>
+    <tr><td><code>anamnesis_response_flags</code></td><td><code>clinic-dashboard/js/anamnese.js</code></td></tr>
+    <tr><td><code>agenda_visibility</code></td><td><code>clinic-dashboard/js/repositories/agenda-visibility.repository.js</code></td></tr>
+    <tr><td><code>case_gallery</code></td><td><code>clinic-dashboard/js/case-gallery/case-gallery.service.js</code></td></tr>
+    <tr><td><code>facial_photos</code></td><td><code>clinic-dashboard/js/migrations/apply-facial.js</code></td></tr>
+  </table>
+</div>
+
+<h2>7 · 🔒 RLS Gaps</h2>
+<div class="card warn">
+  <p>4 tabelas com RLS habilitado mas <strong>zero policies</strong> · ninguém pode ler/escrever (exceto <code>service_role</code> que ignora RLS). Decisão por tabela:</p>
+  <table>
+    <tr><th>Tabela</th><th>Status atual</th><th>Decisão recomendada</th></tr>
+    <tr><td><code>magazine_config</code></td><td>service_role only</td><td>Adicionar policy SELECT pra authenticated da própria clinic_id</td></tr>
+    <tr><td><code>mira_conversation_state</code></td><td>service_role only</td><td>Intencional · estado interno da Mira · ok manter</td></tr>
+    <tr><td><code>wa_pro_config</code></td><td>service_role only</td><td>Verificar se UI Mira precisa ler · senão ok</td></tr>
+    <tr><td><code>b2b_panel_rate_limits</code></td><td>service_role only</td><td>Intencional · rate limits internos · ok</td></tr>
+  </table>
+</div>
+
+<h2>8 · ✅ Vazamentos já fechados (sessão de hoje)</h2>
+<div class="card ok">
+  <ul>
+    <li><strong>65 conversations órfãs sem <code>wa_number_id</code></strong> → backfilled pra Secretaria B&H · agora 0 órfãs</li>
+    <li><strong>Bug <code>resolveConversation</code></strong> não atualizava <code>wa_number_id</code> em conv existente → patched · próximas mensagens vão pro inbox correto</li>
+    <li><strong>Edge function <code>wa-inbound</code> legacy</strong> → deletada (não escrevia <code>wa_number_id</code>, era root cause das órfãs)</li>
+    <li><strong>Webhook Mih</strong> → reconfigurado pra Lara v2 <code>/api/webhook/whatsapp-evolution</code></li>
+    <li><strong>Sidebar legacy</strong> → "Central de Atendimento ↗" abre <code>/secretaria</code> standalone</li>
+  </ul>
+</div>
+
+<h2>9 · Migration plan recomendada</h2>
+<p>3 migrations separadas pra reduzir blast radius:</p>
+
+<h3>Mig 93 · DROP backup tables (zero risco)</h3>
+<pre>-- 3 tables consolidated, no production code references
+DROP TABLE IF EXISTS public.leads_backup_pre_refactor;
+DROP TABLE IF EXISTS public.appointments_backup_pre_wipe_2026_04_24;
+DROP TABLE IF EXISTS public.clinic_backup_log;</pre>
+
+<h3>Mig 94 · DROP duplicated tables (zero rows + zero refs)</h3>
+<pre>DROP TABLE IF EXISTS public.conversations;
+DROP TABLE IF EXISTS public.messages;
+DROP TABLE IF EXISTS public.notifications;
+DROP TABLE IF EXISTS public.message_templates;</pre>
+
+<h3>Mig 95 · DROP unused-in-code tables (lista da seção 5)</h3>
+<p>Drops em batch · gerar com lista exata depois da sua aprovação visual da seção 5.</p>
+
+<h2>10 · Próximos passos sugeridos</h2>
+<ol>
+  <li><strong>Você decide:</strong> aplica mig 93 + 94 agora (zero risco)?</li>
+  <li><strong>Você revisa:</strong> a lista da seção 5 · marca quais tabelas ainda quer manter "por garantia"?</li>
+  <li><strong>Eu aplico:</strong> mig 95 com a lista revisada</li>
+  <li><strong>Legacy retirement final:</strong> quando o clinic-dashboard for desligado de vez (memória <code>project_b2b_legacy_retirement</code>), drop das 5 da seção 6</li>
+</ol>
+
+<p class="meta" style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+  Auditoria executada em 2026-05-03 · ferramenta: Supabase Mgmt API + cross-reference de código nos repos clinicai-v2 e clinic-dashboard.
+</p>
+
+</body>
+</html>
