@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { ensureRoleDefaults } from '@/hooks/useNotificationSettings';
 import { ConversationList } from '../conversas/components/ConversationList';
 import { MessageArea } from '../conversas/components/MessageArea';
 import { LeadInfoPanel } from '../conversas/components/LeadInfoPanel';
@@ -117,6 +118,12 @@ export default function SecretariaPage() {
   useEffect(() => {
     updateTabTitle(aguardando);
   }, [aguardando]);
+
+  // Override defaults pra perfil sénior · onlyWhenHidden=false · idempotente
+  // (não sobrescreve se user já mexeu nas prefs)
+  useEffect(() => {
+    ensureRoleDefaults('secretaria');
+  }, []);
 
   useEffect(() => {
     if (selectedConversation?.conversation_id) {

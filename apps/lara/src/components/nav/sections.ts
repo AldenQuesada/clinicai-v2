@@ -18,6 +18,7 @@ import {
   Settings,
   ClipboardList,
   Briefcase,
+  Bell,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -58,6 +59,15 @@ export const SECTIONS: readonly Section[] = [
     label: 'Secretaria',
     path: '/secretaria',
     icon: MessageSquareText,
+    requires: 'secretaria:view-inbox',
+  },
+  {
+    // Settings de notificacao acessiveis pra role secretaria · reusa
+    // NotificationSettingsPanel do /configuracoes (que role secretaria nao acessa)
+    key: 'secretaria-notificacoes',
+    label: 'Notificações',
+    path: '/secretaria/notificacoes',
+    icon: Bell,
     requires: 'secretaria:view-inbox',
   },
   {

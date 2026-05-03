@@ -25,6 +25,30 @@ const DEFAULTS: NotificationSettings = {
   onlyWhenHidden: true,
 }
 
+/**
+ * Defaults role-specific · perfil sénior (secretaria) precisa ser interrompida
+ * mesmo com aba focada · ela alterna entre WhatsApp/agenda/papel.
+ */
+const ROLE_DEFAULTS: Partial<Record<string, NotificationSettings>> = {
+  secretaria: {
+    enabled: true,
+    sound: true,
+    onlyWhenHidden: false, // override · sempre notifica desktop (mesmo aba focada)
+  },
+}
+
+/**
+ * Aplica defaults role-specific · só grava se localStorage estiver vazio
+ * (não sobrescreve preferências que o user já mexeu). Idempotente · safe
+ * pra chamar em todo mount de page.
+ */
+export function ensureRoleDefaults(role: string | null | undefined) {
+  if (typeof window === 'undefined') return
+  if (localStorage.getItem(STORAGE_KEY)) return // user já mexeu · respeita
+  const defaults = (role && ROLE_DEFAULTS[role]) || DEFAULTS
+  write(defaults)
+}
+
 function read(): NotificationSettings {
   if (typeof window === 'undefined') return DEFAULTS
   try {
