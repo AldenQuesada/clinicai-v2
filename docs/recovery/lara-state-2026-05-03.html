@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lara · Estado Canônico · 2026-05-03</title>
+<style>
+  :root {
+    --gold: #C9A96E; --gold-soft: rgba(201, 169, 110, 0.15);
+    --ivory: #F5F0E8; --bg-0: #0F0D0A; --bg-1: #1A1814; --bg-2: #211E1A;
+    --border: rgba(245, 240, 232, 0.08); --border-strong: rgba(201, 169, 110, 0.3);
+    --muted: #9CA3AF; --dim: #6B7280;
+    --green: #10B981; --yellow: #F59E0B; --red: #EF4444;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--ivory); font-family: 'Inter', -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  code { background: rgba(245,240,232,0.06); padding: 1px 6px; border-radius: 3px; font-size: 0.92em; color: var(--gold); font-family: 'JetBrains Mono', Consolas, monospace; }
+  pre { background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12px; line-height: 1.55; font-family: 'JetBrains Mono', Consolas, monospace; }
+  pre code { background: none; padding: 0; color: inherit; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 32px; }
+  .eyebrow { font-size: 11px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 10px; }
+  h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; font-weight: 400; margin: 0 0 8px; }
+  h1 em { color: var(--gold); font-style: italic; }
+  .lede { font-size: 15px; color: var(--muted); max-width: 780px; line-height: 1.7; }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 12px; color: var(--muted); }
+  .meta strong { color: var(--ivory); }
+  h2 { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 500; margin: 36px 0 14px; }
+  h2 em { color: var(--gold); font-style: italic; }
+  h3 { font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: 1.2px; text-transform: uppercase; margin: 22px 0 8px; }
+  section { margin-bottom: 28px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; padding: 22px 28px; }
+  section.danger { border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.04); }
+  section p { font-size: 13.5px; color: var(--ivory); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  td.muted { color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  ul li { margin-bottom: 6px; line-height: 1.65; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .pill.good { background: rgba(16,185,129,0.15); color: #6EE7B7; border: 1px solid rgba(16,185,129,0.4); }
+  .pill.warn { background: rgba(245,158,11,0.15); color: #FCD34D; border: 1px solid rgba(245,158,11,0.4); }
+  .pill.danger { background: rgba(239,68,68,0.15); color: #FCA5A5; border: 1px solid rgba(239,68,68,0.4); }
+  .pill.gold { background: var(--gold-soft); color: var(--gold); border: 1px solid var(--border-strong); }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { padding-left: 28px; position: relative; margin-bottom: 8px; }
+  .checklist li::before { content: '☐'; position: absolute; left: 0; color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="eyebrow">Lara · estado canônico</div>
+  <h1>Snapshot · <em>recovery</em> · 2026-05-03</h1>
+  <p class="lede">
+    Estado funcional de produção do Lara v2 (apps/lara) com a Clínica Mirian de Paula
+    em 2026-05-03. Documento serve como ponto de restauração se algo for derrubado em
+    sessão futura. Não é backup de dados — é referência de configuração + procedimento
+    de rollback.
+  </p>
+  <div class="meta">
+    <span><strong>Repo:</strong> github.com/AldenQuesada/clinicai-v2</span>
+    <span><strong>Branch:</strong> main</span>
+    <span><strong>Last commit:</strong> <code>34dfc95</code></span>
+    <span><strong>Status:</strong> <span class="pill good">production</span></span>
+  </div>
+</header>
+
+<section>
+  <h2>1 · Git <em>baseline</em></h2>
+  <p><strong>Último commit estável:</strong> <code>34dfc95616f12f3e9a812e530a28019e92608931</code></p>
+  <p><strong>Mensagem:</strong> <em>"feat(lara): queixas via chat + NextActions 3 cards com escala de cores"</em></p>
+
+  <h3>Últimos 10 commits (em ordem reversa)</h3>
+  <pre><code>34dfc95 feat(lara): queixas via chat + NextActions 3 cards com escala de cores
+f7d3cf3 ui(lara): /conversas painel direito refactor 3 zonas (Fase 1+2 audit)
+7daf914 ui(lara): MediaEditDrawer 2-col layout · sem scroll
+08437bb fix(lara): /midia queixas como chips clicaveis + key remount no edit drawer
+4ec27ad fix(lara): /midia salva mas UI nao atualizava · router.refresh() apos save
+58e2eea fix(lara): edit /midia salva silencioso · detectar RLS bloqueio + log
+d6c854f fix(lara): edit travava em 'Salvando' · trocar bind por hidden input
+b544930 ui(lara): /midia DNA v2 · 1 botao funcional + cards limpos sem italic forcado
+025fd8d feat(lara): clausula petrea · DB-first canonico, fallback fs com log alto
+2a8e08c feat(lara): /midia categorias institucionais + fix edit nao-salvava</code></pre>
+
+  <h3>Rollback rápido</h3>
+  <pre><code># Reset HARD pro último commit estável (perde alterações locais)
+git reset --hard 34dfc95
+git push --force origin main   # CUIDADO · só se necessário em emergência</code></pre>
+</section>
+
+<section>
+  <h2>2 · Schema do banco · <em>migrations</em> aplicadas</h2>
+  <p>Migrations relevantes em <code>db/migrations/</code> · todas idempotentes (IF NOT EXISTS):</p>
+  <table>
+    <thead><tr><th>Migration</th><th>Função</th></tr></thead>
+    <tbody>
+      <tr><td><code>20260800000086</code></td><td>wa_messages.internal_note + delivery_status (Sprint C)</td></tr>
+      <tr><td><code>20260800000087</code></td><td>P-12 multi-atendente · wa_conversations.assigned_to + assigned_at + RPCs</td></tr>
+      <tr><td><code>20260800000088</code></td><td>B2B dispatch quiet hours</td></tr>
+      <tr><td><code>20260800000089</code></td><td>Admin pending drain + financial crons</td></tr>
+      <tr><td><code>20260800000090</code></td><td>SDR clinic_id wrapper</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Tabelas críticas pra Lara</h3>
+  <ul>
+    <li><code>wa_conversations</code> · colunas-chave: <code>id, clinic_id, phone, lead_id, status, ai_enabled, ai_paused_until, last_message_at, last_lead_msg, wa_number_id, ai_copilot, internal_note, delivery_status, assigned_to, assigned_at</code></li>
+    <li><code>wa_messages</code> · <code>id, conversation_id, direction, sender, content, content_type, media_url, status, internal_note, delivery_status, sent_at</code></li>
+    <li><code>wa_media_bank</code> · <code>id, clinic_id, filename, url, category, funnel, queixas[], phase, caption, is_active, sort_order</code></li>
+    <li><code>leads</code> · <code>queixas_faciais[]</code> populada por quiz <strong>e</strong> chat (parseQueixas no webhook desde 2026-04-30)</li>
+    <li><code>clinic_data</code> · 19 layers <code>lara_*</code> com prompts (ver seção 3)</li>
+    <li><code>wa_numbers</code> · 5 rows ativas (ver seção 4)</li>
+  </ul>
+</section>
+
+<section>
+  <h2>3 · Prompts da Lara · <em>DB override</em> (cláusula pétrea)</h2>
+  <p>
+    <span class="pill gold">CANÔNICO</span> · 19 layers em <code>clinic_data.lara_*</code>
+    do clinic_id <code>00000000-0000-0000-0000-000000000001</code>. DB-first
+    (cláusula pétrea desde commit <code>025fd8d</code>) · <code>.md</code> só fallback
+    com log loud.
+  </p>
+  <p><strong>Backup completo (snapshot):</strong> <code>docs/recovery/lara-prompts-backup-2026-05-03.json</code> (59KB)</p>
+
+  <table>
+    <thead><tr><th>Layer (key)</th><th>Chars</th><th>Última edição</th></tr></thead>
+    <tbody>
+      <tr><td><code>lara_prompt_base</code> ⭐</td><td>13034</td><td>2026-05-03 (sem-asteriscos + tags institucionais + extrair queixas chat)</td></tr>
+      <tr><td><code>lara_prompt_compact</code></td><td>3347</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_olheiras</code></td><td>4506</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_fullface</code></td><td>6112</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_prices_defense</code></td><td>4256</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_voucher_recipient</code></td><td>3150</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_persona_*</code> (5 personas)</td><td>1262-2200</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_prompt_cold_open_*</code> (6 cold-opens)</td><td>1656-2061</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_fixed_msg_0</code></td><td>228</td><td>2026-04-28</td></tr>
+      <tr><td><code>lara_fixed_msg_1</code></td><td>160</td><td>2026-04-28</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Restaurar 1 layer do backup</h3>
+  <pre><code># Lê o backup local · extrai conteúdo da key · faz UPDATE no DB
+KEY="lara_prompt_base"  # ou outro
+node -e "
+  const fs = require('fs');
+  const j = JSON.parse(fs.readFileSync('docs/recovery/lara-prompts-backup-2026-05-03.json'));
+  const row = j.find(r => r.key === '$KEY');
+  if (!row) throw new Error('key not found');
+  const sql = \`UPDATE clinic_data SET data = to_jsonb(\$\$\${row.content}\$\$::text), updated_at = NOW() WHERE clinic_id = app_clinic_id()::text AND key = '$KEY';\`;
+  fs.writeFileSync('C:/tmp/restore.json', JSON.stringify({ query: sql }));
+"
+curl -s -X POST "https://api.supabase.com/v1/projects/oqboitkpcvuaudouwvkl/database/query" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @C:/tmp/restore.json</code></pre>
+</section>
+
+<section>
+  <h2>4 · WhatsApp Cloud · <em>wa_numbers</em></h2>
+  <table>
+    <thead><tr><th>Phone</th><th>Label</th><th>Tipo</th><th>Ativo</th></tr></thead>
+    <tbody>
+      <tr><td><code>554499588773</code> ⭐</td><td>Lara · Clínica AI · Mirian de Paula</td><td>clinic_official</td><td>✓</td></tr>
+      <tr><td><code>5544991622986</code></td><td>Lara (raiz · VPI + voucher convidadas)</td><td>clinic_official</td><td>✓</td></tr>
+      <tr><td><code>5544998787673</code></td><td>Mira (onboarding + parceiros B2B)</td><td>clinic_official</td><td>✓</td></tr>
+      <tr><td><code>5544998782003</code></td><td>Canal auxiliar (a confirmar uso)</td><td>professional_private</td><td>✓</td></tr>
+      <tr><td><code>5544991681891</code></td><td>Mira Marci</td><td>professional_private</td><td>✓</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">
+    O número canônico da Lara hoje é <code>554499588773</code> (id <code>2685f8c1-e324-4639-ac8d-f1eef5c990dc</code>).
+    A migração da Mih → Cloud aconteceu na mig 0851 (memo: project_lara_v2_migration).
+    Coluna <code>persona</code> ainda <strong>não existe</strong> · seria adicionada na proposta de handoff Lara→Secretaria.
+  </p>
+</section>
+
+<section>
+  <h2>5 · Easypanel · <em>env vars</em> requeridas</h2>
+  <table>
+    <thead><tr><th>Var</th><th>Valor</th><th>Crítica?</th></tr></thead>
+    <tbody>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>https://oqboitkpcvuaudouwvkl.supabase.co</td><td><span class="pill danger">sim · presence/typing quebra sem</span></td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>(anon JWT)</td><td><span class="pill danger">sim</span></td></tr>
+      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>(service role JWT)</td><td><span class="pill danger">sim · webhook não autoriza sem</span></td></tr>
+      <tr><td><code>ANTHROPIC_API_KEY</code></td><td>sk-ant-…</td><td><span class="pill danger">sim · Lara não responde sem</span></td></tr>
+      <tr><td><code>WHATSAPP_ACCESS_TOKEN</code></td><td>(fallback global)</td><td><span class="pill warn">deprecated · ADR-028 lê de <code>wa_numbers</code></span></td></tr>
+      <tr><td><code>WHATSAPP_PHONE_NUMBER_ID</code></td><td>(fallback global)</td><td><span class="pill warn">deprecated</span></td></tr>
+      <tr><td><code>META_APP_SECRET</code></td><td>(HMAC validation)</td><td><span class="pill warn">prod fail-closed</span></td></tr>
+      <tr><td><code>WHATSAPP_VERIFY_TOKEN</code></td><td>(webhook verification)</td><td><span class="pill warn">handshake Meta</span></td></tr>
+      <tr><td><code>NEXT_PUBLIC_PAINEL_URL</code></td><td>https://painel.miriandpaula.com.br</td><td>(atalhos CRM)</td></tr>
+      <tr><td><code>LARA_PROMPT_DB_STRICT</code></td><td>true (opcional)</td><td>cláusula pétrea forte · throw se DB vazio</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SENTRY_DSN</code></td><td>(opcional)</td><td>monitoramento de erros</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>6 · Buckets · <em>Supabase Storage</em></h2>
+  <ul>
+    <li><code>media</code> (público) · paths: <code>before-after/{funnel}/</code>, <code>consulta/</code>, <code>anovator/</code>, <code>biometria/</code>, <code>clinica/</code>, <code>wa-uploads/{clinic_id}/{conv_id}/</code></li>
+    <li>RLS: <code>media_public_read</code> + <code>media_public_insert</code> abertas</li>
+    <li>Backup atual no Drive · cofre <code>cofre-clinicai.tar.gz.gpg</code> (memo)</li>
+  </ul>
+</section>
+
+<section>
+  <h2>7 · Funcionalidades <em>operacionais</em> hoje</h2>
+  <ul>
+    <li><strong>/conversas</strong> · inbox Lara · 100% das 15 fraquezas P0-P3 fechadas (P-01..P-15)</li>
+    <li><strong>P-12 multi-atendente</strong> · 4 fases live (assignment + presence + typing)</li>
+    <li><strong>P-07 upload de mídia</strong> · imagem/áudio/PDF inline (lamejs transcode webm→mp3)</li>
+    <li><strong>/midia</strong> · banco de fotos · 5 categorias (before_after / consulta / anovator / biometria / clinica) · upload + edit funcional</li>
+    <li><strong>/prompts</strong> · editor visual dos 19 layers do DB</li>
+    <li><strong>Webhook</strong> · parseScore + parseTags + parseQueixas + parseFunnel + handoff [ACIONAR_HUMANO]</li>
+    <li><strong>Copilot AI</strong> · 1 chamada Anthropic gera summary + next_actions + smart_replies (Sprint B)</li>
+    <li><strong>Cláusula pétrea</strong> · prompts DB-first canônico desde 025fd8d</li>
+  </ul>
+</section>
+
+<section class="danger">
+  <h2>8 · Procedimento de <em>recovery</em> em emergência</h2>
+  <ol>
+    <li>
+      <strong>Reverter código no main</strong>
+      <pre><code>cd ~/Documents/clinicai-v2
+git fetch origin
+git reset --hard 34dfc95
+git push --force-with-lease origin main</code></pre>
+    </li>
+    <li>
+      <strong>Aguardar Easypanel rebuild</strong> (~3 min) · confirmar build success no painel
+    </li>
+    <li>
+      <strong>Restaurar prompts no DB</strong> (se foram corrompidos)
+      <pre><code># Restaurar TODOS os 19 layers
+node scripts/restore-lara-prompts.cjs
+# Ou um a um · ver seção 3</code></pre>
+    </li>
+    <li>
+      <strong>Validar produção</strong>
+      <ul>
+        <li>https://lara.miriandpaula.com.br/conversas — abrir e selecionar conversa</li>
+        <li>https://lara.miriandpaula.com.br/midia — galeria carrega · upload abre modal</li>
+        <li>https://lara.miriandpaula.com.br/prompts — 19 layers populados (não vazios)</li>
+        <li>Mandar WhatsApp pra <code>+554499588773</code> e ver se Lara responde em ~5s</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Validar logs Easypanel</strong>
+      <ul>
+        <li>Sem ocorrências de <code>PROMPT.LAYER.FS_FALLBACK</code> (= DB OK)</li>
+        <li>Sem ocorrências de <code>500 webhook error</code> nos últimos 5 min</li>
+      </ul>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <h2>9 · Memória <em>persistente</em> deste estado</h2>
+  <p>
+    Memory salvo em
+    <code>~/.claude/projects/C--Users-Dr-Quesada/memory/project_lara_state_canon.md</code>
+    apontando pra este doc. Em sessão futura, Claude carrega e tem o ponto de
+    referência sem precisar revar tudo.
+  </p>
+</section>
+
+</div>
+</body>
+</html>
