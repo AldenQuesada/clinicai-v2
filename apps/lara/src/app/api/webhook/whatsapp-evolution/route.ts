@@ -100,9 +100,17 @@ export async function POST(request: NextRequest) {
 
   const data = body?.data ?? {};
   const key = data?.key ?? {};
-  if (key?.fromMe) {
-    return NextResponse.json({ ok: true, skip: 'outbound' });
-  }
+  // fromMe=true: outbound. Pode ser:
+  //   (a) Bot enviou via nossa API · ja tem registro em wa_messages · Evolution
+  //       eco · webhook ignora pra evitar duplicata. Detectamos via wa_message_id
+  //       ou content match nos últimos segundos.
+  //   (b) Humano da clinica digitou DIRETO no celular fisico (Marct/Luciana
+  //       confirmando horario) · NAO ESTA NO DB · webhook tem que registrar
+  //       senao /secretaria perde historico de saida.
+  // Decisao: deixa passar com flag isOutboundFromDevice · branch dedicada
+  // mais abaixo pra salvar como outbound + sender='humano' sem disparar
+  // auto-greeting nem inbox notification.
+  const isOutboundFromDevice = !!key?.fromMe;
 
   const remoteJid: string = key?.remoteJid || '';
   if (!remoteJid || remoteJid.includes('@g.us')) {
@@ -110,8 +118,11 @@ export async function POST(request: NextRequest) {
   }
 
   // WhatsApp privacy mode (LID) · phone real vai em key.senderPn / data.senderPn
+  // (so pra inbound · outbound usa remoteJid puro como destinatario do envio).
   let phone: string;
-  if (remoteJid.endsWith('@lid')) {
+  if (isOutboundFromDevice) {
+    phone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
+  } else if (remoteJid.endsWith('@lid')) {
     const senderPn = key?.senderPn || data?.senderPn || '';
     phone = senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
     if (!phone) {
@@ -290,8 +301,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Lead + conversation com wa_number_id correto (trigger sincroniza inbox_role)
-  const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName });
+  // Lead + conversation com wa_number_id correto (trigger sincroniza inbox_role).
+  // Pra outbound device, pushName eh "Você"/"Clinica..." · ignora pra nao
+  // sobrescrever nome do lead (paciente · vem do inbound subsequente).
+  const safePushName = isOutboundFromDevice ? '' : pushName;
+  const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName });
   if (!lead) {
     log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
     return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
@@ -302,7 +316,7 @@ export async function POST(request: NextRequest) {
     clinic_id,
     phone,
     lead,
-    pushName,
+    pushName: safePushName,
     waNumberId: wa_number_id,
   });
   if (!conv) {
@@ -315,6 +329,63 @@ export async function POST(request: NextRequest) {
   }
 
   const sentAtStr = new Date().toISOString();
+
+  // ─── Branch OUTBOUND humano · clinica digitou direto no celular fisico ────
+  // Salva como outbound + sender='humano' · NAO dispara auto-greeting nem
+  // inbox notification (eco do nosso proprio envio nao precisa alertar nada).
+  // Dedup adicional por content match nos ultimos 30s evita registrar duas
+  // vezes mensagens que SAIRAM via /api/conversations/[id]/messages (eco do
+  // proprio bot · Evolution reflete tudo que sai inclusive pelo endpoint).
+  if (isOutboundFromDevice) {
+    // Se ja temos o conteudo identico em outbound recente · provavelmente
+    // foi enviado via app · skip pra nao duplicar
+    const recentOutboundDup = await (async () => {
+      try {
+        const cutoff = new Date(Date.now() - 30_000).toISOString();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: dup } = await (supabase as any)
+          .from('wa_messages')
+          .select('id')
+          .eq('conversation_id', conv.id)
+          .eq('direction', 'outbound')
+          .eq('content', content)
+          .gte('sent_at', cutoff)
+          .maybeSingle();
+        return !!dup;
+      } catch { return false; }
+    })();
+    if (recentOutboundDup) {
+      log.info(
+        { clinic_id, conv_id: conv.id, contentPreview: content.slice(0, 60) },
+        'webhook_evolution.outbound_device.skip_app_echo',
+      );
+      return NextResponse.json({ ok: true, skip: 'app_echo' });
+    }
+
+    const outId = await repos.messages.saveOutbound(clinic_id, {
+      conversationId: conv.id,
+      sender: 'humano',
+      content,
+      contentType,
+      mediaUrl,
+      sentAt: sentAtStr,
+      status: 'sent',
+    });
+    if (outId) {
+      await repos.conversations.updateLastMessage(conv.id, content, false, sentAtStr);
+      log.info(
+        { clinic_id, conv_id: conv.id, contentType },
+        'webhook_evolution.outbound_device.saved',
+      );
+    } else {
+      log.warn(
+        { clinic_id, conv_id: conv.id },
+        'webhook_evolution.outbound_device.save_failed',
+      );
+    }
+    return NextResponse.json({ ok: true, kind: 'outbound_device', conversation_id: conv.id });
+  }
+
   const insertedId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
