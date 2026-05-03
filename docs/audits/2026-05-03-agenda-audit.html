@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Audit · Tabelas de Agendamento · 2026-05-03</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, system-ui, sans-serif; max-width: 1100px; margin: 32px auto; padding: 0 24px; color: #1f2933; line-height: 1.55; }
+    h1 { font-size: 26px; border-bottom: 2px solid #C9A96E; padding-bottom: 8px; }
+    h2 { font-size: 19px; margin-top: 36px; border-left: 3px solid #C9A96E; padding-left: 10px; }
+    h3 { font-size: 15px; margin-top: 20px; color: #4b5563; }
+    .meta { color: #6b7280; font-size: 13px; }
+    .card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+    .ok { background: #ecfdf5; border-color: #a7f3d0; }
+    .warn { background: #fffbeb; border-color: #fde68a; }
+    .bad { background: #fef2f2; border-color: #fecaca; }
+    .info { background: #eff6ff; border-color: #bfdbfe; }
+    .priority { background: #fef3c7; border-color: #fbbf24; border-left: 4px solid #d97706; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .pill.ok { background: #d1fae5; color: #047857; }
+    .pill.warn { background: #fef3c7; color: #92400e; }
+    .pill.bad { background: #fee2e2; color: #b91c1c; }
+    .pill.info { background: #dbeafe; color: #1e40af; }
+    .pill.gold { background: rgba(201,169,110,0.18); color: #92722d; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+    th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    th { background: #f9fafb; font-weight: 600; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .num { text-align: right; font-feature-settings: "tnum"; }
+    em.gold { color: #C9A96E; font-style: italic; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<h1>Audit · Tabelas de <em class="gold">agendamento</em></h1>
+<p class="meta">2026-05-03 · pós-mig 103 (alinhamento DB↔TS) · análise de schema, automations, crons e gaps</p>
+
+<h2>1 · Resumo executivo</h2>
+<div class="card info">
+  <ul>
+    <li><strong>Schema robusto e bem-pensado</strong> · 35 colunas em <code>appointments</code> · ADR-022 (subject XOR lead/patient) · recurrence support · audit trail (chegada/cancel/no_show) · soft delete</li>
+    <li><strong>38 RPCs</strong> · cobre lifecycle completo: <code>lead_to_appointment</code>, <code>appointment_finalize</code>, <code>appointment_change_status</code>, <code>wa_pro_stage_create/cancel/reschedule_appointment</code>, <code>wa_auto_confirm_appointment</code>, etc</li>
+    <li><strong>68 automations ativas</strong> em <code>wa_agenda_automations</code> · 12 tipos de trigger (on_status, on_tag, d_before, min_before, etc) — máquina pesada já rodando</li>
+    <li><strong>7 cron jobs</strong> ativos relacionados a agenda · <code>agenda_alert_min_before_tick</code> a cada 1min · <code>mira_preconsult_alerts</code> a cada 5min em horário comercial</li>
+    <li><strong>Gap principal:</strong> <strong>UI · ninguém usa</strong> · 0 appointments futuros no DB · clínica deve estar usando agenda externa (papel/Google Calendar) e não migrou</li>
+  </ul>
+</div>
+
+<h2>2 · Tabelas inventariadas</h2>
+<table>
+  <tr><th>Tabela</th><th class="num">Tamanho</th><th class="num">Rows</th><th>Status</th></tr>
+  <tr><td><code>appointments</code> (core)</td><td class="num">8 KB</td><td class="num">3 (todos finalizados)</td><td><span class="pill warn">subutilizada</span></td></tr>
+  <tr><td><code>wa_agenda_automations</code></td><td class="num">96 KB</td><td class="num">93 (68 ativas)</td><td><span class="pill ok">infra rica</span></td></tr>
+  <tr><td><code>agenda_alerts_log</code></td><td class="num">0 bytes</td><td class="num">0</td><td><span class="pill warn">recriada vazia mig 99 · cron tick mas nada enqueued</span></td></tr>
+  <tr><td><code>agenda_visibility</code></td><td class="num">0 bytes</td><td class="num">0</td><td><span class="pill bad">legacy clinic-dashboard · não usado em v2</span></td></tr>
+  <tr><td><code>retoque_campaigns</code></td><td class="num">0 bytes</td><td class="num">0</td><td><span class="pill warn">recriada vazia · feature engavetada</span></td></tr>
+  <tr><td><code>phase_history</code></td><td class="num">8 KB</td><td class="num">10</td><td><span class="pill ok">audit phase transitions</span></td></tr>
+</table>
+
+<h2>3 · Schema <code>appointments</code> · pontos fortes</h2>
+<div class="card ok">
+  <table>
+    <tr><th>Feature</th><th>Coluna(s)</th><th>Por que é forte</th></tr>
+    <tr><td>Subject XOR</td><td><code>lead_id</code> XOR <code>patient_id</code></td><td>Mesmo schema serve lead pré-conversão e paciente recorrente · CHECK constraint enforce</td></tr>
+    <tr><td>Recurrence</td><td><code>recurrence_group_id</code>, <code>recurrence_index</code>, <code>recurrence_total</code>, <code>recurrence_procedure</code>, <code>recurrence_interval_days</code></td><td>Suporta protocolos multi-sessão (ex: 6 sessões a cada 15d)</td></tr>
+    <tr><td>Audit trail</td><td><code>chegada_em</code>, <code>cancelado_em</code>, <code>no_show_em</code>, <code>motivo_cancelamento</code>, <code>motivo_no_show</code></td><td>Métricas operacionais granulares</td></tr>
+    <tr><td>Snapshot imutável</td><td><code>subject_name</code>, <code>professional_name</code>, <code>procedure_name</code></td><td>Histórico não muda mesmo se lead/professional renomearem</td></tr>
+    <tr><td>Soft delete</td><td><code>deleted_at</code></td><td>Reversível · queries default filtram</td></tr>
+    <tr><td>Profissional + sala</td><td><code>professional_id</code>, <code>room_idx</code></td><td>Multi-profissional · multi-sala</td></tr>
+    <tr><td>Pagamento</td><td><code>payment_status</code> CHECK (pendente·parcial·pago·isento), <code>payment_method</code>, <code>value</code></td><td>Cobrança trackeada</td></tr>
+    <tr><td>Consentimento imagem</td><td><code>consentimento_img</code> CHECK (pendente·assinado·recusado·nao_aplica)</td><td>Compliance LGPD</td></tr>
+  </table>
+</div>
+
+<h2>4 · State machine · 13 statuses (pós-mig 103)</h2>
+<table>
+  <tr><th>Status</th><th>Significado</th><th>Transições válidas (RPC <code>_appointment_status_transition_allowed</code>)</th></tr>
+  <tr><td><code>agendado</code></td><td>Marcado</td><td>→ aguardando_confirmacao · confirmado · cancelado · remarcado</td></tr>
+  <tr><td><code>aguardando_confirmacao</code></td><td>Aguarda paciente confirmar</td><td>→ confirmado · cancelado · no_show</td></tr>
+  <tr><td><code>confirmado</code></td><td>Paciente confirmou</td><td>→ pre_consulta · aguardando · cancelado · no_show</td></tr>
+  <tr><td><code>pre_consulta</code></td><td>Briefing/jejum</td><td>→ aguardando · cancelado</td></tr>
+  <tr><td><code>aguardando</code></td><td>Sala de espera</td><td>→ na_clinica · em_consulta</td></tr>
+  <tr><td><code>na_clinica</code></td><td>Já entrou</td><td>→ em_consulta · em_atendimento</td></tr>
+  <tr><td><code>em_consulta</code></td><td>Avaliação</td><td>→ em_atendimento · finalizado</td></tr>
+  <tr><td><code>em_atendimento</code></td><td>Procedimento</td><td>→ finalizado</td></tr>
+  <tr><td><code>finalizado</code></td><td>Encerrado</td><td>(estado final · gera follow-ups)</td></tr>
+  <tr><td><code>remarcado</code></td><td>Reagendado</td><td>→ agendado</td></tr>
+  <tr><td><code>cancelado</code></td><td>Cancelado</td><td>(final · exige <code>motivo_cancelamento</code>)</td></tr>
+  <tr><td><code>no_show</code></td><td>Não compareceu</td><td>(final · exige <code>motivo_no_show</code>)</td></tr>
+  <tr><td><code>bloqueado</code></td><td>Slot reservado (sem paciente)</td><td>(separado · lead/patient null)</td></tr>
+</table>
+
+<h2>5 · Automations · <code>wa_agenda_automations</code></h2>
+<div class="card ok">
+  <p>68 automations ATIVAS (de 93 totais) · disparadas por 12 tipos de trigger:</p>
+  <table>
+    <tr><th>Trigger type</th><th class="num">Qtd ativa</th><th>Significado</th></tr>
+    <tr><td><code>on_tag</code></td><td class="num">21</td><td>Tag aplicada no lead → dispara mensagem</td></tr>
+    <tr><td><code>on_status</code></td><td class="num">16</td><td>Status do appointment muda (ex: confirmado → manda lembrete)</td></tr>
+    <tr><td><code>on_demand</code></td><td class="num">15</td><td>Botão UI · atendente dispara manualmente</td></tr>
+    <tr><td><code>d_after</code></td><td class="num">5</td><td>X dias DEPOIS do appointment (pós-procedimento, retoque)</td></tr>
+    <tr><td><code>d_before</code></td><td class="num">2</td><td>X dias ANTES (lembrete pré-consulta)</td></tr>
+    <tr><td><code>on_inbound_match</code></td><td class="num">2</td><td>Paciente diz X → dispara Y</td></tr>
+    <tr><td><code>min_before</code></td><td class="num">1</td><td>X minutos antes (cron tick · 1/min)</td></tr>
+    <tr><td>outros</td><td class="num">6</td><td>on_finalize · on_vpi_* · daily_summary · etc</td></tr>
+  </table>
+  <p><strong>Implicação:</strong> a clínica TEM uma máquina de comunicação automatizada robusta · só não tem UI de gerenciamento exposta pra secretaria/admin no Lara v2. Vive escondida.</p>
+</div>
+
+<h2>6 · Cron jobs ativos</h2>
+<table>
+  <tr><th>Job</th><th>Schedule</th><th>O que faz</th></tr>
+  <tr><td><code>agenda_alert_min_before_tick</code></td><td>1 em 1 min</td><td>Procura appointments próximos · enqueue alerts</td></tr>
+  <tr><td><code>daily-agenda-summary</code></td><td>11h todo dia</td><td>Resumo diário pra clínica</td></tr>
+  <tr><td><code>mira_birthday_alerts</code></td><td>10h todo dia</td><td>Aniversariantes do dia</td></tr>
+  <tr><td><code>mira_preconsult_alerts</code></td><td>5 em 5 min · 11h-23h · seg-sáb</td><td>Lembretes D-1 contínuos em horário comercial</td></tr>
+  <tr><td><code>quiz-alerts-{daily,weekly,monthly}</code></td><td>21h variados</td><td>Alertas baseados em quiz</td></tr>
+</table>
+
+<h2>7 · 🔥 Gaps + Recomendações</h2>
+
+<div class="card priority">
+  <h3>Gap #1 · Secretaria não tem UI pra criar/editar appointment direto</h3>
+  <p>Hoje a secretaria recebe pedido de horário no chat, vai pra <code>/crm/agenda</code> (interface técnica), agenda manualmente lá. Cliques: muitos. Persona idosa: travada.</p>
+  <p><strong>Solução:</strong> Sprint 2 do roadmap · botão <strong>"Criar agendamento"</strong> direto na <code>/secretaria</code> · wizard mini de 3 passos:</p>
+  <ol>
+    <li>Procedimento (dropdown com top 8 da clínica)</li>
+    <li>Data + horário (calendário com slots livres do profissional)</li>
+    <li>Confirmar → cria appointment + dispara mensagem confirmação</li>
+  </ol>
+  <p>Reusa <code>lead_to_appointment</code> RPC existente · zero schema novo.</p>
+</div>
+
+<div class="card warn">
+  <h3>Gap #2 · 0 appointments futuros no DB (só 3 finalizados)</h3>
+  <p>Clínica está usando agenda externa (papel/Google Calendar) e não trouxe pra cá. Resultado: lembretes automáticos não disparam (sem appointments) · automations on_status nunca rodam · UI <code>/crm/agenda</code> vazia.</p>
+  <p><strong>Solução:</strong> migração assistida da agenda atual (planilha/papel) pra o sistema. Ou política "todo agendamento novo entra no v2 a partir de X". Sem isso, máquina de automation não roda.</p>
+</div>
+
+<div class="card warn">
+  <h3>Gap #3 · <code>wa_agenda_automations</code> sem UI de gerenciamento na Lara v2</h3>
+  <p>68 automations ativas vivem no banco · admin não consegue editar pelo Lara v2. Quando precisar mudar texto de lembrete D-1, dev tem que mexer SQL.</p>
+  <p><strong>Solução:</strong> rota <code>/configuracoes/automacoes</code> (admin only) com lista + editor de templates + toggle ativa. RPCs já existem (<code>wa_agenda_auto_list/upsert/delete/toggle</code>).</p>
+</div>
+
+<div class="card warn">
+  <h3>Gap #4 · <code>agenda_alerts_log</code> vazio apesar do cron rodar</h3>
+  <p><code>agenda_alert_min_before_tick</code> roda cada minuto MAS log fica vazio · provável: 0 appointments futuros pra disparar. Confirmação que máquina espera dados.</p>
+  <p><strong>Solução:</strong> validar com 1 appointment teste · ver se log popula. Se sim, está OK · só falta volume.</p>
+</div>
+
+<div class="card info">
+  <h3>Gap #5 · Sem <code>appointment_history</code> table</h3>
+  <p><code>chegada_em</code>, <code>cancelado_em</code>, <code>no_show_em</code> trackeiam eventos finais · mas transições intermediárias (agendado→aguardando_confirmacao→confirmado→...) não tem audit trail. Útil pra métricas tipo "tempo médio confirmação" ou "taxa cancelamento por status".</p>
+  <p><strong>Solução proposta (V2):</strong> tabela <code>appointment_status_history</code> com (appointment_id, from_status, to_status, changed_at, changed_by, reason). Trigger AFTER UPDATE OF status registra automático.</p>
+</div>
+
+<div class="card info">
+  <h3>Gap #6 · Indexes compostos faltando</h3>
+  <p>Hoje tem 8 indexes · suficientes pro caso single-clinic (Mirian). Mas pra multi-tenant futuro:</p>
+  <ul>
+    <li><code>(clinic_id, scheduled_date, status)</code> · dashboards "agendados pra hoje"</li>
+    <li><code>(clinic_id, status) WHERE status IN ('aguardando_confirmacao','confirmado')</code> partial · lembretes</li>
+  </ul>
+</div>
+
+<h2>8 · O que está bom · não mexer</h2>
+<div class="card ok">
+  <ul>
+    <li><strong>Schema</strong> · 35 colunas · zero excesso · todo campo com propósito</li>
+    <li><strong>State machine</strong> validada por RPC <code>_appointment_status_transition_allowed</code></li>
+    <li><strong>Triggers de phase</strong> · <code>trg_appointment_attended_phase</code> + <code>trg_appointment_created_phase</code> + <code>trg_appointment_rescheduled_phase</code> · automaticamente bumpa lead.phase</li>
+    <li><strong>VPI integration</strong> · <code>_vpi_ind_stage_on_appointment</code> · attribution rastreada</li>
+    <li><strong>Cashflow integration</strong> · <code>cashflow_link_appointment</code> · receita ligada ao agendamento</li>
+    <li><strong>RPCs WA</strong> · <code>wa_pro_stage_create/cancel/reschedule_appointment</code> · permite Mira/Lara criarem appointment via chat</li>
+  </ul>
+</div>
+
+<h2>9 · Roadmap proposto · ordem de impacto</h2>
+<table>
+  <tr><th>Sprint</th><th>Feature</th><th>Esforço</th><th>Valor</th></tr>
+  <tr><td>2A</td><td>Botão "Criar agendamento" no <code>/secretaria</code> · wizard 3 passos</td><td>1-2 dias</td><td>Desbloqueia uso real do sistema · acaba dependência de papel</td></tr>
+  <tr><td>2B</td><td>UI <code>/configuracoes/automacoes</code> · gerenciar templates D-1, pós-proc, etc</td><td>1 dia</td><td>Admin edita texto sem dev · 68 automations expostas</td></tr>
+  <tr><td>2C</td><td>Tabela <code>appointment_status_history</code> + trigger</td><td>3h</td><td>Métricas operacionais (taxa confirmação, tempo médio cancelamento)</td></tr>
+  <tr><td>3</td><td>Migração assistida da agenda atual (papel/sheets) pra v2</td><td>1 dia + ops</td><td>Crítico · sem isso, automations não disparam</td></tr>
+  <tr><td>4</td><td>Slot calendar inline · ver disponibilidade Dra. + book em 1 click</td><td>2 dias</td><td>UX premium pra secretaria</td></tr>
+</table>
+
+<p class="meta" style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+Audit gerado 2026-05-03 · Schema v2 robusto · automations ativas · gap principal é UI exposta + dados reais migrados.
+</p>
+
+</body>
+</html>
