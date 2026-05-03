@@ -39,7 +39,9 @@ export const SECTIONS: readonly Section[] = [
     label: 'Dashboard',
     path: '/dashboard',
     icon: LayoutDashboard,
-    requires: null,
+    // Mig 97 · secretaria nao ve dashboard · reports:view inclui todos
+    // outros roles + viewer mas exclui secretaria (sidebar minimal pra ela)
+    requires: 'reports:view',
   },
   {
     key: 'conversas',
@@ -51,11 +53,12 @@ export const SECTIONS: readonly Section[] = [
   {
     // Mig 91 · inbox dedicada da clinica (numero da secretaria) ·
     // mostra inbound direto + handoffs Lara→secretaria · sem AI.
+    // Mig 97 · acessivel pelo role 'secretaria' (entry-level)
     key: 'secretaria',
     label: 'Secretaria',
     path: '/secretaria',
     icon: MessageSquareText,
-    requires: 'lara:view-conversas',
+    requires: 'secretaria:view-inbox',
   },
   {
     key: 'leads',

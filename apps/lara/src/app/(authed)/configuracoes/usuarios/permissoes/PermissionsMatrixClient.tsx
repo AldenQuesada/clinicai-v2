@@ -68,6 +68,8 @@ const ROLE_META: Record<
   admin: { Icon: Shield, color: '#D4B894' },
   therapist: { Icon: Heart, color: 'var(--b2b-sage)' },
   receptionist: { Icon: Phone, color: 'var(--b2b-text-dim)' },
+  // Mig 97 · role secretaria · usa MessageCircle pra evocar a inbox dela
+  secretaria: { Icon: MessageCircle, color: '#A894C9' },
   viewer: { Icon: Eye, color: 'var(--b2b-text-muted)' },
 }
 

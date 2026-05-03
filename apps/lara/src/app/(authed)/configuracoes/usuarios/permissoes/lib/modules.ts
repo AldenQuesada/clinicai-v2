@@ -203,6 +203,7 @@ export const MATRIX_ROLES: ReadonlyArray<Exclude<StaffRole, 'owner'>> = [
   'admin',
   'therapist',
   'receptionist',
+  'secretaria',
   'viewer',
 ] as const
 
@@ -210,7 +211,8 @@ export const ROLE_LABEL_SHORT: Record<StaffRole, string> = {
   owner: 'Dono',
   admin: 'Admin',
   therapist: 'Espec.',
-  receptionist: 'Secret.',
+  receptionist: 'Recep.',
+  secretaria: 'Secret.',
   viewer: 'Visual.',
 }
 

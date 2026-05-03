@@ -6,12 +6,18 @@
  * tab) e short-circuit em Server Actions.
  *
  * Hierarquia (do menor pro maior):
- *   viewer → receptionist → therapist → admin → owner
+ *   secretaria → viewer → receptionist → therapist → admin → owner
+ *
+ * Role 'secretaria' (Mig 97 · 2026-05-03):
+ *   Perfil dedicado pra inbox /secretaria · acesso restrito · sidebar
+ *   minimal pra UX simplificada de atendente sênior. Não acessa /conversas
+ *   (Lara), templates, prompts, mídias, configurações.
  */
 
-export type StaffRole = 'owner' | 'admin' | 'therapist' | 'receptionist' | 'viewer'
+export type StaffRole = 'owner' | 'admin' | 'therapist' | 'receptionist' | 'viewer' | 'secretaria'
 
 const ROLE_HIERARCHY: readonly StaffRole[] = [
+  'secretaria',
   'viewer',
   'receptionist',
   'therapist',
@@ -60,12 +66,21 @@ export const ACTION_ROLES: Readonly<Record<string, readonly StaffRole[]>> = {
   'settings:clinic-data': ['owner'],
 
   // Lara · IA conversacional (especifico Lara)
+  // 'secretaria' explicitamente fora · ela ve so /secretaria
   'lara:view-conversas': ['receptionist', 'therapist', 'admin', 'owner'],
   'lara:assume-conversa': ['receptionist', 'therapist', 'admin', 'owner'],
   'lara:edit-templates': ['therapist', 'admin', 'owner'],
   'lara:edit-prompts': ['admin', 'owner'],
   'lara:edit-config': ['admin', 'owner'],
   'lara:manage-midia': ['admin', 'owner'],
+
+  // Mig 97 · /secretaria inbox · secretaria + acima podem entrar
+  'secretaria:view-inbox': ['secretaria', 'receptionist', 'therapist', 'admin', 'owner'],
+  'secretaria:send-message': ['secretaria', 'receptionist', 'therapist', 'admin', 'owner'],
+
+  // Agenda + pacientes · secretaria ve mas nao prontuario
+  'agenda:view-secretaria': ['secretaria', 'receptionist', 'therapist', 'admin', 'owner'],
+  'patients:view-secretaria': ['secretaria', 'receptionist', 'therapist', 'admin', 'owner'],
 
   // Relatorios
   'reports:view': ['viewer', 'receptionist', 'therapist', 'admin', 'owner'],
@@ -135,6 +150,7 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
   therapist: 'Terapeuta',
   receptionist: 'Recepcionista',
   viewer: 'Visualizador',
+  secretaria: 'Secretária',
 }
 
 export const ROLE_COLORS: Record<StaffRole, { bg: string; text: string }> = {
@@ -143,4 +159,5 @@ export const ROLE_COLORS: Record<StaffRole, { bg: string; text: string }> = {
   therapist: { bg: 'rgba(138,158,136,0.18)', text: 'var(--b2b-sage)' },
   receptionist: { bg: 'rgba(181,168,148,0.15)', text: 'var(--b2b-text-dim)' },
   viewer: { bg: 'rgba(122,113,101,0.15)', text: 'var(--b2b-text-muted)' },
+  secretaria: { bg: 'rgba(168,148,201,0.18)', text: '#A894C9' },
 }

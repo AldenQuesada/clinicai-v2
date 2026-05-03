@@ -26,7 +26,7 @@ type AnyClient = SupabaseClient<any, any, any, any, any>
 
 // ── Types ──────────────────────────────────────────────────────────
 
-export type StaffRole = 'owner' | 'admin' | 'therapist' | 'receptionist' | 'viewer'
+export type StaffRole = 'owner' | 'admin' | 'therapist' | 'receptionist' | 'viewer' | 'secretaria'
 
 export interface StaffMemberDTO {
   id: string

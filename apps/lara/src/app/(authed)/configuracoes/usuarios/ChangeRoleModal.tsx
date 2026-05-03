@@ -9,6 +9,7 @@ const ROLE_OPTIONS: ReadonlyArray<{ value: StaffRole; desc: string; ownerOnly?: 
   { value: 'admin', desc: 'Gerência · tudo exceto remover owner', ownerOnly: true },
   { value: 'therapist', desc: 'Atendimento · prontuário · agenda' },
   { value: 'receptionist', desc: 'Conversas · agendamento · cadastro' },
+  { value: 'secretaria', desc: 'Inbox /secretaria · agenda · pacientes (sem Lara IA)' },
   { value: 'viewer', desc: 'Somente leitura' },
 ]
 
