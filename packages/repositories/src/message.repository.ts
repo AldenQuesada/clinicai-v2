@@ -62,7 +62,22 @@ export class MessageRepository {
       status: 'received',
       sent_at: input.sentAt ?? new Date().toISOString(),
     })
-    if (error) return null
+    if (error) {
+      // Bug 2026-05-03: erros silenciosos viraram preview com 'Sim' mas
+      // wa_messages sem o registro · updateLastMessage rodava mesmo após
+      // falha. Log explicito + return null pra caller poder pular
+      // updateLastMessage (caller responsavel).
+      console.error('[saveInbound] insert failed', {
+        clinicId,
+        conversationId: input.conversationId,
+        contentType: input.contentType,
+        contentPreview: input.content?.slice(0, 80),
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      })
+      return null
+    }
     return id
   }
 

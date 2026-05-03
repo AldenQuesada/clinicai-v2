@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
   }
 
   const sentAtStr = new Date().toISOString();
-  await repos.messages.saveInbound(clinic_id, {
+  const insertedId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
     content,
@@ -323,6 +323,13 @@ export async function POST(request: NextRequest) {
     mediaUrl,
     sentAt: sentAtStr,
   });
+  if (!insertedId) {
+    log.error(
+      { clinic_id, conv_id: conv.id, contentType, contentPreview: content.slice(0, 60) },
+      'webhook_evolution.save_inbound_failed · skipping updateLastMessage to avoid orphan preview',
+    );
+    return NextResponse.json({ ok: false, error: 'save_failed' }, { status: 500 });
+  }
   await repos.conversations.updateLastMessage(conv.id, content, true, sentAtStr);
 
   // Notify secretaria inbox

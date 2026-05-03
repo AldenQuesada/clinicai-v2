@@ -411,7 +411,9 @@ async function processInboundMessage(
     return;
   }
 
-  // 6. Save inbound
+  // 6. Save inbound · só atualiza last_message se INSERT passou (evita
+  // orphan preview onde last_message_text aparece mas wa_messages vazio · bug
+  // 2026-05-03 com mensagem 'Sim' da Fátima)
   const sentAtStr = new Date().toISOString();
   const inboundId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
@@ -422,7 +424,8 @@ async function processInboundMessage(
     sentAt: sentAtStr,
   });
   if (!inboundId) {
-    log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'message.inbound.save.failed');
+    log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'message.inbound.save.failed · skipping updateLastMessage');
+    return; // aborta · não atualiza preview
   }
 
   await repos.conversations.updateLastMessage(conv.id, textContent, true, sentAtStr);

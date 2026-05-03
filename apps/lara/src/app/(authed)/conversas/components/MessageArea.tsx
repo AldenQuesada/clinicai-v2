@@ -506,6 +506,16 @@ export function MessageArea({
                       {msg.type === 'audio' && msg.mediaUrl && (
                         <div className="mb-1">
                           <AudioPlayer src={msg.mediaUrl} isUser={isUser} />
+                          {/* Transcrição inline · label muted pra deixar claro
+                              que é leitura do áudio · não mensagem separada */}
+                          {msg.content &&
+                           msg.content !== '[audio recebido]' &&
+                           !msg.content.startsWith('[audio') && (
+                            <div className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug" style={{ background: 'rgba(168,148,201,0.08)', color: 'rgba(168,148,201,0.95)' }}>
+                              <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-70 not-italic block mb-0.5">Transcrição</span>
+                              {msg.content}
+                            </div>
+                          )}
                         </div>
                       )}
                       {/* P-07 · render document (PDF/DOC/etc) · card com download */}
@@ -531,7 +541,11 @@ export function MessageArea({
                           <Download className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0" strokeWidth={1.5} />
                         </a>
                       )}
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      {/* Renderiza content como texto SO quando NÃO é audio com transcrição
+                          (audio render acima já mostra transcrição inline com label) */}
+                      {!(msg.type === 'audio' && msg.mediaUrl && msg.content && !msg.content.startsWith('[audio')) && (
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      )}
                       <div className="flex items-center justify-end gap-1 mt-1 block">
                         {msg.isManual && !isUser && !isFailed && <span className="text-[10px] opacity-70">Humano</span>}
                         <span className="text-[10px] opacity-70">{format(new Date(msg.createdAt), 'HH:mm')}</span>
