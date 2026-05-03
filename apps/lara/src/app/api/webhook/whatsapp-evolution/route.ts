@@ -56,10 +56,21 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  // Auth · shared secret (Evolution nao carrega JWT Supabase)
-  const expected = process.env.WA_INBOUND_SECRET || '';
+  // Auth · shared secret (Evolution nao carrega JWT Supabase).
+  // Aceita WA_INBOUND_SECRET (canonical) OU LARA_WA_INBOUND_SECRET (fallback
+  // pra cobrir bugs de naming em painel de deploy).
+  const expected =
+    process.env.WA_INBOUND_SECRET ||
+    process.env.LARA_WA_INBOUND_SECRET ||
+    '';
   if (!expected) {
-    log.error({}, 'webhook_evolution.misconfig · WA_INBOUND_SECRET ausente');
+    log.error(
+      {
+        has_wa_inbound: !!process.env.WA_INBOUND_SECRET,
+        has_lara_wa_inbound: !!process.env.LARA_WA_INBOUND_SECRET,
+      },
+      'webhook_evolution.misconfig · WA_INBOUND_SECRET ausente em runtime',
+    );
     return NextResponse.json({ ok: false, error: 'server_misconfigured' }, { status: 500 });
   }
   const provided = request.headers.get('x-inbound-secret') || '';
