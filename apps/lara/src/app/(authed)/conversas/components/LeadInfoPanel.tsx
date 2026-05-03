@@ -7,6 +7,7 @@ import { HandoffSecretariaSection } from './HandoffSecretariaSection';
 import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
+import { NextAppointmentCard } from './NextAppointmentCard';
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
 
@@ -194,6 +195,9 @@ export function LeadInfoPanel({
             />
           </div>
         )}
+
+        {/* Roadmap A5 · próximo agendamento inline · evita trocar pra /crm/agenda */}
+        <NextAppointmentCard leadId={selectedConversation.lead_id ?? null} />
 
         {/* ─── ZONA ENTENDER · pipeline + score + queixas + tags ─── */}
         <PipelineBar phase={selectedConversation.phase} funnel={selectedConversation.funnel} />

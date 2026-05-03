@@ -4,7 +4,9 @@ import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
+import { SecretariaSummary } from './SecretariaSummary';
 import { SmartReplies } from './SmartReplies';
+import { SecretariaQuickActions } from './SecretariaQuickActions';
 import { QuickTemplatesDropdown } from './QuickTemplatesDropdown';
 import { PresenceLine } from './PresenceLine';
 import { MediaPreviewBar } from './MediaPreviewBar';
@@ -398,6 +400,14 @@ export function MessageArea({
           no AgentPauseSection do painel direito (fonte unica de verdade) ·
           chat ganha mais espaco vertical pras mensagens. */}
 
+      {/* Roadmap A1 · resumo IA no topo (so /secretaria · zero token Lara) */}
+      {selectedConversation?.inbox_role === 'secretaria' && (
+        <SecretariaSummary
+          conversationId={selectedConversation.conversation_id}
+          refreshKey={selectedConversation.last_message_at ?? ''}
+        />
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
         {isLoadingMessages ? (
@@ -643,12 +653,22 @@ export function MessageArea({
           </div>
         )}
 
-        {/* Sprint B · W-03: smart replies acima do textarea */}
-        <SmartReplies
-          replies={copilotSmartReplies}
-          isLoading={copilotSummaryLoading}
-          onPick={(text) => onNewMessageChange(text)}
-        />
+        {/* Roadmap A2 · botões de ação rápida pra secretaria (zero digitação)
+            Aparece so em conv com inbox_role='secretaria' · /conversas (Lara)
+            mantém SmartReplies IA tradicional. */}
+        {selectedConversation?.inbox_role === 'secretaria' ? (
+          <SecretariaQuickActions
+            leadFirstName={(selectedConversation?.lead_name || '').split(/\s+/)[0]}
+            onPick={(text) => onNewMessageChange(text)}
+          />
+        ) : (
+          /* Sprint B · W-03: smart replies acima do textarea (Lara IA) */
+          <SmartReplies
+            replies={copilotSmartReplies}
+            isLoading={copilotSummaryLoading}
+            onPick={(text) => onNewMessageChange(text)}
+          />
+        )}
 
         {/* Sprint C · SC-02 (W-09): quick templates dropdown · "/" ou Ctrl+T */}
         {isDropdownOpen && (
