@@ -108,20 +108,12 @@ export function ConversationList({
       if (!matchesSearch) return false;
 
       // 2. Filtro de aba (Apenas para conversas ativas)
-      // Urgentes (criterio B2 ampliado): is_urgent (palavras detectadas no
-      // server) OU paciente esperando >30min OU appt hoje sem confirmacao.
+      // Urgentes:  is_urgent (tag URGENTE detectada por palavras-chave no
+      //            server) · alinhado 1:1 com a tag visivel no painel direito.
+      //            Tempo de espera vive no badge ⏱ separado, nao filtra aqui.
       // Aguardando: paciente foi o ultimo a falar (last_message == last_lead).
       if (statusFilter === 'active') {
-        if (activeTab === 'Urgentes') {
-          const URGENT_MS = 30 * 60 * 1000;
-          const patientWaiting =
-            !!conv.last_lead_msg && conv.last_message_at === conv.last_lead_msg;
-          const stale =
-            patientWaiting && conv.last_lead_msg
-              ? Date.now() - new Date(conv.last_lead_msg).getTime() > URGENT_MS
-              : false;
-          if (!conv.is_urgent && !stale) return false;
-        }
+        if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
         if (activeTab === 'Aguardando') {
           const patientWaiting =
             !!conv.last_lead_msg && conv.last_message_at === conv.last_lead_msg;

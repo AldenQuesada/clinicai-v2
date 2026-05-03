@@ -113,21 +113,17 @@ export default function SecretariaPage() {
   // KPIs clicaveis · 3 buckets operacionais da secretaria
   // ─────────────────────────────────────────────────────────────────────
   // Aguardando: paciente foi o ultimo a falar (last_message == last_lead_msg)
-  // Urgente:    Aguardando + (is_urgent flag · keywords detectadas) OU
-  //             >30min sem resposta da Luciana
+  // Urgente:    conv com flag is_urgent (tag URGENTE detectada por palavras
+  //             chave no banco) · alinhado 1:1 com a tag visivel no painel
+  //             direito · tempo de espera (>30min) NAO entra aqui · vive no
+  //             badge ⏱ separado por conv item.
   // Dra:        conv com pergunta pendente da Consultoria Mirian
   //             (statusFilter='dra' carrega via API uma lista separada)
-  const URGENT_THRESHOLD_MS = 30 * 60 * 1000;
   const isPatientWaiting = (c: typeof conversations[number]) => {
     if (!c.last_lead_msg || !c.last_message_at) return false;
     return c.last_message_at === c.last_lead_msg;
   };
-  const isUrgent = (c: typeof conversations[number]) => {
-    if (c.is_urgent) return true;
-    if (!isPatientWaiting(c)) return false;
-    if (!c.last_lead_msg) return false;
-    return Date.now() - new Date(c.last_lead_msg).getTime() > URGENT_THRESHOLD_MS;
-  };
+  const isUrgent = (c: typeof conversations[number]) => c.is_urgent;
 
   const aguardandoCount = conversations.filter(isPatientWaiting).length;
   const urgenteCount = conversations.filter(isUrgent).length;
@@ -302,7 +298,7 @@ export default function SecretariaPage() {
                 label: 'Urgente',
                 value: urgenteCount,
                 color: 'destructive',
-                title: 'Aguardando >30min OU palavra de urgencia detectada',
+                title: 'Conversas com tag URGENTE (palavra de urgencia detectada)',
               },
               {
                 id: 'dra' as const,
