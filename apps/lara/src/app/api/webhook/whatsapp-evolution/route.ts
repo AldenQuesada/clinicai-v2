@@ -385,6 +385,69 @@ export async function POST(request: NextRequest) {
         phone = convByJid.phone; // recupera phone real pra dedup downstream
       }
     }
+    // Fallback: se NAO tem mapping local, query Evolution API histórico
+    // dessa LID buscando inbound com senderPn · resolve LID → phone real.
+    if ((!conv || !lead) && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
+      try {
+        const r = await fetch(
+          `${String(waRow.api_url)}/chat/findMessages/${String(waRow.instance_id)}`,
+          {
+            method: 'POST',
+            headers: {
+              apikey: String(waRow.api_key),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              where: { key: { remoteJid, fromMe: false } },
+              limit: 5,
+            }),
+          },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const evoData: any = await r.json().catch(() => null);
+        const records = evoData?.messages?.records || (Array.isArray(evoData) ? evoData : []);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const senderPn = records.find((m: any) => m?.key?.senderPn)?.key?.senderPn;
+        if (senderPn) {
+          const resolvedPhone = String(senderPn).replace('@s.whatsapp.net', '').replace(/\D/g, '');
+          if (/^\d{10,15}$/.test(resolvedPhone)) {
+            log.info(
+              { instance, remoteJid, resolvedPhone: hashPhone(resolvedPhone) },
+              'webhook_evolution.outbound_lid.resolved_via_evolution_history',
+            );
+            // Resolve lead + conv com phone real · salva remote_jid pra futuro
+            const fallbackLead = await resolveLead({ leads: repos.leads, clinic_id, phone: resolvedPhone, pushName: '' });
+            const fallbackConv = fallbackLead ? await resolveConversation({
+              conversations: repos.conversations,
+              clinic_id,
+              phone: resolvedPhone,
+              lead: fallbackLead,
+              pushName: '',
+              waNumberId: wa_number_id,
+            }) : null;
+            if (fallbackLead && fallbackConv) {
+              // Persiste remote_jid pra cache futuro
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any)
+                  .from('wa_conversations')
+                  .update({ remote_jid: remoteJid })
+                  .eq('id', fallbackConv.id);
+              } catch { /* silent */ }
+              lead = fallbackLead;
+              conv = fallbackConv;
+              phone = resolvedPhone;
+            }
+          }
+        }
+      } catch (err) {
+        log.warn(
+          { instance, remoteJid, err: (err as Error)?.message },
+          'webhook_evolution.outbound_lid.evolution_lookup_failed',
+        );
+      }
+    }
+
     if (!conv || !lead) {
       log.warn(
         { instance, remoteJid },
