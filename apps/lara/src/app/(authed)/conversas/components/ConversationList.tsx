@@ -33,6 +33,15 @@ interface ConversationListProps {
   /** activeTab lifted pra topbar (KPIs clicaveis filtram a lista) */
   activeTab: string;
   onActiveTabChange: (tab: string) => void;
+  /** /secretaria · esconde linhas de tabs internas (substituidas por KPIs
+      clicaveis na topbar central) e troca por mini-segmented Abertas/Resolvidas
+      pra ver indice de resolucao. */
+  simplifiedTabs?: boolean;
+  /** Scope binario quando simplifiedTabs=true · controla statusFilter externo */
+  statusScope?: 'open' | 'resolved';
+  onStatusScopeChange?: (scope: 'open' | 'resolved') => void;
+  /** Contagens pra renderizar no segmented (opcional) */
+  scopeCounts?: { open: number; resolved: number };
   /** P-12 Fase 3 · atendentes online no inbox (presence) — não usados aqui agora
       mas mantidos pra compat futura se quisermos avatar dentro da sidebar */
   onlineUsers?: PresenceUser[];
@@ -58,12 +67,24 @@ export function ConversationList({
   onAdvancedFiltersActiveChange,
   activeTab,
   onActiveTabChange,
+  simplifiedTabs = false,
+  statusScope = 'open',
+  onStatusScopeChange,
+  scopeCounts,
 }: ConversationListProps) {
   
   // Estados dos Filtros Avançados
   const [filterFunnel, setFilterFunnel] = useState<string>('all');
   const [filterTag, setFilterTag] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('all');
+
+  // Tick a cada 30s pra atualizar badges de tempo de espera (Aguardando)
+  // sem precisar de fetch · cliente só renderiza diff.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const tabs = ['Todas', 'Urgentes', 'Aguardando', 'Lara Ativa'];
 
@@ -87,9 +108,25 @@ export function ConversationList({
       if (!matchesSearch) return false;
 
       // 2. Filtro de aba (Apenas para conversas ativas)
+      // Urgentes (criterio B2 ampliado): is_urgent (palavras detectadas no
+      // server) OU paciente esperando >30min OU appt hoje sem confirmacao.
+      // Aguardando: paciente foi o ultimo a falar (last_message == last_lead).
       if (statusFilter === 'active') {
-        if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
-        if (activeTab === 'Aguardando' && (conv.ai_enabled || conv.is_urgent)) return false;
+        if (activeTab === 'Urgentes') {
+          const URGENT_MS = 30 * 60 * 1000;
+          const patientWaiting =
+            !!conv.last_lead_msg && conv.last_message_at === conv.last_lead_msg;
+          const stale =
+            patientWaiting && conv.last_lead_msg
+              ? Date.now() - new Date(conv.last_lead_msg).getTime() > URGENT_MS
+              : false;
+          if (!conv.is_urgent && !stale) return false;
+        }
+        if (activeTab === 'Aguardando') {
+          const patientWaiting =
+            !!conv.last_lead_msg && conv.last_message_at === conv.last_lead_msg;
+          if (!patientWaiting) return false;
+        }
         if (activeTab === 'Lara Ativa' && !conv.ai_enabled) return false;
       }
 
@@ -185,40 +222,82 @@ export function ConversationList({
       {/* Linha 1 (Conversas + count + sort + new + busca) MOVIDA pro topbar global
           em 2026-04-30 · libera ~120px verticais pra mais conversas visiveis */}
 
-      {/* Linha 2 · tabs status · estetica .badge-serious flipbook (Montserrat 8.5px · square 2px · padding 2/7) */}
+      {/* Linha 2 · tabs status · /conversas mantem 4 tabs · /secretaria
+          (simplifiedTabs=true) usa mini-segmented Abertas/Resolvidas (3 KPIs
+          clicaveis na topbar central cobrem o resto). */}
       <div className="px-3 pt-3 shrink-0">
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { id: 'active', label: 'Abertas' },
-            { id: 'dra', label: 'Dra. Mirian' },
-            { id: 'resolved', label: 'Feitas' },
-            { id: 'archived', label: 'Arquivadas' }
-          ].map(s => (
-            <button
-              key={s.id}
-              onClick={() => onStatusFilterChange(s.id as any)}
-              title={s.label}
-              className={`font-meta uppercase transition-colors whitespace-nowrap overflow-hidden text-ellipsis ${
-                statusFilter === s.id
-                  ? 'text-[hsl(var(--primary))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-              }`}
-              style={{
-                fontSize: '8.5px',
-                letterSpacing: '0.15em',
-                fontWeight: 500,
-                padding: '4px 7px',
-                borderRadius: 2,
-                background: statusFilter === s.id ? 'rgba(201,169,110,0.15)' : 'transparent',
-                border: statusFilter === s.id
-                  ? '1px solid rgba(201,169,110,0.3)'
-                  : '1px solid transparent',
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+        {simplifiedTabs ? (
+          <div className="grid grid-cols-2 gap-1">
+            {([
+              { id: 'open' as const, label: 'Abertas', count: scopeCounts?.open },
+              { id: 'resolved' as const, label: 'Resolvidas', count: scopeCounts?.resolved },
+            ]).map(s => {
+              const active = statusScope === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onStatusScopeChange?.(s.id)}
+                  title={`${s.label}${typeof s.count === 'number' ? ` (${s.count})` : ''}`}
+                  className={`font-meta uppercase transition-colors whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer flex items-center justify-center gap-1 ${
+                    active
+                      ? 'text-[hsl(var(--primary))]'
+                      : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                  style={{
+                    fontSize: '8.5px',
+                    letterSpacing: '0.15em',
+                    fontWeight: 500,
+                    padding: '4px 7px',
+                    borderRadius: 2,
+                    background: active ? 'rgba(201,169,110,0.15)' : 'transparent',
+                    border: active
+                      ? '1px solid rgba(201,169,110,0.3)'
+                      : '1px solid transparent',
+                  }}
+                >
+                  <span>{s.label}</span>
+                  {typeof s.count === 'number' && (
+                    <span className="tabular-nums opacity-70">{s.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-1">
+            {[
+              { id: 'active', label: 'Abertas' },
+              { id: 'dra', label: 'Dra. Mirian' },
+              { id: 'resolved', label: 'Feitas' },
+              { id: 'archived', label: 'Arquivadas' }
+            ].map(s => (
+              <button
+                key={s.id}
+                onClick={() => onStatusFilterChange(s.id as any)}
+                title={s.label}
+                className={`font-meta uppercase transition-colors whitespace-nowrap overflow-hidden text-ellipsis ${
+                  statusFilter === s.id
+                    ? 'text-[hsl(var(--primary))]'
+                    : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                }`}
+                style={{
+                  fontSize: '8.5px',
+                  letterSpacing: '0.15em',
+                  fontWeight: 500,
+                  padding: '4px 7px',
+                  borderRadius: 2,
+                  background: statusFilter === s.id ? 'rgba(201,169,110,0.15)' : 'transparent',
+                  border: statusFilter === s.id
+                    ? '1px solid rgba(201,169,110,0.3)'
+                    : '1px solid transparent',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-3 pt-2.5 pb-3 border-b border-white/[0.06] shrink-0 flex flex-col gap-2.5">
@@ -336,8 +415,10 @@ export function ConversationList({
         )}
 
         {/* Tabs de Filtro (Só aparecem nas Abertas) · mesma DNA das tabs status
-            · Filter button mora na TOPBAR esquerda agora (junto com sort/new) */}
-        {statusFilter === 'active' && !showFilters && (
+            · Filter button mora na TOPBAR esquerda agora (junto com sort/new)
+            · Em /secretaria (simplifiedTabs) os 3 KPIs clicaveis na topbar
+            substituem essa linha · libera ~40px verticais. */}
+        {statusFilter === 'active' && !showFilters && !simplifiedTabs && (
           <div className="flex gap-1">
             {tabs.map(tab => (
               <button
@@ -425,9 +506,57 @@ export function ConversationList({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <p className="text-[13px] font-normal truncate text-[hsl(var(--foreground))]">{conv.lead_name}</p>
-                    <span className="text-[10.5px] text-[hsl(var(--muted-foreground))] shrink-0 tabular-nums font-mono opacity-70">
-                       {conv.last_message_at ? format(new Date(conv.last_message_at), 'HH:mm') : ''}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Badge tempo de espera · só aparece quando paciente foi
+                          o último a falar (last_message == last_lead_msg).
+                          Cor escala: <5min muted · 5-30min warning · >30min danger pulsando. */}
+                      {(() => {
+                        const isWaiting =
+                          !!conv.last_lead_msg &&
+                          conv.last_message_at === conv.last_lead_msg;
+                        if (!isWaiting || !conv.last_lead_msg) return null;
+                        const diffMs = nowTs - new Date(conv.last_lead_msg).getTime();
+                        const diffMin = Math.max(0, Math.floor(diffMs / 60000));
+                        const diffHr = Math.floor(diffMin / 60);
+                        const diffDay = Math.floor(diffHr / 24);
+                        const text =
+                          diffMin < 1 ? 'agora'
+                          : diffDay >= 1 ? `${diffDay}d`
+                          : diffHr >= 1 ? `${diffHr}h`
+                          : `${diffMin}m`;
+                        const tier =
+                          diffMin >= 30 ? 'danger'
+                          : diffMin >= 5 ? 'warning'
+                          : 'muted';
+                        const colorByTier: Record<string, { fg: string; bg: string }> = {
+                          muted: { fg: 'hsl(var(--muted-foreground))', bg: 'rgba(255,255,255,0.04)' },
+                          warning: { fg: 'hsl(var(--warning))', bg: 'hsl(var(--warning) / 0.12)' },
+                          danger: { fg: 'hsl(var(--destructive))', bg: 'hsl(var(--destructive) / 0.14)' },
+                        };
+                        const { fg, bg } = colorByTier[tier];
+                        return (
+                          <span
+                            title={`Paciente esperando ha ${diffMin}min`}
+                            className={`tabular-nums font-meta uppercase ${tier === 'danger' ? 'animate-pulse' : ''}`}
+                            style={{
+                              fontSize: '8.5px',
+                              letterSpacing: '0.08em',
+                              fontWeight: 600,
+                              padding: '2px 5px',
+                              borderRadius: 2,
+                              background: bg,
+                              color: fg,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            ⏱ {text}
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70">
+                        {conv.last_message_at ? format(new Date(conv.last_message_at), 'HH:mm') : ''}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-[11.5px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 leading-snug">{conv.last_message_text || 'Sem mensagens'}</p>
 

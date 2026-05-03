@@ -354,6 +354,54 @@ export async function POST(request: NextRequest) {
 
   await repos.conversations.updateLastMessage(conv.id, content, true, sentAtStr);
 
+  // Auto-greeting · 1a mensagem do dia · responde com nome falando que vai
+  // avisar a secretaria. Garante que o paciente tem ack imediato mesmo que
+  // a Luciana demore. Idempotente via countInboundSince(>00:00 local) === 1.
+  try {
+    const todayLocal = new Date();
+    todayLocal.setHours(0, 0, 0, 0);
+    const inboundsToday = await repos.messages.countInboundSince(
+      conv.id,
+      todayLocal.toISOString(),
+    );
+    if (inboundsToday === 1 && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
+      const firstName = (lead.name || '').split(/\s+/)[0] || '';
+      const greet = firstName
+        ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
+        : `Oi! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`;
+      const evo = new EvolutionService({
+        apiUrl: String(waRow.api_url),
+        apiKey: String(waRow.api_key),
+        instance: String(waRow.instance_id),
+      });
+      const sent = await evo.sendText(phone, greet);
+      if (sent.ok) {
+        await repos.messages.saveOutbound(clinic_id, {
+          conversationId: conv.id,
+          sender: 'humano',
+          content: greet,
+          contentType: 'text',
+          status: 'sent',
+        });
+        await repos.conversations.updateLastMessage(conv.id, greet, false);
+        log.info(
+          { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
+          'webhook_evolution.auto_greeting.sent',
+        );
+      } else {
+        log.warn(
+          { clinic_id, conv_id: conv.id, err: sent.error },
+          'webhook_evolution.auto_greeting.send_failed',
+        );
+      }
+    }
+  } catch (err) {
+    log.warn(
+      { clinic_id, conv_id: conv.id, err: (err as Error)?.message },
+      'webhook_evolution.auto_greeting.exception',
+    );
+  }
+
   // Notify secretaria inbox
   try {
     await repos.inboxNotifications.create({

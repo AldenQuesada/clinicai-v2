@@ -1,0 +1,6 @@
+Listagem de caminhos de pasta
+O número de série do volume é 067B-2DC4
+C:\USERS\DR.QUESADA\DOCUMENTS\CLINICAI-V2\SRC
+Caminho inválido - \USERS\DR.QUESADA\DOCUMENTS\CLINICAI-V2\SRC
+Não existem subpastas 
+

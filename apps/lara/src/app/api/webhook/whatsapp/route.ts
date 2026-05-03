@@ -441,6 +441,46 @@ async function processInboundMessage(
       { clinic_id, phone_hash: hashPhone(phone), conv_id: conv.id },
       'webhook.secretaria.inbound · skipping AI generation',
     );
+    // Auto-greeting · 1a mensagem do dia · ack imediato com nome.
+    try {
+      const todayLocal = new Date();
+      todayLocal.setHours(0, 0, 0, 0);
+      const inboundsToday = await repos.messages.countInboundSince(
+        conv.id,
+        todayLocal.toISOString(),
+      );
+      if (inboundsToday === 1) {
+        const firstName = (lead.name || '').split(/\s+/)[0] || '';
+        const greet = firstName
+          ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
+          : `Oi! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`;
+        const sent = await wa.sendText(phone, greet);
+        if (sent.ok) {
+          await repos.messages.saveOutbound(clinic_id, {
+            conversationId: conv.id,
+            sender: 'humano',
+            content: greet,
+            contentType: 'text',
+            status: 'sent',
+          });
+          await repos.conversations.updateLastMessage(conv.id, greet, false);
+          log.info(
+            { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
+            'webhook.secretaria.auto_greeting.sent',
+          );
+        } else {
+          log.warn(
+            { clinic_id, conv_id: conv.id, err: (sent as { error?: string }).error },
+            'webhook.secretaria.auto_greeting.send_failed',
+          );
+        }
+      }
+    } catch (err) {
+      log.warn(
+        { clinic_id, conv_id: conv.id, err: (err as Error)?.message },
+        'webhook.secretaria.auto_greeting.exception',
+      );
+    }
     try {
       await repos.inboxNotifications.create({
         clinicId: clinic_id,

@@ -264,6 +264,25 @@ export class MessageRepository {
   }
 
   /**
+   * Conta inbound desde um instante (ISO) · usado pra detectar "primeira
+   * mensagem do dia" (saber se ja teve inbound desde 00:00 local).
+   * Inclui a mensagem recem-inserida · caller filtra count > 1 pra detectar
+   * "primeira hoje".
+   */
+  async countInboundSince(
+    conversationId: string,
+    sinceIso: string,
+  ): Promise<number> {
+    const { count } = await this.supabase
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'inbound')
+      .gte('sent_at', sinceIso)
+    return count ?? 0
+  }
+
+  /**
    * Conta outbound da Lara nas últimas N horas · usado pelo guard daily limit.
    */
   async countLaraOutboundSince(

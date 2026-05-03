@@ -11,6 +11,9 @@ export interface Conversation {
   ai_paused_until: string | null;
   last_message_text: string | null;
   last_message_at: string | null;
+  /** ISO da última mensagem do paciente · usado pra calcular tempo de espera
+      e fila "Aguardando" (paciente foi o último a falar) */
+  last_lead_msg: string | null;
   is_urgent: boolean;
   phase: string | null;
   funnel: string | null;
