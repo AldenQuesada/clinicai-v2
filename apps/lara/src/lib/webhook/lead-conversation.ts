@@ -8,7 +8,7 @@
  * status='archived' -> 'active' antes de retornar (sem duplicata).
  */
 
-import { phoneVariants } from '@clinicai/utils'
+import { phoneVariants, canonicalPhoneBR } from '@clinicai/utils'
 import { createLogger, hashPhone } from '@clinicai/logger'
 import type {
   ConversationDTO,
@@ -27,7 +27,14 @@ interface ResolveLeadOpts {
 }
 
 /**
- * Acha lead em qualquer variante · cria se nao existe.
+ * Acha lead em qualquer variante · cria com phone CANONICAL (13c com 9).
+ *
+ * Estrategia robusta (espelha legacy Ivan):
+ *   - LOOKUP usa phoneVariants() pra cobrir convs antigas em 12c
+ *   - WRITE usa canonicalPhoneBR() · sempre 13c · zero ambiguidade
+ *
+ * Combinada com UNIQUE INDEX(clinic_id, last8digits) na DB, elimina
+ * duplicates na origem · atomic guard.
  */
 export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null> {
   const { leads, clinic_id, phone, pushName } = opts
@@ -36,8 +43,10 @@ export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null
   const existing = await leads.findByPhoneVariants(clinic_id, variants)
   if (existing) return existing
 
+  // Canonical no INSERT · garante 1 lead por nº fisico
+  const canonical = canonicalPhoneBR(phone) || phone
   const created = await leads.create(clinic_id, {
-    phone,
+    phone: canonical,
     name: pushName || null,
   })
   if (!created) {
@@ -91,8 +100,10 @@ export async function resolveConversation(
     return existing
   }
 
+  // Canonical no INSERT · ver comentário em resolveLead
+  const canonical = canonicalPhoneBR(phone) || phone
   const created = await conversations.create(clinic_id, {
-    phone,
+    phone: canonical,
     leadId: lead.id,
     displayName: pushName || lead.name || phone,
     waNumberId: waNumberId ?? null,

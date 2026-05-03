@@ -63,6 +63,38 @@ export function phoneVariants(input: string | null | undefined): string[] {
   return Array.from(variants)
 }
 
+/**
+ * Normalização CANÔNICA · força forma única para WRITE.
+ *
+ * Padrão escolhido: 13 chars com 9 após DDD (Meta Cloud moderno).
+ *   '554498787673'  → '5544998787673'  (adiciona 9)
+ *   '5544998787673' → '5544998787673'  (mantém)
+ *   '4498787673'    → '5544998787673'  (adiciona DDI 55 + 9)
+ *
+ * Quando NÃO força 9 (caso fixo · 10 chars sem 9): mantém DDI + DDD + 8 chars.
+ *
+ * Use SEMPRE em INSERT/UPDATE de phone em wa_conversations, leads, etc.
+ * Lookup com `WHERE phone = canonicalPhoneBR(input)` é match exato · não
+ * precisa phoneVariants. Combinada com UNIQUE INDEX(clinic_id, last8digits)
+ * elimina duplicates na origem.
+ */
+export function canonicalPhoneBR(input: string | null | undefined): string {
+  const norm = normalizePhoneBR(input)
+  if (!norm) return ''
+  // Já 13 chars (com 9): retorna direto
+  if (norm.length === 13) return norm
+  // 12 chars (sem 9 após DDD): força adicionar 9 se for mobile
+  // Heurística: se 5º caractere (após '55XX') é 6/7/8/9 → mobile · força 9
+  // Se for 2/3/4/5 → fixo (8 chars locais) · mantém sem 9
+  if (norm.length === 12) {
+    const localFirstDigit = norm.charAt(4)
+    if (['6', '7', '8', '9'].includes(localFirstDigit)) {
+      return norm.slice(0, 4) + '9' + norm.slice(4)
+    }
+  }
+  return norm
+}
+
 /** Formata pra display (44 99162-2986). Sem DDI por brevidade. */
 export function formatPhoneBR(input: string | null | undefined): string {
   const digits = normalizePhoneBR(input)
