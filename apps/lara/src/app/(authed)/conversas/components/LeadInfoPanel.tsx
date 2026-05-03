@@ -9,6 +9,7 @@ import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
 import { NextAppointmentCard } from './NextAppointmentCard';
 import { SecretariaQuickActions } from './SecretariaQuickActions';
+import { PhoneCopyChip } from './PhoneCopyChip';
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
 
@@ -175,6 +176,13 @@ export function LeadInfoPanel({
           onChange={onStatusChange}
           compact
         />
+        {/* Phone clicável · copia número pro clipboard · útil pra secretaria
+            colar em outras telas (agenda externa, prontuário). Só /secretaria. */}
+        {isSecretaria && (
+          <div className="px-3 py-1.5 border-b border-white/[0.06]">
+            <PhoneCopyChip phone={selectedConversation.phone} />
+          </div>
+        )}
         {/* Mig 91 · Passar pra secretaria · so aparece em sdr inbox sem handoff */}
         {!isSecretaria && (
           <HandoffSecretariaSection
@@ -213,7 +221,10 @@ export function LeadInfoPanel({
         <NextAppointmentCard leadId={selectedConversation.lead_id ?? null} />
 
         {/* ─── ZONA ENTENDER · pipeline + score + queixas + tags ─── */}
-        <PipelineBar phase={selectedConversation.phase} funnel={selectedConversation.funnel} />
+        {/* Pipeline (dots) só em /conversas (Lara) · técnico demais pra secretaria */}
+        {!isSecretaria && (
+          <PipelineBar phase={selectedConversation.phase} funnel={selectedConversation.funnel} />
+        )}
 
         <div className="px-5 py-4 space-y-4 border-b border-white/[0.06]">
           {/* Score linha única */}
@@ -273,8 +284,9 @@ export function LeadInfoPanel({
             </div>
           )}
 
-          {/* Tags brutas adicionais · pequenas · só se houver */}
-          {otherTags.length > 0 && (
+          {/* Tags do CRM (raw): só em /conversas · cortado em /secretaria
+              · redundante com Sinais semânticos */}
+          {!isSecretaria && otherTags.length > 0 && (
             <div>
               <span style={{ ...SECTION_LABEL_STYLE, fontSize: '8px' }}>Tags do CRM</span>
               <div className="flex flex-wrap gap-1 mt-1.5">
@@ -294,7 +306,7 @@ export function LeadInfoPanel({
           )}
         </div>
 
-        {/* ─── ZONA HISTÓRICO · timeline + atalhos + controle pause completo ─── */}
+        {/* ─── ZONA HISTÓRICO · timeline ─── */}
         <div className="px-5 py-4 space-y-5">
           <div>
             <div className="flex items-center gap-2 mb-2.5">
@@ -304,38 +316,42 @@ export function LeadInfoPanel({
             <TimelineSection conversationId={selectedConversation.conversation_id} />
           </div>
 
-          {/* Atalhos pro CRM legacy (médio prazo migra pra dentro do Lara v2) */}
-          <div>
-            <span style={SECTION_LABEL_STYLE}>Atalhos</span>
-            <div className="space-y-1.5 mt-2">
-              {selectedConversation.lead_id && (
+          {/* Atalhos pro CRM legacy · só em /conversas · cortado em /secretaria
+              porque os Quick Actions (zona BAIXO FIXA) já cobrem agenda · CRM
+              detalhado fica disponível só pra atendentes que precisam (SDR Lara). */}
+          {!isSecretaria && (
+            <div>
+              <span style={SECTION_LABEL_STYLE}>Atalhos</span>
+              <div className="space-y-1.5 mt-2">
+                {selectedConversation.lead_id && (
+                  <a
+                    href={`${PAINEL_URL}/index.html?page=leads&lead=${selectedConversation.lead_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-md text-[11.5px] bg-white/[0.02] border border-white/[0.04] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))]/40 hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.04] transition-colors group"
+                  >
+                    <span className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      Ver lead no CRM
+                    </span>
+                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                  </a>
+                )}
                 <a
-                  href={`${PAINEL_URL}/index.html?page=leads&lead=${selectedConversation.lead_id}`}
+                  href={`${PAINEL_URL}/index.html?page=agenda&phone=${selectedConversation.phone}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-between px-3 py-2 rounded-md text-[11.5px] bg-white/[0.02] border border-white/[0.04] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))]/40 hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.04] transition-colors group"
                 >
                   <span className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    Ver lead no CRM
+                    <CalendarPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    Abrir agenda
                   </span>
                   <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} />
                 </a>
-              )}
-              <a
-                href={`${PAINEL_URL}/index.html?page=agenda&phone=${selectedConversation.phone}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-md text-[11.5px] bg-white/[0.02] border border-white/[0.04] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))]/40 hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.04] transition-colors group"
-              >
-                <span className="flex items-center gap-2">
-                  <CalendarPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  Abrir agenda
-                </span>
-                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} />
-              </a>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Controle Lara FULL agora vive no TOPO FIXO (acima) · removido daqui */}
