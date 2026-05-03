@@ -85,6 +85,58 @@ export class MessageRepository {
     clinicId: string,
     input: SaveOutboundMessageInput,
   ): Promise<string | null> {
+    const sentAt = input.sentAt ?? new Date().toISOString()
+
+    // Dedup cross-channel · APENAS pra sender='humano' · janela ±5s.
+    // 2026-05-03: msg "Você viu" foi salva 2x (Evolution + Cloud) com 2s
+    // diferença · ambos webhooks processaram o mesmo evento humano. Regra:
+    //   - mesmo conv_id + direction=outbound + sender=humano + content trim
+    //     IGUAL + sent_at dentro de janela curta → first-write-wins.
+    // NAO deduplica: inbound, sender='lara'|'system', content diferente,
+    // conv diferente, fora da janela.
+    if (input.sender === 'humano' && input.content) {
+      const trimmed = input.content.trim()
+      if (trimmed) {
+        const sentAtDate = new Date(sentAt).getTime()
+        const lo = new Date(sentAtDate - 5_000).toISOString()
+        const hi = new Date(sentAtDate + 5_000).toISOString()
+        const { data: dup } = await this.supabase
+          .from('wa_messages')
+          .select('id, content, phone, content_type, status, channel')
+          .eq('conversation_id', input.conversationId)
+          .eq('direction', 'outbound')
+          .eq('sender', 'humano')
+          .eq('content', trimmed)
+          .gte('sent_at', lo)
+          .lte('sent_at', hi)
+          .limit(1)
+          .maybeSingle()
+        if (dup) {
+          // Update conservador · preenche phone se chegou null antes
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dupRow = dup as any
+          const patch: Record<string, unknown> = {}
+          if (input.contentType && dupRow.content_type !== input.contentType && input.contentType !== 'text') {
+            // mantem o tipo original · so atualiza se vai de 'text' pra midia
+            // (caso comum: Cloud salva text + Evolution depois acrescenta media)
+            patch.content_type = input.contentType
+            if (input.mediaUrl) patch.media_url = input.mediaUrl
+          }
+          if (Object.keys(patch).length > 0) {
+            await this.supabase.from('wa_messages').update(patch).eq('id', dupRow.id)
+          }
+          // eslint-disable-next-line no-console
+          console.info('[saveOutbound] duplicate_outbound_human_suppressed', {
+            existing_id: dupRow.id,
+            existing_channel: dupRow.channel,
+            new_content_type: input.contentType,
+            window_seconds: 5,
+          })
+          return String(dupRow.id)
+        }
+      }
+    }
+
     const id = input.id ?? uuidv4()
     const { error } = await this.supabase.from('wa_messages').insert({
       id,
@@ -96,7 +148,7 @@ export class MessageRepository {
       content_type: input.contentType ?? 'text',
       media_url: input.mediaUrl ?? null,
       status: input.status ?? 'pending',
-      sent_at: input.sentAt ?? new Date().toISOString(),
+      sent_at: sentAt,
     })
     if (error) return null
     return id
