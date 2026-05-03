@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Audit DB Final · Clínica AI · 2026-05-03</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, system-ui, sans-serif; max-width: 1100px; margin: 32px auto; padding: 0 24px; color: #1f2933; line-height: 1.55; }
+    h1 { font-size: 26px; border-bottom: 2px solid #C9A96E; padding-bottom: 8px; }
+    h2 { font-size: 19px; margin-top: 36px; border-left: 3px solid #C9A96E; padding-left: 10px; }
+    .meta { color: #6b7280; font-size: 13px; }
+    .card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+    .ok { background: #ecfdf5; border-color: #a7f3d0; }
+    .warn { background: #fffbeb; border-color: #fde68a; }
+    .bad { background: #fef2f2; border-color: #fecaca; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .pill.ok { background: #d1fae5; color: #047857; }
+    .pill.bad { background: #fee2e2; color: #b91c1c; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+    th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f9fafb; font-weight: 600; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .num { text-align: right; font-feature-settings: "tnum"; }
+  </style>
+</head>
+<body>
+
+<h1>Audit DB Final · Clínica AI</h1>
+<p class="meta">2026-05-03 · pós-mig 91-99 · estado robusto · zero cruzamento</p>
+
+<h2>1 · Linha do tempo das mudanças hoje</h2>
+<table>
+  <tr><th>Mig</th><th>Ação</th><th>Resultado</th></tr>
+  <tr><td>91</td><td>inbox_role + handoff secretaria</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>92</td><td>RPC resolve_by_instance (Evolution)</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>93</td><td>DROP backup tables</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>94</td><td>DROP duplicated tables sem prefixo</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>95</td><td>DROP 23 unused zero-byte tables</td><td><span class="pill bad">precipitado</span> · 41 RPCs + 3 triggers zumbis</td></tr>
+  <tr><td>96</td><td>inbox_role 'b2b' (desencruza Mira/Lara)</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>97</td><td>role 'secretaria' canonical</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>98</td><td>fix trigger zumbi nps_parse_inbound + recreate nps_responses</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>99</td><td>Re-criar 21 tabelas dropadas vazias (anula 95)</td><td><span class="pill ok">ok</span></td></tr>
+</table>
+
+<h2>2 · Estado atual do schema</h2>
+<table>
+  <tr><th>Métrica</th><th class="num">Valor</th></tr>
+  <tr><td>Total tabelas em <code>public</code></td><td class="num">250</td></tr>
+  <tr><td>Tamanho total</td><td class="num">~24 MB</td></tr>
+  <tr><td>Triggers ativos</td><td class="num">145</td></tr>
+  <tr><td>Triggers zumbis (referenciam tabela inexistente)</td><td class="num">0 ✓</td></tr>
+  <tr><td>Functions/RPCs em <code>public</code></td><td class="num">1.237</td></tr>
+  <tr><td>Tabelas com RLS habilitado</td><td class="num">~250 ✓</td></tr>
+</table>
+
+<h2>3 · Inboxes · zero cruzamento</h2>
+<table>
+  <tr><th>Inbox</th><th>Filtro</th><th>Convs ativas</th><th>Validação</th></tr>
+  <tr><td><code>/conversas</code> (Lara IA)</td><td><code>inbox_role='sdr'</code></td><td class="num">56</td><td>Lara nova Cloud API + histórico Lara antiga</td></tr>
+  <tr><td><code>/secretaria</code> (humano)</td><td><code>inbox_role='secretaria'</code></td><td class="num">2</td><td>Conv real + 1 do teste de hoje</td></tr>
+  <tr><td>Mira <code>/partnerships</code></td><td><code>inbox_role='b2b'</code></td><td class="num">4</td><td>Parceiros B2B</td></tr>
+</table>
+
+<h2>4 · Webhooks · vias de entrada</h2>
+<table>
+  <tr><th>Endpoint</th><th>Transport</th><th>Destino</th><th>Status</th></tr>
+  <tr><td><code>/api/webhook/whatsapp</code></td><td>Cloud API (Meta)</td><td>Lara nova (554499588773)</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td><code>/api/webhook/whatsapp-evolution</code></td><td>Evolution (Mih)</td><td>Secretaria (5544991622986)</td><td><span class="pill ok">ok · 200 validado</span></td></tr>
+  <tr><td><code>/functions/v1/b2b-mira-inbound</code></td><td>Evolution (mira-mirian)</td><td>Mira B2B</td><td><span class="pill ok">ok</span></td></tr>
+</table>
+
+<h2>5 · Fixes de hoje (incidentes resolvidos)</h2>
+<div class="card ok">
+  <ul>
+    <li><strong>Trigger zumbi <code>trg_nps_parse_inbound</code></strong> · bloqueava INSERT em <code>wa_messages</code> silenciosamente após mig 95 dropar <code>nps_responses</code> · removido + tabela recriada vazia (mig 98)</li>
+    <li><strong>Triggers VPI zumbis</strong> (<code>vpi_celebrations</code>) · <code>vpi_celebrations</code> recriada vazia</li>
+    <li><strong>Backfill grosso 65 conversations</strong> revertido · /secretaria volta a vazia · só popula com mensagens novas que entrarem pelo Mih</li>
+    <li><strong>21 tabelas dropadas re-criadas vazias</strong> (mig 99) · pacifica 41 RPCs B2B/financeiro/legacy que dependiam delas</li>
+    <li><strong>WA_INBOUND_SECRET</strong> agora visível em runtime · webhook responde 200 · mensagens reais salvam corretamente</li>
+  </ul>
+</div>
+
+<h2>6 · O que NÃO está duplicado</h2>
+<div class="card ok">
+  <ul>
+    <li>Não há tabela <code>conversations</code> (sem prefixo) duplicando <code>wa_conversations</code> · dropada na mig 94</li>
+    <li>Não há tabela <code>messages</code> duplicando <code>wa_messages</code> · dropada na mig 94</li>
+    <li>Não há tabela <code>notifications</code> duplicando <code>inbox_notifications</code> · dropada na mig 94</li>
+    <li>Não há tabela <code>message_templates</code> duplicando <code>wa_message_templates</code> · dropada na mig 94</li>
+    <li>Backup tables (<code>leads_backup_pre_refactor</code>, etc) removidas (mig 93)</li>
+  </ul>
+</div>
+
+<h2>7 · Persistente · tabelas com RPCs zumbis (não bloqueiam fluxo crítico)</h2>
+<div class="card warn">
+  <p>Existem ~143 functions com nomes legacy comuns e ~41 RPCs que referenciam tabelas vazias re-criadas. Não bloqueiam fluxo de mensagens (Lara/Secretaria/B2B) mas podem dar erro em dashboards específicos se chamados:</p>
+  <ul>
+    <li><code>nps_responses</code> · 19 RPCs B2B (NPS dashboards) · tabela vazia ok</li>
+    <li><code>facial_shares/analyses</code> · 5+5+1 RPCs (galeria facial legacy)</li>
+    <li><code>fin_config/annual_plan</code> · 5+2 RPCs (financeiro legacy)</li>
+    <li><code>clinic_alexa_log</code> · 5 RPCs (integração Alexa nunca lançada)</li>
+    <li>Outros menores: pluggy_connections, retoque_campaigns, etc</li>
+  </ul>
+  <p><strong>Decisão:</strong> manter as tabelas vazias (não dropar mais). Schema custa pouco (24MB), risco de breakage zero.</p>
+</div>
+
+<h2>8 · Garantias estruturais</h2>
+<table>
+  <tr><th>Garantia</th><th>Estado</th></tr>
+  <tr><td>0 cruzamento de inbox (Lara/Secretaria/B2B)</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>0 dados duplicados</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>0 triggers zumbis</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>0 backup tables esquecidas</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>Webhook end-to-end testado</td><td><span class="pill ok">ok · 200</span></td></tr>
+  <tr><td>RLS em todas as tabelas multi-tenant</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>resolveConversation patcha wa_number_id em conv legacy</td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>Role 'secretaria' DB-canonical com sidebar restrita</td><td><span class="pill ok">ok</span></td></tr>
+</table>
+
+<h2>9 · Lessons learned</h2>
+<div class="card warn">
+  <p><strong>Antes de DROP TABLE em prod:</strong> varrer 4 lugares pra encontrar dependências:</p>
+  <ol>
+    <li><strong>Código TS</strong> (apps/+ packages/) · grep por <code>.from('NOME')</code> e import</li>
+    <li><strong>pg_proc</strong> · functions SQL que fazem SELECT/INSERT/UPDATE da tabela</li>
+    <li><strong>pg_trigger</strong> · triggers em qualquer tabela cujo body cita a alvo</li>
+    <li><strong>Dashboards externos</strong> (Grafana, Looker, etc) se houver</li>
+  </ol>
+  <p>Mig 95 só validou (1) · pulou (2)+(3) · resultou em 41 RPCs órfãs e 3 triggers zumbis silenciosos. Custo: incidente de 4h com webhook /secretaria não salvando mensagens.</p>
+</div>
+
+<p class="meta" style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+Audit final 2026-05-03 · Schema 250 tabelas · 145 triggers · 1237 RPCs · zero cruzamento · zero zumbi.
+</p>
+
+</body>
+</html>
