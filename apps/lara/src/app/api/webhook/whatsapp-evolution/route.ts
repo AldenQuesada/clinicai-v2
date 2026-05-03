@@ -139,6 +139,25 @@ export async function POST(request: NextRequest) {
 
   // Resolve wa_number pela instance (RPC mig 92)
   const supabase = createServerClient();
+
+  // Guard bot-to-bot · se phone (contato) eh um dos NOSSOS wa_numbers,
+  // estamos numa interacao interna entre bots · skip processamento pra
+  // evitar pollution do /secretaria com loops. (Audit 2026-05-03 mostrou
+  // 3 convs cross-internal entre Mih/Mira/Marci.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: ownNumber } = await (supabase as any)
+    .from('wa_numbers')
+    .select('id, label, inbox_role')
+    .eq('phone', phone)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (ownNumber) {
+    log.info(
+      { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
+      'webhook_evolution.skip_internal_loop',
+    );
+    return NextResponse.json({ ok: true, skip: 'internal_loop', target: ownNumber.label });
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: resolveRes, error: resolveErr } = await (supabase as any).rpc(
     'wa_numbers_resolve_by_instance',
@@ -454,7 +473,9 @@ export async function POST(request: NextRequest) {
           contentType: 'text',
           status: 'sent',
         });
-        await repos.conversations.updateLastMessage(conv.id, greet, false);
+        // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
+        // preview da inbound do paciente · permanece em "Aguardando"
+        // (KPI default da Luciana) · auto-greeting eh ack, nao resposta.
         log.info(
           { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
           'webhook_evolution.auto_greeting.sent',

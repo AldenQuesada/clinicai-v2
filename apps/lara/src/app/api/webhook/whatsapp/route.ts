@@ -193,6 +193,23 @@ async function processInboundMessage(
   // ADR-028: clinic_id por request · NUNCA hardcoded
   const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
 
+  // Guard bot-to-bot · phone (contato) == um dos NOSSOS wa_numbers · skip
+  // (audit 2026-05-03 · evita pollution Mih/Mira/Marci cross-internal).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: ownNumber } = await (supabase as any)
+    .from('wa_numbers')
+    .select('id, label, inbox_role')
+    .eq('phone', phone)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (ownNumber) {
+    log.info(
+      { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
+      'webhook.cloud.skip_internal_loop',
+    );
+    return;
+  }
+
   // Audit fix N7: WhatsApp service per-tenant via wa_numbers (não env global)
   // Fallback pra construtor sem args (env global) só quando wa_number_id não resolveu
   // - mantém continuidade enquanto wa_numbers está sendo populado.
@@ -463,7 +480,9 @@ async function processInboundMessage(
             contentType: 'text',
             status: 'sent',
           });
-          await repos.conversations.updateLastMessage(conv.id, greet, false);
+          // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
+          // preview da inbound do paciente · permanece em "Aguardando"
+          // (KPI default da Luciana) · auto-greeting eh ack, nao resposta.
           log.info(
             { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
             'webhook.secretaria.auto_greeting.sent',
