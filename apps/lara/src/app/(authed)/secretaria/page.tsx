@@ -22,6 +22,7 @@ import { ConversationList } from '../conversas/components/ConversationList';
 import { MessageArea } from '../conversas/components/MessageArea';
 import { LeadInfoPanel } from '../conversas/components/LeadInfoPanel';
 import { ConfirmModal } from '../conversas/components/ConfirmModal';
+import { AskDoctorModal } from '../conversas/components/AskDoctorModal';
 import { useConversations, updateTabTitle } from '../conversas/hooks/useConversations';
 import { useMessages } from '../conversas/hooks/useMessages';
 import { useClinicMembers } from '../conversas/hooks/useClinicMembers';
@@ -56,6 +57,7 @@ export default function SecretariaPage() {
   } = useConversations({ inbox: 'secretaria' });
 
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(false);
+  const [showAskDoctor, setShowAskDoctor] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [filteredCount, setFilteredCount] = useState(0);
@@ -401,8 +403,20 @@ export default function SecretariaPage() {
           onAction={handleAction}
           onStatusChange={refreshAll}
           inboxRole="secretaria"
+          onPickQuickAction={(text) => setNewMessage(text)}
+          onAskDoctor={() => setShowAskDoctor(true)}
         />
       </div>
+
+      {/* Sprint 1 · Modal pra perguntar pra Dra. Mirian · acionado pelo
+          botao no painel direito (LeadInfoPanel zona BAIXO FIXA) */}
+      {showAskDoctor && selectedConversation && (
+        <AskDoctorModal
+          conversationId={selectedConversation.conversation_id}
+          leadFirstName={(selectedConversation.lead_name || '').split(/\s+/)[0]}
+          onClose={() => setShowAskDoctor(false)}
+        />
+      )}
 
       {modalConfig && (
         <ConfirmModal

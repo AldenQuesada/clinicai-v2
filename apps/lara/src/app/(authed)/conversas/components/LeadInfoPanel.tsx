@@ -8,6 +8,7 @@ import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
 import { NextActions } from './NextActions';
 import { NextAppointmentCard } from './NextAppointmentCard';
+import { SecretariaQuickActions } from './SecretariaQuickActions';
 
 const PAINEL_URL = process.env.NEXT_PUBLIC_PAINEL_URL || 'https://painel.miriandpaula.com.br';
 
@@ -39,7 +40,17 @@ interface LeadInfoPanelProps {
    * Mig 91 · 'sdr' default (mostra AgentPauseSection + NextActions IA + Handoff
    * button). 'secretaria' oculta tudo de IA · zona AGIR mostra so Assignment.
    */
-  inboxRole?: 'sdr' | 'secretaria';
+  inboxRole?: 'sdr' | 'secretaria' | 'b2b';
+  /**
+   * Sprint 1 · /secretaria · callback pra preencher textarea com template
+   * de quick action. Default: noop.
+   */
+  onPickQuickAction?: (text: string) => void;
+  /**
+   * Sprint 1 · /secretaria · callback pra abrir modal "Pedir ajuda da Dra".
+   * Default: noop.
+   */
+  onAskDoctor?: () => void;
 }
 
 /** Score badge · "Sem quiz" quando 0 (lead não fez), buckets coloridos quando >0 */
@@ -104,6 +115,8 @@ export function LeadInfoPanel({
   copilotActionsLoading = false,
   onPickAction,
   inboxRole = 'sdr',
+  onPickQuickAction,
+  onAskDoctor,
 }: LeadInfoPanelProps) {
   const isSecretaria = inboxRole === 'secretaria';
   if (!isExpanded) {
@@ -327,6 +340,17 @@ export function LeadInfoPanel({
 
         {/* Controle Lara FULL agora vive no TOPO FIXO (acima) · removido daqui */}
       </div>
+
+      {/* ═══ BAIXO FIXO (shrink-0) · só /secretaria · ações rápidas pinned ═══ */}
+      {isSecretaria && (
+        <div className="shrink-0 border-t border-white/[0.08] bg-[hsl(var(--chat-panel-bg))] px-4 py-3">
+          <SecretariaQuickActions
+            leadFirstName={(selectedConversation.lead_name || '').split(/\s+/)[0]}
+            onPick={(text) => onPickQuickAction?.(text)}
+            onAskDoctor={onAskDoctor}
+          />
+        </div>
+      )}
     </div>
   );
 }
