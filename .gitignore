@@ -56,3 +56,4 @@ supabase/.branches/
 
 # claude code local settings (per-machine, never commit)
 .claude/settings.local.json
+apps/lara/tmp-*.mjs
