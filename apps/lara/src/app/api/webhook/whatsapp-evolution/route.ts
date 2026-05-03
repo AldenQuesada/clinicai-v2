@@ -118,10 +118,19 @@ export async function POST(request: NextRequest) {
   }
 
   // WhatsApp privacy mode (LID) · phone real vai em key.senderPn / data.senderPn
-  // (so pra inbound · outbound usa remoteJid puro como destinatario do envio).
-  let phone: string;
+  // pra INBOUND. Pra OUTBOUND fromMe=true a Evolution NAO entrega senderPn ·
+  // só remoteJid (LID puro do destinatario, opaco). Solucao: lookup conv via
+  // remote_jid ja armazenado de inbound anterior. Salvamos remote_jid no conv
+  // a cada inbound LID pra construir mapping LID↔phone over time.
+  let phone: string = '';
+  let isLidOutboundUnresolved = false;
   if (isOutboundFromDevice) {
-    phone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
+    if (remoteJid.endsWith('@lid')) {
+      // outbound LID · marca pra lookup posterior por remote_jid
+      isLidOutboundUnresolved = true;
+    } else {
+      phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+    }
   } else if (remoteJid.endsWith('@lid')) {
     const senderPn = key?.senderPn || data?.senderPn || '';
     phone = senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
@@ -133,7 +142,7 @@ export async function POST(request: NextRequest) {
     phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
   }
 
-  if (!/^\d{10,15}$/.test(phone)) {
+  if (!isLidOutboundUnresolved && !/^\d{10,15}$/.test(phone)) {
     return NextResponse.json({ ok: true, skip: 'bad_phone', phone });
   }
 
@@ -144,19 +153,21 @@ export async function POST(request: NextRequest) {
   // estamos numa interacao interna entre bots · skip processamento pra
   // evitar pollution do /secretaria com loops. (Audit 2026-05-03 mostrou
   // 3 convs cross-internal entre Mih/Mira/Marci.)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: ownNumber } = await (supabase as any)
-    .from('wa_numbers')
-    .select('id, label, inbox_role')
-    .eq('phone', phone)
-    .eq('is_active', true)
-    .maybeSingle();
-  if (ownNumber) {
-    log.info(
-      { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
-      'webhook_evolution.skip_internal_loop',
-    );
-    return NextResponse.json({ ok: true, skip: 'internal_loop', target: ownNumber.label });
+  if (phone) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ownNumber } = await (supabase as any)
+      .from('wa_numbers')
+      .select('id, label, inbox_role')
+      .eq('phone', phone)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (ownNumber) {
+      log.info(
+        { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
+        'webhook_evolution.skip_internal_loop',
+      );
+      return NextResponse.json({ ok: true, skip: 'internal_loop', target: ownNumber.label });
+    }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: resolveRes, error: resolveErr } = await (supabase as any).rpc(
@@ -324,22 +335,90 @@ export async function POST(request: NextRequest) {
   // Pra outbound device, pushName eh "Você"/"Clinica..." · ignora pra nao
   // sobrescrever nome do lead (paciente · vem do inbound subsequente).
   const safePushName = isOutboundFromDevice ? '' : pushName;
-  const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName });
-  if (!lead) {
-    log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
-    return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
-  }
 
-  const conv = await resolveConversation({
-    conversations: repos.conversations,
-    clinic_id,
-    phone,
-    lead,
-    pushName: safePushName,
-    waNumberId: wa_number_id,
-  });
-  if (!conv) {
-    return NextResponse.json({ ok: false, error: 'conversation_create_failed' }, { status: 500 });
+  // ─── Outbound LID sem senderPn · lookup conv por remote_jid armazenado ───
+  // Inbound LID anterior salvou remote_jid no conv (via setRemoteJid abaixo).
+  // Outbound LID busca por (remote_jid, wa_number_id) · evita criar lead novo
+  // com phone fake (LID puro nao eh phone valido).
+  let conv: Awaited<ReturnType<typeof resolveConversation>> = null;
+  let lead: Awaited<ReturnType<typeof resolveLead>> = null;
+  if (isLidOutboundUnresolved) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: convByJid } = await (supabase as any)
+      .from('wa_conversations')
+      .select('*')
+      .eq('clinic_id', clinic_id)
+      .eq('wa_number_id', wa_number_id)
+      .eq('remote_jid', remoteJid)
+      .maybeSingle();
+    if (convByJid) {
+      // Reutiliza lead da conv encontrada
+      const { data: leadRow } = await (supabase as any)
+        .from('leads')
+        .select('*')
+        .eq('id', convByJid.lead_id)
+        .maybeSingle();
+      if (leadRow) {
+        lead = leadRow;
+        conv = {
+          id: convByJid.id,
+          clinicId: convByJid.clinic_id,
+          waNumberId: convByJid.wa_number_id,
+          leadId: convByJid.lead_id,
+          phone: convByJid.phone,
+          status: convByJid.status,
+          aiEnabled: convByJid.ai_enabled,
+          aiPausedUntil: convByJid.ai_paused_until,
+          lastMessageAt: convByJid.last_message_at,
+          lastLeadMsg: convByJid.last_lead_msg,
+          lastMessageText: convByJid.last_message_text,
+          inboxRole: convByJid.inbox_role,
+          handoffToSecretariaAt: convByJid.handoff_to_secretaria_at,
+          remoteJid: convByJid.remote_jid,
+          displayName: convByJid.display_name,
+        } as unknown as Awaited<ReturnType<typeof resolveConversation>>;
+        phone = convByJid.phone; // recupera phone real pra dedup downstream
+      }
+    }
+    if (!conv || !lead) {
+      log.warn(
+        { instance, remoteJid },
+        'webhook_evolution.outbound_lid.no_mapping · skip · espera inbound LID prévio salvar mapping',
+      );
+      return NextResponse.json({ ok: true, skip: 'lid_unmapped', remoteJid });
+    }
+  } else {
+    lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName });
+    if (!lead) {
+      log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
+      return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
+    }
+    conv = await resolveConversation({
+      conversations: repos.conversations,
+      clinic_id,
+      phone,
+      lead,
+      pushName: safePushName,
+      waNumberId: wa_number_id,
+    });
+    if (!conv || !lead) {
+      return NextResponse.json({ ok: false, error: 'conversation_create_failed' }, { status: 500 });
+    }
+    // Salva remote_jid no inbound LID · constrói mapping pra outbound LID futuro
+    if (!isOutboundFromDevice && remoteJid.endsWith('@lid') && conv.remoteJid !== remoteJid) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('wa_conversations')
+          .update({ remote_jid: remoteJid })
+          .eq('id', conv.id);
+      } catch (err) {
+        log.warn(
+          { conv_id: conv.id, err: (err as Error)?.message },
+          'webhook_evolution.remote_jid.save_failed',
+        );
+      }
+    }
   }
 
   // Dedup soft · Evolution retry pode entregar 2x na mesma janela curta
