@@ -229,8 +229,31 @@ async function processInboundMessage(
   const phone = message.from;
   const pushName = contacts?.[0]?.profile?.name || '';
 
+  // Helper diag · grava trace de etapas em wa_webhook_log pra debug pos-deploy
+  // (sem acesso a logs Easypanel · este é o caminho).
+  const stageLog = async (stage: string, extra: Record<string, unknown> = {}) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('wa_webhook_log').insert({
+        endpoint: '/api/webhook/whatsapp',
+        method: 'POST',
+        signature_ok: true,
+        signature_reason: 'stage:' + stage,
+        phone_number_id: phoneNumberId,
+        from_phone: phone,
+        message_text: (message?.text?.body ?? '').slice(0, 200),
+        message_type: message?.type,
+        raw_body: JSON.stringify(extra).slice(0, 4000),
+        result_status: 200,
+        result_summary: 'stage:' + stage,
+      });
+    } catch { /* silent */ }
+  };
+
   // ADR-028: clinic_id por request · NUNCA hardcoded
+  await stageLog('start', { phone, phoneNumberId });
   const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
+  await stageLog('after_resolveTenantContext', { clinic_id, wa_number_id });
 
   // Guard bot-to-bot · APENAS inbound (Cloud webhook so processa inbound).
   // Match por last8 · phone WA pode vir 12c ou 13c · comparacao exata falhava
@@ -282,8 +305,13 @@ async function processInboundMessage(
   wa.markAsRead(message.id);
 
   // 2. Lead + conversation lookup/create/revive via Repositories
+  await stageLog('before_resolveLead');
   const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName });
-  if (!lead) return;
+  if (!lead) {
+    await stageLog('resolveLead_returned_null');
+    return;
+  }
+  await stageLog('after_resolveLead', { lead_id: lead.id });
 
   const conv = await resolveConversation({
     conversations: repos.conversations,
@@ -293,7 +321,11 @@ async function processInboundMessage(
     pushName,
     waNumberId: wa_number_id,
   });
-  if (!conv) return;
+  if (!conv) {
+    await stageLog('resolveConversation_returned_null');
+    return;
+  }
+  await stageLog('after_resolveConversation', { conv_id: conv.id, wa_number_id: conv.waNumberId, inbox_role: conv.inboxRole });
 
   // 2.5 Voucher B2B detection (mig 800-07) · se recipient tem voucher recente,
   // marca engaged e ancora resposta em torno do agendamento.
@@ -478,6 +510,7 @@ async function processInboundMessage(
   // orphan preview onde last_message_text aparece mas wa_messages vazio · bug
   // 2026-05-03 com mensagem 'Sim' da Fátima)
   const sentAtStr = new Date().toISOString();
+  await stageLog('before_saveInbound', { content_preview: textContent.slice(0, 80) });
   const inboundId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
@@ -487,9 +520,11 @@ async function processInboundMessage(
     sentAt: sentAtStr,
   });
   if (!inboundId) {
+    await stageLog('saveInbound_returned_null', { conv_id: conv.id });
     log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'message.inbound.save.failed · skipping updateLastMessage');
     return; // aborta · não atualiza preview
   }
+  await stageLog('after_saveInbound', { msg_id: inboundId });
 
   await repos.conversations.updateLastMessage(conv.id, textContent, true, sentAtStr);
 
