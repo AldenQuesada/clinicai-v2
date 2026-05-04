@@ -575,6 +575,15 @@ export async function POST(request: NextRequest) {
   // vezes mensagens que SAIRAM via /api/conversations/[id]/messages (eco do
   // proprio bot · Evolution reflete tudo que sai inclusive pelo endpoint).
   if (isOutboundFromDevice) {
+    // Fix UX 2026-05-04 · quando Luciana manda imagem/audio sem caption pelo
+    // celular, content cai no fallback '[imagem recebida]'/'[audio recebido]'
+    // (extract.ts é shared pro inbound · faz sentido pra paciente, NÃO pra
+    // outbound). Inverter pra UI mostrar "enviada" no balão da clínica.
+    if (content === '[imagem recebida]') content = '[imagem enviada]';
+    else if (content === '[audio recebido]') content = '[audio enviado]';
+    else if (content === '[video recebido]') content = '[video enviado]';
+    else if (content === '[documento recebido]') content = '[documento enviado]';
+    else if (content === '[sticker recebido]') content = '[sticker enviado]';
     // Se ja temos o conteudo identico em outbound recente · provavelmente
     // foi enviado via app · skip pra nao duplicar
     const recentOutboundDup = await (async () => {

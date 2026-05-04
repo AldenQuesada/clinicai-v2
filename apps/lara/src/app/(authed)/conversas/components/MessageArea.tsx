@@ -511,8 +511,8 @@ export function MessageArea({
                           {msg.content &&
                            msg.content !== '[audio recebido]' &&
                            !msg.content.startsWith('[audio') && (
-                            <div className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug" style={{ background: 'rgba(168,148,201,0.08)', color: 'rgba(168,148,201,0.95)' }}>
-                              <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-70 not-italic block mb-0.5">Transcrição</span>
+                            <div className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                              <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-60 not-italic block mb-0.5">Transcrição</span>
                               {msg.content}
                             </div>
                           )}
