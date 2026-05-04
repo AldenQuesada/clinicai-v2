@@ -232,23 +232,28 @@ async function processInboundMessage(
   // ADR-028: clinic_id por request · NUNCA hardcoded
   const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
 
-  // Guard bot-to-bot · APENAS inbound (Cloud webhook so processa inbound
-  // por design · fromMe sai pelo nosso send service direto). Skipa quando
-  // contato eh um wa_number nosso (loop entre Lara/Mira/Mih · evita
-  // cross-pollution detectado 2026-05-03).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: ownNumber } = await (supabase as any)
-    .from('wa_numbers')
-    .select('id, label, inbox_role')
-    .eq('phone', phone)
-    .eq('is_active', true)
-    .maybeSingle();
-  if (ownNumber) {
-    log.info(
-      { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
-      'webhook.cloud.skip_internal_loop',
-    );
-    return;
+  // Guard bot-to-bot · APENAS inbound (Cloud webhook so processa inbound).
+  // Match por last8 · phone WA pode vir 12c ou 13c · comparacao exata falhava
+  // (bug 2026-05-03 · Mira/Marci poluiam Mih).
+  const phoneLast8 = phone.replace(/\D/g, '').slice(-8);
+  if (phoneLast8.length === 8) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ownNumbers } = await (supabase as any)
+      .from('wa_numbers')
+      .select('id, label, inbox_role, phone')
+      .eq('is_active', true)
+      .like('phone', `%${phoneLast8}`);
+    const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
+      const p = (n.phone ?? '').replace(/\D/g, '');
+      return p.slice(-8) === phoneLast8;
+    });
+    if (match) {
+      log.info(
+        { phone_hash: hashPhone(phone), own_label: match.label, own_role: match.inbox_role },
+        'webhook.cloud.skip_internal_loop',
+      );
+      return;
+    }
   }
 
   // Audit fix N7: WhatsApp service per-tenant via wa_numbers (não env global)

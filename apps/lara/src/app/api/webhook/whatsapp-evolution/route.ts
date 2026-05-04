@@ -159,19 +159,28 @@ export async function POST(request: NextRequest) {
   // tem o phone que tambem virou nosso Mira). Bloquear ai cortaria envio
   // legitimo · bug 2026-05-03 22:25 onde "agora de aqui para lá" sumiu.
   if (phone && !isOutboundFromDevice) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: ownNumber } = await (supabase as any)
-      .from('wa_numbers')
-      .select('id, label, inbox_role')
-      .eq('phone', phone)
-      .eq('is_active', true)
-      .maybeSingle();
-    if (ownNumber) {
-      log.info(
-        { phone_hash: hashPhone(phone), own_label: ownNumber.label, own_role: ownNumber.inbox_role },
-        'webhook_evolution.skip_internal_loop',
-      );
-      return NextResponse.json({ ok: true, skip: 'internal_loop', target: ownNumber.label });
+    // Match por last8 · phone WA pode vir 12c (sem 9) ou 13c (com 9 após DDD).
+    // Bug 2026-05-03: comparação exata phone='554498787673' nao batia com
+    // wa_number.phone='5544998787673' · Mira/Marci/etc poluiam conv Mih.
+    const phoneLast8 = phone.replace(/\D/g, '').slice(-8);
+    if (phoneLast8.length === 8) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ownNumbers } = await (supabase as any)
+        .from('wa_numbers')
+        .select('id, label, inbox_role, phone')
+        .eq('is_active', true)
+        .like('phone', `%${phoneLast8}`);
+      const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
+        const p = (n.phone ?? '').replace(/\D/g, '');
+        return p.slice(-8) === phoneLast8;
+      });
+      if (match) {
+        log.info(
+          { phone_hash: hashPhone(phone), own_label: match.label, own_role: match.inbox_role },
+          'webhook_evolution.skip_internal_loop',
+        );
+        return NextResponse.json({ ok: true, skip: 'internal_loop', target: match.label });
+      }
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

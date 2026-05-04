@@ -315,7 +315,7 @@ export async function POST(
   // Branch TEXTO (legacy)
   // ────────────────────────────────────────────────────────────────
   const msgId = uuidv4();
-  await repos.messages.saveOutbound(conv.clinicId, {
+  const savedId = await repos.messages.saveOutbound(conv.clinicId, {
     id: msgId,
     conversationId: id,
     sender: 'humano',
@@ -323,16 +323,30 @@ export async function POST(
     contentType: 'text',
     status: 'pending',
   });
+  if (!savedId) {
+    console.error('[messages POST] saveOutbound retornou null', {
+      conv_id: id,
+      content_preview: content.trim().slice(0, 80),
+    });
+    return NextResponse.json(
+      { error: 'Falha ao salvar mensagem · saveOutbound retornou null' },
+      { status: 500 },
+    );
+  }
 
   const result = await wa.sendText(conv.phone, content.trim());
 
-  await repos.messages.updateStatus(msgId, result.ok ? 'sent' : 'failed');
+  await repos.messages.updateStatus(savedId, result.ok ? 'sent' : 'failed');
 
   // Auto-pause IA quando humano envia · 30 min default
   await repos.conversations.updateAiPause(id, {
     pausedUntil: new Date(Date.now() + 30 * 60000).toISOString(),
     aiEnabled: false,
   });
+  // updateLastMessage agora rola dentro do saveOutbound automaticamente
+  // pra sender='humano' (mig 2026-05-03 fix). Mantem chamada explicita
+  // como redundancia segura · UPDATE condicional no saveOutbound nao
+  // sobrescreve se already mais novo.
   await repos.conversations.updateLastMessage(id, content.trim(), false);
 
   return NextResponse.json({

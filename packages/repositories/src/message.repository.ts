@@ -150,7 +150,46 @@ export class MessageRepository {
       status: input.status ?? 'pending',
       sent_at: sentAt,
     })
-    if (error) return null
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[saveOutbound] insert failed', {
+        clinicId,
+        conversationId: input.conversationId,
+        contentType: input.contentType,
+        contentPreview: input.content?.slice(0, 80),
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      })
+      return null
+    }
+
+    // Sync conv.last_message_text/at INTERNAMENTE pos-INSERT · evita gap quando
+    // caller esquece de chamar updateLastMessage. Regra: SO atualiza se sent_at
+    // for MAIS NOVO que last_message_at atual · garante que msg automatica
+    // tardia nao sobrescreve preview de outbound humano recente. Skip pra
+    // sender='lara'|'system' · auto-greeting e templates IA nao devem
+    // sobrescrever preview (regra mig 2026-05-03 fix auto-greeting).
+    if (input.sender === 'humano' && input.content) {
+      try {
+        const previewText = input.content.trim().substring(0, 200)
+        await this.supabase
+          .from('wa_conversations')
+          .update({
+            last_message_text: previewText,
+            last_message_at: sentAt,
+          })
+          .eq('id', input.conversationId)
+          .or(`last_message_at.is.null,last_message_at.lt.${sentAt}`)
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[saveOutbound] preview sync failed', {
+          conversationId: input.conversationId,
+          err: (err as Error)?.message,
+        })
+      }
+    }
+
     return id
   }
 
