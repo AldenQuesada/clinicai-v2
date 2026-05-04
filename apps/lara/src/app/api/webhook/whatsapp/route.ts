@@ -514,6 +514,10 @@ async function processInboundMessage(
   // 2026-05-03 com mensagem 'Sim' da Fátima)
   const sentAtStr = new Date().toISOString();
   await stageLog('before_saveInbound', { content_preview: textContent.slice(0, 80) });
+  // Audit 2026-05-04: provider_msg_id = wamid da Meta. Popula coluna que
+  // alimenta UNIQUE INDEX uq_wa_messages_provider_id · idempotência real
+  // contra retry da Meta (substitui dependência única do findRecentDuplicate
+  // de 60s, que falha em retries fora da janela).
   const inboundId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
@@ -521,6 +525,9 @@ async function processInboundMessage(
     contentType,
     mediaUrl,
     sentAt: sentAtStr,
+    providerMsgId: message.id,
+    waMessageId: message.id,
+    channel: 'cloud',
   });
   if (!inboundId) {
     await stageLog('saveInbound_returned_null', { conv_id: conv.id });
@@ -571,6 +578,9 @@ async function processInboundMessage(
             content: greet,
             contentType: 'text',
             status: 'sent',
+            providerMsgId: sent.messageId ?? null,
+            waMessageId: sent.messageId ?? null,
+            channel: 'cloud',
           });
           // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
           // preview da inbound do paciente · permanece em "Aguardando"
@@ -909,6 +919,9 @@ async function processInboundMessage(
         contentType: outboundContentType,
         mediaUrl: outboundMediaUrl,
         status: sendResult.ok ? 'sent' : 'failed',
+        providerMsgId: sendResult.messageId ?? null,
+        waMessageId: sendResult.messageId ?? null,
+        channel: 'cloud',
       });
 
       // Delay configuravel · default 15s entre 1a e 2a foto
@@ -936,6 +949,9 @@ async function processInboundMessage(
               contentType: 'image',
               mediaUrl: extra.url,
               status: sendRes.ok ? 'sent' : 'failed',
+              providerMsgId: sendRes.messageId ?? null,
+              waMessageId: sendRes.messageId ?? null,
+              channel: 'cloud',
             });
             if (sendRes.ok) {
               log.info({ clinic_id, phone_hash: hashPhone(phone), idx: i, delay_ms: photoDelayMs }, 'media.extra.sent_after');
@@ -970,6 +986,9 @@ async function processInboundMessage(
               contentType: 'text',
               mediaUrl: null,
               status: fuResult.ok ? 'sent' : 'failed',
+              providerMsgId: fuResult.messageId ?? null,
+              waMessageId: fuResult.messageId ?? null,
+              channel: 'cloud',
             });
             log.info({ clinic_id, phone_hash: hashPhone(phone), chars: followUp.length }, 'media.followup.sent');
           } catch (e) {
@@ -988,6 +1007,9 @@ async function processInboundMessage(
         contentType: outboundContentType,
         mediaUrl: outboundMediaUrl,
         status: sendResult.ok ? 'sent' : 'failed',
+        providerMsgId: sendResult.messageId ?? null,
+        waMessageId: sendResult.messageId ?? null,
+        channel: 'cloud',
       });
     }
 

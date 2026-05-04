@@ -609,6 +609,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skip: 'app_echo' });
     }
 
+    // Audit 2026-05-04: key.id = wa_message_id da Evolution. Popula
+    // provider_msg_id pra idempotência via UNIQUE uq_wa_messages_provider_id ·
+    // protege contra Evolution re-entregar o mesmo eco do device.
     const outId = await repos.messages.saveOutbound(clinic_id, {
       conversationId: conv.id,
       sender: 'humano',
@@ -617,6 +620,9 @@ export async function POST(request: NextRequest) {
       mediaUrl,
       sentAt: sentAtStr,
       status: 'sent',
+      providerMsgId: key.id ?? null,
+      waMessageId: key.id ?? null,
+      channel: 'evolution',
     });
     if (outId) {
       await repos.conversations.updateLastMessage(conv.id, content, false, sentAtStr);
@@ -634,6 +640,8 @@ export async function POST(request: NextRequest) {
   }
 
   await evoTraceLog({ stage: 'before_saveInbound', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
+  // Audit 2026-05-04: provider_msg_id = key.id da Evolution · idempotência
+  // real contra retry (UNIQUE uq_wa_messages_provider_id · ver saveInbound).
   const insertedId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
@@ -641,6 +649,9 @@ export async function POST(request: NextRequest) {
     contentType,
     mediaUrl,
     sentAt: sentAtStr,
+    providerMsgId: key.id ?? null,
+    waMessageId: key.id ?? null,
+    channel: 'evolution',
   });
   if (!insertedId) {
     await evoTraceLog({ stage: 'saveInbound_returned_null', signature_ok: true, result_status: 500, result_summary: 'conv=' + conv.id.slice(0,8) });
@@ -716,6 +727,9 @@ export async function POST(request: NextRequest) {
             content: greet,
             contentType: 'text',
             status: 'sent',
+            providerMsgId: sent.messageId ?? null,
+            waMessageId: sent.messageId ?? null,
+            channel: 'evolution',
           });
           // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
           // preview da inbound do paciente · permanece em "Aguardando"

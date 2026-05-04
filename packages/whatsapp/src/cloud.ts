@@ -74,11 +74,14 @@ export class WhatsAppCloudService implements WhatsAppProvider {
         return { ok: false, error: err }
       }
       const data = await res.json()
+      // Idempotência audit 2026-05-04: Meta retorna `{messages:[{id:'wamid...'}]}`
+      // · expomos como messageId pra caller persistir em wa_messages.provider_msg_id.
+      const messageId = (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
       log.info(
-        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, chars: text.length },
+        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, chars: text.length, messageId },
         'sendText ok',
       )
-      return { ok: true, data }
+      return { ok: true, data, messageId }
     } catch (err) {
       log.error({ err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendText exception')
       return { ok: false, error: String(err) }
@@ -111,8 +114,10 @@ export class WhatsAppCloudService implements WhatsAppProvider {
         )
         return { ok: false, error: err }
       }
-      log.info({ clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendImage ok')
-      return { ok: true, data: await res.json() }
+      const data = await res.json()
+      const messageId = (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
+      log.info({ clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, messageId }, 'sendImage ok')
+      return { ok: true, data, messageId }
     } catch (err) {
       log.error({ err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendImage exception')
       return { ok: false, error: String(err) }
@@ -286,11 +291,13 @@ export class WhatsAppCloudService implements WhatsAppProvider {
         )
         return { ok: false, error: err }
       }
+      const data = await res.json()
+      const messageId = (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
       log.info(
-        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, type, mediaId },
+        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, type, mediaId, messageId },
         '_sendByMediaId ok',
       )
-      return { ok: true, data: await res.json() }
+      return { ok: true, data, messageId }
     } catch (err) {
       log.error(
         { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, type },
@@ -332,8 +339,10 @@ export class WhatsAppCloudService implements WhatsAppProvider {
         )
         return { ok: false, error: err }
       }
-      log.info({ clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendVoice ok')
-      return { ok: true, data: await res.json() }
+      const data = await res.json()
+      const messageId = (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
+      log.info({ clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, messageId }, 'sendVoice ok')
+      return { ok: true, data, messageId }
     } catch (err) {
       log.error({ err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendVoice exception')
       return { ok: false, error: String(err) }

@@ -43,13 +43,21 @@ export class MessageRepository {
   /**
    * Salva mensagem inbound (paciente · sender='user').
    * Caller passa clinic_id resolvido do tenant context (ADR-028).
+   *
+   * Idempotência (audit 2026-05-04): se input.providerMsgId for fornecido e
+   * o INSERT colidir com `uq_wa_messages_provider_id (clinic_id, provider_msg_id)`,
+   * retorna o id da mensagem existente em vez de criar uma duplicata · cobre
+   * retry do webhook da Meta/Evolution sem depender de janela de conteúdo.
    */
   async saveInbound(
     clinicId: string,
     input: SaveInboundMessageInput,
   ): Promise<string | null> {
     const id = uuidv4()
-    const { error } = await this.supabase.from('wa_messages').insert({
+    // Payload base preserva shape histórico · campos novos só entram quando
+    // explicitamente fornecidos (mantém compat com callers que ainda não
+    // populam provider_msg_id/channel).
+    const insertPayload: Record<string, unknown> = {
       id,
       clinic_id: clinicId,
       conversation_id: input.conversationId,
@@ -61,8 +69,33 @@ export class MessageRepository {
       media_url: input.mediaUrl ?? null,
       status: 'received',
       sent_at: input.sentAt ?? new Date().toISOString(),
-    })
+    }
+    if (input.providerMsgId !== undefined) insertPayload.provider_msg_id = input.providerMsgId
+    if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
+    if (input.channel !== undefined) insertPayload.channel = input.channel
+
+    const { error } = await this.supabase.from('wa_messages').insert(insertPayload)
     if (error) {
+      // 23505 = unique_violation. Se veio de uq_wa_messages_provider_id, é retry
+      // do provider · busca a row existente e devolve seu id.
+      if (error.code === '23505' && input.providerMsgId) {
+        const { data: existing } = await this.supabase
+          .from('wa_messages')
+          .select('id')
+          .eq('clinic_id', clinicId)
+          .eq('provider_msg_id', input.providerMsgId)
+          .maybeSingle()
+        if (existing && (existing as { id?: string }).id) {
+          // eslint-disable-next-line no-console
+          console.info('[saveInbound] duplicate_provider_msg_id', {
+            clinicId,
+            conversationId: input.conversationId,
+            providerMsgId: input.providerMsgId,
+            existingId: (existing as { id: string }).id,
+          })
+          return String((existing as { id: string }).id)
+        }
+      }
       // Bug 2026-05-03: erros silenciosos viraram preview com 'Sim' mas
       // wa_messages sem o registro · updateLastMessage rodava mesmo após
       // falha. Log explicito + return null pra caller poder pular
@@ -138,7 +171,7 @@ export class MessageRepository {
     }
 
     const id = input.id ?? uuidv4()
-    const { error } = await this.supabase.from('wa_messages').insert({
+    const insertPayload: Record<string, unknown> = {
       id,
       clinic_id: clinicId,
       conversation_id: input.conversationId,
@@ -149,8 +182,32 @@ export class MessageRepository {
       media_url: input.mediaUrl ?? null,
       status: input.status ?? 'pending',
       sent_at: sentAt,
-    })
+    }
+    if (input.providerMsgId !== undefined) insertPayload.provider_msg_id = input.providerMsgId
+    if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
+    if (input.channel !== undefined) insertPayload.channel = input.channel
+
+    const { error } = await this.supabase.from('wa_messages').insert(insertPayload)
     if (error) {
+      // Idempotência por provider_msg_id · ver comentário em saveInbound.
+      if (error.code === '23505' && input.providerMsgId) {
+        const { data: existing } = await this.supabase
+          .from('wa_messages')
+          .select('id')
+          .eq('clinic_id', clinicId)
+          .eq('provider_msg_id', input.providerMsgId)
+          .maybeSingle()
+        if (existing && (existing as { id?: string }).id) {
+          // eslint-disable-next-line no-console
+          console.info('[saveOutbound] duplicate_provider_msg_id', {
+            clinicId,
+            conversationId: input.conversationId,
+            providerMsgId: input.providerMsgId,
+            existingId: (existing as { id: string }).id,
+          })
+          return String((existing as { id: string }).id)
+        }
+      }
       // eslint-disable-next-line no-console
       console.error('[saveOutbound] insert failed', {
         clinicId,

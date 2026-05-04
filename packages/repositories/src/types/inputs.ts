@@ -102,6 +102,16 @@ export interface SaveInboundMessageInput {
   contentType?: string
   mediaUrl?: string | null
   sentAt?: string
+  /**
+   * Idempotência (mig 800-11 + audit 2026-05-04): `wamid` da Meta ou `key.id`
+   * da Evolution. Popula `wa_messages.provider_msg_id` · UNIQUE
+   * `(clinic_id, provider_msg_id)` bloqueia duplicata em retry do provider.
+   */
+  providerMsgId?: string | null
+  /** Mesma fonte de providerMsgId · espelho em `wa_messages.wa_message_id` (legacy). */
+  waMessageId?: string | null
+  /** 'cloud' (Meta) ou 'evolution' (Baileys). Default DB = 'cloud'. */
+  channel?: 'cloud' | 'evolution'
 }
 
 export interface SaveOutboundMessageInput {
@@ -113,6 +123,10 @@ export interface SaveOutboundMessageInput {
   status?: string
   sentAt?: string
   id?: string
+  /** wamid retornado pelo provider após send · ver SaveInboundMessageInput.providerMsgId. */
+  providerMsgId?: string | null
+  waMessageId?: string | null
+  channel?: 'cloud' | 'evolution'
 }
 
 export interface CreateTemplateInput {
