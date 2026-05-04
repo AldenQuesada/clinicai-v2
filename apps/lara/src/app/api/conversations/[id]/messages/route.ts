@@ -210,6 +210,9 @@ export async function POST(
       contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
       mediaUrl: mediaPath as string,
       status: sendResult.ok ? 'sent' : 'failed',
+      providerMsgId: sendResult.messageId ?? null,
+      waMessageId: sendResult.messageId ?? null,
+      channel: 'evolution',
     });
     if (sendResult.ok) {
       const lastText = captionTrim || `[${mediaType}]`;
@@ -307,6 +310,9 @@ export async function POST(
       contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
       mediaUrl: mediaPath as string,
       status: sendResult.ok ? 'sent' : 'failed',
+      providerMsgId: sendResult.messageId ?? null,
+      waMessageId: sendResult.messageId ?? null,
+      channel: 'cloud',
     });
 
     // Auto-pause IA + atualiza last_message
@@ -356,7 +362,14 @@ export async function POST(
 
   const result = await wa.sendText(conv.phone, content.trim());
 
-  await repos.messages.updateStatus(savedId, result.ok ? 'sent' : 'failed');
+  // Audit 2026-05-04: provider_msg_id só fica disponível após o send · UPDATE
+  // retroativo via updateStatus (saveOutbound roda antes pra preservar rastro
+  // se send falhar). transport='cloud' porque este branch é Cloud-only.
+  await repos.messages.updateStatus(savedId, result.ok ? 'sent' : 'failed', {
+    providerMsgId: result.messageId ?? null,
+    waMessageId: result.messageId ?? null,
+    channel: 'cloud',
+  });
 
   // Auto-pause IA quando humano envia · 30 min default
   await repos.conversations.updateAiPause(id, {

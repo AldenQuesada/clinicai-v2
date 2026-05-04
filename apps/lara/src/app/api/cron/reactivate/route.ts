@@ -87,6 +87,9 @@ export async function GET(req: NextRequest) {
           content: reactivateMessage,
           contentType: 'text',
           status: 'sent',
+          providerMsgId: sendResult.messageId ?? null,
+          waMessageId: sendResult.messageId ?? null,
+          channel: 'cloud',
         });
 
         processedCount++;

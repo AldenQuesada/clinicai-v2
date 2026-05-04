@@ -207,6 +207,9 @@ export async function POST(req: NextRequest) {
       content: messageText,
       contentType: 'text',
       status: 'sent',
+      providerMsgId: sendResult.messageId ?? null,
+      waMessageId: sendResult.messageId ?? null,
+      channel: 'cloud',
     })
     .catch(() => null);
 

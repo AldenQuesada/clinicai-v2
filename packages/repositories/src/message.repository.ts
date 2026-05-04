@@ -250,8 +250,29 @@ export class MessageRepository {
     return id
   }
 
-  async updateStatus(messageId: string, status: string): Promise<void> {
-    await this.supabase.from('wa_messages').update({ status }).eq('id', messageId)
+  /**
+   * Atualiza status (e opcionalmente provider_msg_id / wa_message_id / channel)
+   * de uma row já inserida.
+   *
+   * Audit 2026-05-04: usado pelo fluxo de UI Luciana (saveOutbound roda ANTES
+   * do wa.sendText pra preservar rastro · provider_msg_id só é conhecido após
+   * o send · UPDATE retroativo aqui popula o índice uq_wa_messages_provider_id
+   * sem precisar reordenar.
+   */
+  async updateStatus(
+    messageId: string,
+    status: string,
+    opts?: {
+      providerMsgId?: string | null
+      waMessageId?: string | null
+      channel?: 'cloud' | 'evolution'
+    },
+  ): Promise<void> {
+    const patch: Record<string, unknown> = { status }
+    if (opts?.providerMsgId !== undefined) patch.provider_msg_id = opts.providerMsgId
+    if (opts?.waMessageId !== undefined) patch.wa_message_id = opts.waMessageId
+    if (opts?.channel !== undefined) patch.channel = opts.channel
+    await this.supabase.from('wa_messages').update(patch).eq('id', messageId)
   }
 
   /**
