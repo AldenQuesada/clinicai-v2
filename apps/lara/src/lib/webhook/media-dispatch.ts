@@ -27,6 +27,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger, hashPhone } from '@clinicai/logger'
+import { signOrPassthrough, SIGNED_URL_TTL_META } from '@clinicai/supabase'
 const log = createLogger({ app: 'lara' })
 
 export type PhotoTag =
@@ -271,6 +272,12 @@ async function fetchFromBank(
 
 /**
  * Fallback legacy · lista bucket direto. Sem captions reais (caller usa default).
+ *
+ * Fase 1 LGPD (2026-05-04): retorna PATH (não URL) no campo `url`. Conversão
+ * pra signed URL acontece num único pass no fim de resolveMediaDispatch.
+ *
+ * `basePath` deve já incluir clinic_id no prefixo (ex: `${clinic_id}/library/before-after/olheiras`).
+ * Caller responsável pela montagem.
  */
 async function fallbackBucketList(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -281,10 +288,11 @@ async function fallbackBucketList(
     const { data: files } = await supabase.storage.from('media').list(basePath)
     const validFiles = files?.filter((f) => f.name.match(/\.(jpg|jpeg|png|webp)$/i)) || []
     return validFiles.map((f) => {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(`${basePath}/${f.name}`)
+      // Fase 1: salva PATH no campo `url` · resolvido em signed URL no caller.
+      const path = `${basePath}/${f.name}`
       return {
         id: f.id || f.name,
-        url: urlData?.publicUrl || '',
+        url: path,
         filename: f.name,
         caption: 'Resultado real · Dra. Mirian de Paula',
         queixas: null,
@@ -324,8 +332,9 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
   if (isInstitutional) {
     photos = await fetchFromBankByCategory(supabase, clinic_id, tag)
     if (photos.length === 0) {
-      // Fallback bucket pasta institucional (ex: media/consulta/*)
-      photos = await fallbackBucketList(supabase, tag)
+      // Fallback bucket pasta institucional (ex: <clinic>/library/consulta/*)
+      // Fase 1 LGPD: prefix clinic_id pra alinhar com path canonical (mediaPaths.library)
+      photos = await fallbackBucketList(supabase, `${clinic_id}/library/${tag}`)
       if (photos.length > 0) source = 'bucket'
     }
   } else {
@@ -348,7 +357,10 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
 
     // 3. Bank vazio · fallback bucket folder legacy (sem captions categorizadas)
     if (photos.length === 0) {
-      const folder = funnel === 'olheiras' ? 'before-after/olheiras' : 'before-after/fullface'
+      // Fase 1 LGPD: prefix clinic_id pra alinhar com mediaPaths.library
+      const folder = funnel === 'olheiras'
+        ? `${clinic_id}/library/before-after/olheiras`
+        : `${clinic_id}/library/before-after/fullface`
       photos = await fallbackBucketList(supabase, folder)
       source = 'bucket'
       if (photos.length > 0) {
@@ -406,7 +418,17 @@ export async function resolveMediaDispatch(opts: ResolveOpts): Promise<MediaDisp
   }
 
   // Pega até 2 fotos de pessoas distintas (paridade legacy n8n)
-  const picked = pickTwoFromDifferentPeople(photosToUse)
+  const pickedRaw = pickTwoFromDifferentPeople(photosToUse)
+
+  // Fase 1 LGPD: photos podem ter `url` = PATH (novo) ou URL legacy.
+  // Caller chama wa.sendImage(photo.url, caption) · Meta precisa baixar.
+  // Assina path com TTL 24h (margem ampla · Meta busca em segundos).
+  const picked = await Promise.all(
+    pickedRaw.map(async (p) => ({
+      ...p,
+      url: (await signOrPassthrough(supabase, p.url, SIGNED_URL_TTL_META)) ?? p.url,
+    })),
+  )
 
   log.info(
     {

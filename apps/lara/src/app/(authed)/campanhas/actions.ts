@@ -18,6 +18,7 @@
 import { revalidatePath } from 'next/cache'
 import { loadServerReposContext } from '@/lib/repos'
 import { requireAction } from '@/lib/permissions'
+import { mediaPaths, signMediaPath, SIGNED_URL_TTL_UI } from '@clinicai/supabase'
 import type {
   BroadcastUpsertInput,
   BroadcastTargetFilter,
@@ -283,7 +284,7 @@ export async function loadBroadcastLeadsAction(
 /** Upload de imagem direto pro bucket `media` · espelho do bcMediaUploadBtn. */
 export async function uploadBroadcastMediaAction(
   formData: FormData,
-): Promise<ActionResult<{ url: string }>> {
+): Promise<ActionResult<{ url: string; path: string }>> {
   const { ctx, supabase } = await loadServerReposContext()
   requireAction(ctx.role, 'notifications:broadcast')
 
@@ -300,7 +301,8 @@ export async function uploadBroadcastMediaAction(
 
   const ts = Date.now()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `broadcasts/${ts}-${safeName}`
+  // LGPD Fase 1 (2026-05-04): path canonical via mediaPaths.broadcast com clinic_id.
+  const path = mediaPaths.broadcast(ctx.clinic_id, ts, safeName)
 
   const arrayBuffer = await file.arrayBuffer()
   const { error: uploadError } = await supabase.storage
@@ -313,11 +315,15 @@ export async function uploadBroadcastMediaAction(
     return { ok: false, error: `Upload falhou: ${uploadError.message}` }
   }
 
-  const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-  if (!urlData?.publicUrl) {
-    await supabase.storage.from('media').remove([path])
-    return { ok: false, error: 'Storage nao retornou URL publica' }
+  // Retorna PATH (não URL) · client salva isso em broadcast.media_url e o
+  // worker de envio (RPC wa_broadcast_start) recebe path · gera signed URL
+  // server-side na hora de chamar Meta. Pra UI preview do form, vai signed URL.
+  const previewUrl = await signMediaPath(supabase, path, SIGNED_URL_TTL_UI)
+  return {
+    ok: true,
+    data: {
+      url: previewUrl ?? path, // legacy field name · valor pode ser path se sign falhar
+      path, // canonical · usar daqui em diante no client
+    },
   }
-
-  return { ok: true, data: { url: urlData.publicUrl } }
 }

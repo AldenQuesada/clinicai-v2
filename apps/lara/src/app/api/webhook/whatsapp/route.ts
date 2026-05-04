@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { mediaPaths } from '@clinicai/supabase';
 import {
   createWhatsAppCloudFromWaNumber,
   validateMetaSignature,
@@ -419,7 +420,10 @@ async function processInboundMessage(
           : mediaData.contentType.includes('image') ? 'jpg'
           : mediaData.contentType.includes('video') ? 'mp4'
           : 'bin';
-        const storagePath = `wa-media/${conv.id}/${uuidv4()}.${ext}`;
+        // LGPD Fase 1 (2026-05-04): path canonical com clinic_id pra RLS por folder.
+        // Salvamos PATH em wa_messages.media_url (não URL) · UI/outbound geram signed
+        // URL on-demand via signOrPassthrough.
+        const storagePath = mediaPaths.cloudInbound(clinic_id, conv.id, uuidv4(), ext);
 
         const { data: uploadData } = await supabase.storage
           .from('media')
@@ -429,8 +433,7 @@ async function processInboundMessage(
           });
 
         if (uploadData) {
-          const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath);
-          mediaUrl = urlData?.publicUrl || null;
+          mediaUrl = storagePath;
         }
 
         // Audit gap A3/F5: Vision · imagem inbound vai pro Claude como ContentBlock.

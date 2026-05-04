@@ -13,6 +13,7 @@ import { ArrowLeft } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
 import type { BroadcastDTO } from '@clinicai/repositories'
+import { signOrPassthrough, SIGNED_URL_TTL_UI } from '@clinicai/supabase'
 import { PageContainer } from '@/components/page/PageContainer'
 import { PageHero } from '@/components/page/PageHero'
 import { BroadcastFormClient } from './BroadcastFormClient'
@@ -23,12 +24,13 @@ interface PageProps {
   searchParams: Promise<{ clone?: string }>
 }
 
-function broadcastToInitial(b: BroadcastDTO, isClone: boolean) {
+function broadcastToInitial(b: BroadcastDTO, isClone: boolean, mediaPreview: string) {
   const tf = b.target_filter ?? {}
   return {
     name: isClone ? `${b.name} (cópia)` : b.name,
     content: b.content,
     media_url: b.media_url ?? '',
+    media_url_preview: mediaPreview,
     media_caption: b.media_caption ?? '',
     media_position: b.media_position,
     filter_phase: tf.phase ?? '',
@@ -48,7 +50,7 @@ export default async function NovaCampanhaPage({ searchParams }: PageProps) {
   const sp = await searchParams
   const cloneId = sp.clone
 
-  const { ctx, repos } = await loadServerReposContext()
+  const { ctx, repos, supabase } = await loadServerReposContext()
   if (!can(ctx.role, 'notifications:broadcast')) {
     redirect('/dashboard')
   }
@@ -59,7 +61,10 @@ export default async function NovaCampanhaPage({ searchParams }: PageProps) {
     if (list.ok && list.data) {
       const b = list.data.find((x) => x.id === cloneId)
       if (b) {
-        initialState = broadcastToInitial(b, true)
+        // Fase 1 LGPD: media_url pode ser path canonical (novo) ou URL legacy.
+        // signOrPassthrough resolve ambos · TTL 1h pra preview no form.
+        const preview = (await signOrPassthrough(supabase, b.media_url, SIGNED_URL_TTL_UI)) ?? ''
+        initialState = broadcastToInitial(b, true, preview)
       }
     }
   }

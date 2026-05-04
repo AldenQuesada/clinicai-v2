@@ -57,3 +57,6 @@ supabase/.branches/
 # claude code local settings (per-machine, never commit)
 .claude/settings.local.json
 apps/lara/tmp-*.mjs
+
+# graphify dev artifacts (per-machine knowledge graph · re-gerado on-demand)
+graphify-out/

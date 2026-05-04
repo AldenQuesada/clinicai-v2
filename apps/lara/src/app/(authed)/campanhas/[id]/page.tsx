@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { can } from '@/lib/permissions'
+import { signOrPassthrough, SIGNED_URL_TTL_UI } from '@clinicai/supabase'
 import { PageContainer } from '@/components/page/PageContainer'
 import { PageHero } from '@/components/page/PageHero'
 import { BroadcastDetailClient } from './BroadcastDetailClient'
@@ -23,7 +24,7 @@ interface PageProps {
 export default async function BroadcastDetailPage({ params }: PageProps) {
   const { id } = await params
 
-  const { ctx, repos } = await loadServerReposContext()
+  const { ctx, repos, supabase } = await loadServerReposContext()
   if (!can(ctx.role, 'notifications:broadcast')) {
     redirect('/dashboard')
   }
@@ -37,6 +38,13 @@ export default async function BroadcastDetailPage({ params }: PageProps) {
     listRes.ok && listRes.data ? listRes.data.find((x) => x.id === id) : null
   if (!broadcast) {
     notFound()
+  }
+
+  // Fase 1 LGPD: media_url no DB pode ser PATH (novo) ou URL legacy.
+  // Assina pra render no detail · TTL 1h.
+  const broadcastWithSignedMedia = {
+    ...broadcast,
+    media_url: (await signOrPassthrough(supabase, broadcast.media_url, SIGNED_URL_TTL_UI)) ?? broadcast.media_url,
   }
 
   const stats = statsRes.ok ? statsRes.data : null
@@ -71,7 +79,7 @@ export default async function BroadcastDetailPage({ params }: PageProps) {
         }
       />
 
-      <BroadcastDetailClient broadcast={broadcast} stats={stats} />
+      <BroadcastDetailClient broadcast={broadcastWithSignedMedia} stats={stats} />
     </PageContainer>
   )
 }

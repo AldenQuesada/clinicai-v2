@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { loadServerReposContext } from '@/lib/repos';
+import { mediaPaths, signMediaPath, SIGNED_URL_TTL_UI } from '@clinicai/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,7 +119,9 @@ export async function POST(
 
     const ext = extFromMime(mime);
     const fileId = uuidv4();
-    const path = `wa-uploads/${ctx.clinic_id}/${conversationId}/${fileId}.${ext}`;
+    // LGPD Fase 1 (2026-05-04): path canonical via mediaPaths.upload com
+    // clinic_id no início pra RLS por folder.
+    const path = mediaPaths.upload(ctx.clinic_id, conversationId, fileId, ext);
 
     // Upload binario pro bucket `media`
     const arrayBuffer = await file.arrayBuffer();
@@ -134,8 +137,9 @@ export async function POST(
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    // Public URL (bucket publico) · usado pra preview no client + render no chat
-    const { data: pub } = supabase.storage.from('media').getPublicUrl(path);
+    // Signed URL TTL 1h pra preview imediato no client (bucket vai a privado em
+    // Fase 2 · UI re-gera signed URL via /messages route on render).
+    const previewUrl = await signMediaPath(supabase, path, SIGNED_URL_TTL_UI);
 
     return NextResponse.json({
       ok: true,
@@ -144,7 +148,10 @@ export async function POST(
       mimeType: mime,
       fileName: file.name || `${fileId}.${ext}`,
       fileSize: file.size,
-      publicUrl: pub.publicUrl,
+      previewUrl,
+      // Mantém `publicUrl` no payload pra compat retroativa com client antigo
+      // (se receber, usa; é signed URL agora · field name desatualizado mas funcional).
+      publicUrl: previewUrl,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown';

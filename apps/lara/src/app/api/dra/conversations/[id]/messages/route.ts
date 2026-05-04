@@ -14,7 +14,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { loadServerContext } from '@clinicai/supabase';
+import { loadServerContext, signOrPassthrough, SIGNED_URL_TTL_UI } from '@clinicai/supabase';
 import { can } from '@/lib/permissions';
 import { loadServerReposContext } from '@/lib/repos';
 
@@ -70,6 +70,15 @@ export async function GET(
 
     if (msgsErr) return NextResponse.json({ error: msgsErr.message }, { status: 500 });
 
+    // Fase 1 LGPD: media_url no DB é PATH (ou URL legacy) · assina pra render.
+    type MsgRow = { media_url?: string | null } & Record<string, unknown>;
+    const msgsResolved = await Promise.all(
+      ((msgs ?? []) as MsgRow[]).map(async (m) => ({
+        ...m,
+        media_url: await signOrPassthrough(supabase, m.media_url, SIGNED_URL_TTL_UI),
+      })),
+    );
+
     return NextResponse.json({
       conversation: {
         id: conv.id,
@@ -78,7 +87,7 @@ export async function GET(
         last_message_at: conv.last_message_at,
       },
       // Reverte pra ordem cronológica (mais antiga → mais recente)
-      messages: ((msgs ?? []) as unknown[]).slice().reverse(),
+      messages: msgsResolved.slice().reverse(),
     });
   } catch (err) {
     return NextResponse.json({ error: (err as Error)?.message || 'unknown' }, { status: 500 });

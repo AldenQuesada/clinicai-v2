@@ -69,8 +69,21 @@ import { SegmentPicker, type SegmentState } from './SegmentPicker'
 
 interface FormState {
   name: string
-  content: string
+  /**
+   * Persistido em broadcast.media_url. Pode ser:
+   *  - PATH canonical (`<clinic_id>/broadcasts/<ts>-<file>`) · novo, padrão Fase 1 LGPD
+   *  - URL legacy (https://...) · entrada manual ou rascunho antigo
+   * Worker que envia broadcast usa signOrPassthrough() · trata ambos.
+   */
   media_url: string
+  /**
+   * Signed URL pra exibir o preview no form. NÃO persistido · só pra UI.
+   * Pra path: gerado pelo upload action (TTL 1h · re-gerado se user deixa
+   * form aberto > 1h, ou seja, edge case raro).
+   * Pra URL legacy: igual ao media_url.
+   */
+  media_url_preview: string
+  content: string
   media_caption: string
   media_position: 'above' | 'below'
   filter_phase: string
@@ -89,6 +102,7 @@ const EMPTY_FORM: FormState = {
   name: '',
   content: '',
   media_url: '',
+  media_url_preview: '',
   media_caption: '',
   media_position: 'above',
   filter_phase: '',
@@ -250,7 +264,11 @@ export function BroadcastFormClient({
         showToast(res.error || 'Erro no upload', 'err')
         return
       }
-      patchForm({ media_url: res.data.url })
+      // Fase 1 LGPD: action retorna `path` (canonical · persiste) + `url` (signed,
+      // preview). Se `path` veio (upload via storage), usa-o em media_url. Se não,
+      // fallback pra `url` (compat retroativa).
+      const persistValue = res.data.path ?? res.data.url
+      patchForm({ media_url: persistValue, media_url_preview: res.data.url })
       showToast('Imagem enviada com sucesso')
     } catch (e) {
       showToast(`Erro no upload: ${(e as Error).message}`, 'err')
@@ -582,7 +600,11 @@ Quebras de linha são mantidas.`}
               style={{ flex: 1, minWidth: 200 }}
               placeholder="https://... (URL da imagem ou link)"
               value={form.media_url}
-              onChange={(e) => patchForm({ media_url: e.target.value })}
+              onChange={(e) => {
+                const v = e.target.value
+                // URL manual: persist e preview são iguais (legacy public URL).
+                patchForm({ media_url: v, media_url_preview: v })
+              }}
             />
           </div>
 
@@ -602,13 +624,13 @@ Quebras de linha são mantidas.`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={form.media_url}
+                  src={form.media_url_preview || form.media_url}
                   alt="preview"
                   style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }}
                 />
                 <button
                   type="button"
-                  onClick={() => patchForm({ media_url: '', media_caption: '' })}
+                  onClick={() => patchForm({ media_url: '', media_url_preview: '', media_caption: '' })}
                   className="b2b-btn"
                   style={{ padding: '4px 8px' }}
                 >
@@ -774,7 +796,7 @@ Quebras de linha são mantidas.`}
       </div>
 
       {/* ── COLUNA DIREITA · PREVIEW ──────────────────────────────── */}
-      <PhonePreview html={previewHtml} mediaUrl={form.media_url} mediaPosition={form.media_position} />
+      <PhonePreview html={previewHtml} mediaUrl={form.media_url_preview || form.media_url} mediaPosition={form.media_position} />
 
       {confirmSendOpen && (
         <ConfirmSendModal

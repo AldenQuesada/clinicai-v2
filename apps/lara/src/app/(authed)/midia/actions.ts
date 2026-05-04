@@ -11,6 +11,7 @@
 import { revalidatePath } from 'next/cache'
 import { loadServerReposContext } from '@/lib/repos'
 import { KNOWN_PHOTO_TAGS, type PhotoTag } from '@clinicai/repositories'
+import { mediaPaths, signMediaPath, SIGNED_URL_TTL_UI } from '@clinicai/supabase'
 
 const ALLOWED_FUNNELS = ['olheiras', 'fullface'] as const
 type AllowedFunnel = (typeof ALLOWED_FUNNELS)[number]
@@ -104,11 +105,12 @@ export async function uploadMediaAction(
     const originalName = sanitizeFilename(file.name)
     const ts = Date.now()
     const filename = `${ts}-${originalName}`
-    // Path: before-after/{funnel}/ pra resultados · {category}/ pras institucionais
-    const storageFolder = category === 'before_after' && funnel
+    // LGPD Fase 1 (2026-05-04): path canonical via mediaPaths.library com clinic_id.
+    // Subfolder: before-after/{funnel} pra resultados · {category} pras institucionais.
+    const subFolder = category === 'before_after' && funnel
       ? `before-after/${funnel}`
       : category
-    const storagePath = `${storageFolder}/${filename}`
+    const storagePath = mediaPaths.library(ctx.clinic_id, subFolder, filename)
 
     // Sobe pro Storage
     const arrayBuffer = await file.arrayBuffer()
@@ -123,16 +125,11 @@ export async function uploadMediaAction(
       return { ok: false, error: `Upload pro storage falhou: ${uploadError.message}` }
     }
 
-    const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath)
-    const publicUrl = urlData?.publicUrl
-    if (!publicUrl) {
-      await supabase.storage.from('media').remove([storagePath])
-      return { ok: false, error: 'Storage nao retornou URL publica' }
-    }
-
+    // Salva PATH no banco (não URL) · UI/Lara geram signed URL on-demand.
+    // Field name `url` mantido pra compat retroativa do schema · valor é path agora.
     const created = await repos.mediaBank.create(ctx.clinic_id, {
       filename,
-      url: publicUrl,
+      url: storagePath,
       category,
       funnel,
       queixas,
@@ -152,8 +149,10 @@ export async function uploadMediaAction(
       }
     }
 
+    // Retorna signed URL pra preview imediato no client (TTL 1h)
+    const previewUrl = await signMediaPath(supabase, storagePath, SIGNED_URL_TTL_UI)
     revalidatePath('/midia')
-    return { ok: true, url: publicUrl }
+    return { ok: true, url: previewUrl ?? storagePath }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro desconhecido'
     console.error('[uploadMediaAction] uncaught error:', e)

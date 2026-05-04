@@ -28,6 +28,7 @@ import {
   resolveConversation,
 } from '@/lib/webhook/lead-conversation';
 import { transcribeAudio } from '@/services/transcription.service';
+import { mediaPaths } from '@clinicai/supabase';
 
 const log = createLogger({ app: 'lara' });
 
@@ -289,7 +290,10 @@ export async function POST(request: NextRequest) {
           : dl.contentType.includes('video') ? 'mp4'
           : dl.contentType.includes('pdf') ? 'pdf'
           : 'bin';
-        const storagePath = `wa-evolution-inbound/${clinic_id}/${uuidv4()}.${ext}`;
+        // LGPD Fase 1 (2026-05-04): path canonical com clinic_id pra RLS por folder.
+        // convId=null porque download acontece antes de resolveConversation · cai
+        // em pending/ subfolder (cleanup periódico OK).
+        const storagePath = mediaPaths.evolutionInbound(clinic_id, null, uuidv4(), ext);
         const { data: upData, error: upErr } = await supabase.storage
           .from('media')
           .upload(storagePath, dl.buffer, {
@@ -302,8 +306,8 @@ export async function POST(request: NextRequest) {
             'webhook_evolution.media.upload_failed',
           );
         } else {
-          const { data: pub } = supabase.storage.from('media').getPublicUrl(storagePath);
-          mediaUrl = pub.publicUrl;
+          // Salva PATH (não URL) · UI/outbound geram signed URL on-demand.
+          mediaUrl = storagePath;
           log.info(
             { instance, contentType: dl.contentType, ext, bytes: dl.buffer.length },
             'webhook_evolution.media.uploaded',

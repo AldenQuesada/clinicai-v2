@@ -7,7 +7,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { loadServerContext } from '@clinicai/supabase';
+import { loadServerContext, signOrPassthrough, SIGNED_URL_TTL_UI } from '@clinicai/supabase';
 import { createLogger } from '@clinicai/logger';
 
 const log = createLogger({ app: 'lara' });
@@ -67,17 +67,29 @@ export async function GET(
           },
           (payload) => {
             const newMsg = payload.new as Record<string, unknown>;
-            const formatted = {
-              id: newMsg.id,
-              content: newMsg.content,
-              sender: newMsg.sender === 'user' ? 'user' : 'assistant',
-              createdAt: newMsg.sent_at,
-              type: newMsg.content_type || 'text',
-              mediaUrl: newMsg.media_url,
-              isManual: newMsg.sender === 'humano',
-            };
-            const eventPayload = `data: ${JSON.stringify(formatted)}\n\n`;
-            controller.enqueue(encoder.encode(eventPayload));
+            // Fase 1 LGPD: media_url no DB é PATH (ou URL legacy) · assina on-emit.
+            // Async dentro de callback do realtime: usa Promise + enqueue depois.
+            void (async () => {
+              const signedUrl = await signOrPassthrough(
+                supabase,
+                newMsg.media_url as string | null | undefined,
+                SIGNED_URL_TTL_UI,
+              );
+              const formatted = {
+                id: newMsg.id,
+                content: newMsg.content,
+                sender: newMsg.sender === 'user' ? 'user' : 'assistant',
+                createdAt: newMsg.sent_at,
+                type: newMsg.content_type || 'text',
+                mediaUrl: signedUrl,
+                isManual: newMsg.sender === 'humano',
+              };
+              try {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(formatted)}\n\n`));
+              } catch {
+                // controller fechado · ignore
+              }
+            })();
           }
         )
         .subscribe();

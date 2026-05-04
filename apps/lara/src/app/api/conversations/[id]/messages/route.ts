@@ -6,7 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { loadServerContext } from '@clinicai/supabase';
+import {
+  loadServerContext,
+  signOrPassthrough,
+  signMediaPath,
+  SIGNED_URL_TTL_UI,
+  SIGNED_URL_TTL_META,
+} from '@clinicai/supabase';
 import {
   WhatsAppCloudService,
   createWhatsAppCloudFromWaNumber,
@@ -77,9 +83,18 @@ export async function GET(
 
   const messages = await repos.messages.listByConversation(id, { ascending: true });
 
+  // Fase 1 LGPD: media_url no DB vira PATH em writes novos · GET assina on-demand.
+  // signOrPassthrough trata legado (URL pública) sem mudança · transitional até backfill.
+  const mediasResolved = await Promise.all(
+    messages.map(async (m) => ({
+      ...m,
+      mediaUrl: await signOrPassthrough(supabase, m.mediaUrl, SIGNED_URL_TTL_UI),
+    })),
+  );
+
   // Mantem shape legado (snake_case) pro frontend que ainda nao migrou
   return NextResponse.json(
-    messages.map((m) => ({
+    mediasResolved.map((m) => ({
       id: m.id,
       clinic_id: m.clinicId,
       conversation_id: m.conversationId,
@@ -159,9 +174,10 @@ export async function POST(
   // (Evolution baixa a URL e envia pelo WhatsApp · nao precisa upload-by-id)
   // ────────────────────────────────────────────────────────────────
   if (transport === 'evolution' && hasMedia) {
-    const { data: pub } = supabase.storage.from('media').getPublicUrl(mediaPath as string);
-    if (!pub?.publicUrl) {
-      return NextResponse.json({ error: 'Falha ao gerar URL publica' }, { status: 500 });
+    // Fase 1 LGPD: signed URL TTL 24h pra Evolution baixar (margem ampla).
+    const signedForEvo = await signMediaPath(supabase, mediaPath as string, SIGNED_URL_TTL_META);
+    if (!signedForEvo) {
+      return NextResponse.json({ error: 'Falha ao gerar signed URL pra Evolution' }, { status: 500 });
     }
     const captionTrim = content?.trim() || undefined;
     const safeFilename = (fileName as string) || (mediaPath as string).split('/').pop() || 'file';
@@ -170,28 +186,29 @@ export async function POST(
     const evo = wa as EvolutionService;
     let sendResult;
     if (mediaType === 'image') {
-      sendResult = await evo.sendImage(conv.phone, pub.publicUrl, captionTrim);
+      sendResult = await evo.sendImage(conv.phone, signedForEvo, captionTrim);
     } else if (mediaType === 'audio') {
       // Evolution sendWhatsAppAudio aceita URL · grava como PTT no destinatario.
       // mp3 (lamejs) e ogg/opus funcionam · webm crú nao.
-      sendResult = await evo.sendVoice(conv.phone, pub.publicUrl);
+      sendResult = await evo.sendVoice(conv.phone, signedForEvo);
     } else if (mediaType === 'document') {
       // sendImage com mediatype=document funciona via /message/sendMedia
       // workaround simples · Evolution aceita generic media via mesma rota
       const evoAny = wa as unknown as { sendImage: (p: string, u: string, c?: string) => Promise<{ ok: boolean; error?: string; messageId?: string | null }> };
-      sendResult = await evoAny.sendImage(conv.phone, pub.publicUrl, captionTrim);
+      sendResult = await evoAny.sendImage(conv.phone, signedForEvo, captionTrim);
     } else {
       return NextResponse.json({ error: `mediaType '${mediaType}' nao suportado em Evolution V1` }, { status: 415 });
     }
 
     const msgId = uuidv4();
+    // Salva PATH (não URL) · próxima leitura via GET re-assina TTL 1h.
     await repos.messages.saveOutbound(conv.clinicId, {
       id: msgId,
       conversationId: id,
       sender: 'humano',
       content: captionTrim ?? '',
       contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
-      mediaUrl: pub.publicUrl,
+      mediaUrl: mediaPath as string,
       status: sendResult.ok ? 'sent' : 'failed',
     });
     if (sendResult.ok) {
@@ -199,12 +216,14 @@ export async function POST(
       await repos.conversations.updateLastMessage(id, lastText, false);
     }
     void baseMimeType; void safeFilename;
+    // Devolve signed URL pro client renderizar imediatamente (TTL 1h, suficiente).
+    const previewForClient = await signMediaPath(supabase, mediaPath as string, SIGNED_URL_TTL_UI);
     return NextResponse.json({
       ok: sendResult.ok,
       message_id: msgId,
       whatsappStatus: sendResult.ok ? 'sent' : 'error',
       whatsappError: sendResult.ok ? null : sendResult.error,
-      mediaUrl: pub.publicUrl,
+      mediaUrl: previewForClient,
       transport,
     });
   }
@@ -278,8 +297,7 @@ export async function POST(
       );
     }
 
-    // 3. Salva em wa_messages · publica URL pra render no chat propria UI
-    const { data: pub } = supabase.storage.from('media').getPublicUrl(mediaPath as string);
+    // 3. Salva em wa_messages · PATH (não URL) · GET re-assina TTL 1h.
     const msgId = uuidv4();
     await repos.messages.saveOutbound(conv.clinicId, {
       id: msgId,
@@ -287,7 +305,7 @@ export async function POST(
       sender: 'humano',
       content: captionTrim ?? '', // caption ou vazio
       contentType: mediaType as 'image' | 'audio' | 'document' | 'video',
-      mediaUrl: pub.publicUrl,
+      mediaUrl: mediaPath as string,
       status: sendResult.ok ? 'sent' : 'failed',
     });
 
@@ -301,12 +319,14 @@ export async function POST(
       await repos.conversations.updateLastMessage(id, lastText, false);
     }
 
+    // Signed URL pro client renderizar imediato (TTL 1h, suficiente).
+    const previewForClient = await signMediaPath(supabase, mediaPath as string, SIGNED_URL_TTL_UI);
     return NextResponse.json({
       ok: sendResult.ok,
       message_id: msgId,
       whatsappStatus: sendResult.ok ? 'sent' : 'error',
       whatsappError: sendResult.ok ? null : sendResult.error,
-      mediaUrl: pub.publicUrl,
+      mediaUrl: previewForClient,
       autoPauseActivated: sendResult.ok,
     });
   }
