@@ -1,0 +1,137 @@
+/**
+ * POST /api/diag/simulate-inbound
+ * Diag temporario · simula payload Meta inbound bypass signature ·
+ * usa pra testar fluxo Cloud webhook end-to-end sem precisar Meta real.
+ *
+ * REMOVER apos diag (security risk · sem auth).
+ *
+ * Auth: x-diag-secret header · qualquer valor (so pra evitar abuse acidental).
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase';
+import { makeRepos } from '@/lib/repos';
+import { resolveLead, resolveConversation } from '@/lib/webhook/lead-conversation';
+import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: NextRequest) {
+  const headerSecret = request.headers.get('x-diag-secret');
+  if (headerSecret !== 'simulate-inbound-2026-05-04') {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const phoneNumberId = body?.phone_number_id || '1073862819146770'; // Lara default
+  const fromPhone = body?.from || '554498787673';
+  const text = body?.text || `DIAG_SIMULATE_${Date.now()}`;
+  const pushName = body?.push_name || 'Diag Probe';
+
+  const supabase = createServerClient();
+  const repos = makeRepos(supabase);
+
+  const traceLog = async (stage: string, extra: Record<string, unknown> = {}) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('wa_webhook_log').insert({
+        endpoint: '/api/diag/simulate-inbound',
+        method: 'POST',
+        signature_ok: true,
+        signature_reason: 'simulate:' + stage,
+        phone_number_id: phoneNumberId,
+        from_phone: fromPhone,
+        message_text: text.slice(0, 200),
+        message_type: 'text',
+        raw_body: JSON.stringify(extra).slice(0, 4000),
+        result_status: 200,
+        result_summary: 'simulate_stage:' + stage,
+      });
+    } catch { /* silent */ }
+  };
+
+  try {
+    await traceLog('start');
+
+    const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
+    await traceLog('after_resolveTenantContext', { clinic_id, wa_number_id });
+
+    // Guard last8
+    const phoneLast8 = fromPhone.replace(/\D/g, '').slice(-8);
+    if (phoneLast8.length === 8) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ownNumbers } = await (supabase as any)
+        .from('wa_numbers')
+        .select('id, label, inbox_role, phone')
+        .eq('is_active', true)
+        .like('phone', `%${phoneLast8}`);
+      const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
+        const p = (n.phone ?? '').replace(/\D/g, '');
+        return p.slice(-8) === phoneLast8;
+      });
+      await traceLog('guard_check', {
+        phone_last8: phoneLast8,
+        candidates_count: (ownNumbers ?? []).length,
+        matched: !!match,
+        match_label: match?.label,
+      });
+      if (match) {
+        return NextResponse.json({ ok: true, blocked: 'internal_loop', match });
+      }
+    }
+
+    await traceLog('before_resolveLead');
+    const lead = await resolveLead({ leads: repos.leads, clinic_id, phone: fromPhone, pushName });
+    if (!lead) {
+      await traceLog('resolveLead_returned_null');
+      return NextResponse.json({ ok: false, error: 'resolveLead_null' }, { status: 500 });
+    }
+    await traceLog('after_resolveLead', { lead_id: lead.id });
+
+    const conv = await resolveConversation({
+      conversations: repos.conversations,
+      clinic_id,
+      phone: fromPhone,
+      lead,
+      pushName,
+      waNumberId: wa_number_id,
+    });
+    if (!conv) {
+      await traceLog('resolveConversation_returned_null');
+      return NextResponse.json({ ok: false, error: 'resolveConversation_null' }, { status: 500 });
+    }
+    await traceLog('after_resolveConversation', {
+      conv_id: conv.id,
+      wa_number_id: conv.waNumberId,
+      inbox_role: conv.inboxRole,
+    });
+
+    await traceLog('before_saveInbound', { content: text.slice(0, 80) });
+    const inboundId = await repos.messages.saveInbound(clinic_id, {
+      conversationId: conv.id,
+      phone: fromPhone,
+      content: text,
+      contentType: 'text',
+      sentAt: new Date().toISOString(),
+    });
+    if (!inboundId) {
+      await traceLog('saveInbound_returned_null', { conv_id: conv.id });
+      return NextResponse.json({ ok: false, error: 'saveInbound_null', conv_id: conv.id }, { status: 500 });
+    }
+    await traceLog('after_saveInbound', { msg_id: inboundId });
+
+    return NextResponse.json({
+      ok: true,
+      stages_completed: 'all',
+      conv_id: conv.id,
+      msg_id: inboundId,
+      lead_id: lead.id,
+      wa_number_id: conv.waNumberId,
+      inbox_role: conv.inboxRole,
+    });
+  } catch (err) {
+    const errMsg = (err as Error)?.message || 'unknown';
+    await traceLog('exception', { err: errMsg, stack: (err as Error)?.stack?.slice(0, 500) });
+    return NextResponse.json({ ok: false, error: 'exception', err: errMsg }, { status: 500 });
+  }
+}
