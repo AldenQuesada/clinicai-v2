@@ -60,6 +60,49 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // Diag (2026-05-04 ·): captura raw body ANTES de qualquer validação pra
+  // forensics quando Easypanel logs não bastam (incidente Michele 11:01 UTC).
+  const rawBody = await request.text();
+  const providedSecret = request.headers.get('x-inbound-secret') || '';
+  const fromHeaderTrace = request.headers.get('x-forwarded-for');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let parsedBodyTrace: any = null;
+  try { parsedBodyTrace = JSON.parse(rawBody); } catch { /* fallthrough */ }
+  const traceInstance: string | null = parsedBodyTrace?.instance ?? null;
+  const traceFromPhone: string | null =
+    parsedBodyTrace?.data?.key?.senderPn ??
+    parsedBodyTrace?.data?.senderPn ??
+    parsedBodyTrace?.data?.key?.remoteJid ??
+    null;
+  const traceMessageText: string | null =
+    parsedBodyTrace?.data?.message?.conversation ??
+    parsedBodyTrace?.data?.message?.extendedTextMessage?.text ??
+    null;
+  const traceMessageType: string | null = parsedBodyTrace?.data?.messageType ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const evoTraceLog = async (extra: { stage: string; result_status?: number; result_summary?: string; signature_ok?: boolean }) => {
+    try {
+      const supabase = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('wa_webhook_log').insert({
+        endpoint: '/api/webhook/whatsapp-evolution',
+        method: 'POST',
+        signature_ok: extra.signature_ok ?? null,
+        signature_reason: 'evo:' + extra.stage,
+        phone_number_id: traceInstance,
+        from_phone: traceFromPhone,
+        message_text: traceMessageText?.slice(0, 500) ?? null,
+        message_type: traceMessageType,
+        raw_body: rawBody.slice(0, 8000),
+        headers_subset: { 'x-forwarded-for': fromHeaderTrace, 'x-inbound-secret-len': providedSecret.length },
+        result_status: extra.result_status ?? null,
+        result_summary: 'evo_stage:' + extra.stage,
+      });
+    } catch {
+      // silent · não pode quebrar webhook por falha de logging
+    }
+  };
+
   // Auth · shared secret (Evolution nao carrega JWT Supabase).
   // Aceita WA_INBOUND_SECRET (canonical) OU LARA_WA_INBOUND_SECRET (fallback
   // pra cobrir bugs de naming em painel de deploy).
@@ -68,6 +111,7 @@ export async function POST(request: NextRequest) {
     process.env.LARA_WA_INBOUND_SECRET ||
     '';
   if (!expected) {
+    await evoTraceLog({ stage: 'misconfig_no_secret', signature_ok: false, result_status: 500 });
     log.error(
       {
         has_wa_inbound: !!process.env.WA_INBOUND_SECRET,
@@ -77,27 +121,32 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json({ ok: false, error: 'server_misconfigured' }, { status: 500 });
   }
-  const provided = request.headers.get('x-inbound-secret') || '';
-  if (!timingSafeEqual(provided, expected)) {
+  if (!timingSafeEqual(providedSecret, expected)) {
+    await evoTraceLog({ stage: 'unauthorized', signature_ok: false, result_status: 401 });
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
+  await evoTraceLog({ stage: 'auth_ok', signature_ok: true, result_status: 200 });
 
   let body: EvolutionPayload;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody) as EvolutionPayload;
   } catch {
+    await evoTraceLog({ stage: 'invalid_json', signature_ok: true, result_status: 400 });
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const event = body?.event || '';
   if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
+    await evoTraceLog({ stage: 'skip_not_message_event', signature_ok: true, result_status: 200, result_summary: 'event=' + event });
     return NextResponse.json({ ok: true, skip: 'not_message_event' });
   }
 
   const instance = body?.instance || '';
   if (!instance) {
+    await evoTraceLog({ stage: 'skip_no_instance', signature_ok: true, result_status: 200 });
     return NextResponse.json({ ok: true, skip: 'no_instance' });
   }
+  await evoTraceLog({ stage: 'event_messages_upsert', signature_ok: true, result_status: 200 });
 
   const data = body?.data ?? {};
   const key = data?.key ?? {};
@@ -115,6 +164,7 @@ export async function POST(request: NextRequest) {
 
   const remoteJid: string = key?.remoteJid || '';
   if (!remoteJid || remoteJid.includes('@g.us')) {
+    await evoTraceLog({ stage: 'skip_group_or_invalid', signature_ok: true, result_status: 200, result_summary: 'remoteJid=' + remoteJid.slice(0,40) });
     return NextResponse.json({ ok: true, skip: 'group_or_invalid' });
   }
 
@@ -144,8 +194,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isLidOutboundUnresolved && !/^\d{10,15}$/.test(phone)) {
+    await evoTraceLog({ stage: 'skip_bad_phone', signature_ok: true, result_status: 200, result_summary: 'phone_len=' + phone.length });
     return NextResponse.json({ ok: true, skip: 'bad_phone', phone });
   }
+  await evoTraceLog({ stage: 'phone_resolved', signature_ok: true, result_status: 200, result_summary: 'last8=' + (phone.slice(-8) || 'lid') });
 
   // Resolve wa_number pela instance (RPC mig 92)
   const supabase = createServerClient();
@@ -176,6 +228,7 @@ export async function POST(request: NextRequest) {
         return p.slice(-8) === phoneLast8;
       });
       if (match) {
+        await evoTraceLog({ stage: 'skip_internal_loop', signature_ok: true, result_status: 200, result_summary: 'target=' + match.label });
         log.info(
           { phone_hash: hashPhone(phone), own_label: match.label, own_role: match.inbox_role },
           'webhook_evolution.skip_internal_loop',
@@ -190,6 +243,7 @@ export async function POST(request: NextRequest) {
     { p_instance: instance },
   );
   if (resolveErr || !resolveRes?.ok) {
+    await evoTraceLog({ stage: 'skip_instance_unresolved', signature_ok: true, result_status: 200, result_summary: 'instance=' + instance });
     log.warn(
       { instance, err: resolveErr?.message ?? resolveRes?.error },
       'webhook_evolution.instance_unresolved',
@@ -200,9 +254,11 @@ export async function POST(request: NextRequest) {
   const inboxRole = String(resolveRes.inbox_role || 'sdr');
   const clinic_id = String(resolveRes.clinic_id);
   const wa_number_id = String(resolveRes.wa_number_id);
+  await evoTraceLog({ stage: 'tenant_resolved', signature_ok: true, result_status: 200, result_summary: 'clinic=' + clinic_id.slice(0,8) + ' role=' + inboxRole });
 
   // Filter · so processa secretaria · evita interferir em legacy flows da Mih
   if (inboxRole !== 'secretaria') {
+    await evoTraceLog({ stage: 'skip_not_secretaria_inbox', signature_ok: true, result_status: 200, result_summary: 'inbox=' + inboxRole });
     return NextResponse.json({
       ok: true,
       skip: 'not_secretaria_inbox',
@@ -502,8 +558,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  await evoTraceLog({ stage: 'lead_conv_resolved', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
+
   // Dedup soft · Evolution retry pode entregar 2x na mesma janela curta
   if (await repos.messages.findRecentDuplicate(conv.id, content)) {
+    await evoTraceLog({ stage: 'skip_duplicate', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
     return NextResponse.json({ ok: true, skip: 'duplicate' });
   }
 
@@ -565,6 +624,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, kind: 'outbound_device', conversation_id: conv.id });
   }
 
+  await evoTraceLog({ stage: 'before_saveInbound', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
   const insertedId = await repos.messages.saveInbound(clinic_id, {
     conversationId: conv.id,
     phone,
@@ -574,12 +634,14 @@ export async function POST(request: NextRequest) {
     sentAt: sentAtStr,
   });
   if (!insertedId) {
+    await evoTraceLog({ stage: 'saveInbound_returned_null', signature_ok: true, result_status: 500, result_summary: 'conv=' + conv.id.slice(0,8) });
     log.error(
       { clinic_id, conv_id: conv.id, contentType, contentPreview: content.slice(0, 60) },
       'webhook_evolution.save_inbound_failed · skipping updateLastMessage to avoid orphan preview',
     );
     return NextResponse.json({ ok: false, error: 'save_failed' }, { status: 500 });
   }
+  await evoTraceLog({ stage: 'after_saveInbound_ok', signature_ok: true, result_status: 200, result_summary: 'msg_id=' + insertedId.slice(0,8) });
 
   // Bug 2 fix: Evolution às vezes envia 2 webhooks (audio + text-transcricao)
   // pra mesma mensagem · resultando em UI com "transcricao separada do audio".
