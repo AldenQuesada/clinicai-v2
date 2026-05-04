@@ -280,7 +280,9 @@ BEGIN
     v_count_url, v_count_path, v_count_skipped;
 END $$;
 
--- ── 4. Update broadcasts.media_url ─────────────────────────────────────────
+-- ── 4. Update wa_broadcasts.media_url ─────────────────────────────────────
+-- Tabela canônica do CRM v2 · `broadcasts` (sem prefix) é legacy Evolution
+-- (sem media_url · não tocar). wa_broadcasts tem clinic_id direto.
 
 DO $$
 DECLARE
@@ -290,35 +292,75 @@ DECLARE
   v_new_path TEXT;
   v_count INT := 0;
 BEGIN
-  -- Broadcasts não tem clinic_id direto · usa default (single-tenant)
-  -- Se schema futuro adicionar clinic_id em broadcasts, atualizar query.
   FOR rec IN
-    SELECT id, media_url
-    FROM public.broadcasts
+    SELECT id, clinic_id, media_url
+    FROM public.wa_broadcasts
     WHERE media_url IS NOT NULL AND media_url <> ''
   LOOP
     v_path := _lgpd_extract_path_from_url(rec.media_url);
     IF v_path IS NOT NULL THEN
-      v_clinic := _lgpd_resolve_clinic_for_path(v_path);
+      v_clinic := COALESCE(rec.clinic_id, _lgpd_resolve_clinic_for_path(v_path));
       v_new_path := _lgpd_build_new_path(v_path, v_clinic);
       INSERT INTO _lgpd_storage_path_migration_log (
         bucket_id, old_name, new_name, resolved_clinic_id, source, source_row_id
-      ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'broadcasts', rec.id::TEXT);
-      UPDATE public.broadcasts SET media_url = v_new_path WHERE id = rec.id;
+      ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'wa_broadcasts', rec.id::TEXT);
+      UPDATE public.wa_broadcasts SET media_url = v_new_path WHERE id = rec.id;
       v_count := v_count + 1;
     ELSIF rec.media_url NOT LIKE 'http%' THEN
-      v_clinic := _lgpd_resolve_clinic_for_path(rec.media_url);
+      v_clinic := COALESCE(rec.clinic_id, _lgpd_resolve_clinic_for_path(rec.media_url));
       v_new_path := _lgpd_build_new_path(rec.media_url, v_clinic);
       IF v_new_path <> rec.media_url THEN
         INSERT INTO _lgpd_storage_path_migration_log (
           bucket_id, old_name, new_name, resolved_clinic_id, source, source_row_id
-        ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'broadcasts', rec.id::TEXT);
-        UPDATE public.broadcasts SET media_url = v_new_path WHERE id = rec.id;
+        ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'wa_broadcasts', rec.id::TEXT);
+        UPDATE public.wa_broadcasts SET media_url = v_new_path WHERE id = rec.id;
         v_count := v_count + 1;
       END IF;
     END IF;
   END LOOP;
-  RAISE NOTICE 'mig 110 · broadcasts: % migrated', v_count;
+  RAISE NOTICE 'mig 110 · wa_broadcasts: % migrated', v_count;
+END $$;
+
+-- ── 4.5 Update wa_outbox.media_url ─────────────────────────────────────────
+-- Fila de envios pendentes · MSGS AGENDADAS PRA SAIR. Crítico migrar antes
+-- de Fase 2 · senão worker que despacha vai pegar URL legacy expirada.
+-- Tem clinic_id próprio.
+
+DO $$
+DECLARE
+  rec RECORD;
+  v_path TEXT;
+  v_clinic UUID;
+  v_new_path TEXT;
+  v_count INT := 0;
+BEGIN
+  FOR rec IN
+    SELECT id, clinic_id, media_url
+    FROM public.wa_outbox
+    WHERE media_url IS NOT NULL AND media_url <> ''
+  LOOP
+    v_path := _lgpd_extract_path_from_url(rec.media_url);
+    IF v_path IS NOT NULL THEN
+      v_clinic := COALESCE(rec.clinic_id, _lgpd_resolve_clinic_for_path(v_path));
+      v_new_path := _lgpd_build_new_path(v_path, v_clinic);
+      INSERT INTO _lgpd_storage_path_migration_log (
+        bucket_id, old_name, new_name, resolved_clinic_id, source, source_row_id
+      ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'wa_outbox', rec.id::TEXT);
+      UPDATE public.wa_outbox SET media_url = v_new_path WHERE id = rec.id;
+      v_count := v_count + 1;
+    ELSIF rec.media_url NOT LIKE 'http%' THEN
+      v_clinic := COALESCE(rec.clinic_id, _lgpd_resolve_clinic_for_path(rec.media_url));
+      v_new_path := _lgpd_build_new_path(rec.media_url, v_clinic);
+      IF v_new_path <> rec.media_url THEN
+        INSERT INTO _lgpd_storage_path_migration_log (
+          bucket_id, old_name, new_name, resolved_clinic_id, source, source_row_id
+        ) VALUES ('media', rec.media_url, v_new_path, v_clinic, 'wa_outbox', rec.id::TEXT);
+        UPDATE public.wa_outbox SET media_url = v_new_path WHERE id = rec.id;
+        v_count := v_count + 1;
+      END IF;
+    END IF;
+  END LOOP;
+  RAISE NOTICE 'mig 110 · wa_outbox: % migrated', v_count;
 END $$;
 
 -- ── 5. Update wa_media_bank.url ────────────────────────────────────────────

@@ -35,7 +35,7 @@ BEGIN
   RAISE NOTICE 'rollback mig 110 · wa_media_bank: % reverted', v_count;
 END $$;
 
--- ── 2. Reverter broadcasts ─────────────────────────────────────────────────
+-- ── 2. Reverter wa_broadcasts + wa_outbox ──────────────────────────────────
 DO $$
 DECLARE
   rec RECORD;
@@ -44,13 +44,30 @@ BEGIN
   FOR rec IN
     SELECT source_row_id, old_name
     FROM public._lgpd_storage_path_migration_log
-    WHERE source = 'broadcasts'
+    WHERE source = 'wa_broadcasts'
     ORDER BY id DESC
   LOOP
-    UPDATE public.broadcasts SET media_url = rec.old_name WHERE id::TEXT = rec.source_row_id;
+    UPDATE public.wa_broadcasts SET media_url = rec.old_name WHERE id::TEXT = rec.source_row_id;
     v_count := v_count + 1;
   END LOOP;
-  RAISE NOTICE 'rollback mig 110 · broadcasts: % reverted', v_count;
+  RAISE NOTICE 'rollback mig 110 · wa_broadcasts: % reverted', v_count;
+END $$;
+
+DO $$
+DECLARE
+  rec RECORD;
+  v_count INT := 0;
+BEGIN
+  FOR rec IN
+    SELECT source_row_id, old_name
+    FROM public._lgpd_storage_path_migration_log
+    WHERE source = 'wa_outbox'
+    ORDER BY id DESC
+  LOOP
+    UPDATE public.wa_outbox SET media_url = rec.old_name WHERE id::TEXT = rec.source_row_id;
+    v_count := v_count + 1;
+  END LOOP;
+  RAISE NOTICE 'rollback mig 110 · wa_outbox: % reverted', v_count;
 END $$;
 
 -- ── 3. Reverter wa_messages ────────────────────────────────────────────────
