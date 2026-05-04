@@ -604,46 +604,70 @@ export async function POST(request: NextRequest) {
 
   await repos.conversations.updateLastMessage(conv.id, content, true, sentAtStr);
 
-  // Auto-greeting · 1a mensagem do dia · responde com nome falando que vai
-  // avisar a secretaria. Garante que o paciente tem ack imediato mesmo que
-  // a Luciana demore. Idempotente via countInboundSince(>00:00 local) === 1.
+  // Auto-greeting · ack imediato.
+  // Mig 114 (2026-05-04): claim atomic via RPC · cobre 4 bugs da guard antiga
+  // (countInboundSince==1). RPC retorna false se Luciana mandou nas últimas 6h
+  // OU já houve greeting nas últimas 24h. Guard waRow continua: sem credentials
+  // Evolution não dá pra mandar mesmo · skip antes do claim pra não fazer
+  // claim que vai precisar unclaim.
   try {
-    const todayLocal = new Date();
-    todayLocal.setHours(0, 0, 0, 0);
-    const inboundsToday = await repos.messages.countInboundSince(
-      conv.id,
-      todayLocal.toISOString(),
-    );
-    if (inboundsToday === 1 && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
-      const firstName = (lead.name || '').split(/\s+/)[0] || '';
-      const greet = firstName
-        ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
-        : `Oi! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`;
-      const evo = new EvolutionService({
-        apiUrl: String(waRow.api_url),
-        apiKey: String(waRow.api_key),
-        instance: String(waRow.instance_id),
-      });
-      const sent = await evo.sendText(phone, greet);
-      if (sent.ok) {
-        await repos.messages.saveOutbound(clinic_id, {
-          conversationId: conv.id,
-          sender: 'humano',
-          content: greet,
-          contentType: 'text',
-          status: 'sent',
-        });
-        // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
-        // preview da inbound do paciente · permanece em "Aguardando"
-        // (KPI default da Luciana) · auto-greeting eh ack, nao resposta.
-        log.info(
-          { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
-          'webhook_evolution.auto_greeting.sent',
-        );
-      } else {
+    if (!waRow?.api_url || !waRow?.api_key || !waRow?.instance_id) {
+      log.debug(
+        { clinic_id, conv_id: conv.id },
+        'webhook_evolution.auto_greeting.skipped · evolution_creds_missing',
+      );
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: claimed, error: claimErr } = await (supabase as any).rpc(
+        'wa_secretaria_auto_greeting_claim',
+        { p_conversation_id: conv.id },
+      );
+      if (claimErr) {
         log.warn(
-          { clinic_id, conv_id: conv.id, err: sent.error },
-          'webhook_evolution.auto_greeting.send_failed',
+          { clinic_id, conv_id: conv.id, err: claimErr.message },
+          'webhook_evolution.auto_greeting.claim_error',
+        );
+      } else if (claimed === true) {
+        const firstName = (lead.name || '').split(/\s+/)[0] || '';
+        const greet = firstName
+          ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
+          : `Oi! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`;
+        const evo = new EvolutionService({
+          apiUrl: String(waRow.api_url),
+          apiKey: String(waRow.api_key),
+          instance: String(waRow.instance_id),
+        });
+        const sent = await evo.sendText(phone, greet);
+        if (sent.ok) {
+          await repos.messages.saveOutbound(clinic_id, {
+            conversationId: conv.id,
+            sender: 'humano',
+            content: greet,
+            contentType: 'text',
+            status: 'sent',
+          });
+          // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
+          // preview da inbound do paciente · permanece em "Aguardando"
+          // (KPI default da Luciana) · auto-greeting eh ack, nao resposta.
+          log.info(
+            { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
+            'webhook_evolution.auto_greeting.sent',
+          );
+        } else {
+          // Send falhou · unclaim pra próxima inbound re-tentar (vs ficar 24h muda)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).rpc('wa_secretaria_auto_greeting_unclaim', {
+            p_conversation_id: conv.id,
+          });
+          log.warn(
+            { clinic_id, conv_id: conv.id, err: sent.error },
+            'webhook_evolution.auto_greeting.send_failed_unclaimed',
+          );
+        }
+      } else {
+        log.debug(
+          { clinic_id, conv_id: conv.id },
+          'webhook_evolution.auto_greeting.skipped · luciana_active_or_cooldown',
         );
       }
     }

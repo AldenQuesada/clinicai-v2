@@ -542,15 +542,23 @@ async function processInboundMessage(
       { clinic_id, phone_hash: hashPhone(phone), conv_id: conv.id },
       'webhook.secretaria.inbound · skipping AI generation',
     );
-    // Auto-greeting · 1a mensagem do dia · ack imediato com nome.
+    // Auto-greeting · ack imediato.
+    // Mig 114 (2026-05-04): claim atomic via RPC · resolve 4 bugs da guard antiga
+    // (countInboundSince==1 ignorava outbound humano da Luciana, race window,
+    // timezone server, falha-send silenciosa). RPC retorna false se Luciana
+    // mandou nas últimas 6h OU se já mandou greeting nas últimas 24h.
     try {
-      const todayLocal = new Date();
-      todayLocal.setHours(0, 0, 0, 0);
-      const inboundsToday = await repos.messages.countInboundSince(
-        conv.id,
-        todayLocal.toISOString(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: claimed, error: claimErr } = await (supabase as any).rpc(
+        'wa_secretaria_auto_greeting_claim',
+        { p_conversation_id: conv.id },
       );
-      if (inboundsToday === 1) {
+      if (claimErr) {
+        log.warn(
+          { clinic_id, conv_id: conv.id, err: claimErr.message },
+          'webhook.secretaria.auto_greeting.claim_error',
+        );
+      } else if (claimed === true) {
         const firstName = (lead.name || '').split(/\s+/)[0] || '';
         const greet = firstName
           ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
@@ -572,11 +580,21 @@ async function processInboundMessage(
             'webhook.secretaria.auto_greeting.sent',
           );
         } else {
+          // Send falhou · unclaim pra próxima inbound re-tentar (vs ficar 24h muda)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).rpc('wa_secretaria_auto_greeting_unclaim', {
+            p_conversation_id: conv.id,
+          });
           log.warn(
             { clinic_id, conv_id: conv.id, err: (sent as { error?: string }).error },
-            'webhook.secretaria.auto_greeting.send_failed',
+            'webhook.secretaria.auto_greeting.send_failed_unclaimed',
           );
         }
+      } else {
+        log.debug(
+          { clinic_id, conv_id: conv.id },
+          'webhook.secretaria.auto_greeting.skipped · luciana_active_or_cooldown',
+        );
       }
     } catch (err) {
       log.warn(
