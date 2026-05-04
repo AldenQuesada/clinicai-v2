@@ -561,7 +561,11 @@ export async function POST(request: NextRequest) {
   await evoTraceLog({ stage: 'lead_conv_resolved', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
 
   // Dedup soft · Evolution retry pode entregar 2x na mesma janela curta
-  if (await repos.messages.findRecentDuplicate(conv.id, content)) {
+  // Audit 2026-05-04: dedup por conteúdo é FALLBACK pra payloads sem key.id.
+  // Quando key.id está presente (caminho normal Baileys), idempotência fica
+  // 100% no DB via uq_wa_messages_provider_id. Evita descartar mensagens
+  // legítimas iguais com provider_msg_id distinto.
+  if (!key?.id && await repos.messages.findRecentDuplicate(conv.id, content)) {
     await evoTraceLog({ stage: 'skip_duplicate', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
     return NextResponse.json({ ok: true, skip: 'duplicate' });
   }

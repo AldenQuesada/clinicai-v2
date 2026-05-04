@@ -504,7 +504,12 @@ async function processInboundMessage(
   }
 
   // 5.5 Dedup soft · Meta retry · 60s window
-  if (await repos.messages.findRecentDuplicate(conv.id, textContent)) {
+  // Audit 2026-05-04: dedup por conteúdo é FALLBACK pra payloads sem wamid.
+  // Quando message.id está presente (caminho normal Meta), idempotência fica
+  // 100% no DB via uq_wa_messages_provider_id (saveInbound trata erro 23505
+  // e retorna o id existente). Evita descartar mensagens legítimas iguais
+  // ("ok"/"ok" em janela curta) que têm provider_msg_id distinto.
+  if (!message?.id && await repos.messages.findRecentDuplicate(conv.id, textContent)) {
     log.debug({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook.duplicate.ignored');
     return;
   }
