@@ -28,6 +28,7 @@ const PUBLIC_PATHS = [
   '/api/webhook',
   '/api/cron',
   '/api/cold-open',
+  '/api/diag', // diag temporario · auth via x-diag-secret header (REMOVER apos uso)
 ]
 
 function isPublicPath(pathname: string): boolean {
