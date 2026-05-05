@@ -30,6 +30,11 @@ import { usePresence } from '../conversas/hooks/usePresence';
 import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
 import { DOCTOR_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
 import {
+  isReturnPending,
+  isReturnCritical,
+  minutesSince,
+} from '../conversas/lib/returnPromises';
+import {
   Search,
   RefreshCw,
   ArrowUpDown,
@@ -71,12 +76,10 @@ export default function SecretariaPage() {
   //   ESCOPO  · todos | abertas | resolvidas (lente de status)
   //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
   // Default = aguardando (fila operacional da Luciana visivel direto)
-  type KpiId = 'todos' | 'abertas' | 'resolvidas' | 'aguardando' | 'urgente' | 'dra';
-  // Default por role (Alden 2026-05-05):
-  //   Luciana / outros → 'todos'   (visão geral)
-  //   Mirian (owner)   → 'dra'     (fila dela · aplicado no efeito abaixo)
-  // Aplicado UMA vez quando `me` resolve · usuário pode trocar de KPI depois
-  // sem ser sobrescrito (didApplyRoleKpi guard).
+  // 5 KPIs operacionais (Alden 2026-05-05 · removidos Abertas+Resolvidas):
+  //   Todos | Aguardando | Retorno | Urgente | Dra
+  // Default 'todos' pra Luciana/outros · 'dra' pra Mirian (efeito abaixo).
+  type KpiId = 'todos' | 'aguardando' | 'retorno' | 'urgente' | 'dra';
   const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
   const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
@@ -121,51 +124,61 @@ export default function SecretariaPage() {
   };
 
   // ─────────────────────────────────────────────────────────────────────
-  // KPIs clicaveis · 3 buckets operacionais da secretaria
+  // 5 KPIs operacionais · filas humanas reais · derivados local (zero fetch)
   // ─────────────────────────────────────────────────────────────────────
-  // Aguardando: paciente foi o ultimo a falar (last_message == last_lead_msg)
-  // Urgente:    conv com flag is_urgent (tag URGENTE detectada por palavras
-  //             chave no banco) · alinhado 1:1 com a tag visivel no painel
-  //             direito · tempo de espera (>30min) NAO entra aqui · vive no
-  //             badge ⏱ separado por conv item.
-  // Dra:        conv com pergunta pendente da Consultoria Mirian
-  //             (statusFilter='dra' carrega via API uma lista separada)
-  const isPatientWaiting = (c: typeof conversations[number]) => {
-    if (!c.last_lead_msg || !c.last_message_at) return false;
-    return c.last_message_at === c.last_lead_msg;
+  //
+  // Critérios canônicos (Alden 2026-05-05):
+  //
+  //   Todos:      status IN ('active','paused')
+  //   Aguardando: waiting_human_response = true E !atribuída-à-Dra
+  //               (server-side · single source of truth · sla.ts)
+  //   Retorno:    promessa pendente (PROMISE_RE) E !atribuída-à-Dra
+  //               (lib/returnPromises.ts · single source of truth)
+  //   Urgente:    qualquer alerta vermelho/crítico em qualquer fila
+  //               (a) Aguardando crítico (response_color ≥ vermelho)
+  //               (b) Retorno crítico (≥ 7min sem resposta humana)
+  //               (c) Dra crítica (≥ 15min desde assigned_at)
+  //   Dra:        assigned_to = DOCTOR_USER_ID E status active/paused
+  //
+  // c.is_urgent (tag-based legacy) NÃO é mais critério · pode aparecer como
+  // pill na conv mas não governa o KPI Urgente.
+
+  const isOperational = (c: typeof conversations[number]) =>
+    c.status === 'active' || c.status === 'paused';
+
+  const isNotDoctor = (c: typeof conversations[number]) =>
+    !isAssignedToDoctor(c.assigned_to ?? null);
+
+  const isUrgenteAggregate = (c: typeof conversations[number]): boolean => {
+    if (!isOperational(c)) return false;
+    const isDra = isAssignedToDoctor(c.assigned_to ?? null);
+    // (a) Aguardando crítico
+    if (
+      !isDra &&
+      c.waiting_human_response &&
+      ['vermelho', 'critico', 'atrasado_fixo', 'antigo_parado'].includes(
+        c.response_color,
+      )
+    ) {
+      return true;
+    }
+    // (b) Retorno crítico
+    if (!isDra && isReturnCritical(c)) return true;
+    // (c) Dra crítica (≥ 15min desde assigned_at · onset 'critico' do SLA Dra)
+    if (isDra && c.assigned_at && minutesSince(c.assigned_at) >= 15) return true;
+    return false;
   };
-  const isUrgent = (c: typeof conversations[number]) => c.is_urgent;
 
-  // Counts dos 6 KPIs · derivados local · zero fetch extra.
-  // Aguardando E Urgente excluem conversas atribuídas à Dra (responsabilidade
-  // transferida · não é mais fila da secretária). Decisão Alden 2026-05-05:
-  // "Aguardando é fila da Luciana, Dra é fila da Mirian, Todas é visão geral".
-  const abertasCount = conversations.filter((c) => c.status === 'active').length;
-  const resolvidasCount = conversations.filter((c) => c.status === 'resolved').length;
-  const todosCount = abertasCount + resolvidasCount; // E2 · sem arquivadas
+  const todosCount = conversations.filter(isOperational).length;
   const aguardandoCount = conversations.filter(
-    (c) =>
-      c.status === 'active' &&
-      isPatientWaiting(c) &&
-      !isAssignedToDoctor(c.assigned_to ?? null),
+    (c) => isOperational(c) && c.waiting_human_response && isNotDoctor(c),
   ).length;
-  const urgenteCount = conversations.filter(
-    (c) =>
-      c.status === 'active' &&
-      isUrgent(c) &&
-      !isAssignedToDoctor(c.assigned_to ?? null),
+  const retornoCount = conversations.filter(
+    (c) => isOperational(c) && isNotDoctor(c) && isReturnPending(c),
   ).length;
-
-  // KPI Dra · agora baseado em wa_conversations.assigned_to (Caminho A · Alden
-  // 2026-05-05). Substitui o fetch antigo de /api/secretaria/dra-pending que
-  // contava conversation_questions (perguntas). Conversation_questions
-  // continua existindo pra fluxo "Pedir ajuda da Dra" (overlay sem mudar
-  // estado da conv) — pra surfaçar count separado, criar novo KPI "Perguntas
-  // Dra" futuramente.
+  const urgenteCount = conversations.filter(isUrgenteAggregate).length;
   const draCount = conversations.filter(
-    (c) =>
-      isAssignedToDoctor(c.assigned_to ?? null) &&
-      (c.status === 'active' || c.status === 'paused'),
+    (c) => isAssignedToDoctor(c.assigned_to ?? null) && isOperational(c),
   ).length;
 
   // Tab title mostra urgentes como sinal mais forte de pendencia
@@ -174,35 +187,46 @@ export default function SecretariaPage() {
   }, [urgenteCount]);
 
   // ─────────────────────────────────────────────────────────────────────
-  // Mapping KPI → props legacy (statusFilter + activeTab) que a
-  // ConversationList consome internamente. Mantém compat sem rework.
-  //
-  //   todos       → statusFilter='active' (simplificacao · API nao tem 'all')
-  //   abertas     → statusFilter='active'
-  //   resolvidas  → statusFilter='resolved'
-  //   aguardando  → statusFilter='active' + activeTab='Aguardando'
-  //   urgente     → statusFilter='active' + activeTab='Urgentes'
-  //   dra         → statusFilter='active' + filtro local por conv_id (espelho)
+  // Mapping KPI → ConversationList (statusFilter + activeTab + filtro local)
   // ─────────────────────────────────────────────────────────────────────
+  //
+  //   todos       → statusFilter='active' · activeTab='Todas'
+  //   aguardando  → statusFilter='active' · activeTab='Aguardando'
+  //   retorno     → statusFilter='active' · activeTab='Retorno' + filtro local
+  //   urgente     → statusFilter='active' · activeTab='Todas' + filtro local
+  //   dra         → statusFilter='active' · activeTab='Dra' + filtro local
+  //
+  // Filtros locais redundantes com activeTab são aplicados em
+  // `filteredConversations` antes de mandar pra ConversationList · garante
+  // que counts batam com lista visível mesmo se a tab não conseguir filtrar
+  // sozinha (caso de Urgente agregado, que mistura Aguardando+Retorno+Dra).
   useEffect(() => {
-    if (activeKpi === 'resolvidas') setStatusFilter('resolved');
-    else setStatusFilter('active');
+    setStatusFilter('active');
   }, [activeKpi, setStatusFilter]);
 
   const activeTab =
     activeKpi === 'aguardando' ? 'Aguardando'
-    : activeKpi === 'urgente' ? 'Urgentes'
+    : activeKpi === 'retorno' ? 'Retorno'
+    : activeKpi === 'dra' ? 'Dra'
     : 'Todas';
 
-  // Filtro local pro KPI Dra · mostra conversas atribuídas à Mirian (fila Dra).
-  // Caminho A · usa assigned_to em vez de conversation_questions.
-  const filteredConversations = activeKpi === 'dra'
-    ? conversations.filter(
-        (c) =>
-          isAssignedToDoctor(c.assigned_to ?? null) &&
-          (c.status === 'active' || c.status === 'paused'),
-      )
-    : conversations;
+  // Filtro local · KPI agregado (urgente) ou KPIs específicos (retorno, dra)
+  // garantem que a lista visível bata com o count, indep. da tab que a
+  // ConversationList já aplica.
+  const filteredConversations =
+    activeKpi === 'dra'
+      ? conversations.filter(
+          (c) =>
+            isAssignedToDoctor(c.assigned_to ?? null) &&
+            (c.status === 'active' || c.status === 'paused'),
+        )
+      : activeKpi === 'retorno'
+      ? conversations.filter(
+          (c) => isOperational(c) && isNotDoctor(c) && isReturnPending(c),
+        )
+      : activeKpi === 'urgente'
+      ? conversations.filter(isUrgenteAggregate)
+      : conversations;
 
   // Override defaults pra perfil sénior · onlyWhenHidden=false · idempotente
   // (não sobrescreve se user já mexeu nas prefs)
@@ -382,10 +406,10 @@ export default function SecretariaPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · 6 KPIs CLICAVEIS numa linha
-            ESCOPO: Todos · Abertas · Resolvidas (lente de status)
-            FILA:   Aguardando · Urgente · Dra (operacional)
-            Separador visual entre os 2 grupos. */}
+        {/* ZONA CENTRAL · 5 KPIs CLICAVEIS numa linha · filas humanas reais
+            ESCOPO: Todos (visão geral · sem arquivadas)
+            FILA:   Aguardando · Retorno · Urgente · Dra
+            Removidos Abertas/Resolvidas (Alden 2026-05-05). */}
         <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0">
           <div className="flex items-center gap-1.5">
             {([
@@ -396,25 +420,7 @@ export default function SecretariaPage() {
                 label: 'Todos',
                 value: todosCount,
                 color: 'foreground',
-                title: 'Todas as conversas (Abertas + Resolvidas) · sem arquivadas',
-                group: 'escopo' as const,
-              },
-              {
-                id: 'abertas' as const,
-                icon: CircleDot,
-                label: 'Abertas',
-                value: abertasCount,
-                color: 'primary',
-                title: 'Conversas ativas · em andamento',
-                group: 'escopo' as const,
-              },
-              {
-                id: 'resolvidas' as const,
-                icon: CheckCheck,
-                label: 'Resolvidas',
-                value: resolvidasCount,
-                color: 'success',
-                title: 'Conversas marcadas como resolvidas (indice = Resolvidas / Todos)',
+                title: 'Todas as conversas operacionais (active + paused)',
                 group: 'escopo' as const,
               },
               // ── Grupo FILA (colorido) ──
@@ -424,7 +430,17 @@ export default function SecretariaPage() {
                 label: 'Aguardando',
                 value: aguardandoCount,
                 color: 'warning',
-                title: 'Paciente foi o ultimo a falar · fila pra Luciana cuidar',
+                title: 'Paciente esperando resposta humana · fila pra Luciana cuidar',
+                group: 'fila' as const,
+              },
+              {
+                id: 'retorno' as const,
+                icon: CircleDot,
+                label: 'Retorno',
+                value: retornoCount,
+                color: 'accent',
+                title:
+                  'Promessa de retorno pendente · "vou verificar / te retorno" sem mensagem nova',
                 group: 'fila' as const,
               },
               {
@@ -433,7 +449,8 @@ export default function SecretariaPage() {
                 label: 'Urgente',
                 value: urgenteCount,
                 color: 'destructive',
-                title: 'Conversas com tag URGENTE (palavra-chave detectada)',
+                title:
+                  'Alerta crítico em qualquer fila · Aguardando ≥7min · Retorno ≥7min · Dra ≥15min',
                 group: 'fila' as const,
               },
               {
@@ -442,7 +459,7 @@ export default function SecretariaPage() {
                 label: 'Dra',
                 value: draCount,
                 color: 'accent',
-                title: 'Perguntas que a secretaria transferiu pra Dra Mirian responder',
+                title: 'Conversas transferidas pra Dra Mirian (assigned_to)',
                 group: 'fila' as const,
               },
             ]).map((k, idx, arr) => {
@@ -574,10 +591,14 @@ export default function SecretariaPage() {
           onAdvancedFiltersActiveChange={setHasAdvFiltersActive}
           activeTab={activeTab}
           onActiveTabChange={(tab) => {
-            // Guard · simplifiedTabs nao expoe sub-filtros, mas mantém sync
+            // Guard · simplifiedTabs nao expoe sub-filtros, mas mantém sync.
+            // Nova matriz de KPIs (Alden 2026-05-05): Todos · Aguardando ·
+            // Retorno · Urgente · Dra (Abertas/Resolvidas removidos).
             if (tab === 'Aguardando') setActiveKpi('aguardando');
+            else if (tab === 'Retorno') setActiveKpi('retorno');
             else if (tab === 'Urgentes') setActiveKpi('urgente');
-            else setActiveKpi('abertas');
+            else if (tab === 'Dra') setActiveKpi('dra');
+            else setActiveKpi('todos');
           }}
           onlineUsers={inboxOnline}
           me={me}

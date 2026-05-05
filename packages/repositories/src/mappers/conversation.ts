@@ -1,12 +1,15 @@
 /**
  * mapConversationRow · row snake_case da tabela wa_conversations → DTO.
  *
- * Aceita opcionalmente o ISO da última resposta humana (computado em batch
- * pelo repository · ConversationRepository.getLastHumanReplyByConvs) pra
- * preencher os campos de SLA. Default null = nenhuma resposta humana →
- * conversa aguardando se houver lastPatientMsgAt.
+ * Aceita opcionalmente:
+ *   - `lastHumanReplyAt` (ISO timestamp): última resposta humana válida ·
+ *     usado pelo SLA secretária (computeSla).
+ *   - `lastHumanReplyText`: conteúdo da mesma mensagem · usado pelo KPI
+ *     Retorno (apps/lara/.../lib/returnPromises · detecta promessa de
+ *     retorno como "vou verificar", "te retorno", etc).
  *
- * SLA delegado a `computeSla()` em sla.ts · single source of truth.
+ * Ambos defaultam null · single-source-of-truth resolvido em
+ * ConversationRepository.getLastHumanReplyByConvs() em batch.
  */
 
 import { computeSla } from '../sla'
@@ -17,6 +20,7 @@ import type { ConversationDTO } from '../types/dtos'
 export function mapConversationRow(
   row: any,
   lastHumanReplyAt: string | null = null,
+  lastHumanReplyText: string | null = null,
 ): ConversationDTO {
   const lastPatientMsgAt: string | null = row.last_lead_msg ?? null
   const sla = computeSla({ lastPatientMsgAt, lastHumanReplyAt })
@@ -42,9 +46,10 @@ export function mapConversationRow(
     inboxRole: (row.inbox_role === 'secretaria' ? 'secretaria' : 'sdr') as 'sdr' | 'secretaria',
     handoffToSecretariaAt: row.handoff_to_secretaria_at ?? null,
     handoffToSecretariaBy: row.handoff_to_secretaria_by ?? null,
-    // SLA · performance da secretaria
+    // SLA · performance da secretaria + KPI Retorno
     lastPatientMsgAt,
     lastHumanReplyAt,
+    lastHumanReplyText,
     waitingHumanResponse: sla.waitingHumanResponse,
     minutesWaiting: sla.minutesWaiting,
     responseColor: sla.responseColor,

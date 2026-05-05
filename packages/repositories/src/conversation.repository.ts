@@ -149,11 +149,15 @@ export class ConversationRepository {
     const rows: any[] = data ?? []
     if (rows.length === 0) return []
 
-    // SLA secretaria · 1 query auxiliar batched pra resolver lastHumanReplyAt
-    // por conversa. Single source of truth = computeSla() no mapper.
+    // SLA secretaria + KPI Retorno · 1 query auxiliar batched pra resolver
+    // lastHumanReply (sentAt + content) por conversa. Single source of truth
+    // = computeSla() no mapper + isReturnPending() na UI.
     const ids = rows.map((r) => String(r.id))
     const humanReplies = await this.getLastHumanReplyByConvs(ids)
-    return rows.map((row) => mapConversationRow(row, humanReplies.get(String(row.id)) ?? null))
+    return rows.map((row) => {
+      const hr = humanReplies.get(String(row.id))
+      return mapConversationRow(row, hr?.sentAt ?? null, hr?.content ?? null)
+    })
   }
 
   /**
@@ -164,21 +168,25 @@ export class ConversationRepository {
    *   AND deleted_at IS NULL
    *   AND status IS DISTINCT FROM 'note'
    *
-   * Retorna Map<conversation_id, ISO sent_at> com a mais recente por conv.
-   * Conversas sem resposta humana ficam fora do Map (caller usa null default).
+   * Retorna Map<conversation_id, { sentAt, content }> com a mais recente por
+   * conv. Conversas sem resposta humana ficam fora do Map (caller usa null
+   * default). `content` necessário pra detectar promessa de retorno (KPI
+   * Retorno · isReturnPending em apps/lara/.../lib/returnPromises.ts).
    *
-   * Usado por listByStatus + getInsights pra alimentar computeSla(). UI nunca
-   * recalcula a regra · só renderiza response_color / minutes_waiting / pulse.
+   * Usado por listByStatus + getInsights pra alimentar:
+   *   - computeSla() (lastHumanReplyAt)
+   *   - isReturnPending() (lastHumanReplyText)
+   * UI nunca recalcula regra · só renderiza/filtra a partir do DTO.
    */
   async getLastHumanReplyByConvs(
     conversationIds: string[],
-  ): Promise<Map<string, string>> {
-    const result = new Map<string, string>()
+  ): Promise<Map<string, { sentAt: string; content: string | null }>> {
+    const result = new Map<string, { sentAt: string; content: string | null }>()
     if (conversationIds.length === 0) return result
 
     const { data } = await this.supabase
       .from('wa_messages')
-      .select('conversation_id, sent_at')
+      .select('conversation_id, sent_at, content')
       .in('conversation_id', conversationIds)
       .eq('direction', 'outbound')
       .eq('sender', 'humano')
@@ -192,9 +200,15 @@ export class ConversationRepository {
     for (const row of (data ?? []) as Array<{
       conversation_id: string
       sent_at: string
+      content: string | null
     }>) {
       const cid = String(row.conversation_id)
-      if (!result.has(cid)) result.set(cid, String(row.sent_at))
+      if (!result.has(cid)) {
+        result.set(cid, {
+          sentAt: String(row.sent_at),
+          content: row.content ?? null,
+        })
+      }
     }
     return result
   }
@@ -500,7 +514,7 @@ export class ConversationRepository {
       if (c.ai_enabled !== false) laraAtiva++
       const sla = computeSla({
         lastPatientMsgAt: c.last_lead_msg ?? null,
-        lastHumanReplyAt: humanReplies.get(String(c.id)) ?? null,
+        lastHumanReplyAt: humanReplies.get(String(c.id))?.sentAt ?? null,
         now,
       })
       if (!sla.waitingHumanResponse) continue

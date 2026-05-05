@@ -40,6 +40,9 @@ export interface Conversation {
   last_patient_msg_at: string | null;
   /** ISO da última resposta humana válida (sender='humano' AND status≠'note') */
   last_human_reply_at: string | null;
+  /** Texto da última resposta humana · usado pelo KPI Retorno
+      (lib/returnPromises) pra detectar promessa de retorno · null se sem reply */
+  last_human_reply_text: string | null;
   /** Paciente esperando resposta humana neste momento */
   waiting_human_response: boolean;
   /** Minutos desde last_patient_msg_at · null se !waiting */

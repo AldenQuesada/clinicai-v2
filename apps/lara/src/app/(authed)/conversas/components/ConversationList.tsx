@@ -4,6 +4,7 @@ import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { computeDoctorSla } from '../lib/doctorSla';
+import { isReturnPending } from '../lib/returnPromises';
 import { isAssignedToDoctor } from '@/lib/clinic-profiles';
 import { PresenceAvatars } from './PresenceAvatars';
 import type { PresenceUser } from '../hooks/usePresence';
@@ -89,7 +90,7 @@ export function ConversationList({
     return () => clearInterval(id);
   }, []);
 
-  const tabs = ['Todas', 'Aguardando', 'Dra', 'Urgentes', 'Lara Ativa'];
+  const tabs = ['Todas', 'Aguardando', 'Retorno', 'Dra', 'Urgentes', 'Lara Ativa'];
 
   // Extrair todas as tags únicas disponíveis nas conversas atuais para o filtro
   const allTags = useMemo(() => {
@@ -116,6 +117,9 @@ export function ConversationList({
       //             visivel no painel direito.
       // Aguardando: SLA secretaria · waiting_human_response E !atribuída-à-Dra
       //             (transferidas saem da fila secretária · vão pra Dra).
+      // Retorno:    promessa de retorno pendente (PROMISE_RE em
+      //             lib/returnPromises) E !atribuída-à-Dra. Detecta "vou
+      //             verificar / te retorno" sem mensagem nova.
       // Dra:        assigned_to = DOCTOR_USER_ID · fila da Mirian.
       // Lara Ativa: ai_enabled = true E !atribuída-à-Dra (Lara só conduz
       //             convs ainda na fila secretária).
@@ -123,6 +127,7 @@ export function ConversationList({
         const isDra = isAssignedToDoctor(conv.assigned_to ?? null);
         if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
         if (activeTab === 'Aguardando' && (!conv.waiting_human_response || isDra)) return false;
+        if (activeTab === 'Retorno' && (isDra || !isReturnPending(conv))) return false;
         if (activeTab === 'Dra' && !isDra) return false;
         if (activeTab === 'Lara Ativa' && (!conv.ai_enabled || isDra)) return false;
       }

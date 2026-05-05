@@ -97,6 +97,9 @@ export async function GET(request: NextRequest) {
         // SLA · performance da secretaria (computado pelo repository · sla.ts)
         last_patient_msg_at: c.lastPatientMsgAt,
         last_human_reply_at: c.lastHumanReplyAt,
+        // KPI Retorno · texto da última resposta humana (pra detectar
+        // promessa de retorno via PROMISE_RE em lib/returnPromises.ts)
+        last_human_reply_text: c.lastHumanReplyText,
         waiting_human_response: c.waitingHumanResponse,
         minutes_waiting: c.minutesWaiting,
         response_color: c.responseColor,

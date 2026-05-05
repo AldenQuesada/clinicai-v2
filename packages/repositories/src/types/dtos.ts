@@ -152,6 +152,10 @@ export interface ConversationDTO {
   lastPatientMsgAt: string | null
   /** ISO da última resposta humana válida · null se nenhuma até agora */
   lastHumanReplyAt: string | null
+  /** Conteúdo da última resposta humana válida · null se nenhuma. Usado pra
+      detectar promessa de retorno (KPI Retorno · isReturnPending) sem
+      reabrir wa_messages no client. */
+  lastHumanReplyText: string | null
   /** Paciente esperando resposta humana neste momento */
   waitingHumanResponse: boolean
   /** Minutos desde lastPatientMsgAt · null se !waiting */
