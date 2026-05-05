@@ -256,6 +256,9 @@ async function processInboundMessage(
 
   // Helper diag · grava trace de etapas em wa_webhook_log pra debug pos-deploy
   // (sem acesso a logs Easypanel · este é o caminho).
+  // Audit Fase 4A retry 2026-05-05: sanitiza raw_body mesmo aqui (extra é
+  // objeto controlado · defesa em camadas pra cobrir caso futuro de algum
+  // caller passar secret embutido em content_preview/payload).
   const stageLog = async (stage: string, extra: Record<string, unknown> = {}) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,7 +271,7 @@ async function processInboundMessage(
         from_phone: phone,
         message_text: (message?.text?.body ?? '').slice(0, 200),
         message_type: message?.type,
-        raw_body: JSON.stringify(extra).slice(0, 4000),
+        raw_body: sanitizeWebhookLogBody(JSON.stringify(extra)).slice(0, 4000),
         result_status: 200,
         result_summary: 'stage:' + stage,
       });

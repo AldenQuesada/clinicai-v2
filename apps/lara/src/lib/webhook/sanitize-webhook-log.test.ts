@@ -190,6 +190,159 @@ describe('redactSecretsDeep · direct usage', () => {
   })
 })
 
+describe('sanitizeWebhookLogBody · media redaction (Phase 4A.2)', () => {
+  it('redacts top-level base64 key', () => {
+    const input = JSON.stringify({
+      base64: 'AAAA'.repeat(500), // would otherwise pass big-string test too
+      event: 'messages.upsert',
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).toContain('[REDACTED_MEDIA]')
+    expect(out).toContain('messages.upsert')
+    expect(out).not.toMatch(/AAAA{10}/)
+  })
+
+  it('redacts nested data.message.base64', () => {
+    const input = JSON.stringify({
+      data: { message: { base64: 'short-but-still-key-matched' } },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('short-but-still-key-matched')
+    expect(out).toContain('[REDACTED_MEDIA]')
+  })
+
+  it('redacts audioMessage.mediaKey', () => {
+    const input = JSON.stringify({
+      data: {
+        message: {
+          audioMessage: {
+            mediaKey: 'secretKey32bytesBase64encoded==',
+            mimetype: 'audio/ogg; codecs=opus',
+            seconds: 7,
+            ptt: true,
+            url: 'https://mmg.whatsapp.net/...',
+          },
+        },
+      },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('secretKey32bytesBase64encoded==')
+    expect(out).toContain('[REDACTED_MEDIA]')
+    // Forensic data preserved
+    expect(out).toContain('audio/ogg')
+    expect(out).toContain('"seconds":7')
+    expect(out).toContain('"ptt":true')
+  })
+
+  it('redacts imageMessage.jpegThumbnail (small but key-matched)', () => {
+    const input = JSON.stringify({
+      data: {
+        message: {
+          imageMessage: {
+            jpegThumbnail: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQ',
+            mimetype: 'image/jpeg',
+            fileLength: 12345,
+            width: 600,
+            height: 400,
+          },
+        },
+      },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQ')
+    expect(out).toContain('[REDACTED_MEDIA]')
+    // Metadata preserved
+    expect(out).toContain('image/jpeg')
+    expect(out).toContain('"fileLength":12345')
+    expect(out).toContain('"width":600')
+  })
+
+  it('redacts data: URL inside ANY field (regex pass)', () => {
+    const input = JSON.stringify({
+      data: { customField: 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAAA==' },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('T2dnUwACAAAAAAAAAAA==')
+    expect(out).toContain('[REDACTED_MEDIA]')
+  })
+
+  it('redacts big base64 string > 2000 chars in any field (heuristic)', () => {
+    // Simulate full audio payload base64 (~5000 chars)
+    const bigBase64 = 'A'.repeat(5000)
+    const input = JSON.stringify({
+      data: { someCustomField: bigBase64, messageType: 'audioMessage' },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('A'.repeat(100))
+    expect(out).toContain('[REDACTED_MEDIA]')
+    expect(out).toContain('audioMessage') // forensic preserved
+  })
+
+  it('does NOT redact short non-base64 strings', () => {
+    const input = JSON.stringify({
+      pushName: 'Dani Mendes',
+      remoteJid: '124897648980185@lid',
+      messageType: 'audioMessage',
+    })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).toContain('Dani Mendes')
+    expect(out).toContain('124897648980185@lid')
+    expect(out).toContain('audioMessage')
+    expect(out).not.toContain('[REDACTED_MEDIA]')
+  })
+
+  it('preserves data.key forensic + redacts mediaKey at sibling level', () => {
+    const input = JSON.stringify({
+      event: 'messages.upsert',
+      instance: 'Mih',
+      data: {
+        key: { id: 'WAMID_123', remoteJid: '5544@s.whatsapp.net', fromMe: false },
+        messageType: 'audioMessage',
+        message: {
+          audioMessage: {
+            mediaKey: 'kT3LucianaDecodeKey',
+            directPath: '/v/t62.7117-24/...?stp=...',
+            url: 'https://mmg.whatsapp.net/v/t62.7117/...',
+            mimetype: 'audio/ogg',
+            seconds: 5,
+          },
+        },
+        pushName: 'Test User',
+        apikey: 'still-secret',
+      },
+    })
+    const out = sanitizeWebhookLogBody(input)
+    // Forensic preserved
+    expect(out).toContain('WAMID_123')
+    expect(out).toContain('5544@s.whatsapp.net')
+    expect(out).toContain('audioMessage')
+    expect(out).toContain('Test User')
+    expect(out).toContain('Mih')
+    expect(out).toContain('audio/ogg')
+    expect(out).toContain('"seconds":5')
+    // Media redacted
+    expect(out).not.toContain('kT3LucianaDecodeKey')
+    expect(out).not.toContain('/v/t62.7117-24')
+    expect(out).toContain('[REDACTED_MEDIA]')
+    // Secret redacted (different placeholder)
+    expect(out).not.toContain('still-secret')
+    expect(out).toContain('[REDACTED]')
+  })
+
+  it('redacts thumbnail in any case variant', () => {
+    const input = JSON.stringify({ Thumbnail: 'someBase64Data' })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).not.toContain('someBase64Data')
+  })
+
+  it('apikey continues to map to [REDACTED] not [REDACTED_MEDIA]', () => {
+    const input = JSON.stringify({ apikey: 'XYZ' })
+    const out = sanitizeWebhookLogBody(input)
+    expect(out).toContain('"apikey":"[REDACTED]"')
+    expect(out).not.toContain('[REDACTED_MEDIA]')
+  })
+})
+
 describe('sanitizeWebhookLogText · regex only', () => {
   it('redacts Bearer in plain text', () => {
     const input = 'header: Authorization: Bearer my-token'

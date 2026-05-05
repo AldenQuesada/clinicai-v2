@@ -14,6 +14,7 @@ import { makeRepos } from '@/lib/repos';
 import { resolveLead, resolveConversation } from '@/lib/webhook/lead-conversation';
 import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
 import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
+import { sanitizeWebhookLogBody } from '@/lib/webhook/sanitize-webhook-log';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
         from_phone: fromPhone,
         message_text: text.slice(0, 200),
         message_type: 'text',
-        raw_body: JSON.stringify(extra).slice(0, 4000),
+        raw_body: sanitizeWebhookLogBody(JSON.stringify(extra)).slice(0, 4000),
         result_status: 200,
         result_summary: 'simulate_stage:' + stage,
       });
