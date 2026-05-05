@@ -63,7 +63,16 @@ export async function GET(request: NextRequest) {
       return {
         conversation_id: c.id,
         phone: c.phone,
+        // `lead_name` mantido com merge legacy (lead.name → displayName → phone)
+        // pra retrocompat com callers que dependem de string non-null. Novos
+        // consumidores devem usar `display_name` puro + helper
+        // `getConversationDisplayName` (lib/displayName.ts) pra resolver nome
+        // com fallback gracioso.
         lead_name: lead?.name || c.displayName || c.phone,
+        // Mig 2026-05-05 · expõe wa_conversations.display_name (push_name) puro
+        // pro helper de fallback do nome no card/header. Pode ser null quando
+        // o paciente nunca enviou push_name pelo WhatsApp.
+        display_name: c.displayName,
         lead_id: c.leadId || lead?.id || null,
         status: c.status,
         ai_enabled: c.aiEnabled,

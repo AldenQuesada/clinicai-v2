@@ -4,7 +4,13 @@ import { readNotificationSettings } from '@/hooks/useNotificationSettings';
 export interface Conversation {
   conversation_id: string;
   phone: string;
+  /** Merge legacy: lead.name → display_name → phone (sempre non-null).
+      Para fallback gracioso usar `getConversationDisplayName` em vez de ler
+      direto este campo (que pode conter o telefone como fallback). */
   lead_name: string;
+  /** wa_conversations.display_name puro (push_name do WhatsApp) · null se
+      o paciente nunca enviou push_name. Source canônico pro helper de nome. */
+  display_name: string | null;
   lead_id: string;
   status: string;
   ai_enabled: boolean;

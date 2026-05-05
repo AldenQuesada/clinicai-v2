@@ -2,6 +2,7 @@ import { Filter, X, Calendar, Tag as TagIcon, Target } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
+import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { PresenceAvatars } from './PresenceAvatars';
 import type { PresenceUser } from '../hooks/usePresence';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
@@ -439,9 +440,8 @@ export function ConversationList({
                   <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center shrink-0">
                     <span className="font-display text-[13px] text-[hsl(var(--primary))]/80 italic leading-none">
                       {(() => {
-                        const name = conv.lead_name || '';
-                        const phoneOnly = !name || name === conv.phone || /^\d+$/.test(name);
-                        return phoneOnly ? '·' : name.trim().charAt(0).toUpperCase();
+                        const resolvedName = getConversationDisplayName(conv);
+                        return resolvedName ? resolvedName.charAt(0).toUpperCase() : '·';
                       })()}
                     </span>
                   </div>
@@ -457,7 +457,7 @@ export function ConversationList({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
-                    <p className="text-[13px] font-normal truncate text-[hsl(var(--foreground))]">{conv.lead_name}</p>
+                    <p className="text-[13px] font-normal truncate text-[hsl(var(--foreground))]">{getConversationDisplayName(conv) || formatPhoneBR(conv.phone) || conv.phone}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {/* Badge tempo de espera · single source of truth do
                           SLA da secretaria. Server-computed via computeSla()
@@ -492,6 +492,11 @@ export function ConversationList({
                             : `${baseMinutes}m`;
 
                         // Cor pelo response_color (server-side · canônico)
+                        // NOTA cor: `--destructive` no @clinicai/ui é OKLCH ·
+                        // não funciona dentro de `hsl(var(--...))`. A Lara
+                        // define `--danger: 6 60% 55%` em HSL components no
+                        // próprio globals.css · usado pra todos os tons de
+                        // vermelho do badge.
                         const colorByResponseColor: Record<
                           string,
                           { fg: string; bg: string }
@@ -505,16 +510,16 @@ export function ConversationList({
                             bg: 'hsl(var(--warning) / 0.12)',
                           },
                           vermelho: {
-                            fg: 'hsl(var(--destructive))',
-                            bg: 'hsl(var(--destructive) / 0.14)',
+                            fg: 'hsl(var(--danger))',
+                            bg: 'hsl(var(--danger) / 0.14)',
                           },
                           critico: {
-                            fg: 'hsl(var(--destructive))',
-                            bg: 'hsl(var(--destructive) / 0.22)',
+                            fg: 'hsl(var(--danger))',
+                            bg: 'hsl(var(--danger) / 0.22)',
                           },
                           atrasado_fixo: {
-                            fg: 'hsl(var(--destructive))',
-                            bg: 'hsl(var(--destructive) / 0.18)',
+                            fg: 'hsl(var(--danger))',
+                            bg: 'hsl(var(--danger) / 0.18)',
                           },
                           antigo_parado: {
                             fg: 'hsl(var(--muted-foreground))',
@@ -563,6 +568,20 @@ export function ConversationList({
                       </span>
                     </div>
                   </div>
+                  {/* Sub-linha telefone · só renderiza quando há nome real
+                      diferente do telefone (evita duplicar o título). */}
+                  {(() => {
+                    const resolvedName = getConversationDisplayName(conv);
+                    const phoneFormatted = formatPhoneBR(conv.phone);
+                    if (!resolvedName || !phoneFormatted || resolvedName === phoneFormatted) {
+                      return null;
+                    }
+                    return (
+                      <p className="text-[10.5px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-60 truncate leading-tight mt-0.5">
+                        {phoneFormatted}
+                      </p>
+                    );
+                  })()}
                   <p className="text-[11.5px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 leading-snug">{conv.last_message_text || 'Sem mensagens'}</p>
 
                   {/* Tags · regras port da legacy clinic-dashboard · estetica .badge-serious flipbook */}

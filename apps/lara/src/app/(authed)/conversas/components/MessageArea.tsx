@@ -19,6 +19,7 @@ import { useQuickTemplates, type QuickTemplate } from '../hooks/useQuickTemplate
 import { useClinicInfo } from '../hooks/useClinicInfo';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
+import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -329,10 +330,13 @@ export function MessageArea({
     <div className="flex-1 flex flex-col bg-[hsl(var(--chat-bg))] relative h-full min-w-0">
       {/* Header · v2 · avatar minimal + nome/phone + barra divisora + summary inline */}
       {(() => {
-        const phoneOnly = !selectedConversation.lead_name ||
-          selectedConversation.lead_name === selectedConversation.phone ||
-          /^\d+$/.test(selectedConversation.lead_name);
-        const initial = phoneOnly ? '?' : (selectedConversation.lead_name || '?').trim().charAt(0).toUpperCase();
+        // Helper canônico de nome (lib/displayName) · prioridade
+        // displayName → push_name → lead_name → ... → '' · filtra fakes
+        // (strings só com dígitos viram fallback de telefone).
+        const resolvedName = getConversationDisplayName(selectedConversation);
+        const phoneFormatted = formatPhoneBR(selectedConversation.phone);
+        const phoneOnly = !resolvedName;
+        const initial = resolvedName ? resolvedName.trim().charAt(0).toUpperCase() : '?';
         return (
           <div className="h-16 border-b border-white/[0.06] flex items-stretch px-5 shrink-0">
             {/* Avatar minimal · circulo translucido com inicial em Cormorant gold */}
@@ -344,12 +348,12 @@ export function MessageArea({
                 {phoneOnly ? (
                   <>
                     <p className="text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.18em] leading-tight">Sem nome</p>
-                    <p className="text-[12.5px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-0.5 leading-tight">{selectedConversation.phone}</p>
+                    <p className="text-[12.5px] text-[hsl(var(--foreground))] tabular-nums font-mono mt-0.5 leading-tight">{phoneFormatted || selectedConversation.phone}</p>
                   </>
                 ) : (
                   <>
-                    <h2 className="font-display text-[15px] text-[hsl(var(--foreground))] leading-tight truncate max-w-[180px]">{selectedConversation.lead_name}</h2>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5 leading-tight">{selectedConversation.phone}</p>
+                    <h2 className="font-display text-[15px] text-[hsl(var(--foreground))] leading-tight truncate max-w-[180px]">{resolvedName}</h2>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums font-mono opacity-70 mt-0.5 leading-tight">{phoneFormatted || selectedConversation.phone}</p>
                   </>
                 )}
                 {/* P-12 Fase 3+4 · "X vendo · Y digitando..." */}
