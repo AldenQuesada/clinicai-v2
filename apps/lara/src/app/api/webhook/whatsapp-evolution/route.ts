@@ -29,6 +29,7 @@ import {
 } from '@/lib/webhook/lead-conversation';
 import { extractPushNameFromEvolution } from '@/lib/webhook/extract-push-name';
 import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
+import { sanitizeWebhookLogBody } from '@/lib/webhook/sanitize-webhook-log';
 import { transcribeAudio } from '@/services/transcription.service';
 import { mediaPaths } from '@clinicai/supabase';
 
@@ -100,7 +101,10 @@ export async function POST(request: NextRequest) {
         from_phone: traceFromPhone,
         message_text: traceMessageText?.slice(0, 500) ?? null,
         message_type: traceMessageType,
-        raw_body: rawBody.slice(0, 8000),
+        // Audit Fase 4A 2026-05-05: sanitiza apikey/secret/token/Bearer
+        // antes de persistir · Evolution v2 inclui apikey no body em algumas
+        // configs · não pode vazar pro DB.
+        raw_body: sanitizeWebhookLogBody(rawBody).slice(0, 8000),
         headers_subset: { 'x-forwarded-for': fromHeaderTrace, 'x-inbound-secret-len': providedSecret.length },
         result_status: extra.result_status ?? null,
         result_summary: 'evo_stage:' + extra.stage,

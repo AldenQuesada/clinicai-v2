@@ -46,6 +46,7 @@ import {
 } from '@/lib/webhook/lead-conversation';
 import { extractPushNameFromCloud } from '@/lib/webhook/extract-push-name';
 import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
+import { sanitizeWebhookLogBody } from '@/lib/webhook/sanitize-webhook-log';
 
 const log = createLogger({ app: 'lara' });
 
@@ -132,7 +133,10 @@ export async function POST(request: NextRequest) {
         from_phone: fromPhoneTrace,
         message_text: messageTextTrace?.slice(0, 500) ?? null,
         message_type: messageTypeTrace,
-        raw_body: rawBody.slice(0, 8000),
+        // Audit Fase 4A 2026-05-05: sanitiza apikey/secret/token/Bearer
+        // antes de persistir · defesa em camadas (Cloud não tinha o problema
+        // mas helper protege contra futuros payloads anômalos).
+        raw_body: sanitizeWebhookLogBody(rawBody).slice(0, 8000),
         headers_subset: traceHeaders,
         result_status: extra.result_status ?? null,
         result_summary: extra.result_summary ?? null,
