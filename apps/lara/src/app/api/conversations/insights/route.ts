@@ -15,6 +15,7 @@
 
 import { NextResponse } from 'next/server'
 import { loadServerReposContext } from '@/lib/repos'
+import { DOCTOR_USER_ID } from '@/lib/clinic-profiles'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,9 @@ export async function GET() {
     const insights = await repos.conversations.getInsights(ctx.clinic_id, {
       fiveMinAgoIso,
       todayStartIso,
+      // SLA Dra · separa fila da doutora da fila secretaria. Hardcoded
+      // single-tenant hoje · ver lib/clinic-profiles.ts.
+      doctorUserId: DOCTOR_USER_ID,
     })
 
     return NextResponse.json(insights)

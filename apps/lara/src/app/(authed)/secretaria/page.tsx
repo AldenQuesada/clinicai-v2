@@ -28,6 +28,7 @@ import { useMessages } from '../conversas/hooks/useMessages';
 import { useClinicMembers } from '../conversas/hooks/useClinicMembers';
 import { usePresence } from '../conversas/hooks/usePresence';
 import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
+import { DOCTOR_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
   RefreshCw,
@@ -71,7 +72,13 @@ export default function SecretariaPage() {
   //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
   // Default = aguardando (fila operacional da Luciana visivel direto)
   type KpiId = 'todos' | 'abertas' | 'resolvidas' | 'aguardando' | 'urgente' | 'dra';
-  const [activeKpi, setActiveKpi] = useState<KpiId>('aguardando');
+  // Default por role (Alden 2026-05-05):
+  //   Luciana / outros → 'todos'   (visão geral)
+  //   Mirian (owner)   → 'dra'     (fila dela · aplicado no efeito abaixo)
+  // Aplicado UMA vez quando `me` resolve · usuário pode trocar de KPI depois
+  // sem ser sobrescrito (didApplyRoleKpi guard).
+  const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
+  const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -129,47 +136,37 @@ export default function SecretariaPage() {
   };
   const isUrgent = (c: typeof conversations[number]) => c.is_urgent;
 
-  // Counts dos 6 KPIs · derivados local · zero fetch extra (exceto Dra · ver abaixo)
+  // Counts dos 6 KPIs · derivados local · zero fetch extra.
+  // Aguardando E Urgente excluem conversas atribuídas à Dra (responsabilidade
+  // transferida · não é mais fila da secretária). Decisão Alden 2026-05-05:
+  // "Aguardando é fila da Luciana, Dra é fila da Mirian, Todas é visão geral".
   const abertasCount = conversations.filter((c) => c.status === 'active').length;
   const resolvidasCount = conversations.filter((c) => c.status === 'resolved').length;
   const todosCount = abertasCount + resolvidasCount; // E2 · sem arquivadas
   const aguardandoCount = conversations.filter(
-    (c) => c.status === 'active' && isPatientWaiting(c),
+    (c) =>
+      c.status === 'active' &&
+      isPatientWaiting(c) &&
+      !isAssignedToDoctor(c.assigned_to ?? null),
   ).length;
   const urgenteCount = conversations.filter(
-    (c) => c.status === 'active' && isUrgent(c),
+    (c) =>
+      c.status === 'active' &&
+      isUrgent(c) &&
+      !isAssignedToDoctor(c.assigned_to ?? null),
   ).length;
 
-  // Dra · pendentes vem de conversation_questions · fetch leve a cada 30s.
-  // conversationIds usado pra filtrar a lista quando KPI Dra ativo (espelho).
-  const [draPending, setDraPending] = useState<{
-    count: number;
-    conversation_ids: string[];
-  }>({ count: 0, conversation_ids: [] });
-  useEffect(() => {
-    let alive = true;
-    const fetchDra = async () => {
-      try {
-        const r = await fetch('/api/secretaria/dra-pending');
-        if (!r.ok) return;
-        const data = await r.json();
-        if (!alive) return;
-        setDraPending({
-          count: typeof data?.count === 'number' ? data.count : 0,
-          conversation_ids: Array.isArray(data?.conversation_ids) ? data.conversation_ids : [],
-        });
-      } catch {
-        /* silent */
-      }
-    };
-    fetchDra();
-    const id = setInterval(fetchDra, 30_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
-  const draCount = draPending.count;
+  // KPI Dra · agora baseado em wa_conversations.assigned_to (Caminho A · Alden
+  // 2026-05-05). Substitui o fetch antigo de /api/secretaria/dra-pending que
+  // contava conversation_questions (perguntas). Conversation_questions
+  // continua existindo pra fluxo "Pedir ajuda da Dra" (overlay sem mudar
+  // estado da conv) — pra surfaçar count separado, criar novo KPI "Perguntas
+  // Dra" futuramente.
+  const draCount = conversations.filter(
+    (c) =>
+      isAssignedToDoctor(c.assigned_to ?? null) &&
+      (c.status === 'active' || c.status === 'paused'),
+  ).length;
 
   // Tab title mostra urgentes como sinal mais forte de pendencia
   useEffect(() => {
@@ -197,10 +194,14 @@ export default function SecretariaPage() {
     : activeKpi === 'urgente' ? 'Urgentes'
     : 'Todas';
 
-  // Filtro local pro KPI Dra · mostra so conversas com pergunta pendente
-  // (espelho · conv permanece em scope=Abertas, nao muda status no DB)
+  // Filtro local pro KPI Dra · mostra conversas atribuídas à Mirian (fila Dra).
+  // Caminho A · usa assigned_to em vez de conversation_questions.
   const filteredConversations = activeKpi === 'dra'
-    ? conversations.filter((c) => draPending.conversation_ids.includes(c.conversation_id))
+    ? conversations.filter(
+        (c) =>
+          isAssignedToDoctor(c.assigned_to ?? null) &&
+          (c.status === 'active' || c.status === 'paused'),
+      )
     : conversations;
 
   // Override defaults pra perfil sénior · onlyWhenHidden=false · idempotente
@@ -208,6 +209,16 @@ export default function SecretariaPage() {
   useEffect(() => {
     ensureRoleDefaults('secretaria');
   }, []);
+
+  // Default KPI por usuário · Mirian (DOCTOR_USER_ID) entra com KPI 'dra' já
+  // ativo · demais usuários (Luciana etc) ficam no 'aguardando' default.
+  // Aplicado uma vez quando `me` resolve (usuário pode trocar de KPI depois
+  // sem ser sobrescrito).
+  useEffect(() => {
+    if (didApplyRoleKpi || !me) return;
+    if (isDoctor(me)) setActiveKpi('dra');
+    setDidApplyRoleKpi(true);
+  }, [me, didApplyRoleKpi]);
 
   useEffect(() => {
     if (selectedConversation?.conversation_id) {
@@ -217,11 +228,14 @@ export default function SecretariaPage() {
     }
   }, [selectedConversation?.conversation_id]);
 
-  const handleAction = async (action: 'assume' | 'resolve' | 'archive' | 'transfer') => {
+  const handleAction = async (
+    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'devolver',
+  ) => {
     if (!selectedConversation?.conversation_id) return;
     const cid = selectedConversation.conversation_id;
 
     if (action === 'resolve') {
+      // 'resolved' fora do CHECK · usa 'archived' (mesmo path do botão Arquivar).
       setModalConfig({
         isOpen: true,
         title: 'Resolver Conversa',
@@ -232,7 +246,7 @@ export default function SecretariaPage() {
           await fetch(`/api/conversations/${cid}/status`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'resolved' }),
+            body: JSON.stringify({ status: 'archived' }),
           });
           setSelectedConversation(null);
           setModalConfig(null);
@@ -255,8 +269,56 @@ export default function SecretariaPage() {
           setModalConfig(null);
         },
       });
+    } else if (action === 'transfer') {
+      // Transferir para Dra (Caminho A · Alden 2026-05-05)
+      // Pausa Lara via /assume + atribui à Mirian via /assign + msg auto.
+      setModalConfig({
+        isOpen: true,
+        title: 'Transferir para Dra. Mirian',
+        description:
+          'Deseja transferir esta conversa para a Dra. Mirian? A conversa vai pra fila Dra · paciente é avisado.',
+        confirmText: 'Transferir',
+        onConfirm: async () => {
+          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: DOCTOR_USER_ID }),
+          });
+          const assignData = await assignRes.json().catch(() => ({}));
+          await sendMessage(
+            'Vou encaminhar para a Dra. Mirian avaliar com carinho e já te retorno.',
+          );
+          setSelectedConversation((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ai_enabled: false,
+                  assigned_to: DOCTOR_USER_ID,
+                  assigned_at: assignData?.assigned_at || new Date().toISOString(),
+                }
+              : prev,
+          );
+          setModalConfig(null);
+        },
+      });
+    } else if (action === 'devolver') {
+      // Devolver para Secretária · DELETE /assign limpa assigned_to.
+      setModalConfig({
+        isOpen: true,
+        title: 'Devolver para Secretária',
+        description: 'Deseja devolver essa conversa para a fila da Secretária?',
+        confirmText: 'Devolver',
+        onConfirm: async () => {
+          await fetch(`/api/conversations/${cid}/assign`, { method: 'DELETE' });
+          setSelectedConversation((prev) =>
+            prev ? { ...prev, assigned_to: null, assigned_at: null } : prev,
+          );
+          setModalConfig(null);
+        },
+      });
     }
-    // 'assume' e 'transfer' nao fazem sentido na inbox secretaria (ja e humano)
+    // 'assume' nao faz sentido na inbox secretaria (ja e humano)
   };
 
   const isModalOpen = !!modalConfig?.isOpen;

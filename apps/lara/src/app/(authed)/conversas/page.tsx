@@ -14,7 +14,8 @@ import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
-import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter, CheckCircle, Archive, Stethoscope } from 'lucide-react';
+import { DOCTOR_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
+import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter, CheckCircle, Archive, Stethoscope, ArrowLeft } from 'lucide-react';
 
 export default function ChatPage() {
   const {
@@ -91,6 +92,16 @@ export default function ChatPage() {
     user: presenceUser,
   });
 
+  // Default tab por usuário · Mirian (DOCTOR_USER_ID) entra com 'Dra' ativo,
+  // demais usuários entram com 'Todas'. Aplicado uma vez quando `me` resolve
+  // (não sobrescreve se o usuário trocar de tab depois).
+  const [didApplyRoleTab, setDidApplyRoleTab] = useState(false);
+  useEffect(() => {
+    if (didApplyRoleTab || !me) return;
+    if (isDoctor(me)) setActiveTab('Dra');
+    setDidApplyRoleTab(true);
+  }, [me, didApplyRoleTab]);
+
   // Sprint B (W-01 + W-02 + W-03): copiloto AI · 1 chamada Anthropic ·
   // summary, next_actions, smart_replies em 1 hook.
   const {
@@ -135,20 +146,25 @@ export default function ChatPage() {
     sendMessage();
   };
 
-  const handleAction = async (action: 'assume' | 'resolve' | 'archive' | 'transfer') => {
+  const handleAction = async (
+    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'devolver',
+  ) => {
     if (!selectedConversation?.conversation_id) return;
     const cid = selectedConversation.conversation_id;
 
     if (action === 'assume') {
       const res = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
       const data = await res.json();
-      setSelectedConversation(prev => prev ? { 
-        ...prev, 
-        ai_enabled: false, 
-        ai_paused_until: data.pauseStatus?.ai_paused_until || prev.ai_paused_until 
+      setSelectedConversation(prev => prev ? {
+        ...prev,
+        ai_enabled: false,
+        ai_paused_until: data.pauseStatus?.ai_paused_until || prev.ai_paused_until
       } : prev);
-    } 
+    }
     else if (action === 'resolve') {
+      // 'resolved' não está no CHECK constraint de wa_conversations.status
+      // (mig 91 só permite active/paused/archived/blocked/handoff_secretaria/closed).
+      // Resolver e arquivar viram a mesma operação até decisão de schema.
       setModalConfig({
         isOpen: true,
         title: 'Resolver Conversa',
@@ -158,7 +174,7 @@ export default function ChatPage() {
           await fetch(`/api/conversations/${cid}/status`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'resolved' })
+            body: JSON.stringify({ status: 'archived' })
           });
           setSelectedConversation(null);
           setModalConfig(null);
@@ -183,30 +199,61 @@ export default function ChatPage() {
       });
     }
     else if (action === 'transfer') {
-      const responsavel = displayResponsible(); // P-08 · ex: "Dra. Mirian", "Dr. Carlos", "a doutora"
+      // Transferir para Dra (Caminho A · Alden 2026-05-05):
+      //   1. Pausa Lara via /assume (mantém comportamento prévio · 30min)
+      //   2. POST /assign body {user_id: DOCTOR_USER_ID} (assigned_to=Mirian)
+      //   3. Mensagem automática avisando paciente
+      // Substitui o PATCH status='dra' antigo (que falhava por CHECK constraint).
+      // Conv entra na "fila Dra" via assigned_to · zero migration · zero novo
+      // valor de status.
+      const responsavel = displayResponsible(); // P-08 · ex: "Dra. Mirian"
       setModalConfig({
         isOpen: true,
         title: `Transferir para ${responsavel}`,
         description: `Deseja transferir este lead para ${responsavel}? A inteligência artificial será pausada e o paciente será avisado automaticamente.`,
         confirmText: 'Transferir',
         onConfirm: async () => {
-          const res = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
-          const data = await res.json();
+          // 1. Pausa Lara
+          const assumeRes = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          const assumeData = await assumeRes.json();
 
-          // Marca status como 'dra' no banco
-          await fetch(`/api/conversations/${cid}/status`, {
-            method: 'PATCH',
+          // 2. Assigna à Dra
+          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'dra' })
+            body: JSON.stringify({ user_id: DOCTOR_USER_ID }),
           });
+          const assignData = await assignRes.json().catch(() => ({}));
 
+          // 3. Mensagem automática pro paciente
           await sendMessage(`Entendi! Vou encaminhar sua conversa para ${responsavel}. Ela vai entrar em contato com você em breve!`);
 
           setSelectedConversation(prev => prev ? {
             ...prev,
             ai_enabled: false,
-            status: 'dra',
-            ai_paused_until: data.pauseStatus?.ai_paused_until || prev.ai_paused_until
+            assigned_to: DOCTOR_USER_ID,
+            assigned_at: assignData?.assigned_at || new Date().toISOString(),
+            ai_paused_until: assumeData.pauseStatus?.ai_paused_until || prev.ai_paused_until
+          } : prev);
+          setModalConfig(null);
+        }
+      });
+    }
+    else if (action === 'devolver') {
+      // Devolver para Secretária · DELETE /assign limpa assigned_to.
+      // Mostrado quando assigned_to = DOCTOR_USER_ID (Mirian é dona da conv).
+      // Conv sai da fila Dra, volta pra fila secretária (se waiting_human_response).
+      setModalConfig({
+        isOpen: true,
+        title: 'Devolver para Secretária',
+        description: 'Deseja devolver essa conversa para a fila da Secretária?',
+        confirmText: 'Devolver',
+        onConfirm: async () => {
+          await fetch(`/api/conversations/${cid}/assign`, { method: 'DELETE' });
+          setSelectedConversation(prev => prev ? {
+            ...prev,
+            assigned_to: null,
+            assigned_at: null,
           } : prev);
           setModalConfig(null);
         }
@@ -445,6 +492,16 @@ export default function ChatPage() {
                 >
                   <Archive className="w-4 h-4" strokeWidth={1.5} />
                 </button>
+                {isAssignedToDoctor(selectedConversation.assigned_to ?? null) ? (
+                  <button
+                    type="button"
+                    onClick={() => handleAction('devolver')}
+                    title="Devolver para Secretária"
+                    className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/10 transition-colors cursor-pointer shrink-0"
+                  >
+                    <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => handleAction('transfer')}

@@ -22,6 +22,8 @@ export interface Insights {
   laraAtiva: number
   resolvidosHoje: number
   novosLeads: number
+  /** Fila Dra · conversas com assigned_to = DOCTOR_USER_ID e status active/paused */
+  dra: number
 }
 
 const REFRESH_INTERVAL_MS = 30_000
@@ -32,6 +34,7 @@ const ZERO: Insights = {
   laraAtiva: 0,
   resolvidosHoje: 0,
   novosLeads: 0,
+  dra: 0,
 }
 
 export function useInsights() {

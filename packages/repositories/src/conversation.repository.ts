@@ -399,21 +399,24 @@ export class ConversationRepository {
   /**
    * Insights agregados pro top bar do /conversas.
    *
-   * Definições canônicas (Alden 2026-05-04 · sla.ts é source of truth):
+   * Definições canônicas (Alden 2026-05-04/05 · sla.ts é source of truth):
    *
-   *  - aguardando:    waitingHumanResponse = true (computado por computeSla
-   *                   sobre last_lead_msg vs MAX(sent_at) WHERE sender='humano'
-   *                   AND status≠'note'). Lara/IA NÃO conta como resposta
-   *                   humana · auto-greeting/system/note também não. Single
-   *                   source of truth alinhado com badge ⏱ no card e filtro
-   *                   tab "Aguardando" no ConversationList.
+   *  - aguardando:    waitingHumanResponse = true E !assigned_to_doctor.
+   *                   Computado por computeSla sobre last_lead_msg vs
+   *                   MAX(sent_at) WHERE sender='humano' AND status≠'note'.
+   *                   Lara/IA NÃO conta como resposta humana. Conversas
+   *                   atribuídas à Dra (assigned_to=doctorUserId) saem da
+   *                   fila secretária · contam em `dra`.
    *
    *  - urgentes:      subset de aguardando onde responseColor ∈
    *                   { 'vermelho', 'critico', 'atrasado_fixo', 'antigo_parado' }
-   *                   (≥ 7min sem resposta humana). Drop-in pra alerta
-   *                   visual no top bar e KPIs clicáveis.
+   *                   (≥ 7min sem resposta humana · não-Dra).
    *
-   *  - lara_ativa:    ai_enabled = true (Lara conduzindo · indep. SLA).
+   *  - dra:           assigned_to = doctorUserId AND status IN ('active','paused')
+   *                   (transferidas pra fila Dra · indep. de SLA).
+   *
+   *  - lara_ativa:    ai_enabled = true E !assigned_to_doctor (Lara só
+   *                   conduz convs que ainda estão na fila secretária).
    *
    *  - resolvidos_hoje: status='resolved' AND last_message_at >= todayStartIso.
    *
@@ -421,35 +424,42 @@ export class ConversationRepository {
    *                   não mensagens novas de leads existentes).
    *
    * Implementação: 3 queries em paralelo via Promise.all + 1 query auxiliar
-   * pra resolver lastHumanReplyAt em batch. Aguardando/urgentes/laraAtiva
-   * são contados em TS varrendo as conversations active+paused (volume baixo
-   * · até alguns milhares de convs por clinic é trivial). Resolvidos_hoje e
-   * novos_leads continuam count(*) puro (mesmo padrão original).
+   * pra resolver lastHumanReplyAt em batch. Counters varridos em TS sobre
+   * activeConvs (volume baixo · até alguns milhares de convs por clinic é
+   * trivial). Resolvidos_hoje e novos_leads continuam count(*) puro.
    *
    * Param `fiveMinAgoIso` mantido na assinatura por compat (não usado aqui ·
    * thresholds vivem em sla.ts agora).
+   *
+   * Param `doctorUserId` (opcional · default null): user_id da doutora pra
+   * separar fila Dra da fila secretária. Quando null/omitido, fila Dra fica
+   * em zero e nada é excluído de aguardando · comportamento idêntico ao
+   * pre-doctor. Single-tenant V2 hoje: caller passa
+   * apps/lara/src/lib/clinic-profiles.DOCTOR_USER_ID.
    *
    * Multi-tenant: clinic_id via JWT no caller.
    */
   async getInsights(
     clinicId: string,
-    opts: { fiveMinAgoIso: string; todayStartIso: string },
+    opts: { fiveMinAgoIso: string; todayStartIso: string; doctorUserId?: string | null },
   ): Promise<{
     urgentes: number
     aguardando: number
     laraAtiva: number
     resolvidosHoje: number
     novosLeads: number
+    dra: number
   }> {
     const activeStatuses: ConversationStatus[] = ['active', 'paused']
     const _unused = opts.fiveMinAgoIso // kept for backward-compat assinatura
     void _unused
     const now = new Date()
+    const doctorUserId = opts.doctorUserId ?? null
 
     const [activeConvsRes, resolvidosQ, novosLeadsQ] = await Promise.all([
       this.supabase
         .from('wa_conversations')
-        .select('id, last_lead_msg, ai_enabled')
+        .select('id, last_lead_msg, ai_enabled, assigned_to')
         .eq('clinic_id', clinicId)
         .in('status', activeStatuses),
       this.supabase
@@ -470,6 +480,7 @@ export class ConversationRepository {
       id: string
       last_lead_msg: string | null
       ai_enabled: boolean | null
+      assigned_to: string | null
     }>
     const ids = activeConvs.map((c) => String(c.id))
     const humanReplies = await this.getLastHumanReplyByConvs(ids)
@@ -477,7 +488,15 @@ export class ConversationRepository {
     let aguardando = 0
     let urgentes = 0
     let laraAtiva = 0
+    let dra = 0
     for (const c of activeConvs) {
+      // Conversa atribuída à Dra · vai pra fila Dra, sai das filas
+      // secretária/Lara. Decisão Alden 2026-05-05 · "Aguardando é fila da
+      // Luciana, Dra é fila da Mirian, Todas é visão geral".
+      if (doctorUserId && c.assigned_to === doctorUserId) {
+        dra++
+        continue
+      }
       if (c.ai_enabled !== false) laraAtiva++
       const sla = computeSla({
         lastPatientMsgAt: c.last_lead_msg ?? null,
@@ -502,6 +521,7 @@ export class ConversationRepository {
       laraAtiva,
       resolvidosHoje: resolvidosQ.count ?? 0,
       novosLeads: novosLeadsQ.count ?? 0,
+      dra,
     }
   }
 

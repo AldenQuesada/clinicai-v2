@@ -3,6 +3,8 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Conversation } from '../hooks/useConversations';
 import { computeConversationTags } from '../hooks/useConversationTags';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
+import { computeDoctorSla } from '../lib/doctorSla';
+import { isAssignedToDoctor } from '@/lib/clinic-profiles';
 import { PresenceAvatars } from './PresenceAvatars';
 import type { PresenceUser } from '../hooks/usePresence';
 import { format, isToday, isYesterday, isAfter, subDays } from 'date-fns';
@@ -87,7 +89,7 @@ export function ConversationList({
     return () => clearInterval(id);
   }, []);
 
-  const tabs = ['Todas', 'Urgentes', 'Aguardando', 'Lara Ativa'];
+  const tabs = ['Todas', 'Aguardando', 'Dra', 'Urgentes', 'Lara Ativa'];
 
   // Extrair todas as tags únicas disponíveis nas conversas atuais para o filtro
   const allTags = useMemo(() => {
@@ -112,13 +114,17 @@ export function ConversationList({
       // Urgentes:   is_urgent (tag URGENTE detectada por palavras-chave no
       //             server · independente do SLA) · alinhado 1:1 com a tag
       //             visivel no painel direito.
-      // Aguardando: SLA secretaria · waiting_human_response computado pelo
-      //             repository (computeSla) e entregue pronto via DTO. Single
-      //             source of truth · alinhado com badge ⏱ + KPI top bar.
+      // Aguardando: SLA secretaria · waiting_human_response E !atribuída-à-Dra
+      //             (transferidas saem da fila secretária · vão pra Dra).
+      // Dra:        assigned_to = DOCTOR_USER_ID · fila da Mirian.
+      // Lara Ativa: ai_enabled = true E !atribuída-à-Dra (Lara só conduz
+      //             convs ainda na fila secretária).
       if (statusFilter === 'active') {
+        const isDra = isAssignedToDoctor(conv.assigned_to ?? null);
         if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
-        if (activeTab === 'Aguardando' && !conv.waiting_human_response) return false;
-        if (activeTab === 'Lara Ativa' && !conv.ai_enabled) return false;
+        if (activeTab === 'Aguardando' && (!conv.waiting_human_response || isDra)) return false;
+        if (activeTab === 'Dra' && !isDra) return false;
+        if (activeTab === 'Lara Ativa' && (!conv.ai_enabled || isDra)) return false;
       }
 
       // 3. Filtro por Funil
@@ -459,44 +465,22 @@ export function ConversationList({
                   <div className="flex justify-between items-start gap-2">
                     <p className="text-[13px] font-normal truncate text-[hsl(var(--foreground))]">{getConversationDisplayName(conv) || formatPhoneBR(conv.phone) || conv.phone}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {/* Badge tempo de espera · single source of truth do
-                          SLA da secretaria. Server-computed via computeSla()
-                          (packages/repositories/src/sla.ts). Componente só
-                          renderiza cor + pulso a partir do DTO · não recalcula
-                          regra operacional. Para feedback visual mais vivo
-                          entre fetches (a cada 30s), `nowTs` recalcula apenas
-                          o TEXTO do tempo decorrido (m/h/d) · cor/pulso ficam
-                          do DTO (fonte canônica). */}
+                      {/* Badge tempo de espera · single source of truth.
+                          - Conv atribuída à Dra (assigned_to=DOCTOR_USER_ID):
+                            mostra SLA Dra (timer desde assigned_at, prefixo
+                            "Dra ⏱"). Computado client-side via doctorSla.ts
+                            usando assigned_at como momento-zero.
+                          - Conv NÃO atribuída à Dra: mostra SLA Secretária
+                            (server-computed via computeSla, campos
+                            response_color/should_pulse/pulse_behavior).
+                          Para feedback visual mais vivo entre fetches (30s),
+                          `nowTs` recalcula apenas o TEXTO. */}
                       {(() => {
-                        if (!conv.waiting_human_response) return null;
-                        // Texto do tempo · prefer recompute local pra suavizar
-                        // tick entre fetches. Se last_patient_msg_at ausente,
-                        // cai no minutes_waiting do servidor.
-                        const baseMinutes = (() => {
-                          if (conv.last_patient_msg_at) {
-                            const diffMs =
-                              nowTs - new Date(conv.last_patient_msg_at).getTime();
-                            return Math.max(0, Math.floor(diffMs / 60000));
-                          }
-                          return conv.minutes_waiting ?? 0;
-                        })();
-                        const diffHr = Math.floor(baseMinutes / 60);
-                        const diffDay = Math.floor(diffHr / 24);
-                        const text =
-                          baseMinutes < 1
-                            ? 'agora'
-                            : diffDay >= 1
-                            ? `${diffDay}d`
-                            : diffHr >= 1
-                            ? `${diffHr}h`
-                            : `${baseMinutes}m`;
+                        const isDra = isAssignedToDoctor(conv.assigned_to ?? null);
 
-                        // Cor pelo response_color (server-side · canônico)
-                        // NOTA cor: `--destructive` no @clinicai/ui é OKLCH ·
-                        // não funciona dentro de `hsl(var(--...))`. A Lara
-                        // define `--danger: 6 60% 55%` em HSL components no
-                        // próprio globals.css · usado pra todos os tons de
-                        // vermelho do badge.
+                        // Cor map · compartilhado entre badge secretária e Dra
+                        // (mesma escala). Vermelho usa --danger pq --destructive
+                        // no @clinicai/ui é OKLCH e não funciona em hsl().
                         const colorByResponseColor: Record<
                           string,
                           { fg: string; bg: string }
@@ -525,16 +509,75 @@ export function ConversationList({
                             fg: 'hsl(var(--muted-foreground))',
                             bg: 'rgba(255,255,255,0.04)',
                           },
-                          // 'respondido' não é renderizado · early return acima
                           respondido: { fg: '', bg: '' },
                         };
+
+                        // ─── SLA Dra ─────────────────────────────────────
+                        if (isDra) {
+                          const draSla = computeDoctorSla({
+                            assignedAt: conv.assigned_at ?? null,
+                            now: new Date(nowTs),
+                          });
+                          if (!draSla.waitingDoctorResponse) return null;
+                          const m = draSla.doctorMinutesWaiting ?? 0;
+                          const hr = Math.floor(m / 60);
+                          const day = Math.floor(hr / 24);
+                          const text =
+                            m < 1 ? 'agora' : day >= 1 ? `${day}d` : hr >= 1 ? `${hr}h` : `${m}m`;
+                          const palette =
+                            colorByResponseColor[draSla.doctorResponseColor] ??
+                            colorByResponseColor.verde;
+                          const pulseClass = draSla.doctorShouldPulse ? 'animate-pulse' : '';
+                          const pulseStyle =
+                            draSla.doctorPulseBehavior === 'forte'
+                              ? { animationDuration: '1s' }
+                              : draSla.doctorPulseBehavior === 'suave'
+                              ? { animationDuration: '2.4s' }
+                              : {};
+                          return (
+                            <span
+                              title={`Dra esperando há ${text} · ${draSla.doctorResponseColor}`}
+                              className={`tabular-nums font-meta uppercase ${pulseClass}`}
+                              style={{
+                                fontSize: '8.5px',
+                                letterSpacing: '0.08em',
+                                fontWeight: 600,
+                                padding: '2px 5px',
+                                borderRadius: 2,
+                                background: palette.bg,
+                                color: palette.fg,
+                                lineHeight: 1.2,
+                                ...pulseStyle,
+                              }}
+                            >
+                              Dra ⏱ {text}
+                            </span>
+                          );
+                        }
+
+                        // ─── SLA Secretária ──────────────────────────────
+                        if (!conv.waiting_human_response) return null;
+                        const baseMinutes = (() => {
+                          if (conv.last_patient_msg_at) {
+                            const diffMs =
+                              nowTs - new Date(conv.last_patient_msg_at).getTime();
+                            return Math.max(0, Math.floor(diffMs / 60000));
+                          }
+                          return conv.minutes_waiting ?? 0;
+                        })();
+                        const diffHr = Math.floor(baseMinutes / 60);
+                        const diffDay = Math.floor(diffHr / 24);
+                        const text =
+                          baseMinutes < 1
+                            ? 'agora'
+                            : diffDay >= 1
+                            ? `${diffDay}d`
+                            : diffHr >= 1
+                            ? `${diffHr}h`
+                            : `${baseMinutes}m`;
                         const palette =
                           colorByResponseColor[conv.response_color] ??
                           colorByResponseColor.verde;
-
-                        // Pulso só no badge (nunca no card) · usa
-                        // animate-pulse (Tailwind) · velocidade controlada
-                        // por animationDuration: forte=1s, suave=2.4s.
                         const pulseClass = conv.should_pulse ? 'animate-pulse' : '';
                         const pulseStyle =
                           conv.pulse_behavior === 'forte'
