@@ -33,7 +33,12 @@ on:
     - cron: '*/5 * * * *'         # task reminders cada 5min
     - cron: '0 12 * * *'          # followup suggestions + activity reminders 12h UTC = 09h SP
     - cron: '0 21 * * 5'          # inactivity radar sex 21h
-    - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07 + 800-09 batch limit)
+    # DISABLED 2026-05-05: lara-voucher-followup quarantined.
+    # Sends Lara voucher followups via Mih (Secretaria chip) without
+    # wa_messages persistence · invisible to Lara V2 dashboard. Pending
+    # migration to Lara V2 cron with proper saveOutbound + dedup vs manual
+    # operator messages. Keep workflow_dispatch option below for manual reruns.
+    # - cron: '0 * * * *'           # lara voucher follow-up cada hora (mig 800-07 + 800-09 batch limit)
     - cron: '0 12 1 * *'          # monthly partner feedback dia 1 09h SP (mig 800-16)
     # Voucher lifecycle · mig 800-49 (Alden 2026-04-27 audit gap)
     - cron: '0 13 * * *'          # voucher-validity-reminder 13h UTC = 10h SP (D-3 antes expirar)
@@ -91,7 +96,8 @@ jobs:
               "*/5 * * * *")          ENDPOINTS="mira-task-reminders" ;;
               "0 12 * * *")           ENDPOINTS="mira-followup-suggestions mira-activity-reminders" ;;
               "0 21 * * 5")           ENDPOINTS="mira-inactivity-radar" ;;
-              "0 * * * *")            ENDPOINTS="lara-voucher-followup" ;;
+              # DISABLED 2026-05-05: lara-voucher-followup quarantined · ver bloco no schedule acima.
+              # "0 * * * *")            ENDPOINTS="lara-voucher-followup" ;;
               "0 12 1 * *")           ENDPOINTS="mira-monthly-partner-feedback" ;;
               "0 13 * * *")           ENDPOINTS="mira-voucher-validity-reminder" ;;
               "0 5 * * *")            ENDPOINTS="mira-voucher-expired-sweep" ;;
