@@ -1,5 +1,6 @@
 export { cn } from './cn'
 export { normalizePhoneBR, isValidPhoneBR, formatPhoneBR, phoneVariants, canonicalPhoneBR } from './phone'
+export { isGoodHumanName, shouldUpdateName } from './name'
 export { formatDateBR, daysAgo, isToday } from './date'
 export { renderTemplate, extractTemplateVars } from './render-template'
 export type { TemplateVars, RenderTemplateOptions } from './render-template'

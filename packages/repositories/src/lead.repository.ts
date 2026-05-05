@@ -106,6 +106,24 @@ export class LeadRepository {
   }
 
   /**
+   * Atualiza apenas `leads.name` · usado pelo webhook quando pushName válido
+   * aparece numa inbound posterior à criação (lead começou com phone como
+   * nome ou ficou vazio). Caller é responsável por aplicar `isGoodHumanName`
+   * + `shouldUpdateName` ANTES de chamar (evita sobrescrever nome humano bom).
+   *
+   * Retorna `true` se o UPDATE foi confirmado pelo Supabase, `false` caso
+   * contrário. Não toca `updated_at` manualmente · Postgres já tem
+   * `updated_at = now()` via trigger/default na tabela.
+   */
+  async updateName(leadId: string, name: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('leads')
+      .update({ name, updated_at: new Date().toISOString() })
+      .eq('id', leadId)
+    return !error
+  }
+
+  /**
    * @deprecated leads.tags does not exist in production. The column was
    * removed during REFACTOR_LEAD_MODEL but this method still references it.
    * Calls fail silently · merged set never reaches DB. Do not use until

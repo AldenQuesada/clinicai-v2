@@ -6,9 +6,20 @@
  *
  * Auto-revive: ConversationRepository.findActiveByPhoneVariants ja flipa
  * status='archived' -> 'active' antes de retornar (sem duplicata).
+ *
+ * Update path de nome (2026-05-05): quando lead/conversa já existem mas o
+ * nome cadastrado é fraco (vazio · só dígitos · genérico), o webhook usa
+ * `shouldUpdateName(current, pushName)` pra promover pushName válido a
+ * `lead.name` / `wa_conversations.display_name`. Nome humano bom NUNCA é
+ * sobrescrito por pushName posterior (que pode ser apelido/emoji).
  */
 
-import { phoneVariants, canonicalPhoneBR } from '@clinicai/utils'
+import {
+  phoneVariants,
+  canonicalPhoneBR,
+  isGoodHumanName,
+  shouldUpdateName,
+} from '@clinicai/utils'
 import { createLogger, hashPhone } from '@clinicai/logger'
 import type {
   ConversationDTO,
@@ -35,19 +46,52 @@ interface ResolveLeadOpts {
  *
  * Combinada com UNIQUE INDEX(clinic_id, last8digits) na DB, elimina
  * duplicates na origem · atomic guard.
+ *
+ * Update path (2026-05-05): se lead existente tem nome fraco e pushName é
+ * bom, promove via `leads.updateName()` · proteção contra sobrescrever
+ * cadastro humano via `shouldUpdateName`.
  */
 export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null> {
   const { leads, clinic_id, phone, pushName } = opts
   const variants = phoneVariants(phone)
 
   const existing = await leads.findByPhoneVariants(clinic_id, variants)
-  if (existing) return existing
+  if (existing) {
+    // Update path: pushName válido + nome atual fraco (vazio/numérico/genérico)
+    if (shouldUpdateName(existing.name, pushName)) {
+      const ok = await leads.updateName(existing.id, pushName.trim())
+      if (ok) {
+        const oldEmptyOrNumeric =
+          existing.name == null ||
+          existing.name.trim().length === 0 ||
+          /^[\d\s+\-().]+$/.test(existing.name.trim())
+        log.info(
+          {
+            lead_id: existing.id,
+            reason: 'pushName_promoted',
+            old_was_empty_or_numeric: oldEmptyOrNumeric,
+            new_name_length: pushName.trim().length,
+          },
+          'lead.name.updated_from_pushName',
+        )
+        return { ...existing, name: pushName.trim() }
+      }
+      log.warn(
+        { lead_id: existing.id },
+        'lead.name.update_from_pushName.failed',
+      )
+    }
+    return existing
+  }
 
   // Canonical no INSERT · garante 1 lead por nº fisico
+  // Só usa pushName como name se for nome humano bom · senão deixa null
+  // (DB tem default '' · evita salvar phone/lixo como name).
   const canonical = canonicalPhoneBR(phone) || phone
+  const safeName = isGoodHumanName(pushName) ? pushName.trim() : null
   const created = await leads.create(clinic_id, {
     phone: canonical,
-    name: pushName || null,
+    name: safeName,
   })
   if (!created) {
     log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'lead.create.failed')
@@ -99,14 +143,51 @@ export async function resolveConversation(
     }
   }
 
-  if (existing) return existing
+  if (existing) {
+    // Update path: pushName válido + display_name atual fraco
+    if (shouldUpdateName(existing.displayName, pushName)) {
+      const ok = await conversations.updateDisplayName(existing.id, pushName.trim())
+      if (ok) {
+        const oldEmptyOrNumeric =
+          existing.displayName == null ||
+          existing.displayName.trim().length === 0 ||
+          /^[\d\s+\-().]+$/.test(existing.displayName.trim())
+        log.info(
+          {
+            conversation_id: existing.id,
+            reason: 'pushName_promoted',
+            old_was_empty_or_numeric: oldEmptyOrNumeric,
+            new_name_length: pushName.trim().length,
+          },
+          'conversation.display_name.updated_from_pushName',
+        )
+        return { ...existing, displayName: pushName.trim() }
+      }
+      log.warn(
+        { conversation_id: existing.id },
+        'conversation.display_name.update_from_pushName.failed',
+      )
+    }
+    return existing
+  }
 
   // Canonical no INSERT · ver comentário em resolveLead
+  // Display name preference: pushName bom > lead.name bom > phone (fallback).
+  // Nunca grava pushName ruim/lixo · isGoodHumanName protege contra emoji
+  // puro, número, "WhatsApp User", etc.
   const canonical = canonicalPhoneBR(phone) || phone
+  let initialDisplayName: string
+  if (isGoodHumanName(pushName)) {
+    initialDisplayName = pushName.trim()
+  } else if (isGoodHumanName(lead.name)) {
+    initialDisplayName = (lead.name as string).trim()
+  } else {
+    initialDisplayName = phone
+  }
   const created = await conversations.create(clinic_id, {
     phone: canonical,
     leadId: lead.id,
-    displayName: pushName || lead.name || phone,
+    displayName: initialDisplayName,
     waNumberId: waNumberId ?? null,
   })
   if (!created) {

@@ -235,6 +235,25 @@ export class ConversationRepository {
   }
 
   /**
+   * Atualiza apenas `display_name` · usado pelo webhook quando pushName
+   * válido aparece numa inbound posterior à criação (conversa começou com
+   * phone como display_name). Caller é responsável por aplicar
+   * `isGoodHumanName` + `shouldUpdateName` ANTES de chamar.
+   *
+   * Retorna `true` se UPDATE foi confirmado, `false` caso contrário.
+   */
+  async updateDisplayName(
+    conversationId: string,
+    displayName: string,
+  ): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('wa_conversations')
+      .update({ display_name: displayName })
+      .eq('id', conversationId)
+    return !error
+  }
+
+  /**
    * Atualiza last_message_at + last_message_text (snapshot pro inbox).
    * Truncate text em 200 chars (mesma regra do webhook legado).
    */
