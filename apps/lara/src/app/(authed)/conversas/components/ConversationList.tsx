@@ -108,17 +108,15 @@ export function ConversationList({
       if (!matchesSearch) return false;
 
       // 2. Filtro de aba (Apenas para conversas ativas)
-      // Urgentes:  is_urgent (tag URGENTE detectada por palavras-chave no
-      //            server) · alinhado 1:1 com a tag visivel no painel direito.
-      //            Tempo de espera vive no badge ⏱ separado, nao filtra aqui.
-      // Aguardando: paciente foi o ultimo a falar (last_message == last_lead).
+      // Urgentes:   is_urgent (tag URGENTE detectada por palavras-chave no
+      //             server · independente do SLA) · alinhado 1:1 com a tag
+      //             visivel no painel direito.
+      // Aguardando: SLA secretaria · waiting_human_response computado pelo
+      //             repository (computeSla) e entregue pronto via DTO. Single
+      //             source of truth · alinhado com badge ⏱ + KPI top bar.
       if (statusFilter === 'active') {
         if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
-        if (activeTab === 'Aguardando') {
-          const patientWaiting =
-            !!conv.last_lead_msg && conv.last_message_at === conv.last_lead_msg;
-          if (!patientWaiting) return false;
-        }
+        if (activeTab === 'Aguardando' && !conv.waiting_human_response) return false;
         if (activeTab === 'Lara Ativa' && !conv.ai_enabled) return false;
       }
 
@@ -461,46 +459,99 @@ export function ConversationList({
                   <div className="flex justify-between items-start gap-2">
                     <p className="text-[13px] font-normal truncate text-[hsl(var(--foreground))]">{conv.lead_name}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {/* Badge tempo de espera · só aparece quando paciente foi
-                          o último a falar (last_message == last_lead_msg).
-                          Cor escala: <5min muted · 5-30min warning · >30min danger pulsando. */}
+                      {/* Badge tempo de espera · single source of truth do
+                          SLA da secretaria. Server-computed via computeSla()
+                          (packages/repositories/src/sla.ts). Componente só
+                          renderiza cor + pulso a partir do DTO · não recalcula
+                          regra operacional. Para feedback visual mais vivo
+                          entre fetches (a cada 30s), `nowTs` recalcula apenas
+                          o TEXTO do tempo decorrido (m/h/d) · cor/pulso ficam
+                          do DTO (fonte canônica). */}
                       {(() => {
-                        const isWaiting =
-                          !!conv.last_lead_msg &&
-                          conv.last_message_at === conv.last_lead_msg;
-                        if (!isWaiting || !conv.last_lead_msg) return null;
-                        const diffMs = nowTs - new Date(conv.last_lead_msg).getTime();
-                        const diffMin = Math.max(0, Math.floor(diffMs / 60000));
-                        const diffHr = Math.floor(diffMin / 60);
+                        if (!conv.waiting_human_response) return null;
+                        // Texto do tempo · prefer recompute local pra suavizar
+                        // tick entre fetches. Se last_patient_msg_at ausente,
+                        // cai no minutes_waiting do servidor.
+                        const baseMinutes = (() => {
+                          if (conv.last_patient_msg_at) {
+                            const diffMs =
+                              nowTs - new Date(conv.last_patient_msg_at).getTime();
+                            return Math.max(0, Math.floor(diffMs / 60000));
+                          }
+                          return conv.minutes_waiting ?? 0;
+                        })();
+                        const diffHr = Math.floor(baseMinutes / 60);
                         const diffDay = Math.floor(diffHr / 24);
                         const text =
-                          diffMin < 1 ? 'agora'
-                          : diffDay >= 1 ? `${diffDay}d`
-                          : diffHr >= 1 ? `${diffHr}h`
-                          : `${diffMin}m`;
-                        const tier =
-                          diffMin >= 30 ? 'danger'
-                          : diffMin >= 5 ? 'warning'
-                          : 'muted';
-                        const colorByTier: Record<string, { fg: string; bg: string }> = {
-                          muted: { fg: 'hsl(var(--muted-foreground))', bg: 'rgba(255,255,255,0.04)' },
-                          warning: { fg: 'hsl(var(--warning))', bg: 'hsl(var(--warning) / 0.12)' },
-                          danger: { fg: 'hsl(var(--destructive))', bg: 'hsl(var(--destructive) / 0.14)' },
+                          baseMinutes < 1
+                            ? 'agora'
+                            : diffDay >= 1
+                            ? `${diffDay}d`
+                            : diffHr >= 1
+                            ? `${diffHr}h`
+                            : `${baseMinutes}m`;
+
+                        // Cor pelo response_color (server-side · canônico)
+                        const colorByResponseColor: Record<
+                          string,
+                          { fg: string; bg: string }
+                        > = {
+                          verde: {
+                            fg: 'hsl(var(--success))',
+                            bg: 'hsl(var(--success) / 0.10)',
+                          },
+                          amarelo: {
+                            fg: 'hsl(var(--warning))',
+                            bg: 'hsl(var(--warning) / 0.12)',
+                          },
+                          vermelho: {
+                            fg: 'hsl(var(--destructive))',
+                            bg: 'hsl(var(--destructive) / 0.14)',
+                          },
+                          critico: {
+                            fg: 'hsl(var(--destructive))',
+                            bg: 'hsl(var(--destructive) / 0.22)',
+                          },
+                          atrasado_fixo: {
+                            fg: 'hsl(var(--destructive))',
+                            bg: 'hsl(var(--destructive) / 0.18)',
+                          },
+                          antigo_parado: {
+                            fg: 'hsl(var(--muted-foreground))',
+                            bg: 'rgba(255,255,255,0.04)',
+                          },
+                          // 'respondido' não é renderizado · early return acima
+                          respondido: { fg: '', bg: '' },
                         };
-                        const { fg, bg } = colorByTier[tier];
+                        const palette =
+                          colorByResponseColor[conv.response_color] ??
+                          colorByResponseColor.verde;
+
+                        // Pulso só no badge (nunca no card) · usa
+                        // animate-pulse (Tailwind) · velocidade controlada
+                        // por animationDuration: forte=1s, suave=2.4s.
+                        const pulseClass = conv.should_pulse ? 'animate-pulse' : '';
+                        const pulseStyle =
+                          conv.pulse_behavior === 'forte'
+                            ? { animationDuration: '1s' }
+                            : conv.pulse_behavior === 'suave'
+                            ? { animationDuration: '2.4s' }
+                            : {};
+
                         return (
                           <span
-                            title={`Paciente esperando ha ${diffMin}min`}
-                            className={`tabular-nums font-meta uppercase ${tier === 'danger' ? 'animate-pulse' : ''}`}
+                            title={`Paciente esperando ${text} · ${conv.response_color}`}
+                            className={`tabular-nums font-meta uppercase ${pulseClass}`}
                             style={{
                               fontSize: '8.5px',
                               letterSpacing: '0.08em',
                               fontWeight: 600,
                               padding: '2px 5px',
                               borderRadius: 2,
-                              background: bg,
-                              color: fg,
+                              background: palette.bg,
+                              color: palette.fg,
                               lineHeight: 1.2,
+                              ...pulseStyle,
                             }}
                           >
                             ⏱ {text}

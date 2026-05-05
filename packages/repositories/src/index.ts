@@ -10,6 +10,7 @@
 
 export { LeadRepository } from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
+export { computeSla, type SlaInput, type SlaFields } from './sla'
 export { MessageRepository, type AIHistoryMessage } from './message.repository'
 export { ClinicDataRepository } from './clinic-data.repository'
 export {

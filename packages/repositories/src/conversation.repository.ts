@@ -15,6 +15,7 @@ import {
   type ConversationStatus,
   type CreateConversationInput,
 } from './types'
+import { computeSla } from './sla'
 export type StatusFilter = 'active' | 'archived' | 'resolved' | 'dra'
 
 export class ConversationRepository {
@@ -144,7 +145,58 @@ export class ConversationRepository {
     }
 
     const { data } = await q
-    return (data ?? []).map(mapConversationRow)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = data ?? []
+    if (rows.length === 0) return []
+
+    // SLA secretaria · 1 query auxiliar batched pra resolver lastHumanReplyAt
+    // por conversa. Single source of truth = computeSla() no mapper.
+    const ids = rows.map((r) => String(r.id))
+    const humanReplies = await this.getLastHumanReplyByConvs(ids)
+    return rows.map((row) => mapConversationRow(row, humanReplies.get(String(row.id)) ?? null))
+  }
+
+  /**
+   * Resolve a última resposta humana válida por conversation_id em batch.
+   * Critério canônico (Alden 2026-05-04 · sla.ts):
+   *   direction = 'outbound'
+   *   AND sender   = 'humano'
+   *   AND deleted_at IS NULL
+   *   AND status IS DISTINCT FROM 'note'
+   *
+   * Retorna Map<conversation_id, ISO sent_at> com a mais recente por conv.
+   * Conversas sem resposta humana ficam fora do Map (caller usa null default).
+   *
+   * Usado por listByStatus + getInsights pra alimentar computeSla(). UI nunca
+   * recalcula a regra · só renderiza response_color / minutes_waiting / pulse.
+   */
+  async getLastHumanReplyByConvs(
+    conversationIds: string[],
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>()
+    if (conversationIds.length === 0) return result
+
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('conversation_id, sent_at')
+      .in('conversation_id', conversationIds)
+      .eq('direction', 'outbound')
+      .eq('sender', 'humano')
+      .is('deleted_at', null)
+      // status IS DISTINCT FROM 'note' · cobre tanto NULL quanto valores ≠ 'note'
+      .or('status.is.null,status.neq.note')
+      .order('sent_at', { ascending: false })
+
+    // Como ordenamos DESC por sent_at, a primeira ocorrência por conversation_id
+    // é a mais recente. Set apenas no primeiro hit · ignora subsequentes.
+    for (const row of (data ?? []) as Array<{
+      conversation_id: string
+      sent_at: string
+    }>) {
+      const cid = String(row.conversation_id)
+      if (!result.has(cid)) result.set(cid, String(row.sent_at))
+    }
+    return result
   }
 
   /**
@@ -345,19 +397,39 @@ export class ConversationRepository {
   }
 
   /**
-   * Insights agregados pro top bar do /conversas · 5 counts em paralelo.
+   * Insights agregados pro top bar do /conversas.
    *
-   * Definicoes (mirror api/conversations/route.ts:isUrgent):
-   *  - urgentes: ai_enabled=false AND last_lead_msg < (now - 5min)
-   *    (atendente assumiu mas paciente respondeu ha mais de 5min · esfriando)
-   *  - aguardando: ai_enabled=false AND (last_lead_msg >= (now - 5min) OR null)
-   *    (atendente assumiu, paciente respondeu recente · ainda quente)
-   *  - lara_ativa: ai_enabled=true (Lara conduzindo)
-   *  - resolvidos_hoje: status=resolved AND last_message_at >= todayStartIso
-   *  - novos_leads: leads.created_at >= todayStartIso (contatos NOVOS hoje ·
-   *    nao mensagens novas de leads existentes)
+   * Definições canônicas (Alden 2026-05-04 · sla.ts é source of truth):
    *
-   * Multi-tenant: clinic_id via JWT no caller. Promise.all roda em paralelo.
+   *  - aguardando:    waitingHumanResponse = true (computado por computeSla
+   *                   sobre last_lead_msg vs MAX(sent_at) WHERE sender='humano'
+   *                   AND status≠'note'). Lara/IA NÃO conta como resposta
+   *                   humana · auto-greeting/system/note também não. Single
+   *                   source of truth alinhado com badge ⏱ no card e filtro
+   *                   tab "Aguardando" no ConversationList.
+   *
+   *  - urgentes:      subset de aguardando onde responseColor ∈
+   *                   { 'vermelho', 'critico', 'atrasado_fixo', 'antigo_parado' }
+   *                   (≥ 7min sem resposta humana). Drop-in pra alerta
+   *                   visual no top bar e KPIs clicáveis.
+   *
+   *  - lara_ativa:    ai_enabled = true (Lara conduzindo · indep. SLA).
+   *
+   *  - resolvidos_hoje: status='resolved' AND last_message_at >= todayStartIso.
+   *
+   *  - novos_leads:   leads.created_at >= todayStartIso (contatos NOVOS hoje ·
+   *                   não mensagens novas de leads existentes).
+   *
+   * Implementação: 3 queries em paralelo via Promise.all + 1 query auxiliar
+   * pra resolver lastHumanReplyAt em batch. Aguardando/urgentes/laraAtiva
+   * são contados em TS varrendo as conversations active+paused (volume baixo
+   * · até alguns milhares de convs por clinic é trivial). Resolvidos_hoje e
+   * novos_leads continuam count(*) puro (mesmo padrão original).
+   *
+   * Param `fiveMinAgoIso` mantido na assinatura por compat (não usado aqui ·
+   * thresholds vivem em sla.ts agora).
+   *
+   * Multi-tenant: clinic_id via JWT no caller.
    */
   async getInsights(
     clinicId: string,
@@ -370,27 +442,16 @@ export class ConversationRepository {
     novosLeads: number
   }> {
     const activeStatuses: ConversationStatus[] = ['active', 'paused']
-    const [urgentesQ, aguardandoQ, laraAtivaQ, resolvidosQ, novosLeadsQ] = await Promise.all([
+    const _unused = opts.fiveMinAgoIso // kept for backward-compat assinatura
+    void _unused
+    const now = new Date()
+
+    const [activeConvsRes, resolvidosQ, novosLeadsQ] = await Promise.all([
       this.supabase
         .from('wa_conversations')
-        .select('id', { count: 'exact', head: true })
+        .select('id, last_lead_msg, ai_enabled')
         .eq('clinic_id', clinicId)
-        .in('status', activeStatuses)
-        .eq('ai_enabled', false)
-        .lt('last_lead_msg', opts.fiveMinAgoIso),
-      this.supabase
-        .from('wa_conversations')
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .in('status', activeStatuses)
-        .eq('ai_enabled', false)
-        .or(`last_lead_msg.gte.${opts.fiveMinAgoIso},last_lead_msg.is.null`),
-      this.supabase
-        .from('wa_conversations')
-        .select('id', { count: 'exact', head: true })
-        .eq('clinic_id', clinicId)
-        .in('status', activeStatuses)
-        .eq('ai_enabled', true),
+        .in('status', activeStatuses),
       this.supabase
         .from('wa_conversations')
         .select('id', { count: 'exact', head: true })
@@ -404,10 +465,41 @@ export class ConversationRepository {
         .is('deleted_at', null)
         .gte('created_at', opts.todayStartIso),
     ])
+
+    const activeConvs = (activeConvsRes.data ?? []) as Array<{
+      id: string
+      last_lead_msg: string | null
+      ai_enabled: boolean | null
+    }>
+    const ids = activeConvs.map((c) => String(c.id))
+    const humanReplies = await this.getLastHumanReplyByConvs(ids)
+
+    let aguardando = 0
+    let urgentes = 0
+    let laraAtiva = 0
+    for (const c of activeConvs) {
+      if (c.ai_enabled !== false) laraAtiva++
+      const sla = computeSla({
+        lastPatientMsgAt: c.last_lead_msg ?? null,
+        lastHumanReplyAt: humanReplies.get(String(c.id)) ?? null,
+        now,
+      })
+      if (!sla.waitingHumanResponse) continue
+      aguardando++
+      if (
+        sla.responseColor === 'vermelho' ||
+        sla.responseColor === 'critico' ||
+        sla.responseColor === 'atrasado_fixo' ||
+        sla.responseColor === 'antigo_parado'
+      ) {
+        urgentes++
+      }
+    }
+
     return {
-      urgentes: urgentesQ.count ?? 0,
-      aguardando: aguardandoQ.count ?? 0,
-      laraAtiva: laraAtivaQ.count ?? 0,
+      urgentes,
+      aguardando,
+      laraAtiva,
       resolvidosHoje: resolvidosQ.count ?? 0,
       novosLeads: novosLeadsQ.count ?? 0,
     }

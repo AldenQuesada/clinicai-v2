@@ -1,12 +1,25 @@
 /**
  * mapConversationRow · row snake_case da tabela wa_conversations → DTO.
+ *
+ * Aceita opcionalmente o ISO da última resposta humana (computado em batch
+ * pelo repository · ConversationRepository.getLastHumanReplyByConvs) pra
+ * preencher os campos de SLA. Default null = nenhuma resposta humana →
+ * conversa aguardando se houver lastPatientMsgAt.
+ *
+ * SLA delegado a `computeSla()` em sla.ts · single source of truth.
  */
 
+import { computeSla } from '../sla'
 import type { ConversationStatus } from '../types/enums'
 import type { ConversationDTO } from '../types/dtos'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapConversationRow(row: any): ConversationDTO {
+export function mapConversationRow(
+  row: any,
+  lastHumanReplyAt: string | null = null,
+): ConversationDTO {
+  const lastPatientMsgAt: string | null = row.last_lead_msg ?? null
+  const sla = computeSla({ lastPatientMsgAt, lastHumanReplyAt })
   return {
     id: String(row.id),
     clinicId: String(row.clinic_id),
@@ -29,5 +42,13 @@ export function mapConversationRow(row: any): ConversationDTO {
     inboxRole: (row.inbox_role === 'secretaria' ? 'secretaria' : 'sdr') as 'sdr' | 'secretaria',
     handoffToSecretariaAt: row.handoff_to_secretaria_at ?? null,
     handoffToSecretariaBy: row.handoff_to_secretaria_by ?? null,
+    // SLA · performance da secretaria
+    lastPatientMsgAt,
+    lastHumanReplyAt,
+    waitingHumanResponse: sla.waitingHumanResponse,
+    minutesWaiting: sla.minutesWaiting,
+    responseColor: sla.responseColor,
+    shouldPulse: sla.shouldPulse,
+    pulseBehavior: sla.pulseBehavior,
   }
 }

@@ -97,3 +97,26 @@ export type AppointmentFinalizeOutcome = 'paciente' | 'orcamento' | 'perdido'
 
 // ── Dedup cross-tabela (LeadRepository.findInAnySystem) ────────────────────
 export type DedupHitKind = 'patient' | 'lead' | 'voucher_recipient' | 'partner_referral'
+
+// ── SLA · performance da secretaria ────────────────────────────────────────
+//
+// Cor do badge de tempo de espera da resposta humana. Calculada por
+// `computeSla()` (packages/repositories/src/sla.ts) · UI nunca recalcula.
+//
+//   respondido    · não aguardando · sem pulso
+//   verde         · < 3min         · sem pulso
+//   amarelo       · 3-7min         · pulso suave
+//   vermelho      · 7-15min        · pulso forte
+//   critico       · 15-60min       · pulso forte
+//   atrasado_fixo · 60min-24h      · sem pulso
+//   antigo_parado · ≥ 24h          · sem pulso
+export type ResponseColor =
+  | 'respondido'
+  | 'verde'
+  | 'amarelo'
+  | 'vermelho'
+  | 'critico'
+  | 'atrasado_fixo'
+  | 'antigo_parado'
+
+export type PulseBehavior = 'none' | 'suave' | 'forte'

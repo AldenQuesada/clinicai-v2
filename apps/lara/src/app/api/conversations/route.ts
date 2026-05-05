@@ -85,6 +85,14 @@ export async function GET(request: NextRequest) {
         // Mig 91 · inbox routing + handoff Lara→Secretaria
         inbox_role: c.inboxRole,
         handoff_to_secretaria_at: c.handoffToSecretariaAt,
+        // SLA · performance da secretaria (computado pelo repository · sla.ts)
+        last_patient_msg_at: c.lastPatientMsgAt,
+        last_human_reply_at: c.lastHumanReplyAt,
+        waiting_human_response: c.waitingHumanResponse,
+        minutes_waiting: c.minutesWaiting,
+        response_color: c.responseColor,
+        should_pulse: c.shouldPulse,
+        pulse_behavior: c.pulseBehavior,
       };
     });
 

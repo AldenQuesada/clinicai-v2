@@ -22,6 +22,8 @@ import type {
   PatientSex,
   PatientStatus,
   PhaseOrigin,
+  PulseBehavior,
+  ResponseColor,
 } from './enums'
 
 /**
@@ -142,6 +144,24 @@ export interface ConversationDTO {
    * NULL quando IA decidiu via tag [ACIONAR_HUMANO:secretaria] no webhook.
    */
   handoffToSecretariaBy: string | null
+  // ── SLA · performance da secretaria (computado por sla.ts) ────────────────
+  // Single source of truth pra contador "Aguardando" + filtro tab + badge ⏱.
+  // Computados pelo repository com base em wa_conversations.last_lead_msg
+  // + MAX(wa_messages.sent_at) WHERE sender='humano' AND status≠'note'.
+  /** Alias canônico de lastLeadMsg · ISO da última msg do paciente */
+  lastPatientMsgAt: string | null
+  /** ISO da última resposta humana válida · null se nenhuma até agora */
+  lastHumanReplyAt: string | null
+  /** Paciente esperando resposta humana neste momento */
+  waitingHumanResponse: boolean
+  /** Minutos desde lastPatientMsgAt · null se !waiting */
+  minutesWaiting: number | null
+  /** Cor pra renderizar no badge · UI mapeia direto, não recalcula regra */
+  responseColor: ResponseColor
+  /** Se badge deve pulsar (true só pra amarelo, vermelho, critico) */
+  shouldPulse: boolean
+  /** Intensidade do pulso · 'none' | 'suave' | 'forte' */
+  pulseBehavior: PulseBehavior
 }
 
 /**

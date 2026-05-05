@@ -29,6 +29,28 @@ export interface Conversation {
   inbox_role?: 'sdr' | 'secretaria' | 'b2b';
   /** Mig 91 · ISO do handoff Lara→Secretaria (NULL = sem handoff). */
   handoff_to_secretaria_at?: string | null;
+  // ── SLA · performance da secretaria (server-computed em sla.ts) ──────────
+  /** ISO da última mensagem do paciente (alias canônico de last_lead_msg) */
+  last_patient_msg_at: string | null;
+  /** ISO da última resposta humana válida (sender='humano' AND status≠'note') */
+  last_human_reply_at: string | null;
+  /** Paciente esperando resposta humana neste momento */
+  waiting_human_response: boolean;
+  /** Minutos desde last_patient_msg_at · null se !waiting */
+  minutes_waiting: number | null;
+  /** Cor pra renderizar no badge ⏱ · UI mapeia direto, não recalcula regra */
+  response_color:
+    | 'respondido'
+    | 'verde'
+    | 'amarelo'
+    | 'vermelho'
+    | 'critico'
+    | 'atrasado_fixo'
+    | 'antigo_parado';
+  /** Se badge deve pulsar (true só pra amarelo, vermelho, critico) */
+  should_pulse: boolean;
+  /** Intensidade do pulso · 'none' | 'suave' | 'forte' */
+  pulse_behavior: 'none' | 'suave' | 'forte';
 }
 
 export const playNotificationSound = () => {
