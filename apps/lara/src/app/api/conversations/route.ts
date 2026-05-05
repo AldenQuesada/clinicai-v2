@@ -108,11 +108,94 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // ── Enrichment via view operacional ──────────────────────────────────
+    // Single source of truth pra pills/filas (db/migrations/...127). Mergeia
+    // os 21 campos derivados (operational_owner, is_dra, is_lara, is_aguardando,
+    // is_urgente, response_color, etc) sem alterar a query principal · zero
+    // breaking change pra callers existentes.
+    const conversationIds = items.map((i) => i.conversation_id);
+    type OperationalRow = {
+      id: string;
+      is_aguardando: boolean | null;
+      is_urgente: boolean | null;
+      response_color: string | null;
+      is_assigned: boolean | null;
+      assigned_to_name: string | null;
+      assigned_to_role: string | null;
+      is_dra: boolean | null;
+      is_lara: boolean | null;
+      is_voce: boolean | null;
+      is_secretaria: boolean | null;
+      is_mira: boolean | null;
+      is_luciana: boolean | null;
+      operational_owner: string | null;
+      operational_owner_label: string | null;
+      has_legacy_operational_tag: boolean | null;
+      last_inbound_msg: string | null;
+      last_human_msg: string | null;
+      last_lara_msg: string | null;
+      last_outbound_msg: string | null;
+      minutes_since_last_inbound: number | null;
+    };
+    const opMap = new Map<string, OperationalRow>();
+    if (conversationIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: opData } = await (supabase as any)
+        .from('wa_conversations_operational_view')
+        .select(
+          'id, is_aguardando, is_urgente, response_color, is_assigned, ' +
+          'assigned_to_name, assigned_to_role, is_dra, is_lara, is_voce, ' +
+          'is_secretaria, is_mira, is_luciana, operational_owner, ' +
+          'operational_owner_label, has_legacy_operational_tag, ' +
+          'last_inbound_msg, last_human_msg, last_lara_msg, last_outbound_msg, ' +
+          'minutes_since_last_inbound',
+        )
+        .in('id', conversationIds);
+      for (const row of (opData ?? []) as OperationalRow[]) {
+        opMap.set(String(row.id), row);
+      }
+    }
+
+    const enrichedItems = items.map((item) => {
+      const op = opMap.get(item.conversation_id);
+      if (!op) return item;
+      return {
+        ...item,
+        // Operational owner canon (Alden 2026-05-05)
+        operational_owner: op.operational_owner ?? null,
+        operational_owner_label: op.operational_owner_label ?? null,
+        is_luciana: op.is_luciana ?? false,
+        // Pills derivados (booleanos · não conflitam com SLA secretária)
+        is_dra: op.is_dra ?? false,
+        is_lara: op.is_lara ?? false,
+        is_voce: op.is_voce ?? false,
+        is_mira: op.is_mira ?? false,
+        is_secretaria: op.is_secretaria ?? false,
+        is_aguardando: op.is_aguardando ?? false,
+        is_urgente: op.is_urgente ?? false,
+        is_assigned: op.is_assigned ?? false,
+        assigned_to_name: op.assigned_to_name ?? null,
+        assigned_to_role: op.assigned_to_role ?? null,
+        has_legacy_operational_tag: op.has_legacy_operational_tag ?? false,
+        // NÃO sobrescreve `response_color` · campo já existe no DTO com
+        // semântica do SLA secretária (verde/amarelo/atrasado_fixo/etc).
+        // Pills/filas usam `is_urgente` (boolean) · sem ambiguidade.
+        // Expomos a versão da view como `op_response_color` pra audit/debug:
+        op_response_color: op.response_color ?? 'none',
+        // Timestamps derivados (last_*) · vem do msg_rollup da view
+        last_inbound_msg: op.last_inbound_msg ?? null,
+        last_human_msg: op.last_human_msg ?? null,
+        last_lara_msg: op.last_lara_msg ?? null,
+        last_outbound_msg: op.last_outbound_msg ?? null,
+        minutes_since_last_inbound: op.minutes_since_last_inbound ?? null,
+      };
+    });
+
     // Cursor pra proxima pagina · null quando lote veio menor que limit
     const nextCursor =
-      items.length === limit ? items[items.length - 1].last_message_at : null;
+      enrichedItems.length === limit ? enrichedItems[enrichedItems.length - 1].last_message_at : null;
 
-    return NextResponse.json({ items, nextCursor });
+    return NextResponse.json({ items: enrichedItems, nextCursor });
   } catch (err: any) {
     console.error('[API] Conversations error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

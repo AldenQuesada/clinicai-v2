@@ -28,12 +28,7 @@ import { useMessages } from '../conversas/hooks/useMessages';
 import { useClinicMembers } from '../conversas/hooks/useClinicMembers';
 import { usePresence } from '../conversas/hooks/usePresence';
 import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
-import { DOCTOR_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
-import {
-  isReturnPending,
-  isReturnCritical,
-  minutesSince,
-} from '../conversas/lib/returnPromises';
+import { DOCTOR_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
   RefreshCw,
@@ -76,10 +71,11 @@ export default function SecretariaPage() {
   //   ESCOPO  · todos | abertas | resolvidas (lente de status)
   //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
   // Default = aguardando (fila operacional da Luciana visivel direto)
-  // 5 KPIs operacionais (Alden 2026-05-05 · removidos Abertas+Resolvidas):
-  //   Todos | Aguardando | Retorno | Urgente | Dra
-  // Default 'todos' pra Luciana/outros · 'dra' pra Mirian (efeito abaixo).
-  type KpiId = 'todos' | 'aguardando' | 'retorno' | 'urgente' | 'dra';
+  // 5 KPIs canônicos (Alden 2026-05-05 · view wa_conversations_operational_view):
+  //   Todos | Luciana | Mirian | Aguardando | Urgente
+  // Default 'todos' pra Luciana/outros · 'mirian' pra Mirian (efeito abaixo).
+  // Removidos: Retorno (sem estrutura no DB · regex frágil), Abertas/Resolvidas.
+  type KpiId = 'todos' | 'luciana' | 'mirian' | 'aguardando' | 'urgente';
   const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
   const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
@@ -124,61 +120,46 @@ export default function SecretariaPage() {
   };
 
   // ─────────────────────────────────────────────────────────────────────
-  // 5 KPIs operacionais · filas humanas reais · derivados local (zero fetch)
+  // 5 KPIs canônicos · view wa_conversations_operational_view é SoT
   // ─────────────────────────────────────────────────────────────────────
   //
-  // Critérios canônicos (Alden 2026-05-05):
+  // Modelo (Alden 2026-05-05): apenas 2 donos operacionais neste dashboard.
   //
-  //   Todos:      status IN ('active','paused')
-  //   Aguardando: waiting_human_response = true E !atribuída-à-Dra
-  //               (server-side · single source of truth · sla.ts)
-  //   Retorno:    promessa pendente (PROMISE_RE) E !atribuída-à-Dra
-  //               (lib/returnPromises.ts · single source of truth)
-  //   Urgente:    qualquer alerta vermelho/crítico em qualquer fila
-  //               (a) Aguardando crítico (response_color ≥ vermelho)
-  //               (b) Retorno crítico (≥ 7min sem resposta humana)
-  //               (c) Dra crítica (≥ 15min desde assigned_at)
-  //   Dra:        assigned_to = DOCTOR_USER_ID E status active/paused
+  //   Todos:      todas as conversas active+paused do dashboard
+  //   Luciana:    operational_owner === 'luciana' OU is_luciana === true
+  //   Mirian:     operational_owner === 'mirian'  OU is_dra === true
+  //   Aguardando: is_aguardando (já exclui Mirian na view)
+  //   Urgente:    is_urgente OU op_response_color ∈ {vermelho, critico}
   //
-  // c.is_urgent (tag-based legacy) NÃO é mais critério · pode aparecer como
-  // pill na conv mas não governa o KPI Urgente.
+  // VOCÊ e MIRA não governam nada · view força is_voce/is_mira = false.
+  // LARA aparece só como pill de estado da IA (não fila).
 
   const isOperational = (c: typeof conversations[number]) =>
     c.status === 'active' || c.status === 'paused';
 
-  const isNotDoctor = (c: typeof conversations[number]) =>
-    !isAssignedToDoctor(c.assigned_to ?? null);
+  const isMirianConv = (c: typeof conversations[number]) =>
+    c.is_dra === true || c.operational_owner === 'mirian';
 
-  const isUrgenteAggregate = (c: typeof conversations[number]): boolean => {
-    if (!isOperational(c)) return false;
-    const isDra = isAssignedToDoctor(c.assigned_to ?? null);
-    // (a) Aguardando crítico
-    if (
-      !isDra &&
-      c.waiting_human_response &&
-      ['vermelho', 'critico', 'atrasado_fixo', 'antigo_parado'].includes(
-        c.response_color,
-      )
-    ) {
-      return true;
-    }
-    // (b) Retorno crítico
-    if (!isDra && isReturnCritical(c)) return true;
-    // (c) Dra crítica (≥ 15min desde assigned_at · onset 'critico' do SLA Dra)
-    if (isDra && c.assigned_at && minutesSince(c.assigned_at) >= 15) return true;
-    return false;
-  };
+  const isLucianaConv = (c: typeof conversations[number]) =>
+    c.is_luciana === true || c.operational_owner === 'luciana';
+
+  const isUrgenteConv = (c: typeof conversations[number]) =>
+    c.is_urgente === true ||
+    (typeof c.op_response_color === 'string' &&
+      ['vermelho', 'critico'].includes(c.op_response_color));
 
   const todosCount = conversations.filter(isOperational).length;
+  const lucianaCount = conversations.filter(
+    (c) => isOperational(c) && isLucianaConv(c),
+  ).length;
+  const mirianCount = conversations.filter(
+    (c) => isOperational(c) && isMirianConv(c),
+  ).length;
   const aguardandoCount = conversations.filter(
-    (c) => isOperational(c) && c.waiting_human_response && isNotDoctor(c),
+    (c) => isOperational(c) && c.is_aguardando === true,
   ).length;
-  const retornoCount = conversations.filter(
-    (c) => isOperational(c) && isNotDoctor(c) && isReturnPending(c),
-  ).length;
-  const urgenteCount = conversations.filter(isUrgenteAggregate).length;
-  const draCount = conversations.filter(
-    (c) => isAssignedToDoctor(c.assigned_to ?? null) && isOperational(c),
+  const urgenteCount = conversations.filter(
+    (c) => isOperational(c) && isUrgenteConv(c),
   ).length;
 
   // Tab title mostra urgentes como sinal mais forte de pendencia
@@ -204,28 +185,23 @@ export default function SecretariaPage() {
     setStatusFilter('active');
   }, [activeKpi, setStatusFilter]);
 
+  // Mapping KPI → activeTab (consumido pela ConversationList).
   const activeTab =
     activeKpi === 'aguardando' ? 'Aguardando'
-    : activeKpi === 'retorno' ? 'Retorno'
-    : activeKpi === 'dra' ? 'Dra'
+    : activeKpi === 'urgente' ? 'Urgentes'
+    : activeKpi === 'mirian' ? 'Dra'
+    : activeKpi === 'luciana' ? 'Luciana'
     : 'Todas';
 
-  // Filtro local · KPI agregado (urgente) ou KPIs específicos (retorno, dra)
-  // garantem que a lista visível bata com o count, indep. da tab que a
-  // ConversationList já aplica.
+  // Filtro local · garante que lista visível bata com o count quando a tab
+  // não é 1:1 (ex: 'mirian' usa tab 'Dra' que filtra por is_dra).
   const filteredConversations =
-    activeKpi === 'dra'
-      ? conversations.filter(
-          (c) =>
-            isAssignedToDoctor(c.assigned_to ?? null) &&
-            (c.status === 'active' || c.status === 'paused'),
-        )
-      : activeKpi === 'retorno'
-      ? conversations.filter(
-          (c) => isOperational(c) && isNotDoctor(c) && isReturnPending(c),
-        )
+    activeKpi === 'mirian'
+      ? conversations.filter((c) => isOperational(c) && isMirianConv(c))
+      : activeKpi === 'luciana'
+      ? conversations.filter((c) => isOperational(c) && isLucianaConv(c))
       : activeKpi === 'urgente'
-      ? conversations.filter(isUrgenteAggregate)
+      ? conversations.filter((c) => isOperational(c) && isUrgenteConv(c))
       : conversations;
 
   // Override defaults pra perfil sénior · onlyWhenHidden=false · idempotente
@@ -234,13 +210,13 @@ export default function SecretariaPage() {
     ensureRoleDefaults('secretaria');
   }, []);
 
-  // Default KPI por usuário · Mirian (DOCTOR_USER_ID) entra com KPI 'dra' já
-  // ativo · demais usuários (Luciana etc) ficam no 'aguardando' default.
+  // Default KPI por usuário · Mirian (DOCTOR_USER_ID) entra com KPI 'mirian'
+  // já ativo · demais usuários (Luciana etc) ficam no 'todos' default.
   // Aplicado uma vez quando `me` resolve (usuário pode trocar de KPI depois
   // sem ser sobrescrito).
   useEffect(() => {
     if (didApplyRoleKpi || !me) return;
-    if (isDoctor(me)) setActiveKpi('dra');
+    if (isDoctor(me)) setActiveKpi('mirian');
     setDidApplyRoleKpi(true);
   }, [me, didApplyRoleKpi]);
 
@@ -406,10 +382,11 @@ export default function SecretariaPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · 5 KPIs CLICAVEIS numa linha · filas humanas reais
-            ESCOPO: Todos (visão geral · sem arquivadas)
-            FILA:   Aguardando · Retorno · Urgente · Dra
-            Removidos Abertas/Resolvidas (Alden 2026-05-05). */}
+        {/* ZONA CENTRAL · 5 KPIs CANÔNICOS · view operacional como SoT
+            ESCOPO: Todos (visão geral)
+            DONOS:  Luciana · Mirian (canônicos · únicos donos operacionais)
+            FILA:   Aguardando · Urgente
+            Removidos: Retorno (sem estrutura), Abertas/Resolvidas (legacy). */}
         <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0">
           <div className="flex items-center gap-1.5">
             {([
@@ -420,8 +397,27 @@ export default function SecretariaPage() {
                 label: 'Todos',
                 value: todosCount,
                 color: 'foreground',
-                title: 'Todas as conversas operacionais (active + paused)',
+                title: 'Todas as conversas operacionais (Luciana + Mirian)',
                 group: 'escopo' as const,
+              },
+              // ── Grupo DONO (canônico) ──
+              {
+                id: 'luciana' as const,
+                icon: CircleDot,
+                label: 'Luciana',
+                value: lucianaCount,
+                color: 'primary',
+                title: 'Conversas operacionais da Secretaria (default · não atribuídas à Dra)',
+                group: 'dono' as const,
+              },
+              {
+                id: 'mirian' as const,
+                icon: Stethoscope,
+                label: 'Mirian',
+                value: mirianCount,
+                color: 'accent',
+                title: 'Conversas transferidas pra Dra Mirian (assigned_to)',
+                group: 'dono' as const,
               },
               // ── Grupo FILA (colorido) ──
               {
@@ -430,17 +426,7 @@ export default function SecretariaPage() {
                 label: 'Aguardando',
                 value: aguardandoCount,
                 color: 'warning',
-                title: 'Paciente esperando resposta humana · fila pra Luciana cuidar',
-                group: 'fila' as const,
-              },
-              {
-                id: 'retorno' as const,
-                icon: CircleDot,
-                label: 'Retorno',
-                value: retornoCount,
-                color: 'accent',
-                title:
-                  'Promessa de retorno pendente · "vou verificar / te retorno" sem mensagem nova',
+                title: 'Paciente esperando resposta humana · view canônica',
                 group: 'fila' as const,
               },
               {
@@ -449,17 +435,7 @@ export default function SecretariaPage() {
                 label: 'Urgente',
                 value: urgenteCount,
                 color: 'destructive',
-                title:
-                  'Alerta crítico em qualquer fila · Aguardando ≥7min · Retorno ≥7min · Dra ≥15min',
-                group: 'fila' as const,
-              },
-              {
-                id: 'dra' as const,
-                icon: Stethoscope,
-                label: 'Dra',
-                value: draCount,
-                color: 'accent',
-                title: 'Conversas transferidas pra Dra Mirian (assigned_to)',
+                title: 'Alerta crítico · is_urgente da view (>5min sem resposta humana)',
                 group: 'fila' as const,
               },
             ]).map((k, idx, arr) => {
@@ -591,13 +567,12 @@ export default function SecretariaPage() {
           onAdvancedFiltersActiveChange={setHasAdvFiltersActive}
           activeTab={activeTab}
           onActiveTabChange={(tab) => {
-            // Guard · simplifiedTabs nao expoe sub-filtros, mas mantém sync.
-            // Nova matriz de KPIs (Alden 2026-05-05): Todos · Aguardando ·
-            // Retorno · Urgente · Dra (Abertas/Resolvidas removidos).
+            // Mapping canônico (Alden 2026-05-05 · view operacional):
+            // Todos · Luciana · Mirian (Dra) · Aguardando · Urgente.
             if (tab === 'Aguardando') setActiveKpi('aguardando');
-            else if (tab === 'Retorno') setActiveKpi('retorno');
             else if (tab === 'Urgentes') setActiveKpi('urgente');
-            else if (tab === 'Dra') setActiveKpi('dra');
+            else if (tab === 'Dra') setActiveKpi('mirian');
+            else if (tab === 'Luciana') setActiveKpi('luciana');
             else setActiveKpi('todos');
           }}
           onlineUsers={inboxOnline}

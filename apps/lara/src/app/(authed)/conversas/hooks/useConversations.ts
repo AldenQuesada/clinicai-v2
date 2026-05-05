@@ -60,6 +60,47 @@ export interface Conversation {
   should_pulse: boolean;
   /** Intensidade do pulso · 'none' | 'suave' | 'forte' */
   pulse_behavior: 'none' | 'suave' | 'forte';
+  // ── View operacional canônica (Alden 2026-05-05) ───────────────────────
+  // Single source of truth pra pills/filas · vem do enrichment server-side
+  // em /api/conversations a partir de wa_conversations_operational_view.
+  // Campos opcionais pra retrocompat · undefined em mensagens antigas até
+  // a view ter sido aplicada.
+  /** Dono operacional canônico · 'mirian' (Dra) ou 'luciana' (default) */
+  operational_owner?: 'luciana' | 'mirian' | string | null;
+  /** Label de exibição do dono ('Luciana' ou 'Mirian') */
+  operational_owner_label?: string | null;
+  /** True quando default (active conv) · NOT is_dra */
+  is_luciana?: boolean;
+  /** True quando assigned_to é Mirian · governa pill DRA + fila Mirian */
+  is_dra?: boolean;
+  /** Estado IA (não dono) · IA conduzindo conv não atribuída */
+  is_lara?: boolean;
+  /** Forçado false neste dashboard · não governa nada */
+  is_voce?: boolean;
+  /** Forçado false neste dashboard · não governa nada */
+  is_mira?: boolean;
+  /** inbox_role='secretaria' (canal · não dono) */
+  is_secretaria?: boolean;
+  /** SLA secretária · semanticamente equivale a waiting_human_response */
+  is_aguardando?: boolean;
+  /** Aguardando crítico · >5min sem resposta humana */
+  is_urgente?: boolean;
+  /** Versão da view do response_color · 'none'|'aguardando'|'vermelho'|'critico'.
+      NÃO é o response_color da SLA secretária (esse fica em `response_color`
+      acima · pode coexistir com valor diferente). Pills usam `is_urgente` */
+  op_response_color?: 'none' | 'aguardando' | 'vermelho' | 'critico' | string;
+  is_assigned?: boolean;
+  assigned_to_name?: string | null;
+  assigned_to_role?: string | null;
+  /** Sinaliza se conv tem tag legada (pronto_agendar/perguntou_preco/...) ·
+      apenas pra audit · não governa pill */
+  has_legacy_operational_tag?: boolean;
+  /** Timestamps derivados via msg_rollup · independem de last_message_at */
+  last_inbound_msg?: string | null;
+  last_human_msg?: string | null;
+  last_lara_msg?: string | null;
+  last_outbound_msg?: string | null;
+  minutes_since_last_inbound?: number | null;
 }
 
 export const playNotificationSound = () => {

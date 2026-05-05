@@ -850,14 +850,19 @@ async function processInboundMessage(
       log.info({ clinic_id, phone_hash: hashPhone(phone), score: scoreParsed.newScore }, 'lead.score.updated');
     }
 
+    // [ADD_TAG:nome] · DEPRECATED · disabled until persistent tag architecture
+    // is restored; leads.tags does not exist in production. Mantemos o parser
+    // ativo pra fazer strip do texto cleaned (Lara segue emitindo a tag) e
+    // logamos as descartadas pra audit · não chamamos addTags (silent fail).
+    // Pills/filas governadas pela view wa_conversations_operational_view ·
+    // não dependem mais de tags persistentes.
     const tagsParsed = parseTags(aiResponse);
     if (tagsParsed.tags.length > 0) {
       aiResponse = tagsParsed.textCleaned;
-      const finalTags = await repos.leads.addTags(lead.id, tagsParsed.tags);
-      const newlyAdded = tagsParsed.tags.filter((t) => finalTags.includes(t));
-      for (const tag of newlyAdded) {
-        log.info({ clinic_id, phone_hash: hashPhone(phone), tag }, 'lead.tag.added');
-      }
+      log.warn(
+        { clinic_id, phone_hash: hashPhone(phone), discarded_tags: tagsParsed.tags },
+        'lead.tag.discarded · leads.tags column missing in prod',
+      );
     }
 
     // Queixas faciais detectadas pela Lara no chat (ex: "tenho olheiras")

@@ -106,6 +106,13 @@ export class LeadRepository {
   }
 
   /**
+   * @deprecated leads.tags does not exist in production. The column was
+   * removed during REFACTOR_LEAD_MODEL but this method still references it.
+   * Calls fail silently · merged set never reaches DB. Do not use until
+   * persistent tag architecture is restored (either ADD COLUMN leads.tags
+   * back or introduce conversation_tags table). Pills/filas operacionais
+   * governed by wa_conversations_operational_view since 2026-05-05.
+   *
    * Append-only · soma novas tags as existentes (dedup) e devolve set final.
    * Retorna [] se algo falhar · caller decide se trata como erro.
    */
@@ -247,6 +254,9 @@ export class LeadRepository {
   }
 
   /**
+   * @deprecated leads.tags does not exist in production · ver `addTags` pra
+   * contexto. Não usar até arquitetura de tags persistentes ser restaurada.
+   *
    * Remove tags especificas · op-set inverso de addTags.
    */
   async removeTags(leadId: string, tagsToRemove: string[]): Promise<string[]> {

@@ -90,7 +90,11 @@ export function ConversationList({
     return () => clearInterval(id);
   }, []);
 
-  const tabs = ['Todas', 'Aguardando', 'Retorno', 'Dra', 'Urgentes', 'Lara Ativa'];
+  // Tabs canônicas (Alden 2026-05-05 · view wa_conversations_operational_view):
+  //   Todas · Luciana · Dra · Aguardando · Urgentes
+  // Removidos: Retorno (sem estrutura no DB · regex frágil), Lara Ativa
+  // (estado IA · não fila operacional), VOCÊ/MIRA (não são donos aqui).
+  const tabs = ['Todas', 'Luciana', 'Dra', 'Aguardando', 'Urgentes'];
 
   // Extrair todas as tags únicas disponíveis nas conversas atuais para o filtro
   const allTags = useMemo(() => {
@@ -111,25 +115,25 @@ export function ConversationList({
       const matchesSearch = nameStr.includes(q) || phoneStr.includes(q);
       if (!matchesSearch) return false;
 
-      // 2. Filtro de aba (Apenas para conversas ativas)
-      // Urgentes:   is_urgent (tag URGENTE detectada por palavras-chave no
-      //             server · independente do SLA) · alinhado 1:1 com a tag
-      //             visivel no painel direito.
-      // Aguardando: SLA secretaria · waiting_human_response E !atribuída-à-Dra
-      //             (transferidas saem da fila secretária · vão pra Dra).
-      // Retorno:    promessa de retorno pendente (PROMISE_RE em
-      //             lib/returnPromises) E !atribuída-à-Dra. Detecta "vou
-      //             verificar / te retorno" sem mensagem nova.
-      // Dra:        assigned_to = DOCTOR_USER_ID · fila da Mirian.
-      // Lara Ativa: ai_enabled = true E !atribuída-à-Dra (Lara só conduz
-      //             convs ainda na fila secretária).
+      // 2. Filtro de aba · view operacional canônica é fonte de verdade
+      // (Alden 2026-05-05 · wa_conversations_operational_view).
+      //   Luciana   ← operational_owner === 'luciana'
+      //   Dra       ← operational_owner === 'mirian' OU is_dra
+      //   Aguardando ← is_aguardando (já exclui assigned_to=Mirian na view)
+      //   Urgentes  ← is_urgente OU op_response_color ∈ {vermelho, critico}
+      // Tab Todas não filtra · mostra tudo dos donos canônicos juntos.
       if (statusFilter === 'active') {
-        const isDra = isAssignedToDoctor(conv.assigned_to ?? null);
-        if (activeTab === 'Urgentes' && !conv.is_urgent) return false;
-        if (activeTab === 'Aguardando' && (!conv.waiting_human_response || isDra)) return false;
-        if (activeTab === 'Retorno' && (isDra || !isReturnPending(conv))) return false;
+        const isDra = conv.is_dra === true || conv.operational_owner === 'mirian';
+        const isLuciana = conv.is_luciana === true || conv.operational_owner === 'luciana';
+        const isUrgente =
+          conv.is_urgente === true ||
+          (typeof conv.op_response_color === 'string' &&
+            ['vermelho', 'critico'].includes(conv.op_response_color));
+
+        if (activeTab === 'Luciana' && !isLuciana) return false;
         if (activeTab === 'Dra' && !isDra) return false;
-        if (activeTab === 'Lara Ativa' && (!conv.ai_enabled || isDra)) return false;
+        if (activeTab === 'Aguardando' && !conv.is_aguardando) return false;
+        if (activeTab === 'Urgentes' && !isUrgente) return false;
       }
 
       // 3. Filtro por Funil

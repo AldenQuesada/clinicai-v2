@@ -125,7 +125,14 @@ export function LeadTagsPanel({
 
   return (
     <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-      {/* Tags */}
+      {/* Tags · seção pausada (Alden 2026-05-05).
+          leads.tags column does not exist in production. Toda tag adicionada
+          aqui falhava silenciosamente. Pills/filas operacionais governadas
+          pela view wa_conversations_operational_view, não por tags. Quando
+          decidirmos por arquitetura de tags persistentes (mig + tabela
+          conversation_tags ou ressuscitar leads.tags), reabilitar esta
+          seção. As funções state (tags/newTag/handle*Tag) ficam intactas
+          pra facilitar o restore. */}
       <div className="luxury-card" style={{ padding: 18, gridColumn: '1 / -1' }}>
         <h3
           style={{
@@ -139,83 +146,10 @@ export function LeadTagsPanel({
         >
           Tags
         </h3>
-        {tags.length === 0 ? (
-          <div style={{ color: 'var(--b2b-text-muted)', fontSize: 12, marginBottom: 10 }}>
-            — sem tags
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {tags.map((t) => (
-              <span
-                key={t}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 11,
-                  padding: '3px 4px 3px 10px',
-                  borderRadius: 999,
-                  background: 'rgba(201,169,110,0.10)',
-                  color: 'var(--b2b-champagne)',
-                  border: '1px solid rgba(201,169,110,0.30)',
-                }}
-              >
-                {t}
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(t)}
-                    disabled={busy}
-                    aria-label={`Remover tag ${t}`}
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: 'rgba(201,169,110,0.30)',
-                      color: 'var(--b2b-ivory)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 0,
-                    }}
-                  >
-                    <X size={10} />
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-        {canEdit && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="text"
-              className="b2b-input"
-              placeholder="Nova tag (ex: vip, retorno_30d)"
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleAddTag()
-                }
-              }}
-              maxLength={40}
-            />
-            <button
-              type="button"
-              className="b2b-btn b2b-btn-primary"
-              onClick={handleAddTag}
-              disabled={!newTag.trim() || busy}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            >
-              <Plus size={13} />
-              Adicionar
-            </button>
-          </div>
-        )}
+        <div style={{ color: 'var(--b2b-text-muted)', fontSize: 11, fontStyle: 'italic' }}>
+          Tags livres pausadas até decisão de arquitetura. Pills do inbox são
+          governadas pela view operacional do banco.
+        </div>
       </div>
 
       {/* Funnel */}

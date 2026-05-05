@@ -1,7 +1,25 @@
 /**
- * computeConversationTags · port das regras da clinic-dashboard legacy
- * (js/ui/inbox.ui.js:391-420). Retorna array de tags pra renderizar
- * na lista de conversas.
+ * computeConversationTags · pills do card de conversa.
+ *
+ * Modelo canônico (Alden 2026-05-05 · view wa_conversations_operational_view):
+ *
+ *   Pills de fila/operação derivam EXCLUSIVAMENTE da view:
+ *     - URGENTE   ← conv.is_urgente OU conv.op_response_color ∈ {vermelho, critico}
+ *     - DRA       ← conv.is_dra OU conv.operational_owner === 'mirian'
+ *     - LARA      ← conv.is_lara (estado da IA · NÃO é dono operacional)
+ *
+ *   NÃO mostrar mais:
+ *     - VOCÊ (forçado false na view)
+ *     - MIRA (forçado false na view)
+ *     - QUER AGENDAR (lia c.tags.includes('pronto_agendar') · zumbi)
+ *     - PERGUNTOU PREÇO (idem · 'perguntou_preco')
+ *     - SECRETARIA (canal · não é dono operacional aqui · default implícito)
+ *
+ *   Pills de funil (FULL FACE / PROCEDIMENTO / OLHEIRAS) mantidas · derivam
+ *   de leads.funnel · ortogonal ao modelo de owner.
+ *
+ *   Prioridade visual: DRA tem precedência sobre LARA (uma conv atribuída à
+ *   Mirian não mostra pill LARA mesmo se ai_enabled=true).
  *
  * Estética flipbook · Montserrat 8.5px square (DNA .badge-serious).
  */
@@ -9,7 +27,7 @@
 import type { Conversation } from './useConversations';
 
 export interface ConversationTag {
-  /** Label exato uppercase · ex: "LARA", "VOCÊ", "FULL FACE" */
+  /** Label exato uppercase · ex: "DRA", "URGENTE", "FULL FACE" */
   label: string;
   /** Cor de bg em rgba (já com opacity) */
   bg: string;
@@ -30,51 +48,51 @@ const T = (
 ): ConversationTag => ({ label, bg, color, border, order });
 
 /**
- * Computa lista de tags pra uma conversa · seguindo regras legacy.
- * Retorna ordenado por prioridade (urgente primeiro · interesse no fim).
+ * Computa lista de pills pra uma conversa · usa view operacional como SoT.
+ * Retorna ordenado por prioridade (urgente primeiro · funil no fim).
  */
 export function computeConversationTags(conv: Conversation): ConversationTag[] {
   const tags: ConversationTag[] = [];
 
-  // 1. URGENTE · prioridade alta · vermelho
-  if (conv.is_urgent) {
+  // 1. URGENTE · pills · alerta crítico · vermelho
+  // Prefere is_urgente da view · fallback OR no op_response_color (caso
+  // is_urgente venha undefined em conv antiga).
+  const isUrgente =
+    conv.is_urgente === true ||
+    (typeof conv.op_response_color === 'string' &&
+      ['vermelho', 'critico'].includes(conv.op_response_color));
+  if (isUrgente) {
     tags.push(T('URGENTE', 'rgba(239,68,68,0.10)', '#FCA5A5', 'rgba(239,68,68,0.30)', 1));
   }
 
-  // 2. QUER AGENDAR · custom flag em tags[]
-  if (conv.tags?.includes('pronto_agendar')) {
-    tags.push(T('QUER AGENDAR', 'rgba(245,158,11,0.15)', '#FCD34D', 'rgba(245,158,11,0.30)', 2));
+  // 2. DRA · dono = Mirian · prioridade visual sobre LARA
+  const isDra = conv.is_dra === true || conv.operational_owner === 'mirian';
+  if (isDra) {
+    tags.push(T('DRA', 'rgba(212,184,148,0.18)', '#D4B894', 'rgba(212,184,148,0.35)', 2));
   }
 
-  // 3. PERGUNTOU PREÇO · custom flag em tags[]
-  if (conv.tags?.includes('perguntou_preco')) {
-    tags.push(T('PERGUNTOU PREÇO', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 3));
-  }
-
-  // 4. Estado da conversa · varia por inbox (Mig 91/97/101)
-  //   sdr        · LARA (IA ativa) ou VOCÊ (humano assumiu)
-  //   secretaria · SECRETARIA (humano · sem IA)
-  //   b2b        · MIRA (B2B humano via Mira app)
-  if (conv.inbox_role === 'secretaria') {
-    tags.push(T('SECRETARIA', 'rgba(168,148,201,0.18)', '#A894C9', 'rgba(168,148,201,0.35)', 4));
-  } else if (conv.inbox_role === 'b2b') {
-    tags.push(T('MIRA', 'rgba(212,184,148,0.18)', '#D4B894', 'rgba(212,184,148,0.35)', 4));
-  } else if (conv.ai_enabled) {
+  // 3. LARA · estado da IA · só renderiza se NÃO for Dra (DRA tem precedência)
+  // is_lara é boolean da view: ai_enabled E !assigned_to E inbox sdr
+  if (!isDra && conv.is_lara === true) {
     tags.push(T('LARA', 'rgba(16,185,129,0.12)', '#6EE7B7', 'rgba(16,185,129,0.30)', 4));
-  } else {
-    tags.push(T('VOCÊ', 'rgba(167,139,250,0.15)', '#C4B5FD', 'rgba(167,139,250,0.30)', 4));
   }
 
-  // 5. INTERESSE (funnel) · classifica o lead pelo funil
+  // 4. INTERESSE (funnel) · classifica o lead pelo funil · ortogonal a owner
   const funnel = (conv.funnel || '').toLowerCase();
   if (funnel.includes('full')) {
     tags.push(T('FULL FACE', 'rgba(167,139,250,0.15)', '#C4B5FD', 'rgba(167,139,250,0.30)', 5));
   } else if (funnel.includes('procedimento')) {
     tags.push(T('PROCEDIMENTO', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 5));
   } else if (funnel.includes('olheira')) {
-    // Acrescimo · legacy nao tinha · quei,xas faciais aparecem so no painel de detalhe
     tags.push(T('OLHEIRAS', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 5));
   }
+
+  // REMOVIDOS (Alden 2026-05-05 · modelo canônico):
+  //   - VOCÊ (não governa nada · view força is_voce=false)
+  //   - MIRA (não é dono operacional · view força is_mira=false)
+  //   - SECRETARIA pill (default implícito · 107/108 convs · poluição visual)
+  //   - QUER AGENDAR (c.tags.includes('pronto_agendar') · tag zumbi legacy)
+  //   - PERGUNTOU PREÇO (c.tags.includes('perguntou_preco') · tag zumbi)
 
   return tags.sort((a, b) => a.order - b.order);
 }
