@@ -37,6 +37,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { makeRepos } from '@/lib/repos';
 import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
+import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
 import {
   createWhatsAppCloudFromWaNumber,
   WhatsAppCloudService,
@@ -118,6 +119,29 @@ export async function POST(req: NextRequest) {
     clinic_id = ctx.clinic_id;
     wa_number_id = ctx.wa_number_id;
     if (body.wa_number_id) wa_number_id = body.wa_number_id;
+  }
+
+  // Guard universal · cold-open jamais dispara campanha pra próprio wa_number
+  // (ativo OU inativo). Audit 2026-05-05 · evita lead/conversa cruzada com
+  // Mira/Marci/Mih/Secretaria.
+  const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone);
+  if (internalCheck.internal) {
+    log.warn(
+      {
+        clinic_id,
+        phone_hash: hashPhone(phone),
+        own_label: internalCheck.label,
+        own_role: internalCheck.inboxRole,
+        own_type: internalCheck.numberType,
+        own_active: internalCheck.isActive,
+      },
+      'cold_open.skip_internal_wa_number',
+    );
+    return NextResponse.json({
+      ok: false,
+      blocked: 'internal_wa_number',
+      label: internalCheck.label,
+    }, { status: 422 });
   }
 
   // 2. WhatsApp service per-tenant (audit N7) · fallback env global

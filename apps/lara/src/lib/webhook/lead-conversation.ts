@@ -21,12 +21,14 @@ import {
   shouldUpdateName,
 } from '@clinicai/utils'
 import { createLogger, hashPhone } from '@clinicai/logger'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   ConversationDTO,
   ConversationRepository,
   LeadDTO,
   LeadRepository,
 } from '@clinicai/repositories'
+import { isInternalWaNumber } from './internal-phone'
 
 const log = createLogger({ app: 'lara' })
 
@@ -35,6 +37,15 @@ interface ResolveLeadOpts {
   clinic_id: string
   phone: string
   pushName: string
+  /**
+   * Defesa em camadas (audit 2026-05-05): se fornecido, valida que phone
+   * NÃO é um wa_number interno antes de criar lead. Webhooks já fazem
+   * guard upstream (skip_internal_wa_number) · este é cinto + suspensório
+   * pra callers diretos que possam pular o webhook (ex: testes, futuros
+   * fluxos de import). Quando omitido, comportamento legacy (cria lead).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase?: SupabaseClient<any, any, any, any, any>
 }
 
 /**
@@ -52,7 +63,7 @@ interface ResolveLeadOpts {
  * cadastro humano via `shouldUpdateName`.
  */
 export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null> {
-  const { leads, clinic_id, phone, pushName } = opts
+  const { leads, clinic_id, phone, pushName, supabase } = opts
   const variants = phoneVariants(phone)
 
   const existing = await leads.findByPhoneVariants(clinic_id, variants)
@@ -84,6 +95,27 @@ export async function resolveLead(opts: ResolveLeadOpts): Promise<LeadDTO | null
     return existing
   }
 
+  // Defesa em camadas (audit 2026-05-05): bloqueia create se phone é interno.
+  // Webhook já tem guard upstream · este protege callers que possam pular o
+  // webhook (testes, imports, fluxos futuros). Sem supabase → skip check.
+  if (supabase) {
+    const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone)
+    if (internalCheck.internal) {
+      log.warn(
+        {
+          clinic_id,
+          phone_hash: hashPhone(phone),
+          own_label: internalCheck.label,
+          own_role: internalCheck.inboxRole,
+          own_type: internalCheck.numberType,
+          own_active: internalCheck.isActive,
+        },
+        'lead.create.blocked_internal_wa_number',
+      )
+      return null
+    }
+  }
+
   // Canonical no INSERT · garante 1 lead por nº fisico
   // Só usa pushName como name se for nome humano bom · senão deixa null
   // (DB tem default '' · evita salvar phone/lixo como name).
@@ -111,12 +143,20 @@ interface ResolveConversationOpts {
    * inbox_role automaticamente).
    */
   waNumberId?: string | null
+  /**
+   * Defesa em camadas (audit 2026-05-05): se fornecido, valida que phone
+   * NÃO é um wa_number interno antes de criar conversation NOVA. Conversas
+   * existentes (legítimas ou herdadas) continuam sendo retornadas/atualizadas
+   * normalmente · só bloqueia create.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase?: SupabaseClient<any, any, any, any, any>
 }
 
 export async function resolveConversation(
   opts: ResolveConversationOpts,
 ): Promise<ConversationDTO | null> {
-  const { conversations, clinic_id, phone, lead, pushName, waNumberId } = opts
+  const { conversations, clinic_id, phone, lead, pushName, waNumberId, supabase } = opts
   const variants = phoneVariants(phone)
 
   // Mig 100/101 · busca scopeada por canal (waNumberId)
@@ -169,6 +209,27 @@ export async function resolveConversation(
       )
     }
     return existing
+  }
+
+  // Defesa em camadas (audit 2026-05-05): bloqueia create se phone é interno.
+  // Existing conversations passam pela early-return acima · só protegemos
+  // criação NOVA. Sem supabase → skip check.
+  if (supabase) {
+    const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone)
+    if (internalCheck.internal) {
+      log.warn(
+        {
+          clinic_id,
+          phone_hash: hashPhone(phone),
+          own_label: internalCheck.label,
+          own_role: internalCheck.inboxRole,
+          own_type: internalCheck.numberType,
+          own_active: internalCheck.isActive,
+        },
+        'conversation.create.blocked_internal_wa_number',
+      )
+      return null
+    }
   }
 
   // Canonical no INSERT · ver comentário em resolveLead

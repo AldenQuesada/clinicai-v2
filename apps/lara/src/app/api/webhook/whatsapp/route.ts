@@ -45,6 +45,7 @@ import {
   extractContent,
 } from '@/lib/webhook/lead-conversation';
 import { extractPushNameFromCloud } from '@/lib/webhook/extract-push-name';
+import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
 
 const log = createLogger({ app: 'lara' });
 
@@ -275,28 +276,24 @@ async function processInboundMessage(
   const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
   await stageLog('after_resolveTenantContext', { clinic_id, wa_number_id });
 
-  // Guard bot-to-bot · APENAS inbound (Cloud webhook so processa inbound).
-  // Match por last8 · phone WA pode vir 12c ou 13c · comparacao exata falhava
-  // (bug 2026-05-03 · Mira/Marci poluiam Mih).
-  const phoneLast8 = phone.replace(/\D/g, '').slice(-8);
-  if (phoneLast8.length === 8) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: ownNumbers } = await (supabase as any)
-      .from('wa_numbers')
-      .select('id, label, inbox_role, phone')
-      .eq('is_active', true)
-      .like('phone', `%${phoneLast8}`);
-    const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
-      const p = (n.phone ?? '').replace(/\D/g, '');
-      return p.slice(-8) === phoneLast8;
-    });
-    if (match) {
-      log.info(
-        { phone_hash: hashPhone(phone), own_label: match.label, own_role: match.inbox_role },
-        'webhook.cloud.skip_internal_loop',
-      );
-      return;
-    }
+  // Guard universal · phone inbound NÃO pode ser um dos NOSSOS wa_numbers
+  // (ativo OU inativo). Audit 2026-05-05 substituiu guard antigo que filtrava
+  // is_active=true · deixava inativos (ex: Mira/Alden 5544998787673 · is_active=false)
+  // escaparem · viravam lead/conversa externa. Cloud webhook só processa
+  // inbound · sem branch outbound device aqui.
+  const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone);
+  if (internalCheck.internal) {
+    log.info(
+      {
+        phone_hash: hashPhone(phone),
+        own_label: internalCheck.label,
+        own_role: internalCheck.inboxRole,
+        own_type: internalCheck.numberType,
+        own_active: internalCheck.isActive,
+      },
+      'webhook_cloud.skip_internal_wa_number',
+    );
+    return;
   }
 
   // Audit fix N7: WhatsApp service per-tenant via wa_numbers (não env global)
@@ -326,7 +323,7 @@ async function processInboundMessage(
 
   // 2. Lead + conversation lookup/create/revive via Repositories
   await stageLog('before_resolveLead');
-  const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName });
+  const lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName, supabase });
   if (!lead) {
     await stageLog('resolveLead_returned_null');
     return;
@@ -340,6 +337,7 @@ async function processInboundMessage(
     lead,
     pushName,
     waNumberId: wa_number_id,
+    supabase,
   });
   if (!conv) {
     await stageLog('resolveConversation_returned_null');

@@ -13,6 +13,7 @@ import { createServerClient } from '@/lib/supabase';
 import { makeRepos } from '@/lib/repos';
 import { resolveLead, resolveConversation } from '@/lib/webhook/lead-conversation';
 import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
+import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,32 +57,29 @@ export async function POST(request: NextRequest) {
     const { clinic_id, wa_number_id } = await resolveTenantContext(supabase, phoneNumberId);
     await traceLog('after_resolveTenantContext', { clinic_id, wa_number_id });
 
-    // Guard last8
-    const phoneLast8 = fromPhone.replace(/\D/g, '').slice(-8);
-    if (phoneLast8.length === 8) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: ownNumbers } = await (supabase as any)
-        .from('wa_numbers')
-        .select('id, label, inbox_role, phone')
-        .eq('is_active', true)
-        .like('phone', `%${phoneLast8}`);
-      const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
-        const p = (n.phone ?? '').replace(/\D/g, '');
-        return p.slice(-8) === phoneLast8;
+    // Guard universal · audit 2026-05-05 substituiu guard antigo que filtrava
+    // is_active=true · agora bloqueia QUALQUER phone presente em wa_numbers
+    // do clinic_id (active OU inactive).
+    const internalCheck = await isInternalWaNumber(supabase, clinic_id, fromPhone);
+    await traceLog('guard_check', {
+      phone_last4: fromPhone.replace(/\D/g, '').slice(-4),
+      internal: internalCheck.internal,
+      reason: internalCheck.reason,
+      match_label: internalCheck.label,
+    });
+    if (internalCheck.internal) {
+      return NextResponse.json({
+        ok: true,
+        blocked: 'internal_wa_number',
+        label: internalCheck.label,
+        inbox_role: internalCheck.inboxRole,
+        number_type: internalCheck.numberType,
+        is_active: internalCheck.isActive,
       });
-      await traceLog('guard_check', {
-        phone_last8: phoneLast8,
-        candidates_count: (ownNumbers ?? []).length,
-        matched: !!match,
-        match_label: match?.label,
-      });
-      if (match) {
-        return NextResponse.json({ ok: true, blocked: 'internal_loop', match });
-      }
     }
 
     await traceLog('before_resolveLead');
-    const lead = await resolveLead({ leads: repos.leads, clinic_id, phone: fromPhone, pushName });
+    const lead = await resolveLead({ leads: repos.leads, clinic_id, phone: fromPhone, pushName, supabase });
     if (!lead) {
       await traceLog('resolveLead_returned_null');
       return NextResponse.json({ ok: false, error: 'resolveLead_null' }, { status: 500 });
@@ -95,6 +93,7 @@ export async function POST(request: NextRequest) {
       lead,
       pushName,
       waNumberId: wa_number_id,
+      supabase,
     });
     if (!conv) {
       await traceLog('resolveConversation_returned_null');

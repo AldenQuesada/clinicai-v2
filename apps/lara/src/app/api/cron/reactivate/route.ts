@@ -21,7 +21,8 @@ import { createServerClient } from '@/lib/supabase';
 import { createWhatsAppCloudFromWaNumber, WhatsAppCloudService } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
 import { validateCronSecret } from '@clinicai/utils';
-import { createLogger } from '@clinicai/logger';
+import { createLogger, hashPhone } from '@clinicai/logger';
+import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
 
 const log = createLogger({ app: 'lara' });
 
@@ -64,8 +65,28 @@ export async function GET(req: NextRequest) {
     }
 
     let processedCount = 0;
+    let skippedInternal = 0;
 
     for (const conv of candidates) {
+      // Guard universal · cron jamais reativa pra próprio wa_number (audit
+      // 2026-05-05). Mira/Marci/Mih com is_active=false não escapam mais.
+      const internalCheck = await isInternalWaNumber(supabase, conv.clinicId, conv.phone);
+      if (internalCheck.internal) {
+        log.info(
+          {
+            conv_id: conv.id,
+            phone_hash: hashPhone(conv.phone),
+            own_label: internalCheck.label,
+            own_role: internalCheck.inboxRole,
+            own_type: internalCheck.numberType,
+            own_active: internalCheck.isActive,
+          },
+          'reactivate.skip_internal_wa_number',
+        );
+        skippedInternal += 1;
+        continue;
+      }
+
       const reactivateMessage =
         'Oi! Você acabou se ocupando por aí? Entendo perfeitamente, a rotina esmaga a gente. Vou pausar meu contato por aqui pra não atrapalhar seu dia, mas seu cadastro (com os bônus) está salvo. Assim que tiver um respiro, me chama de volta pra continuarmos!';
 
@@ -96,8 +117,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    log.info({ processed: processedCount, candidates: candidates.length }, 'cron.reactivate.done');
-    return NextResponse.json({ success: true, processed: processedCount });
+    log.info(
+      { processed: processedCount, candidates: candidates.length, skipped_internal: skippedInternal },
+      'cron.reactivate.done',
+    );
+    return NextResponse.json({ success: true, processed: processedCount, skipped_internal: skippedInternal });
   } catch (err) {
     log.error({ err: (err as Error)?.message }, 'cron.reactivate.failed');
     return NextResponse.json({ success: false, error: (err as Error)?.message }, { status: 500 });

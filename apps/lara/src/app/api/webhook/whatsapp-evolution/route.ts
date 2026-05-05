@@ -28,6 +28,7 @@ import {
   resolveConversation,
 } from '@/lib/webhook/lead-conversation';
 import { extractPushNameFromEvolution } from '@/lib/webhook/extract-push-name';
+import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
 import { transcribeAudio } from '@/services/transcription.service';
 import { mediaPaths } from '@clinicai/supabase';
 
@@ -208,41 +209,10 @@ export async function POST(request: NextRequest) {
   // Resolve wa_number pela instance (RPC mig 92)
   const supabase = createServerClient();
 
-  // Guard bot-to-bot · se phone (contato) eh um dos NOSSOS wa_numbers,
-  // estamos numa interacao interna entre bots · skip processamento pra
-  // evitar pollution do /secretaria com loops. (Audit 2026-05-03 mostrou
-  // 3 convs cross-internal entre Mih/Mira/Marci.)
-  // Guard bot-to-bot · APENAS pra INBOUND. Pra outbound do tel fisico,
-  // a clinica pode legitimamente enviar msg pra qualquer numero · inclusive
-  // outro wa_number nosso (ex: humano do Mih digita pra atender alguem que
-  // tem o phone que tambem virou nosso Mira). Bloquear ai cortaria envio
-  // legitimo · bug 2026-05-03 22:25 onde "agora de aqui para lá" sumiu.
-  if (phone && !isOutboundFromDevice) {
-    // Match por last8 · phone WA pode vir 12c (sem 9) ou 13c (com 9 após DDD).
-    // Bug 2026-05-03: comparação exata phone='554498787673' nao batia com
-    // wa_number.phone='5544998787673' · Mira/Marci/etc poluiam conv Mih.
-    const phoneLast8 = phone.replace(/\D/g, '').slice(-8);
-    if (phoneLast8.length === 8) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: ownNumbers } = await (supabase as any)
-        .from('wa_numbers')
-        .select('id, label, inbox_role, phone')
-        .eq('is_active', true)
-        .like('phone', `%${phoneLast8}`);
-      const match = (ownNumbers ?? []).find((n: { phone?: string }) => {
-        const p = (n.phone ?? '').replace(/\D/g, '');
-        return p.slice(-8) === phoneLast8;
-      });
-      if (match) {
-        await evoTraceLog({ stage: 'skip_internal_loop', signature_ok: true, result_status: 200, result_summary: 'target=' + match.label });
-        log.info(
-          { phone_hash: hashPhone(phone), own_label: match.label, own_role: match.inbox_role },
-          'webhook_evolution.skip_internal_loop',
-        );
-        return NextResponse.json({ ok: true, skip: 'internal_loop', target: match.label });
-      }
-    }
-  }
+  // Guard bot-to-bot movido pra DEPOIS de tenant_resolved (precisa clinic_id
+  // pra escopar wa_numbers · ver isInternalWaNumber). APENAS pra INBOUND ·
+  // outbound do tel físico pode legitimamente mandar pra qualquer número
+  // (inclusive nossos wa_numbers).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: resolveRes, error: resolveErr } = await (supabase as any).rpc(
     'wa_numbers_resolve_by_instance',
@@ -261,6 +231,30 @@ export async function POST(request: NextRequest) {
   const clinic_id = String(resolveRes.clinic_id);
   const wa_number_id = String(resolveRes.wa_number_id);
   await evoTraceLog({ stage: 'tenant_resolved', signature_ok: true, result_status: 200, result_summary: 'clinic=' + clinic_id.slice(0,8) + ' role=' + inboxRole });
+
+  // Guard universal · phone vindo de inbound NÃO pode ser um dos NOSSOS
+  // wa_numbers (ativo OU inativo · Mira/Marci/Alden mesmo desativados ainda
+  // são números operacionais). Audit 2026-05-05 substituiu guard antigo
+  // que filtrava is_active=true · deixava inativos escaparem.
+  // Outbound device passa direto · clínica pode legitimamente mandar pra
+  // próprio número (paciente cadastrado também é nosso wa_number, etc).
+  if (phone && !isOutboundFromDevice) {
+    const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone);
+    if (internalCheck.internal) {
+      await evoTraceLog({ stage: 'skip_internal_wa_number', signature_ok: true, result_status: 200, result_summary: 'target=' + (internalCheck.label ?? '') });
+      log.info(
+        {
+          phone_hash: hashPhone(phone),
+          own_label: internalCheck.label,
+          own_role: internalCheck.inboxRole,
+          own_type: internalCheck.numberType,
+          own_active: internalCheck.isActive,
+        },
+        'webhook_evolution.skip_internal_wa_number',
+      );
+      return NextResponse.json({ ok: true, skip: 'internal_wa_number', target: internalCheck.label });
+    }
+  }
 
   // Filter · so processa secretaria · evita interferir em legacy flows da Mih
   if (inboxRole !== 'secretaria') {
@@ -512,13 +506,14 @@ export async function POST(request: NextRequest) {
               'webhook_evolution.outbound_lid.resolved_via_evolution_history',
             );
             // Resolve lead + conv com phone real · salva remote_jid pra futuro
-            const fallbackLead = await resolveLead({ leads: repos.leads, clinic_id, phone: resolvedPhone, pushName: '' });
+            const fallbackLead = await resolveLead({ leads: repos.leads, clinic_id, phone: resolvedPhone, pushName: '', supabase });
             const fallbackConv = fallbackLead ? await resolveConversation({
               conversations: repos.conversations,
               clinic_id,
               phone: resolvedPhone,
               lead: fallbackLead,
               pushName: '',
+              supabase,
               waNumberId: wa_number_id,
             }) : null;
             if (fallbackLead && fallbackConv) {
@@ -552,7 +547,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skip: 'lid_unmapped', remoteJid });
     }
   } else {
-    lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName });
+    lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName, supabase });
     if (!lead) {
       log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
       return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
@@ -563,6 +558,7 @@ export async function POST(request: NextRequest) {
       phone,
       lead,
       pushName: safePushName,
+      supabase,
       waNumberId: wa_number_id,
     });
     if (!conv || !lead) {
