@@ -77,22 +77,18 @@ export function computeConversationTags(conv: Conversation): ConversationTag[] {
     tags.push(T('LARA', 'rgba(16,185,129,0.12)', '#6EE7B7', 'rgba(16,185,129,0.30)', 4));
   }
 
-  // 4. INTERESSE (funnel) · classifica o lead pelo funil · ortogonal a owner
-  const funnel = (conv.funnel || '').toLowerCase();
-  if (funnel.includes('full')) {
-    tags.push(T('FULL FACE', 'rgba(167,139,250,0.15)', '#C4B5FD', 'rgba(167,139,250,0.30)', 5));
-  } else if (funnel.includes('procedimento')) {
-    tags.push(T('PROCEDIMENTO', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 5));
-  } else if (funnel.includes('olheira')) {
-    tags.push(T('OLHEIRAS', 'rgba(96,165,250,0.12)', '#93C5FD', 'rgba(96,165,250,0.30)', 5));
-  }
-
-  // REMOVIDOS (Alden 2026-05-05 · modelo canônico):
+  // REMOVIDOS (Alden 2026-05-05 · modelo canônico · clean cards):
   //   - VOCÊ (não governa nada · view força is_voce=false)
   //   - MIRA (não é dono operacional · view força is_mira=false)
-  //   - SECRETARIA pill (default implícito · 107/108 convs · poluição visual)
+  //   - LUCIANA / SECRETARIA pill (default implícito · 107/108 convs · poluição
+  //     visual)
   //   - QUER AGENDAR (c.tags.includes('pronto_agendar') · tag zumbi legacy)
   //   - PERGUNTOU PREÇO (c.tags.includes('perguntou_preco') · tag zumbi)
+  //   - FULL FACE / PROCEDIMENTO / OLHEIRAS (pills de funnel · aparecem em
+  //     quase todas as conversas → ruído visual). Funnel continua disponível
+  //     no LeadInfoPanel (detalhe da conv) e no filtro avançado da topbar.
+  //
+  // Cards mostram só o que exige atenção: URGENTE, DRA, LARA + nada mais.
 
   return tags.sort((a, b) => a.order - b.order);
 }

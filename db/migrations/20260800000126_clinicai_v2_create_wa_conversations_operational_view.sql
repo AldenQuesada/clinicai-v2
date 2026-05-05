@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20260800000127_clinicai_v2_create_wa_conversations_operational_view.sql
+-- 20260800000126_clinicai_v2_create_wa_conversations_operational_view.sql
 -- Versionamento da view operacional canônica (já aplicada manualmente em prod)
 -- =============================================================================
 --
@@ -7,6 +7,13 @@
 -- A view governa pills/filas no frontend · substitui regras espalhadas e
 -- tags legadas (pronto_agendar/perguntou_preco/precisa_humano/...) que viravam
 -- "tag zumbi" sem mecanismo de saída.
+--
+-- Filtro de fonte canônica (atualizado · view recortada manualmente em prod):
+--   wa_number_id = 'ead8a6f9-6e0e-4a89-8268-155392794f69' (Secretaria B&H)
+--   AND inbox_role = 'secretaria'
+--   AND is_active = true
+-- Outros wa_numbers (SDR/Lara legacy, B2B/Mira, etc) ficam fora deste
+-- dashboard. Conversas que vivem em outros canais não aparecem aqui.
 --
 -- Modelo de donos operacionais (regra canônica):
 --   - 'mirian'  → conversa atribuída à Dra (assigned_to = perfil "mirian"
@@ -129,10 +136,19 @@ base AS (
     c.deleted_at
 
   FROM public.wa_conversations c
+  -- Filtro canônico do dashboard (Alden 2026-05-05): apenas a fonte
+  -- "Secretaria B&H" governa este dashboard. Demais wa_numbers (SDR/Lara
+  -- legacy, B2B/Mira, etc) ficam fora da view operacional.
+  JOIN public.wa_numbers w
+    ON w.id = c.wa_number_id
   LEFT JOIN msg_rollup mr
     ON mr.conversation_id = c.id
   LEFT JOIN public.profiles p
     ON p.id = c.assigned_to
+  WHERE c.deleted_at IS NULL
+    AND w.id = 'ead8a6f9-6e0e-4a89-8268-155392794f69'::uuid
+    AND w.inbox_role = 'secretaria'
+    AND w.is_active IS TRUE
 )
 
 SELECT
@@ -262,7 +278,7 @@ FROM base b
 WHERE b.deleted_at IS NULL;
 
 COMMENT ON VIEW public.wa_conversations_operational_view IS
-'Canonical operational view for Lara conversations. Derives inbox pills/queues from database fields instead of legacy tags. Operational owners: mirian (Dra) e luciana (default). VOCÊ e MIRA forced FALSE neste dashboard. Retorno intentionally excluded until structured return_due_at exists.';
+'Canonical operational view for Lara dashboard. Filters to current Secretaria B&H WhatsApp source only. Legacy SDR/Lara wa_number_id is excluded from operational dashboard. Ownership is only Luciana or Mirian. Mira and VOCÊ do not own dashboard conversations.';
 
 -- =============================================================================
 -- FIM · 20260800000127 · NÃO RODAR (view já aplicada em prod manualmente)
