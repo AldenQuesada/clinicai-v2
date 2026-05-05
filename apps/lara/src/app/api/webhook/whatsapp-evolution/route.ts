@@ -27,6 +27,7 @@ import {
   resolveLead,
   resolveConversation,
 } from '@/lib/webhook/lead-conversation';
+import { extractPushNameFromEvolution } from '@/lib/webhook/extract-push-name';
 import { transcribeAudio } from '@/services/transcription.service';
 import { mediaPaths } from '@clinicai/supabase';
 
@@ -37,6 +38,7 @@ export const dynamic = 'force-dynamic';
 interface EvolutionPayload {
   event?: string;
   instance?: string;
+  pushName?: string;
   data?: {
     key?: { remoteJid?: string; fromMe?: boolean; id?: string; senderPn?: string };
     message?: {
@@ -45,9 +47,13 @@ interface EvolutionPayload {
       imageMessage?: { caption?: string };
       videoMessage?: { caption?: string };
       audioMessage?: unknown;
+      pushName?: string;
     };
     messageType?: string;
     pushName?: string;
+    notifyName?: string;
+    verifiedBizName?: string;
+    contact?: { pushName?: string; notify?: string };
     senderPn?: string;
   };
 }
@@ -319,7 +325,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, skip: 'empty_message' });
   }
 
-  const pushName = data?.pushName || '';
+  // Audit 2026-05-05: extração robusta · LID/notifyName/verifiedBizName.
+  // Antes: `data?.pushName || ''` · LID frequentemente vazio nesse caminho.
+  // Helper tenta 7 campos conhecidos · `source` permite catalogar em prod
+  // qual campo está sendo usado por instance.
+  const pushNameExtract = extractPushNameFromEvolution(body);
+  const pushName = pushNameExtract.value;
+  if (pushName) {
+    log.info(
+      {
+        instance,
+        source_field: pushNameExtract.source,
+        pushName_length: pushName.length,
+        phone_hash: hashPhone(phone),
+      },
+      'webhook_evolution.pushName.present',
+    );
+  } else {
+    log.debug(
+      { instance, has_pushName: false, phone_hash: hashPhone(phone) },
+      'webhook_evolution.pushName.absent',
+    );
+  }
   const repos = makeRepos(supabase);
 
   // Download da midia · Evolution baixa decriptado via /chat/getBase64FromMediaMessage

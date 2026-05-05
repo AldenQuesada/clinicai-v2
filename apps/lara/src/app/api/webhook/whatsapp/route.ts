@@ -44,6 +44,7 @@ import {
   resolveConversation,
   extractContent,
 } from '@/lib/webhook/lead-conversation';
+import { extractPushNameFromCloud } from '@/lib/webhook/extract-push-name';
 
 const log = createLogger({ app: 'lara' });
 
@@ -228,7 +229,25 @@ async function processInboundMessage(
   const supabase = createServerClient();
   const repos = makeRepos(supabase);
   const phone = message.from;
-  const pushName = contacts?.[0]?.profile?.name || '';
+  // Audit 2026-05-05: extractor centralizado · simétrico ao Evolution.
+  // Cloud só tem 1 fonte confirmada hoje · helper preserva futureproof.
+  const pushNameExtract = extractPushNameFromCloud(contacts);
+  const pushName = pushNameExtract.value;
+  if (pushName) {
+    log.info(
+      {
+        source_field: pushNameExtract.source,
+        pushName_length: pushName.length,
+        phone_hash: hashPhone(phone),
+      },
+      'webhook_cloud.pushName.present',
+    );
+  } else {
+    log.debug(
+      { has_pushName: false, phone_hash: hashPhone(phone) },
+      'webhook_cloud.pushName.absent',
+    );
+  }
 
   // Helper diag · grava trace de etapas em wa_webhook_log pra debug pos-deploy
   // (sem acesso a logs Easypanel · este é o caminho).
