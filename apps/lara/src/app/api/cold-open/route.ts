@@ -183,7 +183,10 @@ export async function POST(req: NextRequest) {
       { clinic_id, phone_hash: hashPhone(phone), template_key: body.template_key, err: sendResult.error },
       'cold_open.send.failed',
     );
-    // Mesmo se send falhou, salva outbound como 'failed' pra audit trail
+    // Mesmo se send falhou, salva outbound como 'failed' pra audit trail.
+    // Audit 2026-05-05: marca channel='cloud' (cold-open só usa Cloud) pra
+    // analytics e UI agruparem corretamente · sem provider_msg_id porque
+    // Meta nem chegou a aceitar (send falhou antes de retornar wamid).
     await repos.messages
       .saveOutbound(clinic_id, {
         conversationId: conv.id,
@@ -191,6 +194,7 @@ export async function POST(req: NextRequest) {
         content: messageText,
         contentType: 'text',
         status: 'failed',
+        channel: 'cloud',
       })
       .catch(() => null);
     return NextResponse.json(

@@ -338,8 +338,15 @@ export async function POST(
   }
 
   // ────────────────────────────────────────────────────────────────
-  // Branch TEXTO (legacy)
+  // Branch TEXTO · suporta Cloud OU Evolution conforme transport resolvido.
+  // Audit 2026-05-05: branch antes era marcado hardcoded como 'cloud' no
+  // updateStatus · convs em wa_numbers Evolution gravavam channel errado e
+  // analytics agrupavam mal. Agora propaga transport real.
   // ────────────────────────────────────────────────────────────────
+  // env_fallback é o legado (sem wa_numbers row) · Cloud env-global · marca
+  // como 'cloud' no DB pra UI/analytics tratarem como Cloud.
+  const channelLabel: 'cloud' | 'evolution' =
+    transport === 'evolution' ? 'evolution' : 'cloud';
   const msgId = uuidv4();
   const savedId = await repos.messages.saveOutbound(conv.clinicId, {
     id: msgId,
@@ -348,6 +355,7 @@ export async function POST(
     content: content.trim(),
     contentType: 'text',
     status: 'pending',
+    channel: channelLabel,
   });
   if (!savedId) {
     console.error('[messages POST] saveOutbound retornou null', {
@@ -362,13 +370,13 @@ export async function POST(
 
   const result = await wa.sendText(conv.phone, content.trim());
 
-  // Audit 2026-05-04: provider_msg_id só fica disponível após o send · UPDATE
-  // retroativo via updateStatus (saveOutbound roda antes pra preservar rastro
-  // se send falhar). transport='cloud' porque este branch é Cloud-only.
+  // Audit 2026-05-04/05: provider_msg_id só fica disponível após o send ·
+  // UPDATE retroativo via updateStatus (saveOutbound roda antes pra preservar
+  // rastro se send falhar). channel propaga transport real (cloud|evolution).
   await repos.messages.updateStatus(savedId, result.ok ? 'sent' : 'failed', {
     providerMsgId: result.messageId ?? null,
     waMessageId: result.messageId ?? null,
-    channel: 'cloud',
+    channel: channelLabel,
   });
 
   // Auto-pause IA quando humano envia · 30 min default

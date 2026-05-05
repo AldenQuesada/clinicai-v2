@@ -74,6 +74,23 @@ export class MessageRepository {
     if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
     if (input.channel !== undefined) insertPayload.channel = input.channel
 
+    // Safety log · provider_msg_id ausente impede idempotência via UNIQUE
+    // uq_wa_messages_provider_id · útil pra catalogar rotas que ainda não
+    // populam wamid/key.id (audit 2026-05-05). Sem payload bruto · fields
+    // safe-by-design (sem token, conteúdo, phone).
+    if (!input.providerMsgId) {
+      // eslint-disable-next-line no-console
+      console.warn('[wa.message.provider_id_missing]', {
+        direction: 'inbound',
+        channel: input.channel ?? null,
+        content_type: input.contentType ?? 'text',
+        conversation_id: input.conversationId,
+        has_wa_message_id: !!input.waMessageId,
+        has_media_url: !!input.mediaUrl,
+        reason: 'inbound_save_without_provider_msg_id',
+      })
+    }
+
     const { error } = await this.supabase.from('wa_messages').insert(insertPayload)
     if (error) {
       // 23505 = unique_violation. Se veio de uq_wa_messages_provider_id, é retry
@@ -187,6 +204,28 @@ export class MessageRepository {
     if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
     if (input.channel !== undefined) insertPayload.channel = input.channel
 
+    // Safety log · ver comentário em saveInbound. Outbound sem provider_msg_id
+    // costuma ser:
+    //   (a) saveOutbound salvo ANTES do send · updateStatus retroativo popula
+    //       depois (texto manual /messages POST · status='pending'). Esse caso
+    //       é esperado · status='pending' filtra do log.
+    //   (b) send retornou ok mas messageId=null (Meta payload anômalo · raro).
+    //   (c) saveOutbound de retry/failed sem ter chamado provider · normal.
+    if (!input.providerMsgId && input.status !== 'pending' && input.status !== 'failed') {
+      // eslint-disable-next-line no-console
+      console.warn('[wa.message.provider_id_missing]', {
+        direction: 'outbound',
+        sender: input.sender,
+        channel: input.channel ?? null,
+        content_type: input.contentType ?? 'text',
+        conversation_id: input.conversationId,
+        has_wa_message_id: !!input.waMessageId,
+        has_media_url: !!input.mediaUrl,
+        status: input.status ?? 'pending',
+        reason: 'outbound_save_without_provider_msg_id',
+      })
+    }
+
     const { error } = await this.supabase.from('wa_messages').insert(insertPayload)
     if (error) {
       // Idempotência por provider_msg_id · ver comentário em saveInbound.
@@ -272,6 +311,22 @@ export class MessageRepository {
     if (opts?.providerMsgId !== undefined) patch.provider_msg_id = opts.providerMsgId
     if (opts?.waMessageId !== undefined) patch.wa_message_id = opts.waMessageId
     if (opts?.channel !== undefined) patch.channel = opts.channel
+
+    // Safety log · UPDATE retroativo é o caminho do branch TEXT manual
+    // (/api/conversations/[id]/messages) · provider_msg_id deveria ter
+    // chegado do send. Quando status='sent' E providerMsgId=null, o
+    // provider respondeu ok mas sem wamid · merece audit.
+    if (status === 'sent' && opts && opts.providerMsgId === null) {
+      // eslint-disable-next-line no-console
+      console.warn('[wa.message.provider_id_missing]', {
+        direction: 'outbound',
+        channel: opts.channel ?? null,
+        message_id: messageId,
+        has_wa_message_id: !!opts.waMessageId,
+        reason: 'updateStatus_sent_without_provider_msg_id',
+      })
+    }
+
     await this.supabase.from('wa_messages').update(patch).eq('id', messageId)
   }
 
