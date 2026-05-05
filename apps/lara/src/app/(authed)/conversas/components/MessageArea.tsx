@@ -362,8 +362,17 @@ export function MessageArea({
             </div>
             {/* Barra fina vertical divisoria */}
             <div className="w-px bg-white/[0.06] my-3" />
-            {/* Sumario do copiloto AI inline · estetica editorial flipbook */}
-            {onRefreshCopilot && (
+            {/* Análise IA inline · 2026-05-05: SecretariaSummary
+                /secretaria sobe pra dentro do header (área à direita do
+                nome/phone · antes ocupava faixa full-width abaixo).
+                Senão, copiloto AI genérico (não-secretaria). */}
+            {selectedConversation?.inbox_role === 'secretaria' ? (
+              <SecretariaSummary
+                conversationId={selectedConversation.conversation_id}
+                refreshKey={selectedConversation.last_message_at ?? ''}
+                inline
+              />
+            ) : onRefreshCopilot && (
               <div className="flex items-center flex-1 pl-4 pr-2 gap-2.5 min-w-0">
                 <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-[1px]" strokeWidth={1.5} />
                 <div className="flex-1 min-w-0">
@@ -405,13 +414,9 @@ export function MessageArea({
           no AgentPauseSection do painel direito (fonte unica de verdade) ·
           chat ganha mais espaco vertical pras mensagens. */}
 
-      {/* Roadmap A1 · resumo IA no topo (so /secretaria · zero token Lara) */}
-      {selectedConversation?.inbox_role === 'secretaria' && (
-        <SecretariaSummary
-          conversationId={selectedConversation.conversation_id}
-          refreshKey={selectedConversation.last_message_at ?? ''}
-        />
-      )}
+      {/* SecretariaSummary movido pro header inline acima (2026-05-05) ·
+          antes ocupava faixa full-width aqui · agora aparece à direita
+          do nome/phone, dentro da h-16 do header. */}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
