@@ -77,7 +77,8 @@ function firstName(s: string | null | undefined): string {
 }
 
 async function fetchVoucher(voucherId: string): Promise<any | null> {
-  const r = await fetch(`${_SB_URL}/rest/v1/b2b_vouchers?id=eq.${voucherId}&select=id,recipient_name,recipient_phone,combo,token,status,partnership_id,audio_sent_at,valid_until`, {
+  // clinic_id incluido no select pra logOutboundCanonical (audit 2026-05-06).
+  const r = await fetch(`${_SB_URL}/rest/v1/b2b_vouchers?id=eq.${voucherId}&select=id,clinic_id,recipient_name,recipient_phone,combo,token,status,partnership_id,audio_sent_at,valid_until`, {
     headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
   })
   const arr = await r.json()
@@ -200,7 +201,39 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin)
 }
 
-type Ch = { instance: string; apiUrl: string; apiKey: string; source: 'db' | 'env' }
+type Ch = {
+  instance: string
+  apiUrl: string
+  apiKey: string
+  source: 'db' | 'env'
+  /**
+   * Audit 2026-05-06: wa_number_id propagado pra logOutboundCanonical
+   * setar inbox_role correto (Mih → 'secretaria', mira-mirian → 'sdr').
+   * Sem isso a conv vai default 'sdr' e some do /secretaria.
+   */
+  waNumberId: string | null
+  functionKey: string
+}
+
+/**
+ * Best-effort lookup de wa_number_id quando RPC não retorna.
+ * SELECT em mira_channels JOIN wa_numbers via PostgREST embed.
+ * Retorna null em qualquer falha — caller propaga null e RPC b2b_log_outbound_message
+ * resolve via instance_id como fallback (ou aceita null e cria conv sem scope).
+ */
+async function fetchWaNumberIdByFunctionKey(fkey: string): Promise<string | null> {
+  try {
+    const cid = await clinicId()
+    const r = await fetch(
+      `${_SB_URL}/rest/v1/mira_channels?clinic_id=eq.${cid}&function_key=eq.${fkey}&is_active=eq.true&select=wa_number_id`,
+      { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
+    )
+    if (!r.ok) return null
+    const arr = await r.json()
+    const row = Array.isArray(arr) ? arr[0] : null
+    return row?.wa_number_id ? String(row.wa_number_id) : null
+  } catch { return null }
+}
 
 async function resolveChannelByKey(fkey: string, envInstance: string): Promise<Ch> {
   try {
@@ -214,16 +247,31 @@ async function resolveChannelByKey(fkey: string, envInstance: string): Promise<C
     if (r.ok) {
       const cfg = await r.json()
       if (cfg && cfg.ok && cfg.instance_id && cfg.api_url && cfg.api_key) {
+        // RPC pode ou não retornar wa_number_id · se ausente, fallback SELECT.
+        const waNumberId = cfg.wa_number_id
+          ? String(cfg.wa_number_id)
+          : await fetchWaNumberIdByFunctionKey(fkey)
         return {
-          instance: String(cfg.instance_id),
-          apiUrl:   String(cfg.api_url),
-          apiKey:   String(cfg.api_key),
-          source:   'db',
+          instance:    String(cfg.instance_id),
+          apiUrl:      String(cfg.api_url),
+          apiKey:      String(cfg.api_key),
+          waNumberId,
+          source:      'db',
+          functionKey: fkey,
         }
       }
     }
   } catch (_) { /* fallback */ }
-  return { instance: envInstance, apiUrl: _EVO_URL, apiKey: _EVO_KEY, source: 'env' }
+  // Fallback env · sem wa_number_id (RPC b2b_log_outbound_message resolve via instance se possível)
+  const waNumberId = await fetchWaNumberIdByFunctionKey(fkey)
+  return {
+    instance:    envInstance,
+    apiUrl:      _EVO_URL,
+    apiKey:      _EVO_KEY,
+    waNumberId,
+    source:      'env',
+    functionKey: fkey,
+  }
 }
 
 // Lara (recipient_voucher) = envia voucher pra convidada
@@ -238,7 +286,7 @@ async function sendPartnerConfirmation(
   partnerPhone: string, partnerName: string, recipientName: string,
   combo: string, token: string, validUntil: string | null,
   panelUrl: string | null, ch: Ch,
-): Promise<{ waId: string | null; err?: string }> {
+): Promise<{ waId: string | null; err?: string; text?: string; waNumberId?: string | null; instance?: string | null }> {
   const partnerFirst = firstName(partnerName)
   const validity = validUntil
     ? new Date(validUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -274,12 +322,31 @@ async function sendPartnerConfirmation(
     })
     if (!r.ok) {
       const body = await r.text()
-      return { waId: null, err: `partner_confirm ${r.status}: ${body.slice(0, 200)}` }
+      return {
+        waId: null,
+        err: `partner_confirm ${r.status}: ${body.slice(0, 200)}`,
+        text,
+        waNumberId: ch.waNumberId,
+        instance: ch.instance,
+      }
     }
     const d = await r.json().catch(() => null)
-    return { waId: d?.key?.id || null }
+    // Retorna waNumberId/instance do canal usado · permite ao caller logar
+    // sem re-resolver o canal (audit 2026-05-06 · evita divergência de config).
+    return {
+      waId: d?.key?.id || null,
+      text,
+      waNumberId: ch.waNumberId,
+      instance: ch.instance,
+    }
   } catch (e) {
-    return { waId: null, err: (e as Error).message.slice(0, 200) }
+    return {
+      waId: null,
+      err: (e as Error).message.slice(0, 200),
+      text,
+      waNumberId: ch.waNumberId,
+      instance: ch.instance,
+    }
   }
 }
 
@@ -313,7 +380,7 @@ async function sendVoucherLinkText(
   phone: string, token: string, recipientName: string, partnerName: string, combo: string,
   validUntil: string | null, validityDays: number | null,
   ch: { instance: string; apiUrl: string; apiKey: string }
-): Promise<{ waId: string | null; err?: string; via?: 'template' | 'fallback' }> {
+): Promise<{ waId: string | null; err?: string; via?: 'template' | 'fallback'; text?: string; templateId?: string | null }> {
   const first = firstName(recipientName)
   const link = `${VOUCHER_LINK_BASE}?t=${encodeURIComponent(token)}`
 
@@ -359,12 +426,12 @@ async function sendVoucherLinkText(
     })
     if (!r.ok) {
       const body = await r.text()
-      return { waId: null, err: `send_link ${r.status}: ${body.slice(0, 200)}`, via }
+      return { waId: null, err: `send_link ${r.status}: ${body.slice(0, 200)}`, via, text, templateId: tpl?.id ?? null }
     }
     const d = await r.json().catch(() => null)
-    return { waId: d?.key?.id || null, via }
+    return { waId: d?.key?.id || null, via, text, templateId: tpl?.id ?? null }
   } catch (e) {
-    return { waId: null, err: (e as Error).message.slice(0, 200), via }
+    return { waId: null, err: (e as Error).message.slice(0, 200), via, text, templateId: tpl?.id ?? null }
   }
 }
 
@@ -398,34 +465,134 @@ async function uploadAudioToStorage(voucherId: string, mp3: Uint8Array): Promise
   }
 }
 
-async function logMessage(opts: {
-  phone: string; content: string; wa_id: string | null; voucher_id: string;
-}) {
+/**
+ * Helper canônico (audit 2026-05-06): chama RPC b2b_log_outbound_message que:
+ *   1. Resolve/cria lead
+ *   2. Resolve/cria wa_conversations (com wa_number_id correto · inbox_role auto)
+ *   3. INSERT wa_messages (idempotente via UNIQUE provider_msg_id)
+ *   4. INSERT b2b_comm_dispatch_log
+ *   5. Trigger trg_sync_wa_conversation_preview_v2 atualiza last_message_at/preview
+ *
+ * Substitui o logMessage legado que dependia de wa_find_conversation
+ * (retornava null pra phones novos · skip silencioso · voucher fora do dash novo).
+ *
+ * Best-effort: NUNCA derruba o envio. Se a RPC falhar mas o WhatsApp já saiu,
+ * apenas retorna { ok:false, error } pra inclusão no canonical_logs do response.
+ */
+type CanonicalPayload = {
+  clinic_id?: string
+  voucher_id?: string
+  partnership_id?: string | null
+  template_id?: string | null
+  wa_number_id?: string | null
+  recipient_phone: string
+  recipient_name?: string | null
+  recipient_role: 'beneficiary' | 'partner'
+  event_key: string
+  channel: 'evolution'
+  sender: 'sistema'
+  sender_instance?: string | null
+  content_type: 'audio' | 'text'
+  content: string
+  media_url?: string | null
+  audio_url?: string | null
+  provider_msg_id?: string | null
+  wa_message_id?: string | null
+  status?: 'sent' | 'failed'
+  error_message?: string | null
+  meta?: Record<string, unknown>
+  dispatch_meta?: Record<string, unknown>
+}
+
+/**
+ * Contrato real da RPC b2b_log_outbound_message (audit 2026-05-06):
+ *   { ok, lead_id, conversation_id, message_id, dispatch_id,
+ *     provider_msg_id, idempotent_message }
+ *
+ * NOTA: a RPC usa o nome `dispatch_id` (não `dispatch_log_id`). O alias
+ * `dispatch_log_id` é mantido aqui só pra compat de leitores externos · ambos
+ * apontam pro mesmo valor.
+ */
+type CanonicalResult = {
+  ok: boolean
+  error?: string
+  lead_id?: string
+  conversation_id?: string
+  message_id?: string
+  dispatch_id?: string
+  /** Alias defensivo · ambos espelham o id retornado pela RPC. */
+  dispatch_log_id?: string
+  provider_msg_id?: string
+  idempotent_message?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw?: any
+}
+
+async function logOutboundCanonical(payload: CanonicalPayload): Promise<CanonicalResult> {
   try {
-    // Grava em wa_messages (outbound sistema, content_type=audio)
-    // Busca conversation pelo phone
-    const conv = await rpc('wa_find_conversation', { p_phone: opts.phone, p_remote_jid: null })
-    if (!conv) return
-    await fetch(`${_SB_URL}/rest/v1/wa_messages`, {
+    const r = await fetch(`${_SB_URL}/rest/v1/rpc/b2b_log_outbound_message`, {
       method: 'POST',
-      headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        conversation_id: conv,
-        clinic_id: await clinicId(),
-        direction: 'outbound',
-        sender: 'sistema',
-        content: '[audio] ' + opts.content.slice(0, 200),
-        content_type: 'audio',
-        ai_generated: true,
-        status: 'sent',
-        wa_message_id: opts.wa_id,
-        sent_at: new Date().toISOString(),
-      }),
+      headers: {
+        'apikey': _SB_KEY,
+        'Authorization': `Bearer ${_SB_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_payload: payload }),
     })
+    const text = await r.text()
+    if (!r.ok) {
+      console.warn('[canonical_log] http_error', {
+        status: r.status,
+        step: payload.meta?.step,
+        recipient_role: payload.recipient_role,
+        body: text.slice(0, 300),
+      })
+      return { ok: false, error: `http_${r.status}: ${text.slice(0, 200)}` }
+    }
+    let parsed: Record<string, unknown> | null = null
+    try { parsed = JSON.parse(text) } catch { /* noop */ }
+    if (!parsed || parsed.ok !== true) {
+      console.warn('[canonical_log] rpc_not_ok', {
+        step: payload.meta?.step,
+        recipient_role: payload.recipient_role,
+        result: parsed,
+      })
+      return {
+        ok: false,
+        error: typeof parsed?.error === 'string' ? parsed.error : 'rpc_returned_not_ok',
+        raw: parsed,
+      }
+    }
+    // Mapeia dispatch_id da RPC · expõe também alias dispatch_log_id pra compat.
+    // Se versão futura da RPC trocar pra dispatch_log_id, fallback `?? raw.dispatch_log_id`
+    // mantém o helper funcionando sem mudança de código.
+    const dispatchId =
+      (typeof parsed.dispatch_id === 'string' ? parsed.dispatch_id : undefined) ??
+      (typeof parsed.dispatch_log_id === 'string' ? parsed.dispatch_log_id : undefined)
+    return {
+      ok: true,
+      lead_id: typeof parsed.lead_id === 'string' ? parsed.lead_id : undefined,
+      conversation_id: typeof parsed.conversation_id === 'string' ? parsed.conversation_id : undefined,
+      message_id: typeof parsed.message_id === 'string' ? parsed.message_id : undefined,
+      dispatch_id: dispatchId,
+      dispatch_log_id: dispatchId,
+      provider_msg_id: typeof parsed.provider_msg_id === 'string' ? parsed.provider_msg_id : undefined,
+      idempotent_message: typeof parsed.idempotent_message === 'boolean' ? parsed.idempotent_message : undefined,
+      raw: parsed,
+    }
   } catch (e) {
-    console.error('[log] falhou:', (e as Error).message)
+    console.warn('[canonical_log] exception', {
+      step: payload.meta?.step,
+      recipient_role: payload.recipient_role,
+      error: (e as Error).message,
+    })
+    return { ok: false, error: (e as Error).message }
   }
 }
+
+// logMessage legado (wa_find_conversation + INSERT direto wa_messages) APOSENTADO
+// em 2026-05-06 · substituído por logOutboundCanonical que vai pela RPC
+// b2b_log_outbound_message. Mantemos a function removida do flow · zero callers.
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
@@ -536,7 +703,15 @@ Deno.serve(async (req) => {
     // Confirmacao pro parceiro via Mira (partner_response) — fecha o loop
     // que antes exigia envio manual. Fluxo "combinado" com Alden 2026-04-23:
     // Lara -> convidada (audio + link) + Mira -> parceiro (confirmacao).
-    let partnerConfirm: { waId: string | null; err?: string; phone?: string; panel_url?: string | null } = { waId: null }
+    let partnerConfirm: {
+      waId: string | null
+      err?: string
+      phone?: string
+      panel_url?: string | null
+      text?: string
+      waNumberId?: string | null
+      instance?: string | null
+    } = { waId: null }
     try {
       const partnerPhone = await fetchPartnerPhone(voucher.partnership_id, partnership?.contact_phone || null)
       if (partnerPhone) {
@@ -567,16 +742,141 @@ Deno.serve(async (req) => {
           audio_storage_path: storagePath,
         }),
       })
+    }
 
-      // Log so se audio foi
-      await logMessage({ phone: voucher.recipient_phone, content: script, wa_id: waId, voucher_id: voucherId })
+    // ─── Log canônico no dash novo (audit 2026-05-06) ───────────────────────
+    // RPC b2b_log_outbound_message resolve/cria conversation, INSERT wa_messages
+    // (com provider_msg_id idempotente), INSERT b2b_comm_dispatch_log. Trigger
+    // trg_sync_wa_conversation_preview_v2 atualiza last_message_at/preview.
+    // Best-effort: WhatsApp já saiu · falha aqui apenas vira warning + entry
+    // em canonical_logs. NUNCA reenviar WhatsApp por falha de log.
+    const canonicalLogs: Record<string, CanonicalResult | null> = {
+      beneficiary_audio: null,
+      beneficiary_text: null,
+      partner_confirmation: null,
+    }
+    const canonicalWarnings: string[] = []
+
+    // 1. Beneficiária · áudio
+    if (waId) {
+      canonicalLogs.beneficiary_audio = await logOutboundCanonical({
+        clinic_id: voucher.clinic_id,
+        voucher_id: voucher.id,
+        partnership_id: voucher.partnership_id ?? null,
+        template_id: audioTpl?.id ?? null,
+        wa_number_id: channel.waNumberId,
+        recipient_phone: voucher.recipient_phone,
+        recipient_name: voucher.recipient_name ?? null,
+        recipient_role: 'beneficiary',
+        event_key: 'voucher_issued_beneficiary',
+        channel: 'evolution',
+        sender: 'sistema',
+        sender_instance: channel.instance,
+        content_type: 'audio',
+        content: '[áudio] ' + (script || '').slice(0, 200),
+        media_url: storagePath,
+        audio_url: storagePath,
+        provider_msg_id: waId,
+        wa_message_id: waId,
+        status: 'sent',
+        meta: {
+          source: 'b2b-voucher-audio',
+          step: 'beneficiary_audio',
+          combo: voucher.combo,
+          token: voucher.token,
+          channel_source: channel.source,
+        },
+      })
+      if (!canonicalLogs.beneficiary_audio.ok) {
+        canonicalWarnings.push(`beneficiary_audio: ${canonicalLogs.beneficiary_audio.error ?? 'unknown'}`)
+      }
+    }
+
+    // 2. Beneficiária · texto com link
+    if (linkRes.waId) {
+      canonicalLogs.beneficiary_text = await logOutboundCanonical({
+        clinic_id: voucher.clinic_id,
+        voucher_id: voucher.id,
+        partnership_id: voucher.partnership_id ?? null,
+        template_id: linkRes.templateId ?? null,
+        wa_number_id: channel.waNumberId,
+        recipient_phone: voucher.recipient_phone,
+        recipient_name: voucher.recipient_name ?? null,
+        recipient_role: 'beneficiary',
+        event_key: 'voucher_issued_beneficiary',
+        channel: 'evolution',
+        sender: 'sistema',
+        sender_instance: channel.instance,
+        content_type: 'text',
+        content: linkRes.text ?? '',
+        provider_msg_id: linkRes.waId,
+        wa_message_id: linkRes.waId,
+        status: 'sent',
+        meta: {
+          source: 'b2b-voucher-audio',
+          step: 'beneficiary_text',
+          combo: voucher.combo,
+          token: voucher.token,
+          via: linkRes.via ?? null,
+          channel_source: channel.source,
+        },
+      })
+      if (!canonicalLogs.beneficiary_text.ok) {
+        canonicalWarnings.push(`beneficiary_text: ${canonicalLogs.beneficiary_text.error ?? 'unknown'}`)
+      }
+    }
+
+    // 3. Parceiro · confirmação. Só loga se efetivamente enviou (waId).
+    //    Audit 2026-05-06: usa wa_number_id/instance que sendPartnerConfirmation
+    //    devolveu (canal real do envio) · NÃO re-resolve partner_response aqui ·
+    //    evita divergência se config mudar entre envio e log.
+    if (partnerConfirm.waId && partnerConfirm.phone) {
+      canonicalLogs.partner_confirmation = await logOutboundCanonical({
+        clinic_id: voucher.clinic_id,
+        voucher_id: voucher.id,
+        partnership_id: voucher.partnership_id ?? null,
+        template_id: null,
+        wa_number_id: partnerConfirm.waNumberId ?? null,
+        recipient_phone: partnerConfirm.phone,
+        recipient_name: partnership?.name ?? null,
+        recipient_role: 'partner',
+        event_key: 'voucher_issued_partner_confirmation',
+        channel: 'evolution',
+        sender: 'sistema',
+        sender_instance: partnerConfirm.instance ?? null,
+        content_type: 'text',
+        content: partnerConfirm.text ?? '',
+        provider_msg_id: partnerConfirm.waId,
+        wa_message_id: partnerConfirm.waId,
+        status: 'sent',
+        meta: {
+          source: 'b2b-voucher-audio',
+          step: 'partner_confirmation',
+          beneficiary_name: voucher.recipient_name,
+          combo: voucher.combo,
+          token: voucher.token,
+        },
+      })
+      if (!canonicalLogs.partner_confirmation.ok) {
+        canonicalWarnings.push(`partner_confirmation: ${canonicalLogs.partner_confirmation.error ?? 'unknown'}`)
+      }
     }
 
     return ok({
-      ok: true, voucher_id: voucherId, phone: voucher.recipient_phone,
-      wa_message_id: waId, audio_bytes: audioBytes?.length || 0, audio_err: audioErr,
-      link_wa_id: linkRes.waId, link_err: linkRes.err || null,
+      ok: true,
+      voucher_id: voucherId,
+      phone: voucher.recipient_phone,
+      wa_message_id: waId,
+      audio_wa_id: waId,
+      audio_bytes: audioBytes?.length || 0,
+      audio_err: audioErr,
+      audio_storage_path: storagePath,
+      link_wa_id: linkRes.waId,
+      link_err: linkRes.err || null,
+      partner_wa_id: partnerConfirm.waId,
       partner_confirm: partnerConfirm,
+      canonical_logs: canonicalLogs,
+      warnings: canonicalWarnings.length > 0 ? canonicalWarnings : undefined,
       script,
     })
   } catch (e) {
