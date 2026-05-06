@@ -704,25 +704,50 @@ async function logPartnerConfirmationDirect(payload: {
   provider_msg_id: string | null
   meta: Record<string, unknown>
 }): Promise<CanonicalResult> {
+  // Captura erros detalhados por stage pra debug · evita "conversation_resolve_failed"
+  // genérico que mascarava root cause (audit 2026-05-06 · smoke test request_id 34361
+  // · INSERT wa_conversations falhava por context_type/inbox_role ausentes).
+  const stages: { select?: string; insert_conv?: string; insert_msg?: string; insert_dispatch?: string } = {}
   try {
     const cid = payload.clinic_id || (await clinicId())
 
-    // 1. Resolve conversation por (phone + wa_number_id) — scope correto.
+    // 1. Resolve conversation existente · busca por phone last-8 (cobre variantes
+    //    do número BR com/sem 9 do celular) + wa_number_id + clinic_id + não-deletada.
+    //    Indice unique do banco: (clinic_id, wa_number_id, right(phone, 8)).
     let convId: string | null = null
     if (payload.wa_number_id) {
-      const r = await fetch(
-        `${_SB_URL}/rest/v1/wa_conversations?clinic_id=eq.${cid}&phone=eq.${payload.recipient_phone}&wa_number_id=eq.${payload.wa_number_id}&select=id&limit=1`,
-        { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
-      )
-      if (r.ok) {
-        const arr = await r.json()
-        if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
+      const last8 = String(payload.recipient_phone || '').slice(-8)
+      if (last8.length === 8) {
+        const selectUrl =
+          `${_SB_URL}/rest/v1/wa_conversations?` +
+          `clinic_id=eq.${cid}&` +
+          `wa_number_id=eq.${payload.wa_number_id}&` +
+          `phone=like.*${last8}&` +
+          `deleted_at=is.null&` +
+          `select=id&limit=1`
+        const r = await fetch(selectUrl, {
+          headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
+        })
+        if (r.ok) {
+          const arr = await r.json()
+          if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
+        } else {
+          stages.select = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
+          console.warn('[partner_log_direct] select_existing failed', stages.select)
+        }
       }
     }
 
     // 2. Cria conversation nova SCOPED por wa_number_id se não achou.
-    //    Trigger fn_wa_conversations_inbox_role_sync (mig 91) propaga
-    //    inbox_role correto do wa_numbers · Mira → 'sdr' default.
+    //    inbox_role + context_type explícitos (audit 2026-05-06):
+    //      - inbox_role='b2b'      · trigger fn_wa_conversations_inbox_role_sync
+    //                                copiaria do wa_numbers (Mira tem 'b2b')
+    //                                mas setamos explícito pra robustez
+    //      - context_type='mira_b2b' · CHECK constraint exige um dos valores
+    //                                  permitidos: mira_b2b/mira_admin/lara_beneficiary.
+    //                                  Sem isso, default NULL viola CHECK ·
+    //                                  INSERT falhava silenciosamente.
+    //    NÃO copiar assigned_to de wa_numbers (string 'geral' lá vs uuid aqui).
     if (!convId) {
       const insertConvR = await fetch(`${_SB_URL}/rest/v1/wa_conversations`, {
         method: 'POST',
@@ -733,13 +758,22 @@ async function logPartnerConfirmationDirect(payload: {
           'Prefer': 'return=representation',
         },
         body: JSON.stringify({
-          clinic_id: cid,
-          phone: payload.recipient_phone,
-          wa_number_id: payload.wa_number_id,
-          status: 'active',
-          ai_enabled: true,
-          display_name: payload.recipient_name,
+          clinic_id:       cid,
+          phone:           payload.recipient_phone,
+          wa_number_id:    payload.wa_number_id,
+          status:          'active',
+          ai_enabled:      true,
+          display_name:    payload.recipient_name,
+          inbox_role:      'b2b',
+          context_type:    'mira_b2b',
           last_message_at: new Date().toISOString(),
+          metadata: {
+            source:          'b2b_partner_confirmation',
+            voucher_id:      payload.voucher_id,
+            partnership_id:  payload.partnership_id,
+            recipient_role:  'partner',
+            sender_instance: payload.sender_instance,
+          },
         }),
       })
       if (insertConvR.ok) {
@@ -748,12 +782,16 @@ async function logPartnerConfirmationDirect(payload: {
         if (row?.id) convId = String(row.id)
       } else {
         const errText = await insertConvR.text()
-        console.warn('[partner_log_direct] wa_conversations insert failed', insertConvR.status, errText.slice(0, 200))
+        stages.insert_conv = `status=${insertConvR.status} body=${errText.slice(0, 250)}`
+        console.warn('[partner_log_direct] wa_conversations insert failed', stages.insert_conv)
       }
     }
 
     if (!convId) {
-      return { ok: false, error: 'conversation_resolve_failed' }
+      return {
+        ok: false,
+        error: 'conversation_resolve_failed: ' + (stages.insert_conv || stages.select || 'no_existing_and_no_insert_attempt'),
+      }
     }
 
     // 3. INSERT wa_messages (idempotent · UNIQUE provider_msg_id captura 23505).
@@ -809,7 +847,8 @@ async function logPartnerConfirmationDirect(payload: {
       }
     } else {
       const errText = await insertMsgR.text()
-      console.warn('[partner_log_direct] wa_messages insert failed', insertMsgR.status, errText.slice(0, 200))
+      stages.insert_msg = `status=${insertMsgR.status} body=${errText.slice(0, 250)}`
+      console.warn('[partner_log_direct] wa_messages insert failed', stages.insert_msg)
     }
 
     // 4. INSERT b2b_comm_dispatch_log.
@@ -843,8 +882,15 @@ async function logPartnerConfirmationDirect(payload: {
       if (row?.id) dispatchId = String(row.id)
     } else {
       const errText = await dispatchR.text()
-      console.warn('[partner_log_direct] b2b_comm_dispatch_log insert failed', dispatchR.status, errText.slice(0, 200))
+      stages.insert_dispatch = `status=${dispatchR.status} body=${errText.slice(0, 250)}`
+      console.warn('[partner_log_direct] b2b_comm_dispatch_log insert failed', stages.insert_dispatch)
     }
+
+    // Reporta partial-success: conversation+message OK mas dispatch falhou e
+    // vice-versa. Logs detalhados ficam em meta.stages (consumido pelo response).
+    const partialErrors: string[] = []
+    if (!messageId && stages.insert_msg) partialErrors.push(`insert_message: ${stages.insert_msg}`)
+    if (!dispatchId && stages.insert_dispatch) partialErrors.push(`insert_dispatch_log: ${stages.insert_dispatch}`)
 
     return {
       ok: true,
@@ -854,10 +900,11 @@ async function logPartnerConfirmationDirect(payload: {
       dispatch_log_id: dispatchId,
       provider_msg_id: payload.provider_msg_id ?? undefined,
       idempotent_message: idempotent || undefined,
+      ...(partialErrors.length > 0 ? { error: partialErrors.join(' | ') } : {}),
     }
   } catch (e) {
     console.warn('[partner_log_direct] exception', (e as Error).message)
-    return { ok: false, error: (e as Error).message }
+    return { ok: false, error: `exception: ${(e as Error).message}` }
   }
 }
 
