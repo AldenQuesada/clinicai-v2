@@ -174,9 +174,36 @@ async function generateAudio(text: string, voice = 'nova', instructions?: string
 }
 
 // Busca template editavel global pra event_key+channel
-async function fetchTemplate(eventKey: string, channel: string): Promise<any | null> {
+/**
+ * Busca template editavel global pra event_key+channel.
+ *
+ * Audit 2026-05-06:
+ *   - Adicionado filtro `recipient_role` opcional · evita pegar template de
+ *     beneficiary/admin por engano quando event_key tiver multiplas variantes.
+ *   - ORDER BY trocado de `priority.asc` pra `priority.desc, updated_at.desc`
+ *     · prioridade ALTA vence (template "mais novo/curado" prevalece sobre
+ *     baseline quando empate).
+ *   - partnership_id IS NULL mantido (busca SOMENTE GLOBAL · overrides
+ *     partnership-specific exigem caller passar explicitamente).
+ */
+async function fetchTemplate(
+  eventKey: string,
+  channel: string,
+  recipientRole?: string,
+): Promise<any | null> {
+  const params = [
+    `event_key=eq.${eventKey}`,
+    `channel=eq.${channel}`,
+    `is_active=eq.true`,
+    `partnership_id=is.null`,
+    `order=priority.desc,updated_at.desc`,
+    `limit=1`,
+  ]
+  if (recipientRole) {
+    params.push(`recipient_role=eq.${recipientRole}`)
+  }
   const r = await fetch(
-    `${_SB_URL}/rest/v1/b2b_comm_templates?event_key=eq.${eventKey}&channel=eq.${channel}&is_active=eq.true&partnership_id=is.null&order=priority.asc&limit=1`,
+    `${_SB_URL}/rest/v1/b2b_comm_templates?${params.join('&')}`,
     { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
   )
   const arr = await r.json()
@@ -280,39 +307,77 @@ const resolveRecipientChannel = (): Promise<Ch> => resolveChannelByKey('recipien
 // Mira (partner_response) = confirma pro parceiro que o voucher saiu
 const resolvePartnerChannel   = (): Promise<Ch> => resolveChannelByKey('partner_response', 'mira-mirian')
 
-// Confirma pro parceiro — texto curto "voucher X saiu pra Y, código ...".
-// Best-effort, nao bloqueia fluxo.
+// Confirma pro parceiro · texto oficial Mira (audit 2026-05-06).
+// Caminho: tenta fetchTemplate('voucher_issued_partner_confirmation', 'text');
+// fallback hardcoded com mesmo texto se template DB não existir/foi removido.
+// Voz: Mira · NUNCA menciona Lara nesse fluxo (Lara = canal Cloud Lara
+// pra paciente · diferente do canal mira-mirian que envia essa confirmation).
 async function sendPartnerConfirmation(
   partnerPhone: string, partnerName: string, recipientName: string,
   combo: string, token: string, validUntil: string | null,
   panelUrl: string | null, ch: Ch,
-): Promise<{ waId: string | null; err?: string; text?: string; waNumberId?: string | null; instance?: string | null }> {
+): Promise<{ waId: string | null; err?: string; text?: string; waNumberId?: string | null; instance?: string | null; templateId?: string | null; via?: 'template' | 'fallback' }> {
   const partnerFirst = firstName(partnerName)
   const validity = validUntil
     ? new Date(validUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : null
+    : '—'
+  const tokenUpper = String(token).toUpperCase()
 
-  const lines: string[] = [
-    `${partnerFirst}, prontinho! Emiti o voucher pra *${recipientName}* agora mesmo.`,
-    ``,
-    `🎟️ *Voucher cortesia* — ${combo}`,
-    `👤 *Para:* ${recipientName}`,
-    `🔑 *Código:* ${String(token).toUpperCase()}`,
-  ]
-  if (validity) lines.push(`⏰ *Válido até:* ${validity}`)
-  lines.push(
-    ``,
-    `A Lara já mandou pra ela o áudio de acolhimento e o link pra agendar.`,
-    `Assim que ela escolher horário, você recebe uma confirmação. 💛`,
-  )
-  if (panelUrl) {
+  // Vars compartilhadas entre template DB e fallback hardcoded.
+  const renderVars: Record<string, string | number> = {
+    convidada:        recipientName || 'sua convidada',
+    combo:            combo || 'voucher cortesia',
+    token:            tokenUpper,
+    valid_until:      validity,
+    painel_parceira:  panelUrl || '',
+    parceira_first:   partnerFirst,
+  }
+
+  // 1. Tenta template DB · futuro: criar row em b2b_comm_templates com
+  //    event_key='voucher_issued_partner_confirmation', channel='text'.
+  //    Fallback abaixo cobre caso template ainda não cadastrado.
+  // Audit 2026-05-06: filtra recipient_role='partner' explicitamente · template
+  // oficial existe (id 53f7766c-ec26-4e7b-9174-41f2bf928e18 · GLOBAL · prio 100).
+  const tpl = await fetchTemplate('voucher_issued_partner_confirmation', 'text', 'partner').catch(() => null)
+  let text: string
+  let via: 'template' | 'fallback'
+  let templateId: string | null = null
+
+  if (tpl?.text_template) {
+    text = renderTemplate(tpl.text_template, renderVars)
+    via = 'template'
+    templateId = tpl.id ?? null
+  } else {
+    // Fallback hardcoded · texto OFICIAL aprovado 2026-05-06 (voz Mira).
+    // Mantém paridade com template futuro · caso template seja
+    // criado/editado, este fallback fica como safety net defensivo.
+    const lines: string[] = [
+      `✨ *Prontinho, voucher enviado para ${renderVars.convidada}*`,
+      ``,
+      `Acabei de entregar o presente direto no WhatsApp dela, com o link, as orientações e o prazo de validade. Pode descansar: o fluxo agora corre com a gente.`,
+      ``,
+      `🎟️ *Voucher cortesia* — ${renderVars.combo}`,
+      `👤 *Para:* ${renderVars.convidada}`,
+      `🔑 *Código:* ${renderVars.token}`,
+      `⏰ *Válido até:* ${renderVars.valid_until}`,
+      ``,
+      `Assim que ela abrir ou agendar, te aviso por aqui, combinado?`,
+    ]
+    if (renderVars.painel_parceira) {
+      lines.push(
+        ``,
+        `📊 *Acompanhe em tempo real no seu painel:* 👇`,
+        String(renderVars.painel_parceira),
+      )
+    }
     lines.push(
       ``,
-      `📊 Acompanhe tudo no seu painel:`,
-      panelUrl,
+      `${renderVars.parceira_first}, obrigada pela confiança de sempre 💜`,
+      `— *Mira*, da Clínica Mirian de Paula`,
     )
+    text = lines.join('\n')
+    via = 'fallback'
   }
-  const text = lines.join('\n')
 
   try {
     const r = await fetch(`${ch.apiUrl}/message/sendText/${ch.instance}`, {
@@ -328,6 +393,8 @@ async function sendPartnerConfirmation(
         text,
         waNumberId: ch.waNumberId,
         instance: ch.instance,
+        templateId,
+        via,
       }
     }
     const d = await r.json().catch(() => null)
@@ -338,6 +405,8 @@ async function sendPartnerConfirmation(
       text,
       waNumberId: ch.waNumberId,
       instance: ch.instance,
+      templateId,
+      via,
     }
   } catch (e) {
     return {
@@ -346,6 +415,8 @@ async function sendPartnerConfirmation(
       text,
       waNumberId: ch.waNumberId,
       instance: ch.instance,
+      templateId,
+      via,
     }
   }
 }
@@ -385,7 +456,7 @@ async function sendVoucherLinkText(
   const link = `${VOUCHER_LINK_BASE}?t=${encodeURIComponent(token)}`
 
   // 1. Tenta template oficial DB
-  const tpl = await fetchTemplate('voucher_issued_beneficiary', 'text').catch(() => null)
+  const tpl = await fetchTemplate('voucher_issued_beneficiary', 'text', 'beneficiary').catch(() => null)
   let text: string
   let via: 'template' | 'fallback' = 'fallback'
 
@@ -404,17 +475,26 @@ async function sendVoucherLinkText(
     })
     via = 'template'
   } else {
-    // Fallback hardcoded · ultimo recurso se template foi removido por engano
+    // Fallback hardcoded · ultimo recurso se template foi removido por engano.
+    // Audit 2026-05-06: alinhado com texto oficial · zero abertura duplicada
+    // (audio ja diz "Oi {nome}") · assinatura "— Clínica Mirian de Paula" ·
+    // link em linha propria pra clicabilidade no dash.
+    const expiraDays = validityDays ?? 30
     text = [
-      `${first}, aqui está seu voucher cortesia 💛`,
+      `${first}, seu Voucher Presente foi liberado 🎁`,
       ``,
-      `🎟️ *${combo}*`,
-      `Presente da ${partnerName || 'parceria'}`,
+      `A ${partnerName || 'parceira'} escolheu te presentear com uma experiência especial na Clínica Mirian de Paula:`,
       ``,
-      `Abre o presente completo aqui (com validade e próximos passos):`,
+      `✨ ${combo}`,
+      ``,
+      `Acesse seu voucher aqui:`,
       link,
       ``,
-      `Quando quiser marcar, me responde por aqui que eu te encaixo na agenda da Dra. Mirian. Um beijo!`,
+      `Ele é válido por ${expiraDays} dias.`,
+      ``,
+      `Quando quiser agendar, é só responder esta mensagem que nossa equipe te ajuda. 💛`,
+      ``,
+      `— Clínica Mirian de Paula`,
     ].join('\n')
   }
 
@@ -594,6 +674,193 @@ async function logOutboundCanonical(payload: CanonicalPayload): Promise<Canonica
 // em 2026-05-06 · substituído por logOutboundCanonical que vai pela RPC
 // b2b_log_outbound_message. Mantemos a function removida do flow · zero callers.
 
+/**
+ * Variante direta pra partner_confirmation (audit 2026-05-06 · caso Rachel/Dani).
+ *
+ * Problema: RPC b2b_log_outbound_message resolveu conversation pelo phone
+ * sem honrar wa_number_id do payload · partner confirmation enviada via
+ * mira-mirian (chip 7673) caía na conversa Mih/Secretaria existente da Dani.
+ * Resultado: dispatch_log com sender_instance='mira-mirian' mas wa_messages
+ * vinculada à conv da Secretaria · histórico no canal errado.
+ *
+ * Solução defensiva sem mexer no banco: edge faz INSERT direto em
+ * wa_conversations (resolve OU cria scoped por wa_number_id) + wa_messages
+ * + b2b_comm_dispatch_log. Mantém a RPC pra beneficiária (caso novo · RPC
+ * cria conversa nova com Mih · funciona).
+ *
+ * Trigger trg_sync_wa_conversation_preview_v2 (mig 116) cuida do preview
+ * automaticamente · zero double-write.
+ */
+async function logPartnerConfirmationDirect(payload: {
+  clinic_id?: string
+  voucher_id: string
+  partnership_id: string | null
+  template_id?: string | null
+  wa_number_id: string | null
+  recipient_phone: string
+  recipient_name: string | null
+  sender_instance: string | null
+  content: string
+  provider_msg_id: string | null
+  meta: Record<string, unknown>
+}): Promise<CanonicalResult> {
+  try {
+    const cid = payload.clinic_id || (await clinicId())
+
+    // 1. Resolve conversation por (phone + wa_number_id) — scope correto.
+    let convId: string | null = null
+    if (payload.wa_number_id) {
+      const r = await fetch(
+        `${_SB_URL}/rest/v1/wa_conversations?clinic_id=eq.${cid}&phone=eq.${payload.recipient_phone}&wa_number_id=eq.${payload.wa_number_id}&select=id&limit=1`,
+        { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
+      )
+      if (r.ok) {
+        const arr = await r.json()
+        if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
+      }
+    }
+
+    // 2. Cria conversation nova SCOPED por wa_number_id se não achou.
+    //    Trigger fn_wa_conversations_inbox_role_sync (mig 91) propaga
+    //    inbox_role correto do wa_numbers · Mira → 'sdr' default.
+    if (!convId) {
+      const insertConvR = await fetch(`${_SB_URL}/rest/v1/wa_conversations`, {
+        method: 'POST',
+        headers: {
+          'apikey': _SB_KEY,
+          'Authorization': `Bearer ${_SB_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          clinic_id: cid,
+          phone: payload.recipient_phone,
+          wa_number_id: payload.wa_number_id,
+          status: 'active',
+          ai_enabled: true,
+          display_name: payload.recipient_name,
+          last_message_at: new Date().toISOString(),
+        }),
+      })
+      if (insertConvR.ok) {
+        const arr = await insertConvR.json()
+        const row = Array.isArray(arr) ? arr[0] : arr
+        if (row?.id) convId = String(row.id)
+      } else {
+        const errText = await insertConvR.text()
+        console.warn('[partner_log_direct] wa_conversations insert failed', insertConvR.status, errText.slice(0, 200))
+      }
+    }
+
+    if (!convId) {
+      return { ok: false, error: 'conversation_resolve_failed' }
+    }
+
+    // 3. INSERT wa_messages (idempotent · UNIQUE provider_msg_id captura 23505).
+    const msgPayload: Record<string, unknown> = {
+      conversation_id: convId,
+      clinic_id:       cid,
+      phone:           payload.recipient_phone,
+      direction:       'outbound',
+      sender:          'sistema',
+      content:         payload.content,
+      content_type:    'text',
+      ai_generated:    true,
+      status:          'sent',
+      sent_at:         new Date().toISOString(),
+      channel:         'evolution',
+    }
+    if (payload.template_id) {
+      // Audit 2026-05-06: template_id propagado pra wa_messages permite o dash
+      // novo (resolveOutboundLabel) detectar B2B/voucher via whitelist.
+      msgPayload.template_id = payload.template_id
+    }
+    if (payload.provider_msg_id) {
+      msgPayload.provider_msg_id = payload.provider_msg_id
+      msgPayload.wa_message_id   = payload.provider_msg_id
+    }
+
+    let messageId: string | undefined
+    let idempotent = false
+    const insertMsgR = await fetch(`${_SB_URL}/rest/v1/wa_messages`, {
+      method: 'POST',
+      headers: {
+        'apikey': _SB_KEY,
+        'Authorization': `Bearer ${_SB_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(msgPayload),
+    })
+    if (insertMsgR.ok) {
+      const arr = await insertMsgR.json()
+      const row = Array.isArray(arr) ? arr[0] : arr
+      if (row?.id) messageId = String(row.id)
+    } else if (insertMsgR.status === 409 && payload.provider_msg_id) {
+      // 23505 unique_violation (uq_wa_messages_provider_id) · busca existente.
+      idempotent = true
+      const existR = await fetch(
+        `${_SB_URL}/rest/v1/wa_messages?clinic_id=eq.${cid}&provider_msg_id=eq.${payload.provider_msg_id}&select=id&limit=1`,
+        { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
+      )
+      if (existR.ok) {
+        const arr = await existR.json()
+        if (Array.isArray(arr) && arr[0]?.id) messageId = String(arr[0].id)
+      }
+    } else {
+      const errText = await insertMsgR.text()
+      console.warn('[partner_log_direct] wa_messages insert failed', insertMsgR.status, errText.slice(0, 200))
+    }
+
+    // 4. INSERT b2b_comm_dispatch_log.
+    let dispatchId: string | undefined
+    const dispatchR = await fetch(`${_SB_URL}/rest/v1/b2b_comm_dispatch_log`, {
+      method: 'POST',
+      headers: {
+        'apikey': _SB_KEY,
+        'Authorization': `Bearer ${_SB_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        clinic_id:       cid,
+        partnership_id:  payload.partnership_id,
+        template_id:     payload.template_id ?? null,
+        event_key:       'voucher_issued_partner_confirmation',
+        channel:         'text',
+        recipient_role:  'partner',
+        recipient_phone: payload.recipient_phone,
+        sender_instance: payload.sender_instance,
+        text_content:    payload.content,
+        wa_message_id:   payload.provider_msg_id,
+        status:          'sent',
+        meta:            payload.meta,
+      }),
+    })
+    if (dispatchR.ok) {
+      const arr = await dispatchR.json()
+      const row = Array.isArray(arr) ? arr[0] : arr
+      if (row?.id) dispatchId = String(row.id)
+    } else {
+      const errText = await dispatchR.text()
+      console.warn('[partner_log_direct] b2b_comm_dispatch_log insert failed', dispatchR.status, errText.slice(0, 200))
+    }
+
+    return {
+      ok: true,
+      conversation_id: convId,
+      message_id: messageId,
+      dispatch_id: dispatchId,
+      dispatch_log_id: dispatchId,
+      provider_msg_id: payload.provider_msg_id ?? undefined,
+      idempotent_message: idempotent || undefined,
+    }
+  } catch (e) {
+    console.warn('[partner_log_direct] exception', (e as Error).message)
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return err('method_not_allowed', 405)
@@ -630,7 +897,7 @@ Deno.serve(async (req) => {
       : rawCombo
 
     // Template editavel (b2b_comm_templates) com fallback hardcoded
-    const audioTpl = await fetchTemplate('voucher_issued_beneficiary', 'audio')
+    const audioTpl = await fetchTemplate('voucher_issued_beneficiary', 'audio', 'beneficiary')
     const convidadaFirst = firstName(voucher.recipient_name)
     const renderVars: Record<string, string | number> = {
       convidada: voucher.recipient_name || 'você',
@@ -711,6 +978,8 @@ Deno.serve(async (req) => {
       text?: string
       waNumberId?: string | null
       instance?: string | null
+      templateId?: string | null
+      via?: 'template' | 'fallback'
     } = { waId: null }
     try {
       const partnerPhone = await fetchPartnerPhone(voucher.partnership_id, partnership?.contact_phone || null)
@@ -827,34 +1096,31 @@ Deno.serve(async (req) => {
     }
 
     // 3. Parceiro · confirmação. Só loga se efetivamente enviou (waId).
-    //    Audit 2026-05-06: usa wa_number_id/instance que sendPartnerConfirmation
-    //    devolveu (canal real do envio) · NÃO re-resolve partner_response aqui ·
-    //    evita divergência se config mudar entre envio e log.
+    //    Audit 2026-05-06: usa logPartnerConfirmationDirect (bypass RPC) pra
+    //    GARANTIR scope correto (mira-mirian) · RPC b2b_log_outbound_message
+    //    estava resolvendo conversation pelo phone sem honrar wa_number_id ·
+    //    msgs do parceiro caíam na conversa Mih/Secretaria existente da Dani.
+    //    Direct insert via REST resolve/cria conv scoped por wa_number_id.
+    //    Beneficiária continua via RPC normalmente (caso novo · cria conv Mih).
     if (partnerConfirm.waId && partnerConfirm.phone) {
-      canonicalLogs.partner_confirmation = await logOutboundCanonical({
-        clinic_id: voucher.clinic_id,
-        voucher_id: voucher.id,
-        partnership_id: voucher.partnership_id ?? null,
-        template_id: null,
-        wa_number_id: partnerConfirm.waNumberId ?? null,
+      canonicalLogs.partner_confirmation = await logPartnerConfirmationDirect({
+        clinic_id:       voucher.clinic_id,
+        voucher_id:      voucher.id,
+        partnership_id:  voucher.partnership_id ?? null,
+        template_id:     partnerConfirm.templateId ?? null,
+        wa_number_id:    partnerConfirm.waNumberId ?? null,
         recipient_phone: partnerConfirm.phone,
-        recipient_name: partnership?.name ?? null,
-        recipient_role: 'partner',
-        event_key: 'voucher_issued_partner_confirmation',
-        channel: 'evolution',
-        sender: 'sistema',
+        recipient_name:  partnership?.name ?? null,
         sender_instance: partnerConfirm.instance ?? null,
-        content_type: 'text',
-        content: partnerConfirm.text ?? '',
+        content:         partnerConfirm.text ?? '',
         provider_msg_id: partnerConfirm.waId,
-        wa_message_id: partnerConfirm.waId,
-        status: 'sent',
         meta: {
-          source: 'b2b-voucher-audio',
-          step: 'partner_confirmation',
+          source:           'b2b-voucher-audio',
+          step:             'partner_confirmation',
           beneficiary_name: voucher.recipient_name,
-          combo: voucher.combo,
-          token: voucher.token,
+          combo:            voucher.combo,
+          token:            voucher.token,
+          via:              partnerConfirm.via ?? null,
         },
       })
       if (!canonicalLogs.partner_confirmation.ok) {

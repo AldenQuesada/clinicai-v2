@@ -336,6 +336,13 @@ export interface MessageDTO {
   internalNote?: boolean
   /** Sprint C · SC-01 (W-06) · status do envio: sent | delivered | read | failed */
   deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed' | null
+  /**
+   * Audit 2026-05-06 · uuid do template em b2b_comm_templates que renderizou
+   * a mensagem (quando aplicavel · null pra mensagens livres). Usado pelo
+   * dash pra rotular B2B/voucher (label "Mira · Voucher" via whitelist de
+   * template_ids de voucher).
+   */
+  templateId?: string | null
 }
 
 export interface TemplateDTO {

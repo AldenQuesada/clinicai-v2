@@ -109,6 +109,8 @@ export async function GET(
       // Sprint C · campos novos (undefined se mig 86 nao aplicada)
       internal_note: m.internalNote ?? false,
       delivery_status: m.deliveryStatus ?? null,
+      // Audit 2026-05-06 · template_id pro dash detectar B2B/voucher (label)
+      template_id: m.templateId ?? null,
     })),
   );
 }

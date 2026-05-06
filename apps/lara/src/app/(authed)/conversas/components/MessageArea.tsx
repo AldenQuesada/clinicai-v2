@@ -85,6 +85,97 @@ function groupMessagesByDay(messages: Message[]): GroupedMessages {
     .map(([key, msgs]) => ({ label: labelByKey.get(key) ?? key, messages: msgs }));
 }
 
+// ─── Audio placeholder detection (audit 2026-05-06) ────────────────────────
+// Edge b2b-voucher-audio grava content como '[áudio] <transcript>'. O dash
+// renderizava esse content como balão de TEXTO porque o startsWith('[audio')
+// (sem acento) NÃO bate em '[áudio]' (com acento). Regex normalizada cobre
+// ambos + variantes maiúsculas/minúsculas.
+const AUDIO_PLACEHOLDER_RX = /^\[(?:áudio|audio)(?:\s|\])/i;
+function isAudioPlaceholder(content: string | null | undefined): boolean {
+  if (!content) return true; // vazio = sem transcrição util
+  return AUDIO_PLACEHOLDER_RX.test(content.trim());
+}
+function stripAudioPlaceholder(content: string | null | undefined): string {
+  if (!content) return '';
+  return content.replace(/^\[(?:áudio|audio)\]\s*/i, '').trim();
+}
+
+// ─── Linkify URLs em texto pra render clicável (audit 2026-05-06) ──────────
+// URLs http/https viram <a target="_blank" rel="noopener noreferrer">.
+// Não usa dangerouslySetInnerHTML · React fragments seguros · preserva
+// quebras de linha via whitespace-pre-wrap no parent.
+const URL_RX = /\b(https?:\/\/[^\s<>"]+[^\s<>".,;!?:)\]])/gi;
+function renderTextWithLinks(text: string): React.ReactNode {
+  if (!text) return null;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  // Reset state · regex global · cria copy local pra não mutar
+  const rx = new RegExp(URL_RX.source, 'gi');
+  while ((match = rx.exec(text)) !== null) {
+    const url = match[1];
+    const start = match.index;
+    if (start > lastIndex) parts.push(text.slice(lastIndex, start));
+    parts.push(
+      <a
+        key={`${start}-${url}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        // Audit 2026-05-06: classes simples e robustas · underline em
+        // currentColor + offset · break-all evita quebra horizontal em URLs
+        // longas (tokens de voucher) dentro do balão.
+        className="underline underline-offset-2 break-all"
+      >
+        {url}
+      </a>,
+    );
+    lastIndex = start + url.length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length === 1 ? parts[0] : parts;
+}
+
+// ─── Resolve label do autor da mensagem (audit 2026-05-06) ─────────────────
+// Antes: outbound não-humano caía sempre em 'Lara 🤖'. Bug: B2B/voucher
+// (canonical RPC com sender='sistema') aparecia como Lara mesmo sendo Mira/
+// Secretaria.
+//
+// Refinamento 2026-05-06 · evitar amplitude false-positive: "Mira · Voucher"
+// SOMENTE quando há evidência forte de voucher B2B via template_id na
+// whitelist abaixo. Mensagens 'sistema' sem template_id de voucher caem
+// em "Sistema · Secretaria" (canal Mih genérico) ou "Lara 🤖" (default).
+//
+// Whitelist: template_ids dos 3 templates B2B de voucher cadastrados em
+// b2b_comm_templates (audit 2026-05-06):
+//   · a21bfb34-c5d9-4b83-9b46-5ef17fe1737c · voucher_issued_beneficiary/text
+//   · b131447d-e703-43d7-b3ce-482c5afd9e57 · voucher_issued_beneficiary/audio
+//   · 53f7766c-ec26-4e7b-9174-41f2bf928e18 · voucher_issued_partner_confirmation/text
+// Atualizar quando adicionar novo template de voucher (raro · DB-side change).
+const VOUCHER_TEMPLATE_IDS = new Set<string>([
+  'a21bfb34-c5d9-4b83-9b46-5ef17fe1737c',
+  'b131447d-e703-43d7-b3ce-482c5afd9e57',
+  '53f7766c-ec26-4e7b-9174-41f2bf928e18',
+]);
+
+function resolveOutboundLabel(
+  msg: Message,
+  inboxRole: string | null | undefined,
+): string {
+  if (msg.isManual) return 'Atendente Humano 👩‍⚕️';
+  const sender = (msg.senderRaw || '').toLowerCase();
+  // Evidência forte de voucher B2B · só aqui que vira "Mira · Voucher".
+  if (msg.templateId && VOUCHER_TEMPLATE_IDS.has(msg.templateId)) {
+    return 'Mira · Voucher';
+  }
+  // Conversa em canal Secretaria · sistema/automação genérica (não-IA).
+  if (inboxRole === 'secretaria' && sender !== 'lara' && sender !== 'ai') {
+    return 'Sistema · Secretaria';
+  }
+  // Default · Lara IA (canal Cloud · /conversas SDR).
+  return 'Lara 🤖';
+}
+
 // Sprint C · SC-01 (W-06) · icone delivery status (✓ ✓✓ azul WhatsApp-style)
 function DeliveryStatusIcon({ status }: { status: Message['deliveryStatus'] }) {
   if (!status || status === 'sent') {
@@ -504,7 +595,7 @@ export function MessageArea({
                           </span>
                         ) : isUser
                           ? (selectedConversation.lead_name || 'Paciente')
-                          : (msg.isManual ? 'Atendente Humano 👩‍⚕️' : 'Lara 🤖')
+                          : resolveOutboundLabel(msg, selectedConversation?.inbox_role)
                         }
                       </div>
                       {msg.type === 'image' && msg.mediaUrl && (
@@ -515,16 +606,33 @@ export function MessageArea({
                       {msg.type === 'audio' && msg.mediaUrl && (
                         <div className="mb-1">
                           <AudioPlayer src={msg.mediaUrl} isUser={isUser} />
-                          {/* Transcrição inline · label muted pra deixar claro
-                              que é leitura do áudio · não mensagem separada */}
-                          {msg.content &&
-                           msg.content !== '[audio recebido]' &&
-                           !msg.content.startsWith('[audio') && (
-                            <div className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                              <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-60 not-italic block mb-0.5">Transcrição</span>
-                              {msg.content}
-                            </div>
-                          )}
+                          {/* Transcrição inline · audit 2026-05-06: regex
+                              cobre [áudio]/[audio] case-insensitive (antes
+                              startsWith('[audio') falhava em '[áudio]' com
+                              acento e renderizava transcrição duplicada como
+                              balão de texto principal). Strip do prefix
+                              limpa "[áudio] Oi Rachel..." → "Oi Rachel...". */}
+                          {(() => {
+                            const stripped = stripAudioPlaceholder(msg.content);
+                            if (!stripped || stripped === 'recebido') return null;
+                            return (
+                              <div
+                                className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug"
+                                style={{ background: 'rgba(255,255,255,0.08)' }}
+                              >
+                                <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-60 not-italic block mb-0.5">
+                                  Transcrição
+                                </span>
+                                {stripped}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {/* Audio sem mediaUrl · placeholder · não duplica content */}
+                      {msg.type === 'audio' && !msg.mediaUrl && (
+                        <div className="mb-1 px-2 py-1.5 rounded text-[12px] italic opacity-80" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          🎧 Áudio enviado
                         </div>
                       )}
                       {/* P-07 · render document (PDF/DOC/etc) · card com download */}
@@ -550,10 +658,17 @@ export function MessageArea({
                           <Download className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0" strokeWidth={1.5} />
                         </a>
                       )}
-                      {/* Renderiza content como texto SO quando NÃO é audio com transcrição
-                          (audio render acima já mostra transcrição inline com label) */}
-                      {!(msg.type === 'audio' && msg.mediaUrl && msg.content && !msg.content.startsWith('[audio')) && (
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      {/* Renderiza content como balão de texto SO quando msg
+                          é texto puro · audio (com ou sem mediaUrl) NÃO entra
+                          aqui (já tem player + transcrição/placeholder acima).
+                          Audit 2026-05-06: antes o startsWith('[audio') sem
+                          acento deixava '[áudio]' (com acento) cair no balão
+                          de texto · agora pula type==='audio' incondicional.
+                          URLs http/https viram links clicáveis (target=_blank). */}
+                      {msg.type !== 'audio' && msg.content && !isAudioPlaceholder(msg.content) && (
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">
+                          {renderTextWithLinks(msg.content)}
+                        </p>
                       )}
                       <div className="flex items-center justify-end gap-1 mt-1 block">
                         {msg.isManual && !isUser && !isFailed && <span className="text-[10px] opacity-70">Humano</span>}

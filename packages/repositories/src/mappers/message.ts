@@ -22,5 +22,7 @@ export function mapMessageRow(row: any): MessageDTO {
     // Sprint C · novos campos · undefined quando coluna nao existir (mig 86 pendente)
     internalNote: row.internal_note === true ? true : row.internal_note === false ? false : undefined,
     deliveryStatus: row.delivery_status ?? null,
+    // Audit 2026-05-06 · template_id pra rotular B2B/voucher no dash novo
+    templateId: row.template_id ?? null,
   }
 }

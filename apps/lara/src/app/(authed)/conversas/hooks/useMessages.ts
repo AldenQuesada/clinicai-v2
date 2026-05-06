@@ -9,6 +9,18 @@ export interface Message {
   type: string;
   mediaUrl?: string | null;
   isManual?: boolean;
+  /**
+   * Audit 2026-05-06: raw `sender` da column DB (user/humano/sistema/lara/ai).
+   * Usado pra distinguir mensagens canônicas B2B (sender='sistema') das
+   * mensagens da Lara IA (sender='lara'/'ai') no label do balão.
+   */
+  senderRaw?: string;
+  /**
+   * Audit 2026-05-06: uuid do template (b2b_comm_templates) que renderizou
+   * a mensagem · null pra mensagens livres. Usado pelo label resolver pra
+   * detectar B2B/voucher via whitelist (não amplo).
+   */
+  templateId?: string | null;
   /** P-06 (2026-04-29): true quando sendMessage falhou · UI mostra botoes retry/descartar */
   failed?: boolean;
   /** Sprint C · SC-03 (W-11): nota interna · so atendentes veem · NAO envia ao paciente */
@@ -56,6 +68,8 @@ export function useMessages(
             type: msg.content_type,
             mediaUrl: msg.media_url,
             isManual: msg.sender === 'humano',
+            senderRaw: typeof msg.sender === 'string' ? msg.sender : undefined,
+            templateId: typeof msg.template_id === 'string' ? msg.template_id : null,
             // Sprint C: campos podem vir undefined se mig 86 ainda nao aplicada
             internalNote: msg.internal_note === true,
             deliveryStatus: msg.delivery_status ?? null,
