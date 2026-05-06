@@ -144,12 +144,19 @@ export async function signMediaPath(
   supabase: SupabaseClient<any, any, any, any, any>,
   path: string,
   ttlSeconds: number = SIGNED_URL_TTL_UI,
+  /**
+   * Bucket alvo · default 'media'. Audit 2026-05-06: voucher-audio vive em
+   * bucket separado `voucher-audio` · sem este parâmetro paths YYYY-MM/<uuid>.mp3
+   * eram assinados contra bucket 'media' e retornavam null silenciosamente,
+   * fazendo AudioPlayer não renderizar no dash.
+   */
+  bucket: string = MEDIA_BUCKET,
 ): Promise<string | null> {
   if (!path) return null
 
   // Tentativa 1
   const first = await supabase.storage
-    .from(MEDIA_BUCKET)
+    .from(bucket)
     .createSignedUrl(path, ttlSeconds)
   if (!first.error && first.data?.signedUrl) {
     return first.data.signedUrl
@@ -180,7 +187,7 @@ export async function signMediaPath(
   await new Promise<void>((resolve) => setTimeout(resolve, 250))
 
   const second = await supabase.storage
-    .from(MEDIA_BUCKET)
+    .from(bucket)
     .createSignedUrl(path, ttlSeconds)
   if (!second.error && second.data?.signedUrl) {
     return second.data.signedUrl
@@ -208,11 +215,28 @@ export async function signOrPassthrough(
   supabase: SupabaseClient<any, any, any, any, any>,
   pathOrUrl: string | null | undefined,
   ttlSeconds: number = SIGNED_URL_TTL_UI,
+  /** Bucket alvo · default MEDIA_BUCKET ('media'). Override pra voucher-audio etc. */
+  bucket: string = MEDIA_BUCKET,
 ): Promise<string | null> {
   if (!pathOrUrl) return null
   if (isLegacyPublicUrl(pathOrUrl)) return pathOrUrl
-  return signMediaPath(supabase, pathOrUrl, ttlSeconds)
+  return signMediaPath(supabase, pathOrUrl, ttlSeconds, bucket)
 }
+
+/**
+ * Heurística audit 2026-05-06: paths que parecem voucher-audio
+ * (`YYYY-MM/<uuid>.mp3`) vivem no bucket `voucher-audio`, não `media`.
+ * Edge `b2b-voucher-audio` faz upload com este pattern fixo · regex captura.
+ *
+ * Caller (api/conversations/[id]/messages) usa pra escolher bucket correto
+ * antes de chamar signOrPassthrough.
+ */
+const VOUCHER_AUDIO_PATH_RX = /^\d{4}-\d{2}\/[a-f0-9-]+\.mp3$/i
+export function isVoucherAudioPath(s: string | null | undefined): boolean {
+  if (!s) return false
+  return VOUCHER_AUDIO_PATH_RX.test(s)
+}
+export const VOUCHER_AUDIO_BUCKET = 'voucher-audio' as const
 
 /**
  * Worker-pool pra mapear `items` com concorrência limitada · ordem preservada.

@@ -10,6 +10,8 @@ import {
   loadServerContext,
   signOrPassthrough,
   signMediaPath,
+  isVoucherAudioPath,
+  VOUCHER_AUDIO_BUCKET,
   SIGNED_URL_TTL_UI,
   SIGNED_URL_TTL_META,
 } from '@clinicai/supabase';
@@ -85,11 +87,19 @@ export async function GET(
 
   // Fase 1 LGPD: media_url no DB vira PATH em writes novos · GET assina on-demand.
   // signOrPassthrough trata legado (URL pública) sem mudança · transitional até backfill.
+  //
+  // Audit 2026-05-06: voucher-audio vive em bucket SEPARADO (`voucher-audio`,
+  // não `media`). Edge b2b-voucher-audio salva path `YYYY-MM/<voucher_id>.mp3` ·
+  // sem detectar o bucket correto, signMediaPath retornava null e AudioPlayer
+  // não renderizava no dash. isVoucherAudioPath identifica pelo formato.
   const mediasResolved = await Promise.all(
-    messages.map(async (m) => ({
-      ...m,
-      mediaUrl: await signOrPassthrough(supabase, m.mediaUrl, SIGNED_URL_TTL_UI),
-    })),
+    messages.map(async (m) => {
+      const isVoucher = isVoucherAudioPath(m.mediaUrl);
+      const mediaUrl = isVoucher
+        ? await signOrPassthrough(supabase, m.mediaUrl, SIGNED_URL_TTL_UI, VOUCHER_AUDIO_BUCKET)
+        : await signOrPassthrough(supabase, m.mediaUrl, SIGNED_URL_TTL_UI);
+      return { ...m, mediaUrl };
+    }),
   );
 
   // Mantem shape legado (snake_case) pro frontend que ainda nao migrou
