@@ -35,9 +35,11 @@ function normalize(s: string): string {
  * Lista evolui conforme aprendemos novos casos · vide audit dispatch logs.
  */
 const VOUCHER_INTENT_PATTERNS: RegExp[] = [
-  // Palavras-chave nucleares · "voucher" + variações de spelling
-  /\bvouch?er[s]?\b/,
-  /\bvaucher[s]?\b/,
+  // Palavras-chave nucleares · "voucher" + variantes/typos comuns.
+  // Audit 2026-05-06: regex fuzzy unificada cobre voucher/voucer/vocher/
+  // vouher/vauher/vaucher/vouchers — antes `vouch?er` falhava em 'vouher'
+  // (c missing) · `vaucher[s]?` ainda redundante mas mantido pra clareza.
+  /\bv[oa]u?[cs]?h?er[s]?\b/,
 
   // Sinônimos diretos
   /\bcortesia[s]?\b/,

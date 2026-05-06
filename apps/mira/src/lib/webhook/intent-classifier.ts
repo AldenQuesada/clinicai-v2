@@ -50,22 +50,30 @@ export interface ClassificationResult {
 }
 
 // ── Tier 1 patterns ─────────────────────────────────────────────────────
+// Audit 2026-05-06: regex fuzzy `v[oa]u?[cs]?h?er` cobre typos comuns
+// (voucher/voucer/vocher/vouher/vauher/vaucher) · alinha com hasVoucherIntent.
+// Antes `voucher` literal não pegava 'vouher' e caía no Tier 2 Haiku.
+const VOUCHER_FUZZY = 'v[oa]u?[cs]?h?er'
+
 // Bulk voucher patterns · pegam ANTES do single (mesma keyword "voucher")
 const BULK_VOUCHER_PATTERNS: Array<{ intent: Intent; rx: RegExp }> = [
   // "emite 3 vouchers", "5 vouchers pra", "lista de vouchers"
   { intent: 'partner.bulk_emit_voucher',
-    rx: /\b(\d+)\s+vouchers?/i },
+    rx: new RegExp(`\\b(\\d+)\\s+${VOUCHER_FUZZY}s?\\b`, 'i') },
   { intent: 'partner.bulk_emit_voucher',
-    rx: /\b(voucher|cortesia|cupom)s\s+(pra|para)\b/i },
+    rx: new RegExp(`\\b(${VOUCHER_FUZZY}|cortesia|cupom)s\\s+(pra|para)\\b`, 'i') },
   { intent: 'partner.bulk_emit_voucher',
-    rx: /\blista\s+de\s+(voucher|cortesia|cupom)/i },
+    rx: new RegExp(`\\blista\\s+de\\s+(${VOUCHER_FUZZY}|cortesia|cupom)`, 'i') },
 ]
 
 const PARTNER_PATTERNS: Array<{ intent: Intent; rx: RegExp }> = [
   { intent: 'partner.emit_voucher',
-    rx: /\b(emit(e|ir)|gera|fazer?|manda|mandar|envia|enviar|presentei?a|presentear|cria|criar)\s+(o\s+|um\s+)?(voucher|cupom|presente|cortesia)/i },
+    rx: new RegExp(
+      `\\b(emit(e|ir)|gera|fazer?|manda|mandar|envia|enviar|presentei?a|presentear|cria|criar)\\s+(o\\s+|um\\s+)?(${VOUCHER_FUZZY}|cupom|presente|cortesia)`,
+      'i',
+    ) },
   { intent: 'partner.emit_voucher',
-    rx: /\b(voucher|cupom|presente|cortesia)\s+(pra|para)\s+\S+/i },
+    rx: new RegExp(`\\b(${VOUCHER_FUZZY}|cupom|presente|cortesia)\\s+(pra|para|p\\/)\\s+\\S+`, 'i') },
   { intent: 'partner.refer_lead',
     rx: /\b(indico|indicar|indica[cç][aã]o|conhe[cç]o\s+algu[eé]m|tenho\s+uma\s+amiga|tenho\s+uma\s+cliente)/i },
   { intent: 'partner.feedback_received',
@@ -131,7 +139,7 @@ export function classifyTier1(text: string, role: Role): ClassificationResult | 
       }
     }
     // Fallback: looksLikeBulk + alguma keyword voucher generica → bulk
-    if (/voucher|cupom|cortesia|presente/i.test(text)) {
+    if (new RegExp(`${VOUCHER_FUZZY}|cupom|cortesia|presente`, 'i').test(text)) {
       return {
         intent: 'partner.bulk_emit_voucher',
         confidence: 0.85,

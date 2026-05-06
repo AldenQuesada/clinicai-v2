@@ -16,31 +16,94 @@
 
 import { TTL_VOUCHER_CONFIRM_MIN, setVoucherConfirmState } from '../state-machine'
 import { formatDedupReply } from './b2b-dedup-reply'
+import { canonicalPhoneBR } from '@clinicai/utils'
 import type { Handler, HandlerResult } from './types'
 
-const PHONE_RX = /(\+?\d{10,14})/g
+/**
+ * Audit 2026-05-06: regex tolerante a pontuação (espaços, hífens, parênteses,
+ * pontos) entre dígitos. Cobre formatos BR comuns:
+ *   4499780779 · 449978-0779 · 44 9978-0779 · (44) 9978-0779 ·
+ *   44999780779 · +55 44 99978-0779 · 044 9978-0779 (operadora 0).
+ *
+ * Captura o trecho bruto · normalização real fica com canonicalPhoneBR
+ * (validação 10-13 dígitos BR + adiciona DDI 55 + adiciona 9 do celular).
+ */
+const PHONE_RX = /(?:\+?55[\s.\-]*)?\(?\s*\d{2}\s*\)?[\s.\-]*\d{4,5}[\s.\-]?\d{4}/g
+
+/**
+ * Audit 2026-05-06 · regex fuzzy pra "voucher" cobrir typos comuns:
+ *   voucher · voucers · voucers · voucer · vocher · vouher · vauher · vaucher
+ * Usado pra remover palavras-comando do nome extraído.
+ */
+const VOUCHER_TYPO_RX_SOURCE = 'v[oa]u?[cs]?h?er[s]?'
 
 function firstName(full: string | null | undefined): string {
   if (!full) return 'parceira'
   return String(full).trim().split(/\s+/)[0] || 'parceira'
 }
 
-function extractRecipient(text: string): { name: string; phone: string } | null {
-  // Procura phone primeiro (10-14 digitos com + opcional)
-  const phoneMatch = text.match(PHONE_RX)
-  if (!phoneMatch || phoneMatch.length === 0) return null
-  const phone = phoneMatch[0].replace(/\D/g, '')
+/**
+ * Sanity check pós-canonicalPhoneBR: filtra CPF/CEP/etc disfarçados de phone.
+ * Telefone BR válido tem 1º dígito local (após DDI+DDD) entre 2-9:
+ *   2-5 · fixo · 6-9 · celular (9 sempre celular moderno).
+ * '0'/'1' indica não-phone (ex: CPF "11122233344" → norm "5511122233344" ·
+ * 5º char = '1' · rejeitado).
+ */
+function isLikelyValidLocalPhone(canonical: string): boolean {
+  if (canonical.length < 12 || canonical.length > 13) return false
+  const localFirst = canonical.charAt(4)
+  return '23456789'.includes(localFirst)
+}
 
-  // Nome = palavras antes do phone, removendo verbos comuns
-  const beforePhone = text.split(phone)[0] || ''
+function extractRecipient(text: string): { name: string; phone: string } | null {
+  const phoneMatches = text.match(PHONE_RX)
+  if (!phoneMatches || phoneMatches.length === 0) return null
+
+  // Itera candidatos · usa o primeiro que normaliza como phone BR válido.
+  // Filtros:
+  //   1. Leading-0 com 11+ dígitos = CPF/CEP/operadora prefix · skip.
+  //   2. canonicalPhoneBR retorna '' pra inválido (10-13 dígitos BR).
+  //   3. isLikelyValidLocalPhone bloqueia 5º char '0'/'1' (CPF tipo "11122233344").
+  let phone = ''
+  let phoneRaw = ''
+  for (const candidate of phoneMatches) {
+    const digitsOnly = candidate.replace(/\D/g, '')
+    // CPF nunca começa com 0 + 10+ dígitos · operator prefix legacy "0XX..."
+    // teria 13+ chars · 11 chars com leading 0 = quase certo CPF.
+    if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) continue
+    const canonical = canonicalPhoneBR(candidate)
+    if (canonical && isLikelyValidLocalPhone(canonical)) {
+      phone = canonical
+      phoneRaw = candidate
+      break
+    }
+  }
+  if (!phone) return null
+
+  // Nome = trecho ANTES do match raw, com palavras-comando removidas.
+  // Cobre typos do voucher (vouher/vaucher/voucer/vocher/vauher) + sinônimos
+  // (cupom/presente/cortesia) + verbos (emit/manda/envia/gera/cria) +
+  // intent-prefix (quero/queria/preciso/posso/gostaria) + separadores
+  // (pra/para/p/) + canais (whatsapp/zap).
+  const beforePhone = text.split(phoneRaw)[0] || ''
+  // Separador "p/" não funciona em `\b...\b` pq '/' é non-word e o char
+  // seguinte (espaço) também é non-word → sem boundary. Strip antes.
+  const stripCommands = new RegExp(
+    `\\b(emit(e|ir)|gera(r)?|fazer?|manda(r)?|envia(r)?|presentei?a(r)?|cria(r)?|quero|queria|preciso|posso|gostaria|um\\s+|uma\\s+|o\\s+|a\\s+|${VOUCHER_TYPO_RX_SOURCE}|cupom|cupons|presente[s]?|cortesia[s]?|pra|para|whatsapp|zap)\\b`,
+    'gi',
+  )
   const cleaned = beforePhone
-    .replace(/\b(emit(e|ir)|gera|fazer?|manda|mandar|envia|enviar|presentei?a|presentear|cria|criar|um\s+|o\s+|voucher|cupom|presente|cortesia|pra|para)\b/gi, ' ')
+    .replace(/\bp\//gi, ' ')
+    .replace(stripCommands, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
   const name = cleaned || 'amiga'
   return { name, phone }
 }
+
+// Audit 2026-05-06: extractRecipient exportado pra testes unitários.
+export const __testables = { extractRecipient, PHONE_RX, isLikelyValidLocalPhone }
 
 export const b2bEmitVoucherHandler: Handler = async (ctx): Promise<HandlerResult> => {
   const { repos, phone, clinicId, text, pushName } = ctx

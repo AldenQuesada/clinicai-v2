@@ -8,6 +8,11 @@ describe('hasVoucherIntent · positives', () => {
     ['vaucher (typo)', 'queria um vaucher pra cliente'],
     ['voucer (typo sem h)', 'voucer pra Joana hoje'],
     ['vauchers plural typo', 'tem como gerar uns vauchers?'],
+    // Audit 2026-05-06 · regex fuzzy v[oa]u?[cs]?h?er[s]? cobre mais typos
+    ['vouher (typo sem c)', 'vouher pra Rachel'],
+    ['vauher (typo sem c)', 'vauher pra Rachel'],
+    ['vocher (typo sem u)', 'vocher pra Rachel'],
+    ['vouher real Dani', 'vouher para Rachel Ferri 449978-0779'],
     ['cortesia', 'tem cortesia disponível?'],
     ['cupom', 'usa o cupom da minha indicação'],
     ['cupons', 'preciso de cupons pra evento'],

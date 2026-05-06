@@ -38,6 +38,18 @@ describe('classifyTier1 · regex matching', () => {
     expect(r?.tier).toBe(1)
   })
 
+  // Audit 2026-05-06 · fuzzy v[oa]u?[cs]?h?er cobre typos sem cair no Haiku
+  it.each([
+    ['vouher pra Rachel 449978-0779',  'partner.emit_voucher'],
+    ['vaucher para Rachel 44 9978-0779', 'partner.emit_voucher'],
+    ['voucer pra Rachel Ferri 4499780779', 'partner.emit_voucher'],
+    ['vocher pra Rachel 4499780779', 'partner.emit_voucher'],
+  ])('classifica typo "%s" no Tier 1 → %s', (text, expected) => {
+    const r = classifyTier1(text, 'partner')
+    expect(r?.intent).toBe(expected)
+    expect(r?.tier).toBe(1)
+  })
+
   it('classifica bulk (3 vouchers) como partner.bulk_emit_voucher', () => {
     const r = classifyTier1(
       'emite 3 vouchers: Maria 44991111111, Ana 44992222222, Bia 44993333333',
