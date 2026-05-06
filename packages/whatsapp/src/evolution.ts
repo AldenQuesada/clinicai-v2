@@ -137,6 +137,45 @@ export class EvolutionService implements WhatsAppProvider {
     }
   }
 
+  /**
+   * Lista chats da instância Baileys (chat list nativo · ordem do WhatsApp).
+   *
+   * POST /chat/findChats/{instance} body {} retorna array de chats.
+   * Cada item Evolution v2 tem shape:
+   *   { id: null, lastMessage: { key, message, ... }, unreadCount, isSaved }
+   *
+   * Identidade real do chat = lastMessage.key.remoteJid (top-level id é null).
+   * Timestamp real = lastMessage.messageTimestamp.
+   *
+   * Retorna raw array · normalizer downstream (ver wa-chat-sync) extrai os
+   * campos. Throws se HTTP != 2xx · caller decide.
+   */
+  async findChats(): Promise<unknown[]> {
+    const res = await fetch(this.url(`/chat/findChats/${this.cfg.instance}`), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({}),
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      log.error(
+        { instance: this.cfg.instance, status: res.status, err: err.slice(0, 300) },
+        'evolution.findChats.failed',
+      )
+      throw new Error(`evolution.findChats ${res.status}: ${err.slice(0, 200)}`)
+    }
+    const data = await res.json().catch(() => null)
+    if (!Array.isArray(data)) {
+      log.warn(
+        { instance: this.cfg.instance, dataType: typeof data },
+        'evolution.findChats.unexpected_shape',
+      )
+      return []
+    }
+    log.info({ instance: this.cfg.instance, total: data.length }, 'evolution.findChats.ok')
+    return data
+  }
+
   async markAsRead(messageId: string): Promise<void> {
     // Evolution exige array de readMessages com remoteJid + fromMe + id ·
     // pra simplificar callers, aceita so messageId e infere o resto via
