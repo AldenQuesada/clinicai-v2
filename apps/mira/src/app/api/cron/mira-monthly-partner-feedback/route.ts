@@ -14,8 +14,8 @@
 
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
-import { getEvolutionService } from '@/services/evolution.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 import { renderTemplate } from '@clinicai/utils'
 import type { MonthlyConversionRow } from '@clinicai/repositories'
 
@@ -100,9 +100,24 @@ export async function GET(req: NextRequest) {
       return { itemsProcessed: 0, eligible: 0, year_month: yearMonth }
     }
 
-    const wa = getEvolutionService('mira')
-    // Source-of-truth UI · mira_channels resolve sender por function_key
+    // Audit C2 (2026-05-05): canal estrito · sem fallback mira-mirian.
+    const wa = await createEvolutionServiceForMiraChannel(
+      supabase,
+      clinicId,
+      'partner_response',
+    )
+    // Source-of-truth UI · mira_channels resolve sender por function_key (log-only).
     const senderInstance = await resolveMiraInstance(clinicId, 'partner_response')
+
+    if (!wa) {
+      // Sem canal ativo · skip todo o batch · zero send
+      return {
+        itemsProcessed: 0,
+        eligible: eligible.length,
+        year_month: yearMonth,
+        skipped_no_channel: eligible.length,
+      }
+    }
 
     let sent = 0
     let failed = 0

@@ -15,7 +15,7 @@
 
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
-import { getEvolutionService } from '@/services/evolution.service'
+import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 import { filterSubscribers } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
 import { renderTemplate } from '@clinicai/utils'
@@ -76,7 +76,7 @@ function buildAlertaMsg(insight: Insight, totalAlerts: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  return runCron(req, 'mira-daily-top-insight', async ({ repos, clinicId }) => {
+  return runCron(req, 'mira-daily-top-insight', async ({ repos, clinicId, supabase }) => {
     // 1. Busca insights globais (RPC ja ordena por score DESC)
     const result = await repos.b2bInsights.global()
     if (!result || !result.ok || !Array.isArray(result.insights)) {
@@ -140,9 +140,32 @@ export async function GET(req: NextRequest) {
     const text = tpl?.textTemplate
       ? renderTemplate(tpl.textTemplate, { alerta_msg: alertaMsg })
       : `☀️ *Mira · alerta do dia*\n\n${alertaMsg}`
-    const wa = getEvolutionService('mira')
-    // Source-of-truth: mira_channels (UI editavel) com fallback env (mig 800-?? helper)
+    // Audit C2 (2026-05-05): canal estrito · sem fallback mira-mirian.
+    const wa = await createEvolutionServiceForMiraChannel(
+      supabase,
+      clinicId,
+      'mira_admin_outbound',
+    )
+    // Source-of-truth: mira_channels (UI editavel · log-only senderInstance).
     const senderInstance = await resolveMiraInstance(clinicId, 'mira_admin_outbound')
+
+    if (!wa) {
+      // Sem canal ativo · skip todo o batch
+      return {
+        itemsProcessed: 0,
+        eligible_alerts: alerts.length,
+        recipients: professionals.length,
+        muted_by_subscription: muted,
+        sent: 0,
+        failed: 0,
+        skipped_no_channel: professionals.length,
+        insight_kind: top.kind,
+        insight_severity: top.severity,
+        insight_score: top.score,
+        partnership_id: top.partnership_id,
+        partnership_name: top.partnership_name,
+      }
+    }
 
     let sent = 0
     let failed = 0

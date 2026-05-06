@@ -19,8 +19,8 @@ import { runCron } from '@/lib/cron'
 import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
 import { alertSlack } from '@/lib/alerts'
 import { renderReminder } from '@/lib/webhook/reminder-templates'
-import { getEvolutionService } from '@/services/evolution.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +38,7 @@ const EXCESSIVE_CLEANUP_THRESHOLD = 50
 const CRITICAL_CLEANUP_THRESHOLD = 100
 
 export async function GET(req: NextRequest) {
-  return runCron(req, 'mira-state-cleanup', async ({ repos, clinicId }) => {
+  return runCron(req, 'mira-state-cleanup', async ({ repos, clinicId, supabase }) => {
     const cleaned = await repos.miraState.cleanupExpired()
 
     if (cleaned > 0) {
@@ -71,10 +71,20 @@ export async function GET(req: NextRequest) {
 
     let sent = 0
     let failed = 0
-    // Source-of-truth UI · resolve sender 1x antes do loop (cache)
+    let skippedNoChannel = 0
+    // Source-of-truth UI · resolve sender 1x antes do loop (cache · log-only)
     const senderInstance = await resolveMiraInstance(clinicId, 'partner_response')
     if (reminders.length > 0) {
-      const wa = getEvolutionService('mira')
+      // Audit C2 (2026-05-05): canal estrito · sem fallback mira-mirian.
+      const wa = await createEvolutionServiceForMiraChannel(
+        supabase,
+        clinicId,
+        'partner_response',
+      )
+      if (!wa) {
+        skippedNoChannel = reminders.length
+        // Continua execução do cron (cleanup acima já rodou) · só pula reminders
+      } else {
       for (const r of reminders) {
         try {
           const state = r.state as {
@@ -113,6 +123,7 @@ export async function GET(req: NextRequest) {
           failed++
         }
       }
+      }
     }
 
     return {
@@ -120,6 +131,7 @@ export async function GET(req: NextRequest) {
       reminders_total: reminders.length,
       reminders_sent: sent,
       reminders_failed: failed,
+      reminders_skipped_no_channel: skippedNoChannel,
     }
   })
 }

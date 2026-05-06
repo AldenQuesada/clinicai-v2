@@ -140,3 +140,138 @@ export async function createEvolutionServiceForMiraChannel(
   )
   return null
 }
+
+/**
+ * Verifica se a instância Evolution que recebeu o webhook é a configurada
+ * em `mira_channels` pra `function_key` (tipicamente `partner_voucher_req`).
+ *
+ * Audit C2 ajustado (2026-05-05): UI controla ENTRADA também · não só saída.
+ * Se Alden trocar `partner_voucher_req` no ChannelsTab pra outro chip, o
+ * antigo (ex: 7673) deve parar de acionar Mira mesmo se Evolution continuar
+ * entregando webhook lá.
+ *
+ * Retorna `true` SE TODOS:
+ *   - mira_channels row (clinic_id, function_key, is_active=true) existe
+ *   - wa_numbers vinculado existe + is_active=true
+ *   - wa_numbers.instance_id === incomingInstance (case-sensitive)
+ *
+ * Caso contrário retorna `false` + log estruturado · caller deve skip silent.
+ *
+ * Sem fallback · sem env var · zero "default mira-mirian".
+ */
+export async function isIncomingMiraChannelAllowed(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseOrNull: SupabaseClient<any> | null,
+  clinicId: string,
+  functionKey: string,
+  incomingInstance: string,
+): Promise<boolean> {
+  if (!incomingInstance) {
+    log.warn(
+      { clinicId, functionKey, reason: 'incoming_instance_empty' },
+      'mira.inbound.skipped_unconfigured_channel',
+    )
+    return false
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (supabaseOrNull ?? createServerClient()) as SupabaseClient<any>
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('mira_channels')
+      .select(`
+        function_key,
+        is_active,
+        wa_number_id,
+        wa_numbers (
+          id,
+          instance_id,
+          is_active
+        )
+      `)
+      .eq('clinic_id', clinicId)
+      .eq('function_key', functionKey)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (error) {
+      log.warn(
+        { clinicId, functionKey, incomingInstance, reason: 'query_failed', err: error.message?.slice(0, 120) },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+    if (!data) {
+      log.info(
+        { clinicId, functionKey, incomingInstance, reason: 'mira_channel_not_found' },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+
+    const waRow = Array.isArray(data.wa_numbers) ? data.wa_numbers[0] : data.wa_numbers
+    if (!waRow) {
+      log.info(
+        { clinicId, functionKey, incomingInstance, reason: 'wa_number_unlinked' },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+    if (waRow.is_active === false) {
+      log.info(
+        {
+          clinicId,
+          functionKey,
+          incomingInstance,
+          waNumberId: waRow.id ? String(waRow.id) : null,
+          reason: 'wa_number_inactive',
+        },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+    if (!waRow.instance_id) {
+      log.info(
+        {
+          clinicId,
+          functionKey,
+          incomingInstance,
+          waNumberId: waRow.id ? String(waRow.id) : null,
+          reason: 'wa_number_no_instance_id',
+        },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+    if (String(waRow.instance_id) !== incomingInstance) {
+      log.info(
+        {
+          clinicId,
+          functionKey,
+          incomingInstance,
+          configuredInstance: String(waRow.instance_id),
+          waNumberId: waRow.id ? String(waRow.id) : null,
+          reason: 'instance_mismatch',
+        },
+        'mira.inbound.skipped_unconfigured_channel',
+      )
+      return false
+    }
+
+    return true
+  } catch (err) {
+    log.warn(
+      {
+        clinicId,
+        functionKey,
+        incomingInstance,
+        reason: 'exception',
+        err: (err as Error)?.message?.slice(0, 120),
+      },
+      'mira.inbound.skipped_unconfigured_channel',
+    )
+    return false
+  }
+}

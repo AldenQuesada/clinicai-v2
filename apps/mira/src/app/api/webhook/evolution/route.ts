@@ -35,6 +35,7 @@ import { extractEvolutionMessage } from '@/lib/webhook/evolution-extract'
 import { resolveRole } from '@/lib/webhook/role-resolver'
 import { dedupCheckAndMark } from '@/lib/webhook/state-machine'
 import { processWebhookMessage } from '@/lib/webhook/process-message'
+import { isIncomingMiraChannelAllowed } from '@/lib/mira-channel-evolution'
 import { createLoggerWithAlerts } from '@/lib/logger-with-alerts'
 import { hashPhone } from '@clinicai/logger'
 import { alertCritical } from '@/lib/alerts'
@@ -118,6 +119,30 @@ export async function POST(req: NextRequest) {
   const dedup = await dedupCheckAndMark(repos.miraState, msg.phone, msg.messageId)
   if (dedup.alreadyProcessed) {
     return jsonRes({ ok: true, skip: 'already_processed', wa_message_id: msg.messageId })
+  }
+
+  // 5.5. Inbound channel gate (C2 ajustado · 2026-05-05) · UI controla ENTRADA tambem.
+  //      Se role='partner', so deixa Mira ativar quando incomingInstance == wa_numbers.instance_id
+  //      configurado em mira_channels.partner_voucher_req (is_active=true). Se Alden trocar
+  //      partner_voucher_req no ChannelsTab pra outro chip, o antigo (ex: 7673) para silencioso
+  //      mesmo com Evolution continuando a entregar webhook · log estruturado · 200 OK.
+  //      Sem fallback hardcoded · zero "default mira-mirian".
+  if (role === 'partner') {
+    const incomingInstance = String((body as { instance?: unknown })?.instance ?? '')
+    const allowed = await isIncomingMiraChannelAllowed(
+      supabase,
+      clinicId,
+      'partner_voucher_req',
+      incomingInstance,
+    )
+    if (!allowed) {
+      return jsonRes({
+        ok: true,
+        skip: 'unconfigured_channel',
+        incoming_instance: incomingInstance,
+        wa_message_id: msg.messageId,
+      })
+    }
   }
 
   // 6. Branch: async (default) vs sync (legacy)

@@ -22,7 +22,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEvolutionService } from '@/services/evolution.service'
 import type { MiraRepos } from '@/lib/repos'
 import { createLogger } from '@clinicai/logger'
 import {
@@ -30,6 +29,7 @@ import {
   type PermissionCategory,
 } from '@/lib/msg-subscriptions'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 import {
   isWithinBusinessHours,
   enqueueAdminDispatchForLater,
@@ -153,13 +153,26 @@ export async function dispatchAdminText(opts: {
     if (recipients.length === 0) {
       return { recipients: 0, sent: 0, failed: 0, mutedBySubscription: muted }
     }
-    const wa = getEvolutionService('mira')
-    // Resolve antes do loop · evita N awaits + cache amortiza igual.
+    // Audit C2 (2026-05-05): canal estrito via mira_channels · sem fallback
+    // pra mira-mirian quando wa_number tá inactive · UI source-of-truth.
+    const wa = await createEvolutionServiceForMiraChannel(
+      opts.supabase ?? null,
+      opts.clinicId,
+      'mira_admin_outbound',
+    )
+    // Resolve antes do loop · evita N awaits + cache amortiza igual (log-only).
     const senderInstance = await resolveMiraInstance(
       opts.clinicId,
       'mira_admin_outbound',
       opts.supabase,
     )
+    if (!wa) {
+      log.warn(
+        { clinic_id: opts.clinicId, eventKey: opts.eventKey, recipients: recipients.length },
+        'admin_dispatch.skipped_no_active_channel',
+      )
+      return { recipients: recipients.length, sent: 0, failed: recipients.length, mutedBySubscription: muted }
+    }
     let sent = 0
     let failed = 0
     for (const r of recipients) {
@@ -195,13 +208,25 @@ export async function dispatchAdminText(opts: {
   const phones = await listActiveAdminPhones(opts.repos, opts.clinicId)
   if (phones.length === 0) return { recipients: 0, sent: 0, failed: 0 }
 
-  const wa = getEvolutionService('mira')
-  // Resolve antes do loop · UI source-of-truth via mira_channels.
+  // Audit C2 (2026-05-05): canal estrito · sem fallback mira-mirian.
+  const wa = await createEvolutionServiceForMiraChannel(
+    opts.supabase ?? null,
+    opts.clinicId,
+    'mira_admin_outbound',
+  )
+  // Resolve antes do loop · UI source-of-truth via mira_channels (log-only).
   const senderInstance = await resolveMiraInstance(
     opts.clinicId,
     'mira_admin_outbound',
     opts.supabase,
   )
+  if (!wa) {
+    log.warn(
+      { clinic_id: opts.clinicId, eventKey: opts.eventKey, phones: phones.length },
+      'admin_dispatch.broadcast.skipped_no_active_channel',
+    )
+    return { recipients: phones.length, sent: 0, failed: phones.length }
+  }
   let sent = 0
   let failed = 0
 
