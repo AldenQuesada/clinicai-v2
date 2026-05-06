@@ -37,6 +37,7 @@ import { getEvolutionService } from '@/services/evolution.service'
 import { transcribeAudio } from '@/services/transcription.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
 import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
+import { hasVoucherIntent } from '@/lib/b2b/voucher-intent'
 import { createLogger, hashPhone } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
@@ -86,6 +87,16 @@ export async function processWebhookMessage(
       const inboundWa = getEvolutionService('mira')
       const dl = await inboundWa.downloadMedia(msg.messageKey)
       if (!dl) {
+        // GATE C1.1: parceiro sem texto pra avaliar intenção · NÃO responde
+        // (não temos como saber se era voucher · default fail-closed pro
+        // parceiro). Admin continua recebendo o aviso.
+        if (role === 'partner') {
+          log.info(
+            { clinicId, phoneHash: hashPhone(msg.phone) },
+            'mira.partner_message.no_voucher_intent_or_transcription_failed',
+          )
+          return { ok: true, skip: 'audio_download_failed_partner_silent' }
+        }
         const replyWa = await createEvolutionServiceForMiraChannel(
           null,
           clinicId,
@@ -107,6 +118,14 @@ export async function processWebhookMessage(
       }
       const transcribed = await transcribeAudio(dl.buffer, dl.contentType)
       if (!transcribed) {
+        // GATE C1.1: idem · sem transcrição não dá pra avaliar intenção
+        if (role === 'partner') {
+          log.info(
+            { clinicId, phoneHash: hashPhone(msg.phone) },
+            'mira.partner_message.no_voucher_intent_or_transcription_failed',
+          )
+          return { ok: true, skip: 'whisper_failed_partner_silent' }
+        }
         const replyWa = await createEvolutionServiceForMiraChannel(
           null,
           clinicId,
@@ -219,6 +238,26 @@ export async function processWebhookMessage(
       pushName: msg.pushName,
     })
   } else {
+    // GATE C1.1 (audit 2026-05-05) · parceiro sem intenção de voucher NÃO
+    // recebe resposta automática · proteção contra Mira responder mensagens
+    // pessoais ("oi", "bom dia", "preciso falar com você") só porque o phone
+    // do parceiro está em b2b_partnership_wa_senders (whitelist do trigger
+    // 800-03). State preemption acima já cobriu fluxos voucher pendentes
+    // (voucherPending/bulkVoucherPending) · este else final só responde
+    // partner que demonstrou intenção clara de voucher/convite/presente.
+    if (role === 'partner' && !hasVoucherIntent(content)) {
+      log.info(
+        {
+          clinicId,
+          phoneHash: hashPhone(msg.phone),
+          contentLength: content.length,
+          messageType: transcribedFromAudio ? 'audio_transcribed' : 'text',
+        },
+        'mira.partner_message.no_voucher_intent',
+      )
+      return { ok: true, skip: 'partner_no_voucher_intent' }
+    }
+
     if (role === 'admin' && isGlobalAdminCommand(content)) {
       await repos.miraState.clear(msg.phone)
     }
