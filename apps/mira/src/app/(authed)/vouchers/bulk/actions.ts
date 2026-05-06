@@ -65,6 +65,13 @@ export interface BulkPreviewState {
   scheduleHint?: string
   /** Erro fatal de parse · "lista vazia", "parceria nao encontrada" etc */
   fatalError?: string
+  /**
+   * Aviso não-fatal exibido no preview · ex: cap de 100 atingido, lista truncada.
+   * Não bloqueia confirmação · UI renderiza acima do preview.
+   */
+  warning?: string
+  /** Total de items parseados antes do cap (pra mostrar X/100 no warning) */
+  parsedCountBeforeCap?: number
 }
 
 /**
@@ -200,8 +207,18 @@ export async function validateBulkAction(formData: FormData) {
     return
   }
 
-  // Dedup paralelo · 1 query por item · cap em 100 items pra nao explodir conexoes
-  const cappedItems = parsed.items.slice(0, 100)
+  // Dedup paralelo · 1 query por item · cap em 100 items pra nao explodir conexoes.
+  // Se a lista colada excede o cap, reportamos warning visivel no preview pra
+  // operador saber que items 101+ foram descartados (audit 2026-05-05 · antes
+  // o slice era silencioso · risco de perder beneficiarias sem aviso).
+  const BULK_CAP = 100
+  const totalParsed = parsed.items.length
+  const cappedItems = parsed.items.slice(0, BULK_CAP)
+  const capWarning =
+    totalParsed > BULK_CAP
+      ? `Foram encontrados ${totalParsed} contatos, mas o limite por lote é ${BULK_CAP}. ` +
+        `Apenas os ${BULK_CAP} primeiros serão processados · cole os demais em um novo lote depois.`
+      : undefined
   const dedupResults = await Promise.all(
     cappedItems.map((it) =>
       repos.leads.findInAnySystem(ctx.clinic_id, it.phone, it.name).catch(() => null),
@@ -241,6 +258,8 @@ export async function validateBulkAction(formData: FormData) {
     blockedCount,
     declaredCount: parsed.declaredCount,
     scheduleHint: parsed.scheduleHint,
+    warning: capWarning,
+    parsedCountBeforeCap: totalParsed,
   })
   revalidatePath('/vouchers/bulk')
 }

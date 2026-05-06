@@ -462,7 +462,19 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
   }
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] flex flex-col">
+    <>
+      {preview.warning && (
+        <div className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/10 px-3.5 py-2.5 flex items-start gap-2 mb-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-[#F59E0B] mt-0.5 shrink-0" />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[10px] uppercase tracking-[1px] font-bold text-[#F59E0B]">
+              Atenção · cap de lote atingido
+            </span>
+            <span className="text-xs text-[#F5F0E8]">{preview.warning}</span>
+          </div>
+        </div>
+      )}
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] flex flex-col">
       {/* Resumo header */}
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10">
         <div className="flex items-center gap-3">
@@ -519,7 +531,8 @@ function PreviewBlock({ preview }: { preview: Awaited<ReturnType<typeof readBulk
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

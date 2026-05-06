@@ -23,11 +23,13 @@ export function PartnershipModalShell({
 }) {
   const router = useRouter()
 
-  // Fecha · push direto pra /partnerships · evita ficar voltando tab
-  // por tab (Alden 2026-04-27). Tabs usam router.replace pra nao
-  // criar history · combina pra back/close serem instantaneos.
+  // Fecha · audit 2026-05-05: trocado push('/partnerships') por router.back().
+  // Em parallel route + intercepting (.)[id] o `back()` é o idiomatic pra dismiss
+  // o slot @modal · push pra mesma rota base às vezes não dismiss o modal slot
+  // no Next.js 16 (Alden reportou X que não fecha). Tabs continuam usando
+  // router.replace · não criam history entries · back fecha modal direto.
   function close() {
-    router.push('/partnerships')
+    router.back()
   }
 
   // ESC fecha
@@ -83,7 +85,13 @@ export function PartnershipModalShell({
           </Link>
           <button
             type="button"
-            onClick={close}
+            onClick={(e) => {
+              // stopPropagation defensivo · evita que outros listeners de overlay
+              // (ex: NewMenu dropdown ainda aberto) interceptem o click e bloqueiem
+              // o close (audit 2026-05-05).
+              e.stopPropagation()
+              close()
+            }}
             className="b2b-btn"
             style={{ padding: '4px 10px', fontSize: 11 }}
             title="Fechar (ESC)"
