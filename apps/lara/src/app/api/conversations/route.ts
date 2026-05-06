@@ -45,11 +45,33 @@ export async function GET(request: NextRequest) {
     const inboxParam = searchParams.get('inbox');
     const inboxRole: 'sdr' | 'secretaria' = inboxParam === 'secretaria' ? 'secretaria' : 'sdr';
 
-    // Commit 2 (mig 133/134) · branch /secretaria lê wa_chat_mirror (espelho
-    // Evolution Mih sincronizado por pg_cron 1min). Mostra ordem REAL do
-    // WhatsApp · grupos + LIDs + chats sem wa_conversations. Bypassa o
-    // listByStatus tradicional · não usa wa_conversations_operational_view.
-    if (inboxRole === 'secretaria') {
+    // ─── Branch wa_chat_mirror · OFF por default (hotfix 2026-05-06) ─────
+    // Commit 2 (mig 133/134) introduziu loadSecretariaInbox · mirror real do
+    // Evolution Mih como fonte de ordem da inbox /secretaria. Validações em
+    // prod mostraram que top do mirror é dominado por LIDs sem conv +
+    // grupos + chats novos · UI desabilitava clique em mirror-only · tela
+    // ficava travada. Hotfix do hotfix tentou filtrar pra has_conversation
+    // mas devolvia poucos items (top do mirror tem pouquíssimas convs
+    // resolvidas).
+    //
+    // Decisão atual: mirror branch fica OFF por default · `/secretaria`
+    // volta ao fluxo antigo (listByStatus em wa_conversations +
+    // wa_conversations_operational_view). Mirror sync (cron mig 134) +
+    // tabela (mig 133/135) continuam vivos · sem callers no UI principal.
+    //
+    // Feature flag: SECRETARIA_USE_WA_CHAT_MIRROR=true habilita o branch.
+    // Setar APENAS após:
+    //   1. Endpoint POST /api/conversations/lazy-create-from-mirror (cria
+    //      wa_conversations on-demand a partir de remote_jid do mirror)
+    //   2. UI dispara lazy-create no clique de mirror-only
+    //   3. Estatísticas/operational view aceitam mirror-only OU decisão
+    //      Alden de excluí-los das contagens
+    // ─────────────────────────────────────────────────────────────────────
+    const useChatMirror =
+      inboxRole === 'secretaria' &&
+      process.env.SECRETARIA_USE_WA_CHAT_MIRROR === 'true';
+
+    if (useChatMirror) {
       const { items: mirrorItems, nextCursor } = await loadSecretariaInbox(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase as any,
@@ -57,12 +79,7 @@ export async function GET(request: NextRequest) {
         { limit, beforeIso },
       );
 
-      // Mapeia SecretariaInboxItem → shape compatível com Conversation interface
-      // do UI (useConversations.ts). Defaults pra campos que mirror-only não
-      // tem (response_color/SLA/lead/funil/...). UI desabilita ações em rows
-      // mirror-only via has_conversation=false / conversation_id=null.
       const items = mirrorItems.map((m) => ({
-        // Identificação (nullable conv_id pra mirror-only)
         conversation_id: m.conversation_id,
         phone: m.phone ?? '',
         lead_name: m.display_name,
@@ -93,7 +110,6 @@ export async function GET(request: NextRequest) {
         response_color: 'respondido' as const,
         should_pulse: false,
         pulse_behavior: 'none' as const,
-        // Operational view defaults (não temos enrichment pra mirror-only)
         operational_owner: null,
         operational_owner_label: null,
         is_luciana: false,
@@ -114,7 +130,6 @@ export async function GET(request: NextRequest) {
         last_lara_msg: null,
         last_outbound_msg: null,
         minutes_since_last_inbound: null,
-        // Mirror-specific (Commit 2)
         has_conversation: m.has_conversation,
         mirror_remote_jid: m.mirror_remote_jid,
         mirror_remote_kind: m.mirror_remote_kind,
@@ -131,6 +146,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items, nextCursor });
     }
 
+    // Default flow (sdr e secretaria sem flag) · listByStatus + view operacional
     const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam, {
       limit,
       beforeIso,
@@ -278,11 +294,58 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Cursor pra proxima pagina · null quando lote veio menor que limit
-    const nextCursor =
-      enrichedItems.length === limit ? enrichedItems[enrichedItems.length - 1].last_message_at : null;
+    // ── Dedup defensivo por conversation_id (hotfix 2026-05-06) ─────────
+    // Salvaguarda contra duplicidade de conversation_id na resposta · React
+    // key duplicada congela seleção e crasha LeadInfoPanel. Caso real
+    // observado em prod: Gustavo Luppi 8722be95-... apareceu 2× com
+    // last_message_at diferindo em ~1s. Possível causa: trigger
+    // trg_sync_wa_conversation_preview_v2 atualiza last_message_at com
+    // precisão diferente entre ticks · race com fetch concorrente expõe
+    // 2 versões do mesmo row OR view operacional retorna múltiplos rows.
+    //
+    // Política: keep the one com maior last_message_at · tiebreak preferindo
+    // o item com operational_owner populado (op view enriqueceu).
+    // ─────────────────────────────────────────────────────────────────────
+    const dedupedById = new Map<string, (typeof enrichedItems)[number]>();
+    for (const item of enrichedItems) {
+      const id = item.conversation_id;
+      const existing = dedupedById.get(id);
+      if (!existing) {
+        dedupedById.set(id, item);
+        continue;
+      }
+      const existingTs = existing.last_message_at ?? '';
+      const itemTs = item.last_message_at ?? '';
+      if (itemTs > existingTs) {
+        dedupedById.set(id, item);
+      } else if (itemTs === existingTs) {
+        // Tiebreak · prefer item enriquecido pela operational view
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const existingScore = (existing as any).operational_owner ? 1 : 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const itemScore = (item as any).operational_owner ? 1 : 0;
+        if (itemScore > existingScore) {
+          dedupedById.set(id, item);
+        }
+      }
+    }
+    const dedupedItems = Array.from(dedupedById.values());
+    // Re-sort por last_message_at DESC (dedup não preserva ordem garantida)
+    dedupedItems.sort((a, b) => {
+      const at = a.last_message_at ?? '';
+      const bt = b.last_message_at ?? '';
+      if (at === bt) return 0;
+      return bt > at ? 1 : -1;
+    });
 
-    return NextResponse.json({ items: enrichedItems, nextCursor });
+    // Cursor pra proxima pagina · usa source length (conversations) pra
+    // detectar se há mais páginas · evita encurtar lista quando dedup pega.
+    const nextCursor =
+      conversations.length === limit && dedupedItems.length > 0
+        ? dedupedItems[dedupedItems.length - 1].last_message_at
+        : null;
+
+    return NextResponse.json({ items: dedupedItems, nextCursor });
   } catch (err: any) {
     console.error('[API] Conversations error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

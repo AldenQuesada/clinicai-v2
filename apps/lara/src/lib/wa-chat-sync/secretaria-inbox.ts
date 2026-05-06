@@ -169,15 +169,34 @@ interface LoadOpts {
 /**
  * Carrega top N items da inbox /secretaria espelhada do Evolution Mih.
  *
- * Pipeline:
- *   1. SELECT wa_chat_mirror ORDER BY last_message_at DESC LIMIT (N*3 cap 600)
- *      Buffer 3× cobre dedup de LID/private do mesmo contato (ver dedupItems).
- *   2. Coleta phones (phone_e164 + sender_pn de LIDs) → batch lookup conv
- *   3. Coleta lead_ids dos convs encontrados → batch lookup leads
- *   4. Merge mirror + conv + lead em SecretariaInboxItem[]
- *   5. Dedup · 1 row por (conversation_id | phone | grupo) · merge campos úteis
- *   6. Slice no userLimit · re-sort por last_message_at DESC
- *   7. Cursor = last_message_at do último item final retornado (null se exausto)
+ * Pipeline (hotfix 2026-05-06 · loop iterativo):
+ *   Loop até atingir userLimit conversations COM has_conversation=true OU
+ *   esgotar mirror OU bater limites de segurança.
+ *
+ *   Por iteração:
+ *     a. SELECT wa_chat_mirror ORDER BY last_message_at DESC LIMIT pageSize
+ *        WHERE last_message_at < internalCursor (cursor avança a cada iter)
+ *     b. Coleta phones (phone_e164 + sender_pn) → batch lookup wa_conversations
+ *     c. Coleta lead_ids → batch lookup leads
+ *     d. Build items (mirror + conv + lead via resolveDisplayName)
+ *     e. Dedup local (LID+private do mesmo contato → 1 row)
+ *     f. Filter has_conversation=true && conversation_id !== null
+ *     g. Acumula em collected (Map<conversation_id, Item>) · keep latest
+ *
+ *   Limites de segurança:
+ *     userLimit cap 200
+ *     internalPageSize = min(500, max(100, userLimit * 5))
+ *     maxMirrorRowsScanned = 2000
+ *     maxIterations = 10
+ *
+ *   Final:
+ *     sort by last_message_at DESC + slice(userLimit)
+ *     cursor = oldest mirror row scanned (NOT last collected) · garante
+ *     pagination continua mesmo se toda batch escaneada foi filtrada
+ *
+ * Por que o loop: top do mirror é dominado por LIDs sem conv resolvida +
+ * grupos · single batch fixed-size deixava só 2 items locais · UI ficava
+ * vazia. Loop varre múltiplas páginas até preencher userLimit ou esgotar.
  */
 export async function loadSecretariaInbox(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,37 +205,92 @@ export async function loadSecretariaInbox(
   opts: LoadOpts,
 ): Promise<{ items: SecretariaInboxItem[]; nextCursor: string | null }> {
   const userLimit = Math.max(1, Math.min(200, opts.limit))
-  // Buffer 3× pra cobrir dedup LID+private do mesmo contato. Capped em 600
-  // (Supabase REST default limit é 1000 · ficamos seguros).
-  const internalLimit = Math.min(600, userLimit * 3)
+  const internalPageSize = Math.min(500, Math.max(100, userLimit * 5))
+  const MAX_MIRROR_ROWS_SCANNED = 2000
+  const MAX_ITERATIONS = 10
 
-  // 1. Mirror rows (fonte de ordem)
-  let q = supabase
-    .from('wa_chat_mirror')
-    .select(
-      'id, clinic_id, wa_number_id, remote_jid, remote_kind, phone_e164, group_id, lid_id, ' +
-        'push_name, group_subject, display_name, unread_count, ' +
-        'last_message_id, last_message_type, last_message_text, last_message_from_me, ' +
-        'last_message_participant_jid, last_message_sender_pn, last_message_at',
-    )
-    .eq('clinic_id', clinicId)
-    .eq('wa_number_id', SECRETARIA_MIH_WA_NUMBER_ID)
-    .order('last_message_at', { ascending: false })
-    .limit(internalLimit)
+  const collected = new Map<string, SecretariaInboxItem>()
+  let internalCursor: string | undefined = opts.beforeIso
+  let totalScanned = 0
+  let lastMirrorTimestamp: string | null = null
+  let exhausted = false
 
-  if (opts.beforeIso) {
-    q = q.lt('last_message_at', opts.beforeIso)
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    if (collected.size >= userLimit) break
+    if (totalScanned >= MAX_MIRROR_ROWS_SCANNED) break
+
+    const remaining = MAX_MIRROR_ROWS_SCANNED - totalScanned
+    const pageSize = Math.min(internalPageSize, remaining)
+
+    let q = supabase
+      .from('wa_chat_mirror')
+      .select(
+        'id, clinic_id, wa_number_id, remote_jid, remote_kind, phone_e164, group_id, lid_id, ' +
+          'push_name, group_subject, display_name, unread_count, ' +
+          'last_message_id, last_message_type, last_message_text, last_message_from_me, ' +
+          'last_message_participant_jid, last_message_sender_pn, last_message_at',
+      )
+      .eq('clinic_id', clinicId)
+      .eq('wa_number_id', SECRETARIA_MIH_WA_NUMBER_ID)
+      .order('last_message_at', { ascending: false })
+      .limit(pageSize)
+
+    if (internalCursor) {
+      q = q.lt('last_message_at', internalCursor)
+    }
+
+    const { data: mirrorData } = await q
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mirrorRows: MirrorRow[] = (mirrorData ?? []) as any[]
+
+    if (mirrorRows.length === 0) {
+      exhausted = true
+      break
+    }
+
+    totalScanned += mirrorRows.length
+    lastMirrorTimestamp = mirrorRows[mirrorRows.length - 1].last_message_at
+    internalCursor = lastMirrorTimestamp
+
+    const pageItems = await enrichMirrorBatch(supabase, clinicId, mirrorRows)
+    const pageDeduped = dedupItems(pageItems)
+
+    for (const item of pageDeduped) {
+      if (!item.has_conversation || item.conversation_id === null) continue
+      const existing = collected.get(item.conversation_id)
+      if (!existing || item.last_message_at > existing.last_message_at) {
+        collected.set(item.conversation_id, item)
+      }
+    }
+
+    if (mirrorRows.length < pageSize) {
+      exhausted = true
+      break
+    }
   }
 
-  const { data: mirrorData } = await q
+  const sorted = Array.from(collected.values()).sort((a, b) => {
+    if (a.last_message_at === b.last_message_at) return 0
+    return b.last_message_at > a.last_message_at ? 1 : -1
+  })
+  const sliced = sorted.slice(0, userLimit)
+
+  const nextCursor = exhausted ? null : lastMirrorTimestamp
+
+  return { items: sliced, nextCursor }
+}
+
+// ─── Mirror enrichment helper ──────────────────────────────────────────────
+// Extraído pra ser reutilizado no loop iterativo de loadSecretariaInbox.
+// Aceita uma página de mirror rows e retorna os items enriquecidos com
+// conv + lead. NÃO faz dedup nem filter (callers decidem).
+
+async function enrichMirrorBatch(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mirrorRows: MirrorRow[] = (mirrorData ?? []) as any[]
-
-  if (mirrorRows.length === 0) {
-    return { items: [], nextCursor: null }
-  }
-
-  // 2. Coleta phones pra match
+  supabase: SupabaseClient<any>,
+  clinicId: string,
+  mirrorRows: MirrorRow[],
+): Promise<SecretariaInboxItem[]> {
   const phoneCandidates = new Set<string>()
   for (const m of mirrorRows) {
     if (m.phone_e164) phoneCandidates.add(m.phone_e164)
@@ -226,7 +300,6 @@ export async function loadSecretariaInbox(
     }
   }
 
-  // 3. Lookup wa_conversations
   let convsByPhone = new Map<string, ConvRow>()
   if (phoneCandidates.size > 0) {
     const { data: convData } = await supabase
@@ -242,7 +315,6 @@ export async function loadSecretariaInbox(
     convsByPhone = new Map(convs.map((c) => [c.phone || '', c]))
   }
 
-  // 4. Lookup leads pra display_name canonical
   const leadIds = Array.from(
     new Set(
       Array.from(convsByPhone.values())
@@ -263,8 +335,7 @@ export async function loadSecretariaInbox(
     leadsById = new Map(leads.map((l) => [l.id, l]))
   }
 
-  // 5. Merge
-  const items: SecretariaInboxItem[] = mirrorRows.map((m) => {
+  return mirrorRows.map((m) => {
     let conv: ConvRow | null = null
     if (m.phone_e164 && convsByPhone.has(m.phone_e164)) {
       conv = convsByPhone.get(m.phone_e164) ?? null
@@ -313,34 +384,6 @@ export async function loadSecretariaInbox(
       inbox_role: conv?.inbox_role ?? null,
     }
   })
-
-  // 6. Dedup · LID + private do mesmo contato → 1 row.
-  //    Casos cobertos:
-  //      - has_conversation=true: chave = conversation_id (LID e private com
-  //        mesmo conv_id viram 1)
-  //      - has_conversation=false private: chave = phone_e164 (canônico do
-  //        próprio contato)
-  //      - has_conversation=false lid: chave = sender_pn digits quando
-  //        disponível (resolve LID → phone real) · senão remote_jid
-  //      - group: chave = remote_jid SEMPRE (nunca mistura com private/lid)
-  const deduped = dedupItems(items)
-
-  // 7. Re-sort + slice ao userLimit
-  deduped.sort((a, b) => {
-    if (a.last_message_at === b.last_message_at) return 0
-    return b.last_message_at > a.last_message_at ? 1 : -1
-  })
-  const sliced = deduped.slice(0, userLimit)
-
-  // 8. Cursor · só avança se mirror retornou full internalLimit (provável que
-  //    haja mais) E temos pelo menos 1 item após dedup
-  const moreLikely = mirrorRows.length === internalLimit
-  const nextCursor =
-    moreLikely && sliced.length > 0
-      ? sliced[sliced.length - 1].last_message_at
-      : null
-
-  return { items: sliced, nextCursor }
 }
 
 // ─── Dedup helpers ─────────────────────────────────────────────────────────
