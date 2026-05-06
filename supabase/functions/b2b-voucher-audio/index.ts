@@ -674,309 +674,6 @@ async function logOutboundCanonical(payload: CanonicalPayload): Promise<Canonica
 // em 2026-05-06 · substituído por logOutboundCanonical que vai pela RPC
 // b2b_log_outbound_message. Mantemos a function removida do flow · zero callers.
 
-/**
- * Variante direta pra partner_confirmation (audit 2026-05-06 · caso Rachel/Dani).
- *
- * Problema: RPC b2b_log_outbound_message resolveu conversation pelo phone
- * sem honrar wa_number_id do payload · partner confirmation enviada via
- * mira-mirian (chip 7673) caía na conversa Mih/Secretaria existente da Dani.
- * Resultado: dispatch_log com sender_instance='mira-mirian' mas wa_messages
- * vinculada à conv da Secretaria · histórico no canal errado.
- *
- * Solução defensiva sem mexer no banco: edge faz INSERT direto em
- * wa_conversations (resolve OU cria scoped por wa_number_id) + wa_messages
- * + b2b_comm_dispatch_log. Mantém a RPC pra beneficiária (caso novo · RPC
- * cria conversa nova com Mih · funciona).
- *
- * Trigger trg_sync_wa_conversation_preview_v2 (mig 116) cuida do preview
- * automaticamente · zero double-write.
- */
-async function logPartnerConfirmationDirect(payload: {
-  clinic_id?: string
-  voucher_id: string
-  partnership_id: string | null
-  template_id?: string | null
-  wa_number_id: string | null
-  recipient_phone: string
-  recipient_name: string | null
-  sender_instance: string | null
-  content: string
-  provider_msg_id: string | null
-  meta: Record<string, unknown>
-}): Promise<CanonicalResult> {
-  // Captura erros detalhados por stage pra debug · evita "conversation_resolve_failed"
-  // genérico que mascarava root cause (audit 2026-05-06 · smoke test 34361
-  // · INSERT wa_conversations falhava por context_type/inbox_role ausentes ·
-  // smoke 0a9b233 ainda falhava por lead_id NOT NULL · agora resolve lead_id
-  // antes de inserir conversa).
-  const stages: {
-    select_lead?: string
-    insert_lead?: string
-    select_conv?: string
-    insert_conv?: string
-    insert_msg?: string
-    insert_dispatch?: string
-  } = {}
-  try {
-    const cid = payload.clinic_id || (await clinicId())
-    const phoneStr = String(payload.recipient_phone || '')
-    const last8 = phoneStr.slice(-8)
-
-    // 0. Resolve lead_id (NOT NULL na tabela wa_conversations).
-    //    Padrão do projeto (resolveLead em lead-conversation.ts): 1 lead por
-    //    telefone via phone variants. Aqui usamos phone last-8 (mesmo critério
-    //    do índice unique leads(clinic_id, last8digits)).
-    //    Se lead já existe · reusa (não duplica). Se não · cria mínimo.
-    let leadId: string | null = null
-    if (last8.length === 8) {
-      const selLeadUrl =
-        `${_SB_URL}/rest/v1/leads?` +
-        `clinic_id=eq.${cid}&` +
-        `phone=like.*${last8}&` +
-        `select=id&order=updated_at.desc.nullslast,created_at.desc&limit=1`
-      const r = await fetch(selLeadUrl, {
-        headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
-      })
-      if (r.ok) {
-        const arr = await r.json()
-        if (Array.isArray(arr) && arr[0]?.id) leadId = String(arr[0].id)
-      } else {
-        stages.select_lead = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
-        console.warn('[partner_log_direct] select_lead failed', stages.select_lead)
-      }
-    }
-
-    if (!leadId) {
-      // Cria lead mínimo · DB tem defaults pra phase/funnel/source/temperature/
-      // ai_persona/name (LeadRepository.create comprova · audit 2026-04-28
-      // documenta NOT NULL com defaults). Passar só clinic_id + phone + nome
-      // legível mantém compat com defaults.
-      const insertLeadR = await fetch(`${_SB_URL}/rest/v1/leads`, {
-        method: 'POST',
-        headers: {
-          'apikey':        _SB_KEY,
-          'Authorization': `Bearer ${_SB_KEY}`,
-          'Content-Type':  'application/json',
-          'Prefer':        'return=representation',
-        },
-        body: JSON.stringify({
-          clinic_id: cid,
-          phone:     phoneStr,
-          ...(payload.recipient_name ? { name: payload.recipient_name } : {}),
-        }),
-      })
-      if (insertLeadR.ok) {
-        const arr = await insertLeadR.json()
-        const row = Array.isArray(arr) ? arr[0] : arr
-        if (row?.id) leadId = String(row.id)
-      } else {
-        stages.insert_lead = `status=${insertLeadR.status} body=${(await insertLeadR.text()).slice(0, 250)}`
-        console.warn('[partner_log_direct] insert_lead failed', stages.insert_lead)
-      }
-    }
-
-    if (!leadId) {
-      return {
-        ok: false,
-        error: 'lead_resolve_failed: ' + (stages.insert_lead || stages.select_lead || 'no_select_no_insert'),
-      }
-    }
-
-    // 1. Resolve conversation existente · busca por phone last-8 (cobre variantes
-    //    do número BR com/sem 9 do celular) + wa_number_id + clinic_id + não-deletada.
-    //    Indice unique do banco: (clinic_id, wa_number_id, right(phone, 8)).
-    let convId: string | null = null
-    if (payload.wa_number_id && last8.length === 8) {
-      const selectUrl =
-        `${_SB_URL}/rest/v1/wa_conversations?` +
-        `clinic_id=eq.${cid}&` +
-        `wa_number_id=eq.${payload.wa_number_id}&` +
-        `phone=like.*${last8}&` +
-        `deleted_at=is.null&` +
-        `select=id&limit=1`
-      const r = await fetch(selectUrl, {
-        headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
-      })
-      if (r.ok) {
-        const arr = await r.json()
-        if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
-      } else {
-        stages.select_conv = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
-        console.warn('[partner_log_direct] select_conv failed', stages.select_conv)
-      }
-    }
-
-    // 2. Cria conversation nova SCOPED por wa_number_id se não achou.
-    //    inbox_role + context_type explícitos (audit 2026-05-06):
-    //      - inbox_role='b2b'      · trigger fn_wa_conversations_inbox_role_sync
-    //                                copiaria do wa_numbers (Mira tem 'b2b')
-    //                                mas setamos explícito pra robustez
-    //      - context_type='mira_b2b' · CHECK constraint exige um dos valores
-    //                                  permitidos: mira_b2b/mira_admin/lara_beneficiary.
-    //                                  Sem isso, default NULL viola CHECK ·
-    //                                  INSERT falhava silenciosamente.
-    //    NÃO copiar assigned_to de wa_numbers (string 'geral' lá vs uuid aqui).
-    if (!convId) {
-      const insertConvR = await fetch(`${_SB_URL}/rest/v1/wa_conversations`, {
-        method: 'POST',
-        headers: {
-          'apikey': _SB_KEY,
-          'Authorization': `Bearer ${_SB_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation',
-        },
-        body: JSON.stringify({
-          clinic_id:       cid,
-          lead_id:         leadId, // audit 2026-05-06: NOT NULL · resolvido acima
-          phone:           payload.recipient_phone,
-          wa_number_id:    payload.wa_number_id,
-          status:          'active',
-          ai_enabled:      true,
-          display_name:    payload.recipient_name,
-          inbox_role:      'b2b',
-          context_type:    'mira_b2b',
-          last_message_at: new Date().toISOString(),
-          metadata: {
-            source:          'b2b_partner_confirmation',
-            voucher_id:      payload.voucher_id,
-            partnership_id:  payload.partnership_id,
-            recipient_role:  'partner',
-            sender_instance: payload.sender_instance,
-          },
-        }),
-      })
-      if (insertConvR.ok) {
-        const arr = await insertConvR.json()
-        const row = Array.isArray(arr) ? arr[0] : arr
-        if (row?.id) convId = String(row.id)
-      } else {
-        const errText = await insertConvR.text()
-        stages.insert_conv = `status=${insertConvR.status} body=${errText.slice(0, 250)}`
-        console.warn('[partner_log_direct] wa_conversations insert failed', stages.insert_conv)
-      }
-    }
-
-    if (!convId) {
-      return {
-        ok: false,
-        error: 'conversation_resolve_failed: ' + (stages.insert_conv || stages.select_conv || 'no_existing_and_no_insert_attempt'),
-      }
-    }
-
-    // 3. INSERT wa_messages (idempotent · UNIQUE provider_msg_id captura 23505).
-    const msgPayload: Record<string, unknown> = {
-      conversation_id: convId,
-      clinic_id:       cid,
-      phone:           payload.recipient_phone,
-      direction:       'outbound',
-      sender:          'sistema',
-      content:         payload.content,
-      content_type:    'text',
-      ai_generated:    true,
-      status:          'sent',
-      sent_at:         new Date().toISOString(),
-      channel:         'evolution',
-    }
-    if (payload.template_id) {
-      // Audit 2026-05-06: template_id propagado pra wa_messages permite o dash
-      // novo (resolveOutboundLabel) detectar B2B/voucher via whitelist.
-      msgPayload.template_id = payload.template_id
-    }
-    if (payload.provider_msg_id) {
-      msgPayload.provider_msg_id = payload.provider_msg_id
-      msgPayload.wa_message_id   = payload.provider_msg_id
-    }
-
-    let messageId: string | undefined
-    let idempotent = false
-    const insertMsgR = await fetch(`${_SB_URL}/rest/v1/wa_messages`, {
-      method: 'POST',
-      headers: {
-        'apikey': _SB_KEY,
-        'Authorization': `Bearer ${_SB_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation',
-      },
-      body: JSON.stringify(msgPayload),
-    })
-    if (insertMsgR.ok) {
-      const arr = await insertMsgR.json()
-      const row = Array.isArray(arr) ? arr[0] : arr
-      if (row?.id) messageId = String(row.id)
-    } else if (insertMsgR.status === 409 && payload.provider_msg_id) {
-      // 23505 unique_violation (uq_wa_messages_provider_id) · busca existente.
-      idempotent = true
-      const existR = await fetch(
-        `${_SB_URL}/rest/v1/wa_messages?clinic_id=eq.${cid}&provider_msg_id=eq.${payload.provider_msg_id}&select=id&limit=1`,
-        { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' } },
-      )
-      if (existR.ok) {
-        const arr = await existR.json()
-        if (Array.isArray(arr) && arr[0]?.id) messageId = String(arr[0].id)
-      }
-    } else {
-      const errText = await insertMsgR.text()
-      stages.insert_msg = `status=${insertMsgR.status} body=${errText.slice(0, 250)}`
-      console.warn('[partner_log_direct] wa_messages insert failed', stages.insert_msg)
-    }
-
-    // 4. INSERT b2b_comm_dispatch_log.
-    let dispatchId: string | undefined
-    const dispatchR = await fetch(`${_SB_URL}/rest/v1/b2b_comm_dispatch_log`, {
-      method: 'POST',
-      headers: {
-        'apikey': _SB_KEY,
-        'Authorization': `Bearer ${_SB_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation',
-      },
-      body: JSON.stringify({
-        clinic_id:       cid,
-        partnership_id:  payload.partnership_id,
-        template_id:     payload.template_id ?? null,
-        event_key:       'voucher_issued_partner_confirmation',
-        channel:         'text',
-        recipient_role:  'partner',
-        recipient_phone: payload.recipient_phone,
-        sender_instance: payload.sender_instance,
-        text_content:    payload.content,
-        wa_message_id:   payload.provider_msg_id,
-        status:          'sent',
-        meta:            payload.meta,
-      }),
-    })
-    if (dispatchR.ok) {
-      const arr = await dispatchR.json()
-      const row = Array.isArray(arr) ? arr[0] : arr
-      if (row?.id) dispatchId = String(row.id)
-    } else {
-      const errText = await dispatchR.text()
-      stages.insert_dispatch = `status=${dispatchR.status} body=${errText.slice(0, 250)}`
-      console.warn('[partner_log_direct] b2b_comm_dispatch_log insert failed', stages.insert_dispatch)
-    }
-
-    // Reporta partial-success: conversation+message OK mas dispatch falhou e
-    // vice-versa. Logs detalhados ficam em meta.stages (consumido pelo response).
-    const partialErrors: string[] = []
-    if (!messageId && stages.insert_msg) partialErrors.push(`insert_message: ${stages.insert_msg}`)
-    if (!dispatchId && stages.insert_dispatch) partialErrors.push(`insert_dispatch_log: ${stages.insert_dispatch}`)
-
-    return {
-      ok: true,
-      conversation_id: convId,
-      message_id: messageId,
-      dispatch_id: dispatchId,
-      dispatch_log_id: dispatchId,
-      provider_msg_id: payload.provider_msg_id ?? undefined,
-      idempotent_message: idempotent || undefined,
-      ...(partialErrors.length > 0 ? { error: partialErrors.join(' | ') } : {}),
-    }
-  } catch (e) {
-    console.warn('[partner_log_direct] exception', (e as Error).message)
-    return { ok: false, error: `exception: ${(e as Error).message}` }
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return err('method_not_allowed', 405)
@@ -1212,14 +909,10 @@ Deno.serve(async (req) => {
     }
 
     // 3. Parceiro · confirmação. Só loga se efetivamente enviou (waId).
-    //    Audit 2026-05-06: usa logPartnerConfirmationDirect (bypass RPC) pra
-    //    GARANTIR scope correto (mira-mirian) · RPC b2b_log_outbound_message
-    //    estava resolvendo conversation pelo phone sem honrar wa_number_id ·
-    //    msgs do parceiro caíam na conversa Mih/Secretaria existente da Dani.
-    //    Direct insert via REST resolve/cria conv scoped por wa_number_id.
-    //    Beneficiária continua via RPC normalmente (caso novo · cria conv Mih).
+    //    Mig 132 (commit 1c10dca · 2026-05-06) corrigiu RPC pra honrar
+    //    wa_number_id · bypass direct removido · volta ao caminho canônico.
     if (partnerConfirm.waId && partnerConfirm.phone) {
-      canonicalLogs.partner_confirmation = await logPartnerConfirmationDirect({
+      canonicalLogs.partner_confirmation = await logOutboundCanonical({
         clinic_id:       voucher.clinic_id,
         voucher_id:      voucher.id,
         partnership_id:  voucher.partnership_id ?? null,
@@ -1227,9 +920,16 @@ Deno.serve(async (req) => {
         wa_number_id:    partnerConfirm.waNumberId ?? null,
         recipient_phone: partnerConfirm.phone,
         recipient_name:  partnership?.name ?? null,
+        recipient_role:  'partner',
+        event_key:       'voucher_issued_partner_confirmation',
+        channel:         'evolution',
+        sender:          'sistema',
         sender_instance: partnerConfirm.instance ?? null,
+        content_type:    'text',
         content:         partnerConfirm.text ?? '',
         provider_msg_id: partnerConfirm.waId,
+        wa_message_id:   partnerConfirm.waId,
+        status:          'sent',
         meta: {
           source:           'b2b-voucher-audio',
           step:             'partner_confirmation',
