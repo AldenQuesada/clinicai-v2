@@ -705,36 +705,104 @@ async function logPartnerConfirmationDirect(payload: {
   meta: Record<string, unknown>
 }): Promise<CanonicalResult> {
   // Captura erros detalhados por stage pra debug · evita "conversation_resolve_failed"
-  // genérico que mascarava root cause (audit 2026-05-06 · smoke test request_id 34361
-  // · INSERT wa_conversations falhava por context_type/inbox_role ausentes).
-  const stages: { select?: string; insert_conv?: string; insert_msg?: string; insert_dispatch?: string } = {}
+  // genérico que mascarava root cause (audit 2026-05-06 · smoke test 34361
+  // · INSERT wa_conversations falhava por context_type/inbox_role ausentes ·
+  // smoke 0a9b233 ainda falhava por lead_id NOT NULL · agora resolve lead_id
+  // antes de inserir conversa).
+  const stages: {
+    select_lead?: string
+    insert_lead?: string
+    select_conv?: string
+    insert_conv?: string
+    insert_msg?: string
+    insert_dispatch?: string
+  } = {}
   try {
     const cid = payload.clinic_id || (await clinicId())
+    const phoneStr = String(payload.recipient_phone || '')
+    const last8 = phoneStr.slice(-8)
+
+    // 0. Resolve lead_id (NOT NULL na tabela wa_conversations).
+    //    Padrão do projeto (resolveLead em lead-conversation.ts): 1 lead por
+    //    telefone via phone variants. Aqui usamos phone last-8 (mesmo critério
+    //    do índice unique leads(clinic_id, last8digits)).
+    //    Se lead já existe · reusa (não duplica). Se não · cria mínimo.
+    let leadId: string | null = null
+    if (last8.length === 8) {
+      const selLeadUrl =
+        `${_SB_URL}/rest/v1/leads?` +
+        `clinic_id=eq.${cid}&` +
+        `phone=like.*${last8}&` +
+        `select=id&order=updated_at.desc.nullslast,created_at.desc&limit=1`
+      const r = await fetch(selLeadUrl, {
+        headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
+      })
+      if (r.ok) {
+        const arr = await r.json()
+        if (Array.isArray(arr) && arr[0]?.id) leadId = String(arr[0].id)
+      } else {
+        stages.select_lead = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
+        console.warn('[partner_log_direct] select_lead failed', stages.select_lead)
+      }
+    }
+
+    if (!leadId) {
+      // Cria lead mínimo · DB tem defaults pra phase/funnel/source/temperature/
+      // ai_persona/name (LeadRepository.create comprova · audit 2026-04-28
+      // documenta NOT NULL com defaults). Passar só clinic_id + phone + nome
+      // legível mantém compat com defaults.
+      const insertLeadR = await fetch(`${_SB_URL}/rest/v1/leads`, {
+        method: 'POST',
+        headers: {
+          'apikey':        _SB_KEY,
+          'Authorization': `Bearer ${_SB_KEY}`,
+          'Content-Type':  'application/json',
+          'Prefer':        'return=representation',
+        },
+        body: JSON.stringify({
+          clinic_id: cid,
+          phone:     phoneStr,
+          ...(payload.recipient_name ? { name: payload.recipient_name } : {}),
+        }),
+      })
+      if (insertLeadR.ok) {
+        const arr = await insertLeadR.json()
+        const row = Array.isArray(arr) ? arr[0] : arr
+        if (row?.id) leadId = String(row.id)
+      } else {
+        stages.insert_lead = `status=${insertLeadR.status} body=${(await insertLeadR.text()).slice(0, 250)}`
+        console.warn('[partner_log_direct] insert_lead failed', stages.insert_lead)
+      }
+    }
+
+    if (!leadId) {
+      return {
+        ok: false,
+        error: 'lead_resolve_failed: ' + (stages.insert_lead || stages.select_lead || 'no_select_no_insert'),
+      }
+    }
 
     // 1. Resolve conversation existente · busca por phone last-8 (cobre variantes
     //    do número BR com/sem 9 do celular) + wa_number_id + clinic_id + não-deletada.
     //    Indice unique do banco: (clinic_id, wa_number_id, right(phone, 8)).
     let convId: string | null = null
-    if (payload.wa_number_id) {
-      const last8 = String(payload.recipient_phone || '').slice(-8)
-      if (last8.length === 8) {
-        const selectUrl =
-          `${_SB_URL}/rest/v1/wa_conversations?` +
-          `clinic_id=eq.${cid}&` +
-          `wa_number_id=eq.${payload.wa_number_id}&` +
-          `phone=like.*${last8}&` +
-          `deleted_at=is.null&` +
-          `select=id&limit=1`
-        const r = await fetch(selectUrl, {
-          headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
-        })
-        if (r.ok) {
-          const arr = await r.json()
-          if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
-        } else {
-          stages.select = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
-          console.warn('[partner_log_direct] select_existing failed', stages.select)
-        }
+    if (payload.wa_number_id && last8.length === 8) {
+      const selectUrl =
+        `${_SB_URL}/rest/v1/wa_conversations?` +
+        `clinic_id=eq.${cid}&` +
+        `wa_number_id=eq.${payload.wa_number_id}&` +
+        `phone=like.*${last8}&` +
+        `deleted_at=is.null&` +
+        `select=id&limit=1`
+      const r = await fetch(selectUrl, {
+        headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}`, 'Accept': 'application/json' },
+      })
+      if (r.ok) {
+        const arr = await r.json()
+        if (Array.isArray(arr) && arr[0]?.id) convId = String(arr[0].id)
+      } else {
+        stages.select_conv = `status=${r.status} body=${(await r.text()).slice(0, 200)}`
+        console.warn('[partner_log_direct] select_conv failed', stages.select_conv)
       }
     }
 
@@ -759,6 +827,7 @@ async function logPartnerConfirmationDirect(payload: {
         },
         body: JSON.stringify({
           clinic_id:       cid,
+          lead_id:         leadId, // audit 2026-05-06: NOT NULL · resolvido acima
           phone:           payload.recipient_phone,
           wa_number_id:    payload.wa_number_id,
           status:          'active',
@@ -790,7 +859,7 @@ async function logPartnerConfirmationDirect(payload: {
     if (!convId) {
       return {
         ok: false,
-        error: 'conversation_resolve_failed: ' + (stages.insert_conv || stages.select || 'no_existing_and_no_insert_attempt'),
+        error: 'conversation_resolve_failed: ' + (stages.insert_conv || stages.select_conv || 'no_existing_and_no_insert_attempt'),
       }
     }
 
