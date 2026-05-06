@@ -617,7 +617,7 @@ export default function SecretariaPage() {
           botao no painel direito (LeadInfoPanel zona BAIXO FIXA) */}
       {showAskDoctor && selectedConversation && (
         <AskDoctorModal
-          conversationId={selectedConversation.conversation_id}
+          conversationId={selectedConversation.conversation_id ?? ''}
           leadFirstName={(selectedConversation.lead_name || '').split(/\s+/)[0]}
           onClose={() => setShowAskDoctor(false)}
         />

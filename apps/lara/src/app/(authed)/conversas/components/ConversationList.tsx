@@ -430,15 +430,37 @@ export function ConversationList({
           </div>
         ) : (
           filteredConversations.map((conv) => {
-            const isSelected = selectedConversation?.conversation_id === conv.conversation_id;
+            // Mirror-only rows (Commit 2 · /secretaria) não têm conversation_id
+            // local · React key cai pro mirror_remote_jid · clique desabilitado
+            // até criarmos endpoint de lazy-create conv (Commit 3 backlog).
+            const isMirrorOnly = conv.has_conversation === false || conv.conversation_id === null;
+            const rowKey =
+              conv.conversation_id ?? conv.mirror_remote_jid ?? `mirror-${conv.phone || ''}`;
+            const isSelected =
+              !isMirrorOnly &&
+              selectedConversation?.conversation_id === conv.conversation_id;
             return (
             <div
-              key={conv.conversation_id}
-              onClick={() => onSelectConversation(conv)}
-              className={`group px-4 py-3.5 border-b border-white/[0.04] cursor-pointer transition-colors duration-150 relative ${
+              key={rowKey}
+              onClick={() => {
+                if (isMirrorOnly) return;
+                onSelectConversation(conv);
+              }}
+              title={
+                isMirrorOnly
+                  ? conv.is_group
+                    ? 'Grupo do WhatsApp · sem histórico local'
+                    : 'Chat sem histórico local'
+                  : undefined
+              }
+              className={`group px-4 py-3.5 border-b border-white/[0.04] transition-colors duration-150 relative ${
+                isMirrorOnly
+                  ? 'cursor-not-allowed opacity-70'
+                  : 'cursor-pointer'
+              } ${
                 isSelected
                   ? 'bg-[hsl(var(--primary))]/[0.05]'
-                  : 'hover:bg-white/[0.025]'
+                  : !isMirrorOnly ? 'hover:bg-white/[0.025]' : ''
               }`}
             >
               {/* Barrinha esquerda · sempre presente · selecionada gold sólido, hover gold soft, idle invisível */}
@@ -635,6 +657,84 @@ export function ConversationList({
                     );
                   })()}
                   <p className="text-[11.5px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 leading-snug">{conv.last_message_text || 'Sem mensagens'}</p>
+
+                  {/* Badges mirror (Commit 2 · /secretaria espelho WhatsApp) ·
+                      Grupo / Sem histórico local · UNREAD count quando >0. */}
+                  {(conv.is_group || conv.is_lid || isMirrorOnly || (conv.unread_count ?? 0) > 0) && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {conv.is_group && (
+                        <span
+                          className="font-meta uppercase whitespace-nowrap"
+                          style={{
+                            fontSize: '8.5px',
+                            letterSpacing: '0.12em',
+                            fontWeight: 500,
+                            padding: '2px 6px',
+                            borderRadius: 2,
+                            background: 'rgba(99,102,241,0.10)',
+                            color: 'hsl(238 80% 70%)',
+                            border: '1px solid rgba(99,102,241,0.25)',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          Grupo
+                        </span>
+                      )}
+                      {conv.is_lid && !conv.is_group && (
+                        <span
+                          className="font-meta uppercase whitespace-nowrap"
+                          style={{
+                            fontSize: '8.5px',
+                            letterSpacing: '0.12em',
+                            fontWeight: 500,
+                            padding: '2px 6px',
+                            borderRadius: 2,
+                            background: 'rgba(255,255,255,0.04)',
+                            color: 'hsl(var(--muted-foreground))',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          Contato WhatsApp
+                        </span>
+                      )}
+                      {isMirrorOnly && (
+                        <span
+                          className="font-meta uppercase whitespace-nowrap"
+                          style={{
+                            fontSize: '8.5px',
+                            letterSpacing: '0.12em',
+                            fontWeight: 500,
+                            padding: '2px 6px',
+                            borderRadius: 2,
+                            background: 'rgba(201,169,110,0.08)',
+                            color: 'hsl(var(--muted-foreground))',
+                            border: '1px solid rgba(201,169,110,0.18)',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          Sem histórico local
+                        </span>
+                      )}
+                      {(conv.unread_count ?? 0) > 0 && (
+                        <span
+                          className="font-meta tabular-nums whitespace-nowrap"
+                          style={{
+                            fontSize: '8.5px',
+                            letterSpacing: '0.06em',
+                            fontWeight: 600,
+                            padding: '2px 6px',
+                            borderRadius: 8,
+                            background: 'hsl(var(--success))',
+                            color: 'white',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {conv.unread_count}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Tags · regras port da legacy clinic-dashboard · estetica .badge-serious flipbook */}
                   {(() => {

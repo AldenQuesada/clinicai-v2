@@ -166,7 +166,7 @@ export function LeadInfoPanel({
         {!isSecretaria && (
           <AgentPauseSection
             key={`pill-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-            conversationId={selectedConversation.conversation_id}
+            conversationId={selectedConversation.conversation_id ?? ''}
             onStatusChange={onStatusChange}
             mode="pill"
           />
@@ -174,7 +174,7 @@ export function LeadInfoPanel({
         {/* Atribuído a · linha compacta · em ambos inboxes (P-12 multi-atendente) */}
         <AssignmentSection
           key={`assign-${selectedConversation.conversation_id}`}
-          conversationId={selectedConversation.conversation_id}
+          conversationId={selectedConversation.conversation_id ?? ''}
           initialAssignedTo={selectedConversation.assigned_to ?? null}
           initialAssignedAt={selectedConversation.assigned_at ?? null}
           onChange={onStatusChange}
@@ -191,7 +191,7 @@ export function LeadInfoPanel({
         {!isSecretaria && (
           <HandoffSecretariaSection
             key={`handoff-${selectedConversation.conversation_id}-${selectedConversation.handoff_to_secretaria_at ?? 'none'}`}
-            conversationId={selectedConversation.conversation_id}
+            conversationId={selectedConversation.conversation_id ?? ''}
             inboxRole={selectedConversation.inbox_role}
             handoffAt={selectedConversation.handoff_to_secretaria_at}
             onChange={onStatusChange}
@@ -201,7 +201,7 @@ export function LeadInfoPanel({
         {!isSecretaria && (
           <AgentPauseSection
             key={`full-${selectedConversation.conversation_id}-${selectedConversation.ai_paused_until}`}
-            conversationId={selectedConversation.conversation_id}
+            conversationId={selectedConversation.conversation_id ?? ''}
             onStatusChange={onStatusChange}
             mode="full"
           />

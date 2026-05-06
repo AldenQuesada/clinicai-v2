@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { readNotificationSettings } from '@/hooks/useNotificationSettings';
 
 export interface Conversation {
-  conversation_id: string;
+  /** Null para rows mirror-only · chat existe no Evolution Mih mas ainda
+      não tem wa_conversations local (Commit 2 · 2026-05-06) */
+  conversation_id: string | null;
   phone: string;
   /** Merge legacy: lead.name → display_name → phone (sempre non-null).
       Para fallback gracioso usar `getConversationDisplayName` em vez de ler
@@ -101,6 +103,20 @@ export interface Conversation {
   last_lara_msg?: string | null;
   last_outbound_msg?: string | null;
   minutes_since_last_inbound?: number | null;
+  // ── Espelho WhatsApp (Commit 2 · /secretaria via wa_chat_mirror) ────────
+  /** True quando row vem do mirror sem wa_conversations correspondente */
+  has_conversation?: boolean;
+  /** JID do chat na Evolution (5544...@s.whatsapp.net | ...@g.us | ...@lid) */
+  mirror_remote_jid?: string;
+  mirror_remote_kind?: 'private' | 'group' | 'lid' | 'unknown';
+  is_group?: boolean;
+  is_lid?: boolean;
+  unread_count?: number;
+  last_message_type?: string | null;
+  last_message_from_me?: boolean | null;
+  /** Display resolvido pelo waterfall do helper (lead → conv → mirror) */
+  display_name_resolved?: string;
+  wa_number_id?: string;
 }
 
 export const playNotificationSound = () => {
@@ -313,10 +329,17 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
         const payload: ListResponse = await res.json();
         cursorRef.current = payload.nextCursor;
         setHasMore(payload.nextCursor !== null);
-        // Append · dedupe por conversation_id pra cobrir overlap em concurrent updates
+        // Append · dedupe por conversation_id (ou mirror_remote_jid pra rows
+        // mirror-only do /secretaria · Commit 2). Cobre overlap em concurrent
+        // updates · null-safe.
         setConversations(prev => {
-          const seen = new Set(prev.map(c => c.conversation_id));
-          const fresh = payload.items.filter(c => !seen.has(c.conversation_id));
+          const dedupKey = (c: Conversation) =>
+            c.conversation_id ?? c.mirror_remote_jid ?? '';
+          const seen = new Set(prev.map(dedupKey).filter((k) => k !== ''));
+          const fresh = payload.items.filter((c) => {
+            const k = dedupKey(c);
+            return k === '' ? true : !seen.has(k);
+          });
           return [...prev, ...fresh];
         });
       }
