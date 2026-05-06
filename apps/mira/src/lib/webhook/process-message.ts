@@ -36,6 +36,7 @@ import {
 import { getEvolutionService } from '@/services/evolution.service'
 import { transcribeAudio } from '@/services/transcription.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
+import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 import { createLogger, hashPhone } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
@@ -72,26 +73,56 @@ export async function processWebhookMessage(
   const t0 = input.startedAtMs ?? Date.now()
 
   // 1. Audio → Whisper (se necessario)
+  // Audit 2026-05-05: downloadMedia continua via getEvolutionService('mira')
+  // (env-based · INBOUND · precisa ser mesma instance que recebeu webhook).
+  // Mas REPLY de audio fail/whisper fail migra pra createEvolutionServiceForMiraChannel
+  // pra obedecer mira_channels (UI source-of-truth) · sem fallback pra 7673.
+  const earlyReplyFunctionKey =
+    role === 'admin' ? 'mira_admin_outbound' : 'partner_response'
   let content = msg.content
   let transcribedFromAudio = false
   if (!content && msg.isAudio) {
     try {
-      const wa = getEvolutionService('mira')
-      const dl = await wa.downloadMedia(msg.messageKey)
+      const inboundWa = getEvolutionService('mira')
+      const dl = await inboundWa.downloadMedia(msg.messageKey)
       if (!dl) {
-        const wa2 = getEvolutionService('mira')
-        await wa2.sendText(
-          msg.phone,
-          'Não consegui baixar seu áudio · pode mandar em texto, por favor?',
+        const replyWa = await createEvolutionServiceForMiraChannel(
+          null,
+          clinicId,
+          earlyReplyFunctionKey,
         )
+        if (replyWa) {
+          await replyWa.sendText(
+            msg.phone,
+            'Não consegui baixar seu áudio · pode mandar em texto, por favor?',
+          )
+        } else {
+          // Sem canal ativo · skip silent · NÃO cair em fallback 7673
+          log.warn(
+            { clinicId, role, functionKey: earlyReplyFunctionKey },
+            'mira.audio_download_fail.skipped_no_active_channel',
+          )
+        }
         return { ok: true, skip: 'audio_download_failed' }
       }
       const transcribed = await transcribeAudio(dl.buffer, dl.contentType)
       if (!transcribed) {
-        await wa.sendText(
-          msg.phone,
-          'Tive um problema pra transcrever o áudio. Pode escrever em texto?',
+        const replyWa = await createEvolutionServiceForMiraChannel(
+          null,
+          clinicId,
+          earlyReplyFunctionKey,
         )
+        if (replyWa) {
+          await replyWa.sendText(
+            msg.phone,
+            'Tive um problema pra transcrever o áudio. Pode escrever em texto?',
+          )
+        } else {
+          log.warn(
+            { clinicId, role, functionKey: earlyReplyFunctionKey },
+            'mira.whisper_fail.skipped_no_active_channel',
+          )
+        }
         return { ok: true, skip: 'whisper_failed' }
       }
       content = transcribed
@@ -225,30 +256,97 @@ export async function processWebhookMessage(
       ? replySenderInstance
       : await resolveMiraInstance(clinicId, 'mira_admin_outbound')
 
-  const wa = getEvolutionService('mira')
+  // Audit 2026-05-05: sendText agora usa mira_channels (UI source-of-truth)
+  // · NUNCA cair em fallback hardcoded `mira-mirian` (7673) quando wa_number
+  // tá inactive. Helper retorna null → skip envio + log.
+  const wa = await createEvolutionServiceForMiraChannel(null, clinicId, replyFunctionKey)
   let replyMessageId: string | null = null
   if (result.replyText) {
-    const sent = await wa.sendText(msg.phone, result.replyText)
-    replyMessageId = sent.messageId ?? null
-    await repos.waProAudit.logDispatch({
-      clinicId,
-      eventKey: `mira.${chosenIntent}`,
-      channel: 'text',
-      recipientRole: role === 'admin' ? 'admin' : 'partner',
-      recipientPhone: msg.phone,
-      senderInstance: replySenderInstance,
-      textContent: result.replyText,
-      waMessageId: replyMessageId,
-      status: sent.ok ? 'sent' : 'failed',
-      errorMessage: sent.error ?? null,
-    })
+    if (!wa) {
+      // Canal inativo/inválido · NÃO envia · grava como failed pra audit
+      log.error(
+        {
+          clinicId,
+          functionKey: replyFunctionKey,
+          intent: chosenIntent,
+          phoneHash: hashPhone(msg.phone),
+        },
+        'mira.reply.skipped_no_active_channel',
+      )
+      await repos.waProAudit.logDispatch({
+        clinicId,
+        eventKey: `mira.${chosenIntent}`,
+        channel: 'text',
+        recipientRole: role === 'admin' ? 'admin' : 'partner',
+        recipientPhone: msg.phone,
+        senderInstance: replySenderInstance,
+        textContent: result.replyText,
+        waMessageId: null,
+        status: 'failed',
+        errorMessage: 'no_active_mira_channel',
+      })
+    } else {
+      const sent = await wa.sendText(msg.phone, result.replyText)
+      replyMessageId = sent.messageId ?? null
+      await repos.waProAudit.logDispatch({
+        clinicId,
+        eventKey: `mira.${chosenIntent}`,
+        channel: 'text',
+        recipientRole: role === 'admin' ? 'admin' : 'partner',
+        recipientPhone: msg.phone,
+        senderInstance: replySenderInstance,
+        textContent: result.replyText,
+        waMessageId: replyMessageId,
+        status: sent.ok ? 'sent' : 'failed',
+        errorMessage: sent.error ?? null,
+      })
+    }
   }
 
   // 5. Apply actions (sendText pra outros phones via mira ou mih)
+  // Audit 2026-05-05:
+  //   - action.via='mira'  → createEvolutionServiceForMiraChannel('mira_admin_outbound')
+  //                          · UI source-of-truth · sem fallback 7673
+  //   - action.via='mih'   → mantém getEvolutionService('mih') · spec C1 ·
+  //                          recipient_voucher continua via env enquanto Fase B
+  //                          não migra
   for (const action of result.actions as HandlerAction[]) {
     if (action.kind === 'send_wa') {
       try {
-        const target = getEvolutionService(action.via)
+        let target: Awaited<ReturnType<typeof createEvolutionServiceForMiraChannel>> = null
+        if (action.via === 'mih') {
+          target = getEvolutionService('mih')
+        } else {
+          // 'mira' ou outro · usa mira_admin_outbound (handlers dispatch
+          // admin notifications)
+          target = await createEvolutionServiceForMiraChannel(
+            null,
+            clinicId,
+            'mira_admin_outbound',
+          )
+        }
+
+        if (!target) {
+          // Sem canal ativo · log + audit failed · skip envio
+          log.error(
+            { clinicId, action: { via: action.via, eventKey: action.eventKey } },
+            'mira.action.skipped_no_active_channel',
+          )
+          await repos.waProAudit.logDispatch({
+            clinicId,
+            eventKey: action.eventKey ?? 'mira.action.send_wa',
+            channel: 'text',
+            recipientRole: action.recipientRole ?? 'unknown',
+            recipientPhone: action.to,
+            senderInstance: miraActionSenderInstance,
+            textContent: action.content,
+            waMessageId: null,
+            status: 'failed',
+            errorMessage: 'no_active_mira_channel',
+          })
+          continue
+        }
+
         const sent = await target.sendText(action.to, action.content)
         await repos.waProAudit.logDispatch({
           clinicId,
