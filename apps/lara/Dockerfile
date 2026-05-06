@@ -24,6 +24,19 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # nao OOM em container Easypanel default. Mira tem o mesmo · sem isso
 # o build trava silenciosamente em "Compiling..." e demora 4x.
 ENV NODE_OPTIONS="--max-old-space-size=3072"
+# NEXT_PUBLIC_* sao embed no bundle JS aqui (build time) · TEM que vir
+# como build-args do Easypanel (Build Settings -> Build Args). Sem isso,
+# browser client recebe `undefined` literal em runtime · createBrowserClient
+# lanca erro · usePresence/JoinClient/ChangePasswordModal quebram.
+# Espelha pattern apps/flipbook/Dockerfile.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_PAINEL_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_PAINEL_URL=$NEXT_PUBLIC_PAINEL_URL
 # Cache mount do .next/cache · acelera rebuild incremental do Next.
 RUN --mount=type=cache,id=lara-next-cache,target=/app/apps/lara/.next/cache \
     pnpm turbo run build --filter=@clinicai/lara
