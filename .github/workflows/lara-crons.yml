@@ -14,8 +14,12 @@ name: Lara proactive crons
 
 on:
   schedule:
-    # /api/cron/reactivate · D1 reactivation 23h-26h window · de hora em hora
-    - cron: '15 * * * *'  # offset 15min pra não esbarrar com mira-voucher-followup
+    # /api/cron/reactivate · DESABILITADO 2026-05-06 (audit Mih ghost Lara)
+    # Razão: cron disparava msg "Você acabou se ocupando por aí..." em convs
+    # da Mih/Secretaria · contaminava /secretaria com sender='lara'. Endpoint
+    # virou no-op no commit dessa data. Re-habilitar só após decisão sobre
+    # filtro per-channel (Cloud Lara vs Mih) ser implementada.
+    # - cron: '15 * * * *'
     # /api/cron/orcamento-followup · 1x/dia 13h UTC = 10h SP · Camada 10a
     - cron: '0 13 * * *'
     # /api/cron/divergence-check · 1x/dia 09h30 UTC = 06h30 SP · Camada 12c
@@ -29,7 +33,7 @@ on:
         required: true
         type: choice
         options:
-          - reactivate
+          # reactivate desabilitado 2026-05-06 · endpoint é no-op
           - orcamento-followup
           - divergence-check
 
@@ -46,7 +50,7 @@ jobs:
             ENDPOINTS="${{ github.event.inputs.job }}"
           else
             case "${{ github.event.schedule }}" in
-              "15 * * * *") ENDPOINTS="reactivate" ;;
+              # "15 * * * *") ENDPOINTS="reactivate" ;;  # desabilitado 2026-05-06
               "0 13 * * *") ENDPOINTS="orcamento-followup" ;;
               "30 9 * * *") ENDPOINTS="divergence-check" ;;
               *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
