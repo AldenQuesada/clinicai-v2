@@ -23,6 +23,8 @@ import { MessageArea } from '../conversas/components/MessageArea';
 import { LeadInfoPanel } from '../conversas/components/LeadInfoPanel';
 import { ConfirmModal } from '../conversas/components/ConfirmModal';
 import { AskDoctorModal } from '../conversas/components/AskDoctorModal';
+import { ForwardModal } from '../conversas/components/ForwardModal';
+import type { Message } from '../conversas/hooks/useMessages';
 import { useConversations, updateTabTitle } from '../conversas/hooks/useConversations';
 import { useMessages } from '../conversas/hooks/useMessages';
 import { useClinicMembers } from '../conversas/hooks/useClinicMembers';
@@ -103,6 +105,26 @@ export default function SecretariaPage() {
     replyTarget,
     setReplyTarget,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
+
+  // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
+  const [forwardSourceMessage, setForwardSourceMessage] = useState<Message | null>(null);
+
+  // Forward · POST direto pra conv destino · só texto · sem reply, sem payload (MVP A).
+  const handleForwardToConversation = async (
+    targetConversationId: string,
+  ): Promise<boolean> => {
+    if (!forwardSourceMessage?.content) return false;
+    try {
+      const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: forwardSourceMessage.content }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
 
   const { members: _members, me, clinicId, findById } = useClinicMembers();
   const myMember = me ? findById(me) : null;
@@ -605,6 +627,7 @@ export default function SecretariaPage() {
           onSendInternalNote={sendInternalNote}
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}
+          onForwardMessage={setForwardSourceMessage}
         />
 
         <LeadInfoPanel
@@ -638,6 +661,17 @@ export default function SecretariaPage() {
           cancelText={modalConfig.cancelText}
           onConfirm={modalConfig.onConfirm}
           onCancel={() => setModalConfig(null)}
+        />
+      )}
+
+      {/* Forward MVP A · modal de encaminhar mensagem · só texto */}
+      {forwardSourceMessage && (
+        <ForwardModal
+          message={forwardSourceMessage}
+          conversations={conversations}
+          sourceConversationId={selectedConversation?.conversation_id ?? null}
+          onClose={() => setForwardSourceMessage(null)}
+          onConfirmForward={handleForwardToConversation}
         />
       )}
     </div>

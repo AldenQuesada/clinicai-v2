@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft, Copy } from 'lucide-react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft, Copy, Forward } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SecretariaSummary } from './SecretariaSummary';
@@ -318,6 +318,13 @@ interface MessageAreaProps {
    */
   replyTarget?: Message | null;
   onSetReplyTarget?: (msg: Message | null) => void;
+  /**
+   * Forward MVP A (2026-05-07) · Encaminhar mensagem texto pra outra
+   * conversa. Page abre modal · seleciona destino · chama POST direto.
+   * MessageArea só dispara seleção da msg-fonte. Só msgs com content
+   * útil (não-failed, não-internalNote) ficam habilitadas via gate canForward.
+   */
+  onForwardMessage?: (message: Message) => void;
 }
 
 export function MessageArea({
@@ -341,6 +348,7 @@ export function MessageArea({
   onSendInternalNote,
   replyTarget = null,
   onSetReplyTarget,
+  onForwardMessage,
 }: MessageAreaProps) {
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
@@ -891,6 +899,33 @@ export function MessageArea({
                             <CornerUpLeft className="w-3 h-3 pointer-events-none" strokeWidth={2} />
                           </button>
                         )}
+                        {/* Forward MVP A (2026-05-07) · só texto · gate
+                            inclui type='contact' porque content de contato
+                            é o texto formatado "👤 Contato compartilhado:
+                            Nome" · gera forward textual aceitável (MVP B).
+                            Mídia (image/audio/document/video/sticker) e
+                            failed/internalNote ficam fora · onda futura. */}
+                        {!!onForwardMessage &&
+                          !isFailed &&
+                          !msg.internalNote &&
+                          (msg.type === 'text' || msg.type === 'contact') &&
+                          !!msg.content &&
+                          msg.content.trim().length > 0 &&
+                          !isAudioPlaceholder(msg.content) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onForwardMessage(msg);
+                              }}
+                              title="Encaminhar"
+                              aria-label="Encaminhar mensagem"
+                              className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded opacity-60 hover:opacity-100 hover:bg-white/[0.1] transition-all cursor-pointer"
+                            >
+                              <Forward className="w-3 h-3 pointer-events-none" strokeWidth={2} />
+                            </button>
+                          )}
                       </div>
                     </div>
                     {isFailed && (

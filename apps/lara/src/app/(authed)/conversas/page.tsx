@@ -6,6 +6,8 @@ import { MessageArea } from './components/MessageArea';
 import { LeadInfoPanel } from './components/LeadInfoPanel';
 import { ConfirmModal } from './components/ConfirmModal';
 import { NewConversationModal } from './components/NewConversationModal';
+import { ForwardModal } from './components/ForwardModal';
+import type { Message } from './hooks/useMessages';
 import { useConversations, updateTabTitle } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
 import { useInsights } from './hooks/useInsights';
@@ -37,6 +39,8 @@ export default function ChatPage() {
   // Se user fechar via x, fica fechado ate trocar de conversa.
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(false);
   const [isNewConvOpen, setIsNewConvOpen] = useState(false);
+  // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
+  const [forwardSourceMessage, setForwardSourceMessage] = useState<Message | null>(null);
 
   // Polish 2026-04-30 · busca + sort + filter lifted da ConversationList pro
   // topbar global · libera ~120px na sidebar pra mais conversas visiveis
@@ -151,6 +155,25 @@ export default function ChatPage() {
       } : prev);
     }
     sendMessage(content, replyToMessageId);
+  };
+
+  // Forward MVP A (2026-05-07) · POST direto pra conv destino · só texto.
+  // Não usa reply_to_message_id (forward ≠ reply) · não envia payload (MVP A).
+  // Retorna boolean pro modal mostrar erro local sem fechar em falha.
+  const handleForwardToConversation = async (
+    targetConversationId: string,
+  ): Promise<boolean> => {
+    if (!forwardSourceMessage?.content) return false;
+    try {
+      const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: forwardSourceMessage.content }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   };
 
   const handleAction = async (
@@ -601,6 +624,7 @@ export default function ChatPage() {
           onSendInternalNote={sendInternalNote}
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}
+          onForwardMessage={setForwardSourceMessage}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}
@@ -648,6 +672,17 @@ export default function ChatPage() {
               if (found) setSelectedConversation(found);
             }, 200);
           }}
+        />
+      )}
+
+      {/* Forward MVP A · modal de encaminhar mensagem · só texto */}
+      {forwardSourceMessage && (
+        <ForwardModal
+          message={forwardSourceMessage}
+          conversations={conversations}
+          sourceConversationId={selectedConversation?.conversation_id ?? null}
+          onClose={() => setForwardSourceMessage(null)}
+          onConfirmForward={handleForwardToConversation}
         />
       )}
     </div>
