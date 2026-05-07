@@ -1349,6 +1349,15 @@ export function MessageArea({
                   ? 'Adicione uma legenda (opcional)...'
                   : 'Digite sua mensagem (Pausa a IA)...'
             }
+            // Spellcheck A (2026-05-07) · corretor ortográfico nativo do
+            // navegador em PT-BR · zero IA · zero backend · cobre msg normal,
+            // legenda de mídia e nota interna (mesmo textarea, isNoteMode toggle).
+            // Chrome/Edge/Firefox usam dicionário do SO/perfil do usuário.
+            spellCheck
+            lang="pt-BR"
+            autoCorrect="on"
+            autoCapitalize="sentences"
+            title="Corretor ortográfico do navegador ativado"
             className="flex-1 bg-transparent border-none focus:outline-none resize-none min-h-[44px] max-h-32 text-sm p-2 scrollbar-thin text-[hsl(var(--foreground))]"
             onKeyDown={(e) => {
               // Modo nota interna · Enter envia nota em vez de msg normal
