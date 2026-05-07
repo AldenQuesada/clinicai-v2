@@ -147,6 +147,81 @@ export async function POST(request: NextRequest) {
   }
 
   const event = body?.event || '';
+
+  // STATUS A (2026-05-07) · Baileys/Evolution `messages.update` carrega ack
+  // de delivery (PTT, msg comum). Mapeamos pra delivery_status:
+  //   1=ERROR → failed · 3=SERVER_ACK → sent · 4=DELIVERY_ACK → delivered
+  //   5=READ → read · 6=PLAYED → read (PTT · simplifica pra read no MVP)
+  //   2=PENDING → ignorado (estado intermediário · sem benefício UI)
+  // Resolve tenant pela instance (mesmo RPC do upsert) e atualiza
+  // wa_messages.delivery_status via provider_msg_id (key.id Baileys).
+  if (event === 'messages.update' || event === 'MESSAGES_UPDATE') {
+    const instanceForUpdate = body?.instance || '';
+    if (!instanceForUpdate) {
+      return NextResponse.json({ ok: true, skip: 'no_instance' });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArr: any[] = Array.isArray((body as { data?: unknown }).data)
+      ? ((body as { data: unknown[] }).data)
+      : [(body as { data?: unknown }).data].filter(Boolean);
+    if (dataArr.length === 0) {
+      return NextResponse.json({ ok: true, skip: 'no_data' });
+    }
+    const supabaseUpd = createServerClient();
+    // Resolve tenant · mesma RPC do upsert flow.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: resolveResUpd } = await (supabaseUpd as any).rpc(
+      'wa_numbers_resolve_by_instance',
+      { p_instance: instanceForUpdate },
+    );
+    const clinicIdUpd: string | null =
+      resolveResUpd?.ok && resolveResUpd?.clinic_id
+        ? String(resolveResUpd.clinic_id)
+        : null;
+    const reposUpd = makeRepos(supabaseUpd);
+    let appliedCount = 0;
+    for (const item of dataArr) {
+      const itemRec = item as Record<string, unknown>;
+      const itemKey = itemRec.key as { id?: string } | undefined;
+      const itemUpdate = itemRec.update as { status?: number | string } | undefined;
+      const providerMsgId = typeof itemKey?.id === 'string' ? itemKey.id : null;
+      if (!providerMsgId) continue;
+      const rawStatus = itemUpdate?.status;
+      const numStatus = typeof rawStatus === 'number'
+        ? rawStatus
+        : typeof rawStatus === 'string'
+          ? Number(rawStatus)
+          : NaN;
+      const mapped: 'sent' | 'delivered' | 'read' | 'failed' | null =
+        numStatus === 1 ? 'failed'
+        : numStatus === 3 ? 'sent'
+        : numStatus === 4 ? 'delivered'
+        : numStatus === 5 ? 'read'
+        : numStatus === 6 ? 'read'
+        : null;
+      if (!mapped) {
+        log.debug(
+          { instance: instanceForUpdate, raw_status: rawStatus, key_id_tail: providerMsgId.slice(-12) },
+          'webhook_evolution.status.unknown_value',
+        );
+        continue;
+      }
+      await reposUpd.messages.updateDeliveryStatus(
+        providerMsgId,
+        mapped,
+        clinicIdUpd ?? undefined,
+      );
+      appliedCount += 1;
+    }
+    if (appliedCount > 0) {
+      log.info(
+        { instance: instanceForUpdate, count: appliedCount },
+        'webhook_evolution.statuses.applied',
+      );
+    }
+    return NextResponse.json({ ok: true, kind: 'status_applied', count: appliedCount });
+  }
+
   if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
     await evoTraceLog({ stage: 'skip_not_message_event', signature_ok: true, result_status: 200, result_summary: 'event=' + event });
     return NextResponse.json({ ok: true, skip: 'not_message_event' });

@@ -166,14 +166,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // Sprint C · SC-01 (W-06): processa status updates do Cloud API
-    // (sent/delivered/read/failed) · UI mostra ✓ ✓✓ azul.
+    // Sprint C · SC-01 (W-06) · STATUS A (2026-05-07) · status updates do
+    // Cloud API (sent/delivered/read/failed) → wa_messages.delivery_status.
+    // UI <DeliveryStatusIcon> renderiza ✓/✓✓/✓✓ azul/⚠ no footer outbound.
     //
-    // NOTA: Cloud API entrega 'wamid.HBgL...' como id, e atualmente nosso
-    // wa_messages.id e' uuid interno (sem mapping). updateDeliveryStatus
-    // tenta o update e degrada silencioso quando match nao acha · funciona
-    // imediatamente quando codigo de envio for refatorado pra usar wamid
-    // como id (ou quando adicionar coluna provider_message_id e match por la).
+    // Pré-STATUS A: bug · updateDeliveryStatus filtrava `.eq('id', wamid)`
+    // mas `id` é uuid interno · wamid é provider id Meta · nunca batia.
+    // Fix STATUS A: repo agora filtra por `provider_msg_id` (mig 800-11) ·
+    // resolve tenant pelo phone_number_id da change pra clinic guard
+    // defensivo (UNIQUE (clinic_id, provider_msg_id) já protege ·
+    // clinic_id explícito é cinto + suspensório contra service_role bypass).
     const hasStatuses = body.entry?.some((e: any) =>
       e.changes?.some((c: any) => c.value?.statuses?.length > 0)
     );
@@ -181,8 +183,21 @@ export async function POST(request: NextRequest) {
       try {
         const supabase = createServerClient();
         const repos = makeRepos(supabase);
+        let appliedCount = 0;
         for (const entry of body.entry || []) {
           for (const change of entry.changes || []) {
+            // Resolve clinic_id por change · phone_number_id identifica número.
+            const phoneNumberId: string | null =
+              change.value?.metadata?.phone_number_id || null;
+            let clinic_id: string | null = null;
+            if (phoneNumberId) {
+              try {
+                const { clinic_id: cid } = await resolveTenantContext(supabase, phoneNumberId);
+                clinic_id = cid;
+              } catch {
+                // tenant não resolvido · sem clinic guard · só não bloqueia update
+              }
+            }
             for (const s of change.value?.statuses || []) {
               const wamid: string | undefined = s.id;
               const raw: string | undefined = s.status;
@@ -192,10 +207,24 @@ export async function POST(request: NextRequest) {
                 : raw === 'sent' ? 'sent'
                 : raw === 'failed' ? 'failed'
                 : null;
-              if (!status) continue;
-              await repos.messages.updateDeliveryStatus(wamid, status);
+              if (!status) {
+                log.debug(
+                  { raw_status: raw, wamid_tail: wamid.slice(-12) },
+                  'webhook.status.unknown_value',
+                );
+                continue;
+              }
+              await repos.messages.updateDeliveryStatus(
+                wamid,
+                status,
+                clinic_id ?? undefined,
+              );
+              appliedCount += 1;
             }
           }
+        }
+        if (appliedCount > 0) {
+          log.info({ count: appliedCount }, 'webhook_cloud.statuses.applied');
         }
       } catch (err) {
         log.warn({ err: (err as Error)?.message }, 'webhook.statuses.process_error');

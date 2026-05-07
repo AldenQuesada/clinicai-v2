@@ -495,21 +495,40 @@ export class MessageRepository {
   }
 
   /**
-   * Sprint C · SC-01 (W-06): Atualiza delivery_status pelo webhook do
-   * WhatsApp Cloud API. Match por wamid (Meta provider message id) que
-   * persistimos no campo `id` quando enviamos via cloud.
+   * Sprint C · SC-01 (W-06) · STATUS A (2026-05-07) · Atualiza delivery_status
+   * via webhook (Cloud `statuses[]` ou Evolution `messages.update`).
+   *
+   * Match por `provider_msg_id` (wamid Cloud · key.id Baileys) · NÃO por id
+   * interno. Bug pré-STATUS A: filtrava `.eq('id', wamid)` · nunca batia ·
+   * UI nunca recebia ✓✓ azul. Fix · usa coluna correta + UNIQUE
+   * `(clinic_id, provider_msg_id)` garante 1-row update.
+   *
+   * `clinicId` opcional · quando passado, filtro adicional cross-tenant
+   * defensivo (service_role bypassa RLS).
+   *
+   * Coluna `delivery_status` aceita CHECK (mig 86):
+   *   null | sent | delivered | read | failed
+   *
+   * Sem guard de transição neste MVP · provider raramente regride
+   * (delivered → read é one-way em prática). Se aparecer regressão, adicionar
+   * NOT (delivery_status = 'read' AND :status = 'delivered') no UPDATE.
    */
   async updateDeliveryStatus(
-    messageId: string,
+    providerMsgId: string,
     status: 'sent' | 'delivered' | 'read' | 'failed',
+    clinicId?: string,
   ): Promise<void> {
     try {
-      await this.supabase
+      let query = this.supabase
         .from('wa_messages')
         .update({ delivery_status: status })
-        .eq('id', messageId)
+        .eq('provider_msg_id', providerMsgId)
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId)
+      }
+      await query
     } catch {
-      // Coluna nao existe (mig 86 pendente) · degrada silencioso
+      // Coluna nao existe (mig 86 pendente) OU update racy · degrada silencioso
     }
   }
 
