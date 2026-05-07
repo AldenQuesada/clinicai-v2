@@ -15,3 +15,15 @@ export type { EvolutionConfig } from './evolution'
 // HMAC signature validation (Meta webhook) · fail-closed em produção
 export { validateMetaSignature } from './signature'
 export type { SignatureValidationResult } from './signature'
+
+// Mig 144 (2026-05-07) · normalização canônica de payloads ricos inbound
+// (contato compartilhado · base pra location/reaction/sticker/forward futuros)
+export {
+  normalizePhoneDigits,
+  extractVcardField,
+  extractWaidFromVcard,
+  mapCloudContactPayload,
+  mapEvolutionContactPayload,
+  mapInboundToPayload,
+} from './payload'
+export type { WhatsAppMessagePayload, WhatsAppContactPayload } from './payload'
