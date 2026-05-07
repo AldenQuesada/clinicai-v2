@@ -301,7 +301,7 @@ function ContactCard({ payload }: { payload: ContactPayloadShape }) {
           onClick={handleCopy}
           title="Copiar telefone"
           aria-label="Copiar telefone"
-          className="mt-2 pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium opacity-90 hover:opacity-100 bg-white/[0.08] hover:bg-[hsl(var(--primary))]/[0.2] text-[hsl(var(--foreground))]/85 hover:text-[hsl(var(--primary))] border border-white/[0.12] hover:border-[hsl(var(--primary))]/[0.4] cursor-pointer transition-colors"
+          className="mt-2 pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/15 hover:border-white/30 cursor-pointer transition-colors"
         >
           {copied ? (
             <>
@@ -831,19 +831,23 @@ export function MessageArea({
 
                 return (
                   <div key={msg.id} className={`flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : ''}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-2 transition-colors ${
+                    {/* Style refresh (2026-05-07) · paleta sem marrom/dourado.
+                        Inbound (paciente): verde escuro estilo Supabase (emerald-800).
+                        Outbound (atendente/Lara): preto premium (neutral-900).
+                        Texto branco em ambos · borda branca translúcida · hover suave. */}
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2 transition-colors shadow-sm ${
                       isFailed
                         ? 'bg-[hsl(var(--danger))]/10 border border-[hsl(var(--danger))]/40 text-[hsl(var(--foreground))] rounded-tr-sm'
                         : isUser
-                          ? 'bg-[hsl(var(--chat-msg-user))] text-[hsl(var(--chat-msg-user-text))] rounded-tl-sm'
-                          : 'bg-[hsl(var(--chat-msg-bot))] text-[hsl(var(--chat-msg-bot-text))] rounded-tr-sm'
+                          ? 'bg-emerald-800 text-white border border-emerald-300/15 hover:bg-emerald-700 rounded-tl-sm'
+                          : 'bg-neutral-900 text-white border border-white/10 hover:bg-neutral-800 rounded-tr-sm'
                     }`}>
                       <div className={`text-[12px] font-bold mb-1 pb-0.5 ${
                         isFailed
                           ? 'text-[hsl(var(--danger))]'
                           : isUser
-                            ? 'text-[hsl(var(--accent))]'
-                            : 'text-[hsl(var(--success))]'
+                            ? 'text-emerald-200/90'
+                            : 'text-white/70'
                       }`}>
                         {isFailed ? (
                           <span className="inline-flex items-center gap-1">
@@ -858,8 +862,8 @@ export function MessageArea({
                           Mostra autor + snippet · click leva pro target via
                           scroll/highlight (TODO em onda futura · agora só visual). */}
                       {hasQuotedLink && (
-                        <div className="mb-1.5 pl-2 py-1 pr-2 rounded border-l-2 border-[hsl(var(--primary))]/60 bg-white/[0.05]">
-                          <div className="flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                        <div className="mb-1.5 pl-2 py-1 pr-2 rounded border-l-2 border-white/30 bg-white/[0.08]">
+                          <div className="flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-white/70">
                             <CornerUpLeft className="w-2.5 h-2.5" strokeWidth={2} />
                             <span>
                               {quotedTarget
@@ -869,7 +873,7 @@ export function MessageArea({
                                 : 'Mensagem original'}
                             </span>
                           </div>
-                          <p className="text-[11.5px] italic leading-snug opacity-80 break-words mt-0.5">
+                          <p className="text-[11.5px] italic leading-snug text-white/80 break-words mt-0.5">
                             {quotedTarget ? previewSnippet(quotedTarget) : '(mensagem fora desta página)'}
                           </p>
                         </div>
@@ -1105,7 +1109,7 @@ export function MessageArea({
                           }}
                           title="Remover reação"
                           aria-label="Remover reação"
-                          className="mt-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[12px] bg-white/[0.1] hover:bg-[hsl(var(--danger))]/[0.15] border border-white/[0.15] cursor-pointer transition-colors leading-none"
+                          className="mt-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[12px] bg-white/15 hover:bg-white/25 border border-white/20 hover:border-white/40 cursor-pointer transition-colors leading-none"
                         >
                           <span className="pointer-events-none">{msg.reaction}</span>
                         </button>
