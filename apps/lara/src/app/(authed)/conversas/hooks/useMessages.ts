@@ -37,6 +37,14 @@ export interface Message {
    * (quem essa mensagem está respondendo). Renderiza preview no balão.
    */
   replyToProviderMsgId?: string | null;
+  /**
+   * Mig 144 (2026-05-07) · payload normalizado de mensagens ricas
+   * (contact MVP · location/reaction/sticker/forward/poll futuros).
+   * Discriminator `kind` · UI faz type-guard antes de renderizar card.
+   * NUNCA payload bruto do provider · helper canônico em
+   * packages/whatsapp/src/payload.ts garante shape mínimo.
+   */
+  payload?: unknown | null;
 }
 
 export function useMessages(
@@ -98,6 +106,8 @@ export function useMessages(
             // Mig 143 (2026-05-07) · quoted reply linkage cross-provider
             providerMsgId: typeof msg.provider_msg_id === 'string' ? msg.provider_msg_id : null,
             replyToProviderMsgId: typeof msg.reply_to_provider_msg_id === 'string' ? msg.reply_to_provider_msg_id : null,
+            // Mig 144 (2026-05-07) · payload normalizado · UI tipa via guard
+            payload: msg.payload ?? null,
           });
         });
 

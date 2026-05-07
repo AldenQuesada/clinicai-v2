@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft } from 'lucide-react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft, Copy } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SecretariaSummary } from './SecretariaSummary';
@@ -83,6 +83,25 @@ function groupMessagesByDay(messages: Message[]): GroupedMessages {
   return Array.from(groups.entries())
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([key, msgs]) => ({ label: labelByKey.get(key) ?? key, messages: msgs }));
+}
+
+// ─── Contact payload type guard (Mig 144 · 2026-05-07) ────────────────────
+// Shape canônico produzido pelo helper packages/whatsapp/src/payload.ts ·
+// salvo em wa_messages.payload jsonb pra mensagens com kind='contact'.
+// Type-guard local · não precisa importar zod/runtime validator.
+interface ContactPayloadShape {
+  kind: 'contact';
+  name?: string | null;
+  phone?: string | null;
+  display_phone?: string | null;
+  wa_id?: string | null;
+}
+function isContactPayload(payload: unknown): payload is ContactPayloadShape {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    (payload as { kind?: unknown }).kind === 'contact'
+  );
 }
 
 // ─── Audio placeholder detection (audit 2026-05-06) ────────────────────────
@@ -191,6 +210,75 @@ function DeliveryStatusIcon({ status }: { status: Message['deliveryStatus'] }) {
     return <AlertTriangle className="w-3 h-3 inline-block text-[hsl(var(--danger))]" aria-label="Falhou" />;
   }
   return null;
+}
+
+// ─── Card de contato compartilhado (Mig 144 · 2026-05-07) ─────────────────
+// Renderizado dentro do balão quando msg.payload?.kind === 'contact'.
+// Mostra apenas {name, telefone formatado} · NUNCA exibe payload bruto,
+// vCard completo, email/endereço/org. Botão "Copiar" usa Clipboard API
+// com try/catch · feedback local "Copiado!" (2s).
+function ContactCard({ payload }: { payload: ContactPayloadShape }) {
+  const [copied, setCopied] = useState(false);
+  const phoneToCopy =
+    payload.phone || payload.wa_id || payload.display_phone || null;
+  const phoneToShow =
+    payload.display_phone || payload.phone || payload.wa_id || null;
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!phoneToCopy) return;
+    try {
+      // navigator.clipboard requer https · prod já é HTTPS · localhost é safe.
+      // Defensivo: typeof check pra ambientes sem Clipboard API (test/SSR).
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phoneToCopy);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      // Falha silenciosa · ambiente sem permissão de clipboard.
+      // Sem state de erro · usuário pode copiar manualmente do número exibido.
+    }
+  };
+
+  return (
+    <div className="my-1 px-3 py-2.5 rounded-md bg-white/[0.06] border border-white/[0.12]" style={{ maxWidth: 280 }}>
+      <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider opacity-70 mb-1.5">
+        <User className="w-3 h-3" strokeWidth={2} />
+        Contato compartilhado
+      </div>
+      <div className="space-y-0.5">
+        <div className="text-[13px] font-semibold leading-snug break-words">
+          {payload.name || <span className="opacity-60 font-normal italic">Sem nome</span>}
+        </div>
+        <div className="text-[12px] tabular-nums font-mono opacity-85 leading-snug break-words">
+          {phoneToShow || <span className="opacity-60 font-normal italic font-sans">Sem telefone</span>}
+        </div>
+      </div>
+      {phoneToCopy && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          title="Copiar telefone"
+          aria-label="Copiar telefone"
+          className="mt-2 pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium opacity-90 hover:opacity-100 bg-white/[0.08] hover:bg-[hsl(var(--primary))]/[0.2] text-[hsl(var(--foreground))]/85 hover:text-[hsl(var(--primary))] border border-white/[0.12] hover:border-[hsl(var(--primary))]/[0.4] cursor-pointer transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 pointer-events-none" strokeWidth={2.5} />
+              Copiado
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3 pointer-events-none" strokeWidth={2} />
+              Copiar telefone
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 interface MessageAreaProps {
@@ -333,6 +421,8 @@ export function MessageArea({
 
   // Mig 143 · helper · gera snippet curto (≤80 chars) da msg pro preview do
   // composer + balão. Áudio sem texto vira "🎧 Áudio", imagem "🖼️ Imagem", etc.
+  // Mig 144 · contato compartilhado · "👤 <name|phone>" · NUNCA expõe vCard
+  // ou payload completo no snippet.
   const previewSnippet = useCallback((m: Message): string => {
     if (m.type === 'audio') {
       const stripped = stripAudioPlaceholder(m.content);
@@ -340,6 +430,11 @@ export function MessageArea({
     }
     if (m.type === 'image') return '🖼️ Imagem';
     if (m.type === 'document') return '📄 Documento';
+    if (m.type === 'contact' || isContactPayload(m.payload)) {
+      const c = isContactPayload(m.payload) ? m.payload : null;
+      const label = c?.name || c?.display_phone || c?.phone || c?.wa_id;
+      return label ? `👤 ${label}` : '👤 Contato';
+    }
     const text = (m.content || '').trim();
     if (!text) return '(sem texto)';
     return text.length > 80 ? `${text.slice(0, 80)}…` : text;
@@ -743,18 +838,33 @@ export function MessageArea({
                           <Download className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0" strokeWidth={1.5} />
                         </a>
                       )}
+                      {/* Mig 144 (2026-05-07) · contato compartilhado · card
+                          dedicado dentro do balão · suprime o fallback de
+                          texto pra esta msg (content já é placeholder
+                          "👤 Contato compartilhado: <nome>"). Backward compat:
+                          msgs antigas Cloud com content_type='contacts' e
+                          sem payload caem no fallback de texto abaixo. */}
+                      {isContactPayload(msg.payload) && (
+                        <ContactCard payload={msg.payload} />
+                      )}
                       {/* Renderiza content como balão de texto SO quando msg
                           é texto puro · audio (com ou sem mediaUrl) NÃO entra
                           aqui (já tem player + transcrição/placeholder acima).
                           Audit 2026-05-06: antes o startsWith('[audio') sem
                           acento deixava '[áudio]' (com acento) cair no balão
                           de texto · agora pula type==='audio' incondicional.
+                          Mig 144: contact com payload válido também é pulado
+                          (ContactCard renderiza acima · mensagem legacy sem
+                          payload ainda cai aqui pra mostrar o placeholder).
                           URLs http/https viram links clicáveis (target=_blank). */}
-                      {msg.type !== 'audio' && msg.content && !isAudioPlaceholder(msg.content) && (
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">
-                          {renderTextWithLinks(msg.content)}
-                        </p>
-                      )}
+                      {msg.type !== 'audio' &&
+                        !isContactPayload(msg.payload) &&
+                        msg.content &&
+                        !isAudioPlaceholder(msg.content) && (
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">
+                            {renderTextWithLinks(msg.content)}
+                          </p>
+                        )}
                       {/* Patch 2.10 (2026-05-07) · footer minimalista · time
                           + delivery + ações inline (Responder por enquanto ·
                           espaço pra Forward/Edit/Delete). Cada ação é icon-only
