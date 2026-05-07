@@ -897,10 +897,10 @@ export function MessageArea({
                             if (!stripped || stripped === 'recebido') return null;
                             return (
                               <div
-                                className="mt-1.5 px-2 py-1.5 rounded text-[11.5px] italic leading-snug"
+                                className="mt-1.5 px-2.5 py-2 rounded text-sm italic leading-relaxed text-white/85"
                                 style={{ background: 'rgba(255,255,255,0.08)' }}
                               >
-                                <span className="font-meta uppercase tracking-[0.14em] text-[8.5px] opacity-60 not-italic block mb-0.5">
+                                <span className="font-meta uppercase tracking-[0.14em] text-[9px] text-white/60 not-italic block mb-1">
                                   Transcrição
                                 </span>
                                 {stripped}
