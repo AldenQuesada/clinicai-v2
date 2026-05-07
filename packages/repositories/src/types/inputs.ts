@@ -127,6 +127,13 @@ export interface SaveOutboundMessageInput {
   providerMsgId?: string | null
   waMessageId?: string | null
   channel?: 'cloud' | 'evolution'
+  /**
+   * Mig 143 (2026-05-07) · quoted reply · provider_msg_id da mensagem alvo
+   * (wamid Cloud OU Baileys key.id). Caller resolve via lookup em wa_messages
+   * pelo id interno antes de chamar saveOutbound. Default null · mensagem
+   * normal sem reply.
+   */
+  replyToProviderMsgId?: string | null
 }
 
 export interface CreateTemplateInput {

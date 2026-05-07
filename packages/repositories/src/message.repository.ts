@@ -203,6 +203,11 @@ export class MessageRepository {
     if (input.providerMsgId !== undefined) insertPayload.provider_msg_id = input.providerMsgId
     if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
     if (input.channel !== undefined) insertPayload.channel = input.channel
+    // Mig 143 (2026-05-07) · vínculo de quoted reply · provider_msg_id alvo.
+    // Só inclui quando explicitamente fornecido · mensagens normais ficam NULL.
+    if (input.replyToProviderMsgId !== undefined) {
+      insertPayload.reply_to_provider_msg_id = input.replyToProviderMsgId
+    }
 
     // Safety log · ver comentário em saveInbound. Outbound sem provider_msg_id
     // costuma ser:

@@ -24,5 +24,8 @@ export function mapMessageRow(row: any): MessageDTO {
     deliveryStatus: row.delivery_status ?? null,
     // Audit 2026-05-06 · template_id pra rotular B2B/voucher no dash novo
     templateId: row.template_id ?? null,
+    // Mig 143 (2026-05-07) · quoted reply linkage · expõe IDs cross-provider
+    providerMsgId: row.provider_msg_id ?? null,
+    replyToProviderMsgId: row.reply_to_provider_msg_id ?? null,
   }
 }

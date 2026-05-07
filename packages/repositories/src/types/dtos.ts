@@ -353,6 +353,21 @@ export interface MessageDTO {
    * template_ids de voucher).
    */
   templateId?: string | null
+  /**
+   * Mig 143 (2026-05-07) · provider_msg_id da mensagem original respondida
+   * via quoted reply. Cobre Cloud wamid e Evolution/Baileys key.id (mesmo
+   * campo que `provider_msg_id` da mensagem alvo). NULL pra mensagens sem
+   * reply. Habilita timeline de resposta · UI mostra "respondendo a..."
+   * resolvendo target via lookup local.
+   */
+  replyToProviderMsgId?: string | null
+  /**
+   * Provider id (wamid Cloud · key.id Evolution) da própria mensagem.
+   * Exposto no DTO pra UI/backend de quoted reply localizarem o alvo via
+   * `wa_messages.provider_msg_id`. Não é secret · é o id público que o
+   * provider devolve no send/receive.
+   */
+  providerMsgId?: string | null
 }
 
 export interface TemplateDTO {

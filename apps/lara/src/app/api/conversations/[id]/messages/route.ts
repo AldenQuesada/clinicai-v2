@@ -121,6 +121,10 @@ export async function GET(
       delivery_status: m.deliveryStatus ?? null,
       // Audit 2026-05-06 · template_id pro dash detectar B2B/voucher (label)
       template_id: m.templateId ?? null,
+      // Mig 143 (2026-05-07) · quoted reply · UI usa provider_msg_id pra
+      // localizar mensagem original respondida e renderizar bubble com quote.
+      provider_msg_id: m.providerMsgId ?? null,
+      reply_to_provider_msg_id: m.replyToProviderMsgId ?? null,
     })),
   );
 }
