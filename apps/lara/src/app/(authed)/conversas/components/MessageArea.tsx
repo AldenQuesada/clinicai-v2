@@ -558,13 +558,6 @@ export function MessageArea({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-        {/* DEBUG · cache-bust marker (Patch 2.9 · 2026-05-07) · sticky top-0
-            pra NÃO sumir quando o auto-scroll do chat puxa a view pra baixo.
-            Se você está vendo isso, o código com o botão Responder está
-            rodando. Removível depois. */}
-        <div className="sticky top-0 z-30 mb-4 mx-auto max-w-fit px-3 py-1.5 rounded-full bg-yellow-500/30 border-2 border-yellow-400 text-yellow-100 text-[11px] font-bold uppercase tracking-wider shadow-lg backdrop-blur-sm">
-          ✓ Build quoted-reply v2.9 · cada balão tem botão dourado RESPONDER
-        </div>
         {isLoadingMessages ? (
           <div className="text-center text-[hsl(var(--muted-foreground))] text-sm">Carregando mensagens...</div>
         ) : messages.length === 0 ? (
@@ -762,22 +755,18 @@ export function MessageArea({
                           {renderTextWithLinks(msg.content)}
                         </p>
                       )}
+                      {/* Patch 2.10 (2026-05-07) · footer minimalista · time
+                          + delivery + ações inline (Responder por enquanto ·
+                          espaço pra Forward/Edit/Delete). Cada ação é icon-only
+                          24×24, opacity 60% baseline, hover 100% · padrão
+                          extensível pra adicionar siblings sem reflow. */}
                       <div className="flex items-center justify-end gap-1 mt-1 block">
                         {msg.isManual && !isUser && !isFailed && <span className="text-[10px] opacity-70">Humano</span>}
                         <span className="text-[10px] opacity-70">{format(new Date(msg.createdAt), 'HH:mm')}</span>
-                        {/* SC-01: ✓ ✓✓ azul · so msgs assistant (outbound) · nao em failed */}
                         {!isUser && !isFailed && (
                           <span className="ml-0.5"><DeliveryStatusIcon status={msg.deliveryStatus} /></span>
                         )}
-                      </div>
-                      {/* Patch 2.9 (2026-05-07) · ação Responder DENTRO do
-                          balão · alto contraste (bg-primary) pra impossível
-                          de não notar · sempre visível em desktop e mobile.
-                          Renderiza em inbound + outbound · gate via canReply
-                          (exclui internalNote, failed, sem id · NÃO depende
-                          de providerMsgId). */}
-                      {canReply && (
-                        <div className="mt-2 flex justify-end pointer-events-auto">
+                        {canReply && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -785,15 +774,14 @@ export function MessageArea({
                               e.stopPropagation();
                               onSetReplyTarget?.(msg);
                             }}
-                            title="Responder mensagem"
+                            title="Responder"
                             aria-label="Responder mensagem"
-                            className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 border border-[hsl(var(--primary))] cursor-pointer transition-opacity shadow-sm"
+                            className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded opacity-60 hover:opacity-100 hover:bg-white/[0.1] transition-all cursor-pointer"
                           >
-                            <CornerUpLeft className="w-3.5 h-3.5 pointer-events-none" strokeWidth={2.5} />
-                            Responder
+                            <CornerUpLeft className="w-3 h-3 pointer-events-none" strokeWidth={2} />
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                     {isFailed && (
                       <div className="flex items-center gap-2 mt-1.5">
