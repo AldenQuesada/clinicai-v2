@@ -26,14 +26,46 @@ export interface WhatsAppMediaDownload {
 }
 
 /**
+ * Quoted reply (Baileys / Evolution).
+ *
+ * Construir externamente · provider só serializa pro body. `remoteJid` deve
+ * vir do caller (wa_conversations.remote_jid OU `${phone}@s.whatsapp.net`
+ * como fallback). `fromMe` é derivado de direction (outbound→true, inbound→false).
+ * `text` opcional · usado pra preencher o snippet do quote no Baileys.
+ */
+export interface QuotedRefBaileys {
+  remoteJid: string
+  fromMe: boolean
+  id: string
+  text?: string | null
+}
+
+/**
+ * Opções pra sendText. Mig 143 (2026-05-07) · suporta quoted reply real.
+ *
+ * Cobertura cross-provider:
+ *   - Cloud: passa `quotedProviderMsgId` (wamid.*) → vira `context.message_id`
+ *   - Evolution/Baileys: passa `quotedBaileys` completo → vira `quoted` no body
+ *
+ * Caller decide qual campo populate baseado no transport detectado · zero
+ * impedance no provider. Ambos opcionais · sem opts == comportamento legacy.
+ */
+export interface SendTextOptions {
+  /** Provider id da mensagem alvo · Cloud wamid · Evolution/Baileys key.id */
+  quotedProviderMsgId?: string | null
+  /** Contexto Baileys completo · Evolution-only */
+  quotedBaileys?: QuotedRefBaileys | null
+}
+
+/**
  * Provider canonico. Implementadores: WhatsAppCloudService, EvolutionService.
  * Cada metodo deve nunca throw · retorna WhatsAppSendResult com ok=false em erro.
  */
 export interface WhatsAppProvider {
   readonly providerName: 'cloud' | 'evolution'
 
-  /** Envia mensagem texto puro */
-  sendText(phone: string, text: string): Promise<WhatsAppSendResult>
+  /** Envia mensagem texto puro · `opts.quoted*` ativa quoted reply quando presente */
+  sendText(phone: string, text: string, opts?: SendTextOptions): Promise<WhatsAppSendResult>
 
   /** Envia imagem por URL · caption opcional */
   sendImage(phone: string, imageUrl: string, caption?: string): Promise<WhatsAppSendResult>

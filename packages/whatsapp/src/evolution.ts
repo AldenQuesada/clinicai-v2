@@ -19,6 +19,7 @@
 
 import { createLogger } from '@clinicai/logger'
 import type {
+  SendTextOptions,
   WhatsAppMediaDownload,
   WhatsAppProvider,
   WhatsAppSendResult,
@@ -52,12 +53,34 @@ export class EvolutionService implements WhatsAppProvider {
     return `${base}${path}`
   }
 
-  async sendText(phone: string, text: string): Promise<WhatsAppSendResult> {
+  async sendText(
+    phone: string,
+    text: string,
+    opts?: SendTextOptions,
+  ): Promise<WhatsAppSendResult> {
+    // Mig 143 · quoted reply Baileys via `quoted` no body. Caller (endpoint)
+    // monta QuotedRefBaileys com remoteJid (de wa_conversations.remote_jid OU
+    // `${phone}@s.whatsapp.net`), fromMe (derivado de direction), id (de
+    // wa_messages.provider_msg_id) e text opcional pra snippet. Sem opts,
+    // body sai sem `quoted` (comportamento legacy).
+    const body: Record<string, unknown> = { number: phone, text }
+    if (opts?.quotedBaileys) {
+      const q = opts.quotedBaileys
+      const snippet = (q.text ?? '').toString().slice(0, 200)
+      body.quoted = {
+        key: {
+          remoteJid: q.remoteJid,
+          fromMe:    q.fromMe,
+          id:        q.id,
+        },
+        message: { conversation: snippet },
+      }
+    }
     try {
       const res = await fetch(this.url(`/message/sendText/${this.cfg.instance}`), {
         method: 'POST',
         headers: this.headers(),
-        body: JSON.stringify({ number: phone, text }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.text()

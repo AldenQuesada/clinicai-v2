@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
 import type {
+  SendTextOptions,
   WhatsAppMediaDownload,
   WhatsAppProvider,
   WhatsAppSendResult,
@@ -48,8 +49,25 @@ export class WhatsAppCloudService implements WhatsAppProvider {
     this.wa_number_id = config.wa_number_id
   }
 
-  async sendText(to: string, text: string): Promise<WhatsAppSendResult> {
+  async sendText(
+    to: string,
+    text: string,
+    opts?: SendTextOptions,
+  ): Promise<WhatsAppSendResult> {
     const url = `${GRAPH_API}/${this.phoneNumberId}/messages`
+    // Mig 143 · quoted reply via context.message_id (Meta nativo). wamid alvo
+    // vem de wa_messages.provider_msg_id da mensagem original. Se ausente,
+    // body sai sem context (comportamento legacy preservado).
+    const body: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: { preview_url: false, body: text },
+    }
+    if (opts?.quotedProviderMsgId) {
+      body.context = { message_id: opts.quotedProviderMsgId }
+    }
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -57,13 +75,7 @@ export class WhatsAppCloudService implements WhatsAppProvider {
           Authorization: `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to,
-          type: 'text',
-          text: { preview_url: false, body: text },
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.text()
