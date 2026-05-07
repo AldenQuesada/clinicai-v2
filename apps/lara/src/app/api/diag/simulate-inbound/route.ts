@@ -19,6 +19,15 @@ import { sanitizeWebhookLogBody } from '@/lib/webhook/sanitize-webhook-log';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // Hard guard 2026-05-07 · audit pattern channel='cloud' + sender='user'
+  // + provider_msg_id NULL em conv Mih/Secretaria. Endpoint diag escreve
+  // direto em wa_messages sem providerMsgId/waMessageId/channel · cai em
+  // defaults da DDL · contamina convs reais quando rodado em prod.
+  // Em dev local segue funcional pra E2E testing.
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'disabled_in_production' }, { status: 403 });
+  }
+
   const headerSecret = request.headers.get('x-diag-secret');
   if (headerSecret !== 'simulate-inbound-2026-05-04') {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });

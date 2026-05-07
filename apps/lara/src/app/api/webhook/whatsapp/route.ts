@@ -567,100 +567,38 @@ async function processInboundMessage(
 
   await repos.conversations.updateLastMessage(conv.id, textContent, true, sentAtStr);
 
-  // 6.4 Mig 91 · bifurcacao por inbox_role.
-  // Quando a conversa pertence a um numero da SECRETARIA, NAO acionamos
-  // generateResponse · so persistimos a mensagem e disparamos inbox_notification.
+  // 6.4 Guard 2026-05-07 · Cloud Lara só processa inbox_role='sdr'.
+  //
+  // Audit detectou contaminação cruzada: convs com inbox_role='secretaria'
+  // (Mih) ou 'b2b' (Mira) recebiam respostas/auto-greeting via Cloud Lara
+  // (número 88773) quando webhook Cloud caía na conv errada (adopt-orphan
+  // legacy realocando wa_number_id, ou phone com 2 convs em canais
+  // diferentes). Resultado: msgs sender='lara' channel='cloud' em conv Mih
+  // poluindo /secretaria.
+  //
+  // Regra: Cloud webhook só roda IA + saveOutbound se conv for SDR. Para
+  // qualquer outro inbox_role, log estruturado + return early. Inbound
+  // (linha 550) já foi salvo · saveInbound é registro fiel da chamada Cloud
+  // recebida · não é "resposta da Lara". Auto-greeting Cloud removido:
+  // canal Mih tem auto-greeting próprio em whatsapp-evolution/route.ts ·
+  // duplicar via Cloud era contaminação.
+  //
   // Casos cobertos:
-  //   (a) Lead chega direto no numero da clinica (nao passou pela Lara)
-  //   (b) Lead em conversa que ja foi handoff (mesma logica)
-  if (conv.inboxRole === 'secretaria') {
-    log.info(
-      { clinic_id, phone_hash: hashPhone(phone), conv_id: conv.id },
-      'webhook.secretaria.inbound · skipping AI generation',
+  //   - inbox_role='secretaria' (Mih) · skip
+  //   - inbox_role='b2b' (Mira) · skip
+  //   - inbox_role='sdr' (Cloud Lara) · processa normal
+  //   - inbox_role NULL (legacy sem wa_number_id) · processa normal (compat)
+  if (conv.inboxRole && conv.inboxRole !== 'sdr') {
+    log.warn(
+      {
+        clinic_id,
+        phone_hash: hashPhone(phone),
+        conv_id: conv.id,
+        inbox_role: conv.inboxRole,
+        wa_number_id: conv.waNumberId ?? null,
+      },
+      'webhook.cloud.skip_non_sdr_conv · cloud lara só processa sdr',
     );
-    // Auto-greeting · ack imediato.
-    // Mig 114 (2026-05-04): claim atomic via RPC · resolve 4 bugs da guard antiga
-    // (countInboundSince==1 ignorava outbound humano da Luciana, race window,
-    // timezone server, falha-send silenciosa). RPC retorna false se Luciana
-    // mandou nas últimas 6h OU se já mandou greeting nas últimas 24h.
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: claimed, error: claimErr } = await (supabase as any).rpc(
-        'wa_secretaria_auto_greeting_claim',
-        { p_conversation_id: conv.id },
-      );
-      if (claimErr) {
-        log.warn(
-          { clinic_id, conv_id: conv.id, err: claimErr.message },
-          'webhook.secretaria.auto_greeting.claim_error',
-        );
-      } else if (claimed === true) {
-        const firstName = (lead.name || '').split(/\s+/)[0] || '';
-        const greet = firstName
-          ? `Oi *${firstName}*! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`
-          : `Oi! 💛 Recebi sua mensagem aqui · ja avisei a Luciana, nossa secretaria · ela vai te atender em alguns minutinhos. ✨`;
-        const sent = await wa.sendText(phone, greet);
-        if (sent.ok) {
-          await repos.messages.saveOutbound(clinic_id, {
-            conversationId: conv.id,
-            sender: 'humano',
-            content: greet,
-            contentType: 'text',
-            status: 'sent',
-            providerMsgId: sent.messageId ?? null,
-            waMessageId: sent.messageId ?? null,
-            channel: 'cloud',
-          });
-          // PROPOSITAL: NAO atualizar last_message_text/at · conv mantem
-          // preview da inbound do paciente · permanece em "Aguardando"
-          // (KPI default da Luciana) · auto-greeting eh ack, nao resposta.
-          log.info(
-            { clinic_id, conv_id: conv.id, phone_hash: hashPhone(phone) },
-            'webhook.secretaria.auto_greeting.sent',
-          );
-        } else {
-          // Send falhou · unclaim pra próxima inbound re-tentar (vs ficar 24h muda)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).rpc('wa_secretaria_auto_greeting_unclaim', {
-            p_conversation_id: conv.id,
-          });
-          log.warn(
-            { clinic_id, conv_id: conv.id, err: (sent as { error?: string }).error },
-            'webhook.secretaria.auto_greeting.send_failed_unclaimed',
-          );
-        }
-      } else {
-        log.debug(
-          { clinic_id, conv_id: conv.id },
-          'webhook.secretaria.auto_greeting.skipped · luciana_active_or_cooldown',
-        );
-      }
-    } catch (err) {
-      log.warn(
-        { clinic_id, conv_id: conv.id, err: (err as Error)?.message },
-        'webhook.secretaria.auto_greeting.exception',
-      );
-    }
-    try {
-      await repos.inboxNotifications.create({
-        clinicId: clinic_id,
-        conversationId: conv.id,
-        source: 'system',
-        reason: 'inbound_secretaria',
-        payload: {
-          kind: 'inbound_secretaria',
-          phone,
-          lead_id: lead.id,
-          lead_name: lead.name,
-          message_preview: textContent?.slice(0, 120) || '',
-        },
-      });
-    } catch (notifErr) {
-      log.warn(
-        { clinic_id, phone_hash: hashPhone(phone), err: (notifErr as Error)?.message },
-        'webhook.secretaria.notify.failed',
-      );
-    }
     return;
   }
 
