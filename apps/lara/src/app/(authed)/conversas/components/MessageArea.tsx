@@ -400,6 +400,13 @@ export function MessageArea({
   const [reactionOpenForId, setReactionOpenForId] = useState<string | null>(null);
   // Copy A (2026-05-07) · feedback "Copiado" por 2s · null=nenhum balão copiado.
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  // Improve A (2026-05-07) · estado do botão "Corrigir" no composer.
+  // 'idle' default · 'loading' enquanto IA processa · 'error' por 4s em falha.
+  // `improveOriginalText` guarda rascunho pré-revisão pra Desfazer · null
+  // quando atendente já alterou ou desfez (limpa em onChange manual).
+  const [improveStatus, setImproveStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [improveOriginalText, setImproveOriginalText] = useState<string | null>(null);
+  const [improveErrorMsg, setImproveErrorMsg] = useState<string | null>(null);
 
   // Copy A · handler do botão Copiar · resolve texto seguro, escreve clipboard,
   // mostra feedback. Defensivo contra Clipboard API ausente (HTTP, iframe sem
@@ -438,6 +445,71 @@ export function MessageArea({
       }, 2000);
     }
   }, []);
+
+  // Improve A (2026-05-07) · "Corrigir" handler · POST /messages/improve.
+  // Server-side · zero leak de API key · zero call client-side pra Anthropic.
+  // Guards: precisa conv ativa + texto não-vazio + não estar carregando.
+  // Salva original pra Desfazer · em sucesso substitui composer + mostra
+  // botão Desfazer · em falha mantém texto + mostra erro discreto por 4s.
+  const handleImproveText = useCallback(async () => {
+    if (improveStatus === 'loading') return;
+    if (!selectedConversation?.conversation_id) return;
+    const draft = newMessage.trim();
+    if (!draft) return;
+    if (draft.length > 2000) {
+      setImproveStatus('error');
+      setImproveErrorMsg('Texto muito longo · reduza pra menos de 2000 caracteres.');
+      setTimeout(() => {
+        setImproveStatus((s) => (s === 'error' ? 'idle' : s));
+        setImproveErrorMsg(null);
+      }, 4000);
+      return;
+    }
+    const original = newMessage;
+    setImproveStatus('loading');
+    setImproveErrorMsg(null);
+    try {
+      const res = await fetch(
+        `/api/conversations/${selectedConversation.conversation_id}/messages/improve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: draft }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok && typeof data.improvedText === 'string' && data.improvedText.trim()) {
+        setImproveOriginalText(original);
+        onNewMessageChange(data.improvedText);
+        setImproveStatus('idle');
+        return;
+      }
+      const err = typeof data?.error === 'string' ? data.error : 'ai_error';
+      setImproveStatus('error');
+      setImproveErrorMsg(
+        err === 'budget_exceeded'
+          ? 'Limite de IA do dia atingido · tente mais tarde.'
+          : 'Não consegui corrigir agora. Tente novamente.',
+      );
+      setTimeout(() => {
+        setImproveStatus((s) => (s === 'error' ? 'idle' : s));
+        setImproveErrorMsg(null);
+      }, 4000);
+    } catch {
+      setImproveStatus('error');
+      setImproveErrorMsg('Não consegui corrigir agora. Tente novamente.');
+      setTimeout(() => {
+        setImproveStatus((s) => (s === 'error' ? 'idle' : s));
+        setImproveErrorMsg(null);
+      }, 4000);
+    }
+  }, [improveStatus, selectedConversation?.conversation_id, newMessage, onNewMessageChange]);
+
+  const handleImproveUndo = useCallback(() => {
+    if (improveOriginalText === null) return;
+    onNewMessageChange(improveOriginalText);
+    setImproveOriginalText(null);
+  }, [improveOriginalText, onNewMessageChange]);
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
 
@@ -588,6 +660,13 @@ export function MessageArea({
     } else if (isDropdownOpen && !val.startsWith('/')) {
       // user apagou a "/" · fecha (preserva texto · so esconde dropdown)
       closeDropdown();
+    }
+    // Improve A · user editou manualmente → original do "Corrigir" anterior
+    // vira stale · esconde botão Desfazer (evita restaurar texto antigo após
+    // novas edições). Só dispara em mudança real do usuário · improve handler
+    // chama `onNewMessageChange` direto (não passa por handleTextareaChange).
+    if (improveOriginalText !== null) {
+      setImproveOriginalText(null);
     }
     // P-12 Fase 4 · typing indicator · só quando há conteúdo (vazio = parou)
     // e nao em modo nota (nota nao e "msg pro paciente")
@@ -1305,6 +1384,33 @@ export function MessageArea({
           }}
         />
 
+        {/* Improve A (2026-05-07) · pill "Desfazer" aparece após Corrigir trocar
+            o composer · clicar volta o texto original · sumir ao usuário editar
+            (handleTextareaChange limpa improveOriginalText). */}
+        {improveOriginalText !== null && improveStatus !== 'error' && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-[hsl(var(--primary))]/[0.06] border border-[hsl(var(--primary))]/[0.2]">
+            <Sparkles className="w-3 h-3 text-[hsl(var(--primary))] shrink-0" strokeWidth={2} />
+            <span className="font-meta uppercase text-[10px] tracking-[0.16em] text-[hsl(var(--primary))]">
+              Texto melhorado
+            </span>
+            <button
+              type="button"
+              onClick={handleImproveUndo}
+              className="ml-auto text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] underline underline-offset-2 decoration-dotted"
+            >
+              Desfazer
+            </button>
+          </div>
+        )}
+
+        {/* Improve A · erro do endpoint /improve · auto-some em 4s via setTimeout. */}
+        {improveStatus === 'error' && improveErrorMsg && (
+          <div className="mb-2 text-[11px] text-[hsl(var(--danger))] flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[hsl(var(--danger))]/[0.08] border border-[hsl(var(--danger))]/[0.2]">
+            <AlertTriangle className="w-3 h-3 shrink-0" strokeWidth={2} />
+            <span className="truncate">{improveErrorMsg}</span>
+          </div>
+        )}
+
         <div className={`flex items-end gap-2 rounded-lg border p-2 focus-within:ring-1 ${
           isNoteMode
             ? 'border-[#FBBF24]/40 bg-[#FBBF24]/5 ring-[#FBBF24]/40'
@@ -1380,6 +1486,31 @@ export function MessageArea({
               handleKeyDown(e);
             }}
           />
+
+          {/* Improve A (2026-05-07) · botão "Corrigir" · só aparece com texto
+              digitado · escondido em modo nota interna (notas não vão pra IA)
+              e quando há mídia staged (caption opcional · não é alvo). Spinner
+              quando improveStatus==='loading'. Hover= leve glow. */}
+          {!isNoteMode && !staged && newMessage.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={handleImproveText}
+              disabled={improveStatus === 'loading'}
+              title={improveStatus === 'loading' ? 'Corrigindo...' : 'Corrigir ortografia, gramática e fluidez · IA não muda preços, datas ou promessas'}
+              aria-label="Corrigir texto com IA"
+              className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                improveStatus === 'loading'
+                  ? 'bg-[hsl(var(--primary))]/[0.12] text-[hsl(var(--primary))] cursor-wait'
+                  : 'bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--primary))]/[0.08] hover:text-[hsl(var(--primary))]'
+              }`}
+            >
+              {improveStatus === 'loading' ? (
+                <Loader className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+              ) : (
+                <Sparkles className="w-4 h-4" strokeWidth={1.5} />
+              )}
+            </button>
+          )}
 
           {/* P-07 · botão Mic · hold-to-record (só quando nada staged + textarea vazio + nao nota) */}
           {!isNoteMode && !staged && !newMessage.trim() && (
