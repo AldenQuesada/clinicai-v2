@@ -44,6 +44,7 @@ export function mapConversationRow(
     assignedTo: row.assigned_to ?? null,
     assignedAt: row.assigned_at ?? null,
     inboxRole: (row.inbox_role === 'secretaria' ? 'secretaria' : 'sdr') as 'sdr' | 'secretaria',
+    contextType: row.context_type ?? null,
     handoffToSecretariaAt: row.handoff_to_secretaria_at ?? null,
     handoffToSecretariaBy: row.handoff_to_secretaria_by ?? null,
     // SLA · performance da secretaria + KPI Retorno

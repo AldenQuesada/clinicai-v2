@@ -135,6 +135,16 @@ export interface ConversationDTO {
    */
   inboxRole: 'sdr' | 'secretaria'
   /**
+   * Mig 001/136 · discriminador de contexto · denorm de
+   * wa_numbers.default_context_type sincronizado pelo trigger
+   * fn_wa_conversations_inbox_role_sync.
+   * Valores conhecidos: 'lara_sdr' · 'lara_beneficiary' · 'secretaria_patient' ·
+   * 'secretaria_general' · 'mira_b2b' · 'mira_admin'. Tipado como string
+   * pra tolerar valores futuros sem breaking change.
+   * NULL pra rows pré mig 001 (improvável em prod).
+   */
+  contextType: string | null
+  /**
    * Mig 91 · timestamp do handoff Lara→Secretaria (NULL = sem handoff).
    * Quando preenchido: Lara pausada 30d, secretaria notificada via inbox.
    */

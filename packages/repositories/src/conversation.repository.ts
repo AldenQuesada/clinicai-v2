@@ -215,9 +215,16 @@ export class ConversationRepository {
 
   /**
    * Mig 91 · seta wa_number_id em conv existente · trigger
-   * fn_wa_conversations_inbox_role_sync sincroniza inbox_role do wa_numbers.
-   * Usado pelo backfill de convs legacy criadas pela wa-inbound (que nao
-   * preenchia wa_number_id) quando recebe nova mensagem agora.
+   * fn_wa_conversations_inbox_role_sync sincroniza inbox_role + context_type
+   * do wa_numbers. Usado pelo backfill de convs legacy criadas pela wa-inbound
+   * (que nao preenchia wa_number_id) quando recebe nova mensagem agora.
+   *
+   * Race-safe (HIGH-2 · 2026-05-07): UPDATE só vence quando a linha ainda
+   * tem `wa_number_id IS NULL` E `deleted_at IS NULL`. Se 2 webhooks tentam
+   * adotar a mesma órfã ao mesmo tempo, só o primeiro grava · o segundo
+   * recebe `null` (zero rows afetadas) e o caller decide o que fazer (pular
+   * adoção com warning). Também impede sobrescrever canal de conv que JÁ
+   * tinha wa_number_id setado por qualquer outra via.
    */
   async setWaNumber(
     conversationId: string,
@@ -225,8 +232,13 @@ export class ConversationRepository {
   ): Promise<ConversationDTO | null> {
     const { data, error } = await this.supabase
       .from('wa_conversations')
-      .update({ wa_number_id: waNumberId })
+      .update({
+        wa_number_id: waNumberId,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', conversationId)
+      .is('wa_number_id', null)
+      .is('deleted_at', null)
       .select()
       .maybeSingle()
 

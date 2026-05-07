@@ -169,16 +169,69 @@ export async function resolveConversation(
 
   // Fallback compat · conv legacy SEM wa_number_id quando webhook fornece um
   // (wa-inbound antiga não preenchia) → adota canal atual UMA vez.
+  //
+  // HIGH-2 (2026-05-07) · gates explícitos pra impedir troca silenciosa de
+  // canal. Adoção só ocorre quando a órfã se parece com o legado seguro
+  // (criada pelo trigger sem wa_number_id · default sdr/lara_beneficiary).
+  // Qualquer outra combinação (b2b/secretaria/mira_*) é considerada insegura
+  // e a adoção é skipada com warning estruturado.
+  //
+  // Race-safety vem de ConversationRepository.setWaNumber (UPDATE com
+  // .is('wa_number_id', null)) · 2 webhooks concorrentes não conseguem
+  // ambos vencer · perdedor recebe null e cai no warning race_lost.
   if (!existing && waNumberId) {
     const orphan = await conversations.findActiveByPhoneVariants(clinic_id, variants)
-    if (orphan && !orphan.waNumberId) {
-      const patched = await conversations.setWaNumber(orphan.id, waNumberId)
-      if (patched) {
-        log.info(
-          { clinic_id, phone_hash: hashPhone(phone), conv_id: orphan.id, new_wn: waNumberId },
-          'conversation.wa_number_id.adopted_orphan',
+    if (orphan) {
+      const isLegacyOrphan =
+        !orphan.waNumberId &&
+        orphan.inboxRole === 'sdr' &&
+        orphan.contextType === 'lara_beneficiary'
+
+      if (!isLegacyOrphan) {
+        log.warn(
+          {
+            clinic_id,
+            phone_hash: hashPhone(phone),
+            conversation_id: orphan.id,
+            attempted_wa_number_id: waNumberId,
+            orphan_inbox_role: orphan.inboxRole,
+            orphan_context_type: orphan.contextType,
+            orphan_status: orphan.status,
+            has_wa_number_id: Boolean(orphan.waNumberId),
+            reason: 'not_legacy_orphan',
+          },
+          'conversation.wa_number_id.adopt_orphan.skipped',
         )
-        existing = patched
+      } else {
+        const oldInboxRole = orphan.inboxRole
+        const oldContextType = orphan.contextType
+        const patched = await conversations.setWaNumber(orphan.id, waNumberId)
+        if (patched) {
+          log.info(
+            {
+              clinic_id,
+              phone_hash: hashPhone(phone),
+              conv_id: orphan.id,
+              conversation_id: orphan.id,
+              new_wn: waNumberId,
+              new_wa_number_id: waNumberId,
+              old_inbox_role: oldInboxRole,
+              old_context_type: oldContextType,
+            },
+            'conversation.wa_number_id.adopted_orphan',
+          )
+          existing = patched
+        } else {
+          log.warn(
+            {
+              clinic_id,
+              phone_hash: hashPhone(phone),
+              conversation_id: orphan.id,
+              attempted_wa_number_id: waNumberId,
+            },
+            'conversation.wa_number_id.adopt_orphan.race_lost_or_not_null',
+          )
+        }
       }
     }
   }
