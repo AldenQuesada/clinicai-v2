@@ -763,12 +763,12 @@ export function MessageArea({
                           <span className="ml-0.5"><DeliveryStatusIcon status={msg.deliveryStatus} /></span>
                         )}
                       </div>
-                      {/* Patch 2.8 (2026-05-07) · ação Responder DENTRO do
-                          balão · sempre visível (sem hover/opacity-0) · ícone
-                          + texto · pointer-events-auto + z-20 + stop/prevent
-                          defensivo. Renderiza em inbound + outbound · gate
-                          via canReply (exclui internalNote, failed, sem id ·
-                          NÃO depende de providerMsgId · backend valida). */}
+                      {/* Patch 2.9 (2026-05-07) · ação Responder DENTRO do
+                          balão · alto contraste (bg-primary) pra impossível
+                          de não notar · sempre visível em desktop e mobile.
+                          Renderiza em inbound + outbound · gate via canReply
+                          (exclui internalNote, failed, sem id · NÃO depende
+                          de providerMsgId). */}
                       {canReply && (
                         <div className="mt-2 flex justify-end pointer-events-auto">
                           <button
@@ -780,9 +780,9 @@ export function MessageArea({
                             }}
                             title="Responder mensagem"
                             aria-label="Responder mensagem"
-                            className="pointer-events-auto relative z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium opacity-90 hover:opacity-100 bg-white/[0.08] hover:bg-[hsl(var(--primary))]/[0.2] text-[hsl(var(--foreground))]/85 hover:text-[hsl(var(--primary))] border border-white/[0.12] hover:border-[hsl(var(--primary))]/[0.4] cursor-pointer transition-colors"
+                            className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 border border-[hsl(var(--primary))] cursor-pointer transition-opacity shadow-sm"
                           >
-                            <CornerUpLeft className="w-3 h-3 pointer-events-none" strokeWidth={2} />
+                            <CornerUpLeft className="w-3.5 h-3.5 pointer-events-none" strokeWidth={2.5} />
                             Responder
                           </button>
                         </div>
