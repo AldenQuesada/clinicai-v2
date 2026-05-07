@@ -166,6 +166,173 @@ type LogInput = {
   waId: string | null
   errorMsg: string | null
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ledger b2b_voucher_dispatch_events (mig 139 + mig 140 · 2026-05-07)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Cada dispatch B2B com voucher_id válido + waId Evolution gera 1 row no
+// ledger. Cobre:
+//   - voucher_opened / voucher_scheduled / voucher_redeemed / voucher_purchased
+//     / voucher_expired_partner (trigger _b2b_voucher_dispatch_on_status_change)
+//   - voucher_no_show_recovery / voucher_post_attendance
+//     (trigger _b2b_sync_voucher_from_appointment)
+//   - voucher_validity_reminder / voucher_post_purchase_*
+//     (crons Mira · ainda não passam voucher_id · patch separado)
+//
+// Edge não cria wa_messages nem wa_conversations · wa_message_pk e
+// conversation_id ficam NULL por design (schema mig 139 aceita).
+// Idempotência via UNIQUE(voucher_id, event_type, provider_msg_id) WHERE
+// provider_msg_id IS NOT NULL · 23505/409 = duplicate (esperado em retry).
+// Insert é fail-soft · nunca derruba o dispatch.
+//
+// Mantém logMessage legado intacto (b2b_comm_dispatch_log) · ledger é audit
+// adicional, não substitui.
+
+type VoucherDispatchLedgerEventType =
+  | 'voucher_text'
+  | 'voucher_audio'
+  | 'partner_confirmation'
+  | 'partner_followup'
+  | 'beneficiary_followup'
+  | 'manual_followup'
+  | 'system_note'
+  | 'unknown'
+
+type VoucherDispatchRecipientRole =
+  | 'beneficiary'
+  | 'partner'
+  | 'admin'
+  | 'team'
+  | 'unknown'
+
+type VoucherDispatchLedgerEvent = {
+  clinic_id: string
+  voucher_id: string
+  partnership_id?: string | null
+  recipient_role: VoucherDispatchRecipientRole
+  recipient_phone?: string | null
+  recipient_name?: string | null
+  event_type: VoucherDispatchLedgerEventType
+  direction?: 'outbound' | 'inbound' | 'internal'
+  channel?: 'cloud' | 'evolution' | null
+  sender_instance?: string | null
+  wa_number_id?: string | null
+  conversation_id?: string | null
+  wa_message_pk?: string | null
+  provider_msg_id?: string | null
+  wa_message_id?: string | null
+  token?: string | null
+  status?: string | null
+  error_message?: string | null
+  sent_at?: string | null
+  raw?: Record<string, unknown>
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim())
+}
+
+function normalizeRecipientRole(value: unknown): VoucherDispatchRecipientRole {
+  const role = String(value ?? '').trim()
+  if (role === 'beneficiary' || role === 'partner' || role === 'admin' || role === 'team') {
+    return role
+  }
+  return 'unknown'
+}
+
+function eventTypeForRecipientRole(role: VoucherDispatchRecipientRole): VoucherDispatchLedgerEventType {
+  if (role === 'beneficiary') return 'beneficiary_followup'
+  if (role === 'partner') return 'partner_followup'
+  if (role === 'admin' || role === 'team') return 'system_note'
+  return 'unknown'
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pickRecipientName(role: VoucherDispatchRecipientRole, body: any, partnership: any): string | null {
+  if (role === 'beneficiary') {
+    return body?.context?.convidada
+      ?? body?.context?.convidada_first
+      ?? null
+  }
+  if (role === 'partner') {
+    return partnership?.name ?? null
+  }
+  return null
+}
+
+async function insertVoucherDispatchLedgerEvent(event: VoucherDispatchLedgerEvent): Promise<void> {
+  try {
+    const r = await fetch(`${_SB_URL}/rest/v1/b2b_voucher_dispatch_events`, {
+      method: 'POST',
+      headers: {
+        apikey: _SB_KEY,
+        Authorization: `Bearer ${_SB_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        clinic_id:       event.clinic_id,
+        voucher_id:      event.voucher_id,
+        partnership_id:  event.partnership_id ?? null,
+        recipient_role:  event.recipient_role,
+        recipient_phone: event.recipient_phone ?? null,
+        recipient_name:  event.recipient_name ?? null,
+        event_type:      event.event_type,
+        direction:       event.direction ?? 'outbound',
+        channel:         event.channel ?? 'evolution',
+        sender_instance: event.sender_instance ?? null,
+        wa_number_id:    event.wa_number_id ?? null,
+        conversation_id: event.conversation_id ?? null,
+        wa_message_pk:   event.wa_message_pk ?? null,
+        provider_msg_id: event.provider_msg_id ?? null,
+        wa_message_id:   event.wa_message_id ?? null,
+        token:           event.token ?? null,
+        status:          event.status ?? 'sent',
+        error_message:   event.error_message ?? null,
+        sent_at:         event.sent_at ?? new Date().toISOString(),
+        raw:             event.raw ?? {},
+      }),
+    })
+
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      // 23505 (PostgREST 409) · UNIQUE(voucher_id, event_type, provider_msg_id)
+      // bate em retry/replay · esperado, não é falha.
+      if (r.status === 409 || /23505|duplicate key/i.test(text)) {
+        console.warn('[b2b-comm-dispatch] voucher_dispatch_ledger_duplicate', {
+          voucher_id: event.voucher_id,
+          event_type: event.event_type,
+          provider_msg_id: event.provider_msg_id,
+        })
+        return
+      }
+      console.warn('[b2b-comm-dispatch] voucher_dispatch_ledger_insert_failed', {
+        voucher_id: event.voucher_id,
+        event_type: event.event_type,
+        provider_msg_id: event.provider_msg_id,
+        status: r.status,
+        body: text.slice(0, 500),
+      })
+      return
+    }
+
+    console.log('[b2b-comm-dispatch] voucher_dispatch_ledger_inserted', {
+      voucher_id: event.voucher_id,
+      event_type: event.event_type,
+      provider_msg_id: event.provider_msg_id,
+    })
+  } catch (e) {
+    console.warn('[b2b-comm-dispatch] voucher_dispatch_ledger_insert_exception', {
+      voucher_id: event.voucher_id,
+      event_type: event.event_type,
+      provider_msg_id: event.provider_msg_id,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
+
 async function logMessage(i: LogInput) {
   // Best effort — não falha o dispatch se log falhar
   try {
@@ -208,6 +375,14 @@ Deno.serve(async (req: Request) => {
   const eventKey = String(body?.event_key || '').trim()
   const context = (body?.context || {}) as Record<string, any>
 
+  // Mig 140 · payloads B2B comm-dispatch agora trazem voucher_id explícito.
+  // Quando presente + envio Evolution OK, gravamos no ledger
+  // b2b_voucher_dispatch_events. Sem voucher_id (ex: monthly_report,
+  // admin_application_received), pulamos silently · ledger só guarda eventos
+  // amarrados a voucher.
+  const voucherIdRaw = String(body?.voucher_id ?? '').trim()
+  const voucherId = isUuid(voucherIdRaw) ? voucherIdRaw : null
+
   if (!partnershipId || !eventKey) return err('missing_partnership_id_or_event_key')
 
   try {
@@ -244,6 +419,42 @@ Deno.serve(async (req: Request) => {
       phone, senderInstance: channel.instance,
       text, waId: sent.waId, errorMsg: null,
     })
+
+    // Ledger b2b_voucher_dispatch_events · só insere se voucher_id válido E
+    // envio Evolution retornou waId. Falhas de envio não geram row.
+    if (voucherId && sent.waId) {
+      const recipientRole = normalizeRecipientRole(
+        body?.recipient_role ?? template.recipient_role ?? 'partner',
+      )
+      const eventType = eventTypeForRecipientRole(recipientRole)
+      await insertVoucherDispatchLedgerEvent({
+        clinic_id:       partnership.clinic_id,
+        voucher_id:      voucherId,
+        partnership_id:  partnershipId ?? null,
+        recipient_role:  recipientRole,
+        recipient_phone: phone ?? null,
+        recipient_name:  pickRecipientName(recipientRole, body, partnership),
+        event_type:      eventType,
+        direction:       'outbound',
+        channel:         'evolution',
+        sender_instance: channel.instance ?? null,
+        wa_number_id:    null, // edge não resolve wa_number_id (mira_channel_get_config não devolve)
+        conversation_id: null, // edge não cria wa_conversations
+        wa_message_pk:   null, // edge não cria wa_messages
+        provider_msg_id: sent.waId,
+        wa_message_id:   sent.waId,
+        token:           null,
+        status:          'sent',
+        raw: {
+          source:         'b2b-comm-dispatch',
+          event_key:      eventKey,
+          template_id:    template.id ?? null,
+          function_key:   channel.functionKey ?? null,
+          channel_source: channel.source ?? null,
+          context:        body?.context ?? null,
+        },
+      })
+    }
 
     return ok({ ok: true, event_key: eventKey, partnership_id: partnershipId, wa_message_id: sent.waId, text_preview: text.slice(0, 100) })
   } catch (e) {
