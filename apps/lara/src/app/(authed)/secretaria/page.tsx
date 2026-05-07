@@ -98,6 +98,10 @@ export default function SecretariaPage() {
     discardMessage,
     sendStatus,
     messagesEndRef,
+    // Mig 143 (2026-05-07) · quoted reply state · wired pra MessageArea
+    // exibir botão Responder em /secretaria também (não só /conversas).
+    replyTarget,
+    setReplyTarget,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
 
   const { members: _members, me, clinicId, findById } = useClinicMembers();
@@ -599,6 +603,8 @@ export default function SecretariaPage() {
           copilotSmartReplies={[]}
           onRefreshCopilot={() => {}}
           onSendInternalNote={sendInternalNote}
+          replyTarget={replyTarget}
+          onSetReplyTarget={setReplyTarget}
         />
 
         <LeadInfoPanel
