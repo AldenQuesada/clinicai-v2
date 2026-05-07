@@ -38,6 +38,7 @@ import { createServerClient } from '@/lib/supabase';
 import { makeRepos } from '@/lib/repos';
 import { resolveTenantContext } from '@/lib/webhook/tenant-resolve';
 import { isInternalWaNumber } from '@/lib/webhook/internal-phone';
+import { WaNumberRepository } from '@clinicai/repositories';
 import {
   createWhatsAppCloudFromWaNumber,
   WhatsAppCloudService,
@@ -109,17 +110,62 @@ export async function POST(req: NextRequest) {
 
   // 1. Tenant: prefere body.clinic_id · senão resolve via wa_number_id · senão fallback Mirian
   let clinic_id: string;
-  let wa_number_id: string | null;
   if (body.clinic_id) {
     clinic_id = body.clinic_id;
-    wa_number_id = body.wa_number_id || null;
   } else {
     // ADR-028: resolve via wa_numbers se possivel · default Mirian (LARA_TENANT_FAILFAST=false)
     const ctx = await resolveTenantContext(supabase, null);
     clinic_id = ctx.clinic_id;
-    wa_number_id = ctx.wa_number_id;
-    if (body.wa_number_id) wa_number_id = body.wa_number_id;
   }
+
+  // 1.5 Resolução canônica do canal · cold-open SEMPRE sai pelo Lara SDR (Cloud).
+  //
+  // Audit 2026-05-07 (HIGH-1): cold-open antes podia criar wa_conversations
+  // com wa_number_id=NULL (quando body.wa_number_id ausente E ctx.wa_number_id
+  // não resolvia). Conv órfã ficava expostas a adopt-orphan (lead-conversation
+  // .ts:172-184) e podia ser raptada pra qualquer canal Secretaria que aparecesse
+  // primeiro · perdia rastro do funil Lara.
+  //
+  // Política nova: sempre resolver via listActive('lara_sdr') · fail closed se
+  // não houver canal SDR configurado · sem fallback env global · sem canal
+  // arbitrário do tenant ctx · body.wa_number_id é ignorado pra resolução
+  // (continua aceito no payload por compat, mas warning logado se diverge).
+  const waNumberRepo = new WaNumberRepository(supabase);
+  const sdrCandidates = await waNumberRepo.listActiveByDefaultContextType(
+    clinic_id,
+    'lara_sdr',
+  );
+  if (sdrCandidates.length === 0) {
+    log.error(
+      { clinic_id, phone_hash: hashPhone(phone) },
+      'cold_open.no_lara_sdr_channel · No active lara_sdr WhatsApp number configured for cold-open',
+    );
+    return NextResponse.json(
+      { ok: false, error: 'No active lara_sdr WhatsApp number configured for cold-open' },
+      { status: 409 },
+    );
+  }
+  const laraWaNumber = sdrCandidates[0];
+  const wa_number_id: string = laraWaNumber.id;
+  if (body.wa_number_id && body.wa_number_id !== wa_number_id) {
+    log.warn(
+      {
+        clinic_id,
+        phone_hash: hashPhone(phone),
+        body_wa_number_id: body.wa_number_id,
+        resolved_wa_number_id: wa_number_id,
+      },
+      'cold_open.body_wa_number_id_ignored · using canonical lara_sdr channel',
+    );
+  }
+  log.info(
+    {
+      clinic_id,
+      wa_number_id,
+      default_context_type: 'lara_sdr',
+    },
+    'cold_open.wa_number_resolved',
+  );
 
   // Guard universal · cold-open jamais dispara campanha pra próprio wa_number
   // (ativo OU inativo). Audit 2026-05-05 · evita lead/conversa cruzada com
@@ -144,21 +190,24 @@ export async function POST(req: NextRequest) {
     }, { status: 422 });
   }
 
-  // 2. WhatsApp service per-tenant (audit N7) · fallback env global
-  let wa: WhatsAppCloudService | null = null;
-  if (wa_number_id) {
-    wa = await createWhatsAppCloudFromWaNumber(supabase, wa_number_id);
-  }
+  // 2. WhatsApp service per-tenant (audit N7) · sem fallback env global
+  // (canal já foi resolvido como lara_sdr canônico no passo 1.5).
+  const wa: WhatsAppCloudService | null = await createWhatsAppCloudFromWaNumber(
+    supabase,
+    wa_number_id,
+  );
   if (!wa) {
-    wa = new WhatsAppCloudService({
-      wa_number_id: wa_number_id || 'fallback-env',
-      clinic_id,
-      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
-    });
+    log.error(
+      { clinic_id, phone_hash: hashPhone(phone), wa_number_id },
+      'cold_open.wa_service.create_failed · resolved lara_sdr channel has incomplete credentials',
+    );
+    return NextResponse.json(
+      { ok: false, error: 'wa_service_unavailable · lara_sdr channel missing credentials' },
+      { status: 500 },
+    );
   }
 
-  // 3. Resolve/create lead + conversation (ADR-012)
+  // 3. Resolve/create lead + conversation (ADR-012) · scopeado por canal Lara SDR
   let lead = await repos.leads.findByPhoneVariants(clinic_id, [phone]);
   if (!lead) {
     lead = await repos.leads.create(clinic_id, { phone, name: body.name });
@@ -168,12 +217,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
   }
 
-  let conv = await repos.conversations.findActiveByPhoneVariants(clinic_id, [phone]);
+  // Lookup scopeado por waNumberId · evita pegar conv de outro canal pelo phone.
+  // Create sempre com waNumberId · fecha buraco de conv órfã pré-mig 138.
+  let conv = await repos.conversations.findActiveByPhoneVariants(
+    clinic_id,
+    [phone],
+    wa_number_id,
+  );
   if (!conv) {
     conv = await repos.conversations.create(clinic_id, {
       phone,
       leadId: lead.id,
       displayName: body.name,
+      waNumberId: wa_number_id,
     });
   }
   if (!conv) {

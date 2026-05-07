@@ -5,12 +5,44 @@
  * lead por phone, busca/cria conversation. Usado pelo botao "Nova
  * conversa" no header da lista de conversas.
  *
- * Body: { phone: string, name?: string }
+ * Body: {
+ *   phone: string,
+ *   name?: string,
+ *   defaultContextType?: 'secretaria_patient' | 'secretaria_general' | 'lara_sdr'
+ * }
  * Returns: { ok: boolean, conversation_id?: string, lead_id?: string, error?: string }
+ *
+ * Política de canal (HIGH-1 · 2026-05-07):
+ *   Criação manual humana padrão cai em Secretaria B&H (secretaria_patient).
+ *   Caller pode forçar 'secretaria_general' ou 'lara_sdr' explicitamente.
+ *   Sem fallback global de env · fail closed se não houver canal ativo.
+ *   Lookup/create sempre scopeados por wa_number_id resolvido · NUNCA órfã.
  */
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { createLogger } from '@clinicai/logger'
+import { WaNumberRepository } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
+import { createServerClient } from '@/lib/supabase'
+
+const log = createLogger({ app: 'lara' })
+
+const ALLOWED_DEFAULT_CONTEXT_TYPES = [
+  'secretaria_patient',
+  'secretaria_general',
+  'lara_sdr',
+] as const
+type AllowedDefaultContextType = (typeof ALLOWED_DEFAULT_CONTEXT_TYPES)[number]
+
+function parseDefaultContextType(raw: unknown): AllowedDefaultContextType {
+  if (
+    typeof raw === 'string' &&
+    (ALLOWED_DEFAULT_CONTEXT_TYPES as readonly string[]).includes(raw)
+  ) {
+    return raw as AllowedDefaultContextType
+  }
+  return 'secretaria_patient'
+}
 
 /** Normaliza phone pra digits-only · garante prefixo 55 BR. */
 function normalizePhone(raw: string): string {
@@ -69,6 +101,43 @@ export async function POST(req: NextRequest) {
     const { ctx, repos } = await loadServerReposContext()
     const variants = phoneVariants(phone)
 
+    // 0. Resolução canônica de canal · HIGH-1 patch 2026-05-07.
+    //
+    // Antes: lookup/create sem waNumberId → conv com wa_number_id=NULL → adopt-
+    // orphan (lead-conversation.ts:172-184) raptava pra qualquer canal que
+    // aparecesse. Agora SEMPRE resolvemos waNumber via default_context_type ·
+    // fail closed se canal não está configurado · sem fallback env global.
+    const defaultContextType = parseDefaultContextType(
+      (body as { defaultContextType?: unknown }).defaultContextType,
+    )
+    const waNumberRepo = new WaNumberRepository(createServerClient())
+    const channelCandidates = await waNumberRepo.listActiveByDefaultContextType(
+      ctx.clinic_id,
+      defaultContextType,
+    )
+    if (channelCandidates.length === 0) {
+      log.error(
+        { clinic_id: ctx.clinic_id, default_context_type: defaultContextType },
+        'manual_conversation.no_channel · No active WhatsApp number for context',
+      )
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `No active WhatsApp number configured for manual conversation context: ${defaultContextType}`,
+        },
+        { status: 409 },
+      )
+    }
+    const waNumber = channelCandidates[0]
+    log.info(
+      {
+        clinic_id: ctx.clinic_id,
+        wa_number_id: waNumber.id,
+        default_context_type: defaultContextType,
+      },
+      'manual_conversation.wa_number_resolved',
+    )
+
     // 1. Buscar lead existente
     let lead = await repos.leads.findByPhoneVariants(ctx.clinic_id, variants)
 
@@ -94,13 +163,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Buscar conversa existente (active/paused) por phone variants
+    // 3. Buscar conversa existente · scopeada por canal canônico
     let conv = await repos.conversations.findActiveByPhoneVariants(
       ctx.clinic_id,
       variants,
+      waNumber.id,
     )
 
-    // 4. Se nao acha · criar
+    // 4. Se nao acha · criar com waNumberId explícito (nunca órfã)
     if (!conv) {
       conv = await repos.conversations.create(ctx.clinic_id, {
         leadId: lead.id,
@@ -108,6 +178,7 @@ export async function POST(req: NextRequest) {
         displayName: lead.name ?? nameRaw ?? null,
         status: 'active',
         aiEnabled: true,
+        waNumberId: waNumber.id,
       })
       if (!conv) {
         return NextResponse.json(
