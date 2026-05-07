@@ -20,6 +20,7 @@
 import { createLogger } from '@clinicai/logger'
 import type {
   SendTextOptions,
+  WhatsAppContactToSend,
   WhatsAppMediaDownload,
   WhatsAppProvider,
   WhatsAppSendResult,
@@ -156,6 +157,59 @@ export class EvolutionService implements WhatsAppProvider {
       return { ok: true, data, messageId: data?.key?.id ?? null }
     } catch (err) {
       log.error({ err, instance: this.cfg.instance }, 'evolution.sendVoice.exception')
+      return { ok: false, error: String(err), messageId: null }
+    }
+  }
+
+  /**
+   * Forward C (2026-05-07) · envio nativo de contato via Evolution/Baileys.
+   * Endpoint: POST /message/sendContact/{instance}.
+   * Destinatário recebe contactMessage real (Baileys nativo · clicável).
+   *
+   * Whitelist · só name + 1 phone · NUNCA inclui email/endereço/org/url
+   * nem vCard cru. `wuid` é o id e164 puro do WhatsApp · `phoneNumber`
+   * preserva formatação humana.
+   */
+  async sendContact(
+    phone: string,
+    contact: WhatsAppContactToSend,
+  ): Promise<WhatsAppSendResult> {
+    const safeName = (contact.name || '').trim() || 'Contato'
+    const phoneCanonical = (contact.phone || '').replace(/\D+/g, '')
+    if (!phoneCanonical) {
+      return { ok: false, error: 'sendContact_phone_empty', messageId: null }
+    }
+    const wuid = (contact.waId || '').replace(/\D+/g, '') || phoneCanonical
+    const phoneNumber = contact.displayPhone || `+${phoneCanonical}`
+    const body = {
+      number: phone,
+      contact: [
+        { fullName: safeName, wuid, phoneNumber },
+      ],
+    }
+    try {
+      const res = await fetch(this.url(`/message/sendContact/${this.cfg.instance}`), {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          { instance: this.cfg.instance, status: res.status, err: err.slice(0, 300) },
+          'evolution.sendContact.failed',
+        )
+        return { ok: false, error: err, messageId: null }
+      }
+      const data = await res.json().catch(() => null)
+      const messageId = data?.key?.id ?? null
+      log.info(
+        { instance: this.cfg.instance, messageId },
+        'evolution.sendContact.ok',
+      )
+      return { ok: true, data, messageId }
+    } catch (err) {
+      log.error({ err, instance: this.cfg.instance }, 'evolution.sendContact.exception')
       return { ok: false, error: String(err), messageId: null }
     }
   }

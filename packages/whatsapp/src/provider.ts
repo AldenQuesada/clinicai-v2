@@ -58,6 +58,27 @@ export interface SendTextOptions {
 }
 
 /**
+ * Forward C (2026-05-07) · contato pra envio nativo cross-provider.
+ *
+ * Shape mínimo · NUNCA contém vCard cru, email, endereço ou org. Caller
+ * (POST /messages) extrai do payload normalizado (mig 144 · whitelist
+ * já validada upstream). Cloud usa `wa_id` (e164 puro) como id na rede ·
+ * Evolution/Baileys usa `wuid` (mesmo formato).
+ *
+ * Campos:
+ *   - name: nome humano · vai pra `formatted_name`/`fullName` no provider
+ *   - phone: e164 puro (digits-only · ex "5544999991234") · canônico
+ *   - displayPhone: formatação humana opcional ("+55 44 99999-1234")
+ *   - waId: id WhatsApp · pode coincidir com phone se o contato é WA
+ */
+export interface WhatsAppContactToSend {
+  name: string
+  phone: string
+  displayPhone?: string | null
+  waId?: string | null
+}
+
+/**
  * Provider canonico. Implementadores: WhatsAppCloudService, EvolutionService.
  * Cada metodo deve nunca throw · retorna WhatsAppSendResult com ok=false em erro.
  */
@@ -72,6 +93,17 @@ export interface WhatsAppProvider {
 
   /** Envia audio (PTT) · audioUrl deve ser publica ou data: URL · base64 aceitavel em Evolution */
   sendVoice(phone: string, audioUrl: string): Promise<WhatsAppSendResult>
+
+  /**
+   * Forward C · envio nativo de contato (Cloud `type:contacts` · Evolution
+   * `/message/sendContact`). Opcional na interface · callers devem fazer
+   * `if (typeof wa.sendContact === 'function')` ou tentar e cair em fallback
+   * `sendText` quando ausente/falhar.
+   */
+  sendContact?(
+    phone: string,
+    contact: WhatsAppContactToSend,
+  ): Promise<WhatsAppSendResult>
 
   /** Marca msg como lida · falha silenciosa (nao critico) */
   markAsRead(messageId: string): Promise<void>

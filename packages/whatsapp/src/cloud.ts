@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createLogger } from '@clinicai/logger'
 import type {
   SendTextOptions,
+  WhatsAppContactToSend,
   WhatsAppMediaDownload,
   WhatsAppProvider,
   WhatsAppSendResult,
@@ -133,6 +134,77 @@ export class WhatsAppCloudService implements WhatsAppProvider {
     } catch (err) {
       log.error({ err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id }, 'sendImage exception')
       return { ok: false, error: String(err) }
+    }
+  }
+
+  /**
+   * Forward C (2026-05-07) · envio nativo de contato via Meta Cloud API.
+   * Endpoint: POST /{phone_number_id}/messages com type='contacts'.
+   * Destinatário recebe um contato compartilhado real (clicável · pode salvar).
+   *
+   * Whitelist · NUNCA inclui email/endereço/org/url · só name + 1 phone.
+   * `wa_id` é o id e164 puro do WhatsApp (sem '+') · `phone` preserva
+   * formatação humana opcional (com '+'). Se waId ausente, fallback pra
+   * digits-only do phone.
+   */
+  async sendContact(
+    to: string,
+    contact: WhatsAppContactToSend,
+  ): Promise<WhatsAppSendResult> {
+    const url = `${GRAPH_API}/${this.phoneNumberId}/messages`
+    // Defesa: name vazio quebraria payload Meta · cai pra "Contato".
+    const safeName = (contact.name || '').trim() || 'Contato'
+    const phoneCanonical = (contact.phone || '').replace(/\D+/g, '')
+    if (!phoneCanonical) {
+      return { ok: false, error: 'sendContact_phone_empty', messageId: null }
+    }
+    const waId = (contact.waId || '').replace(/\D+/g, '') || phoneCanonical
+    const displayPhone = contact.displayPhone || `+${phoneCanonical}`
+    const body: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'contacts',
+      contacts: [
+        {
+          name: { formatted_name: safeName, first_name: safeName },
+          phones: [
+            { phone: displayPhone, wa_id: waId, type: 'CELL' },
+          ],
+        },
+      ],
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, status: res.status, err: err.slice(0, 300) },
+          'sendContact falhou',
+        )
+        return { ok: false, error: err, messageId: null }
+      }
+      const data = await res.json()
+      const messageId =
+        (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
+      log.info(
+        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, messageId },
+        'sendContact ok',
+      )
+      return { ok: true, data, messageId }
+    } catch (err) {
+      log.error(
+        { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id },
+        'sendContact exception',
+      )
+      return { ok: false, error: String(err), messageId: null }
     }
   }
 

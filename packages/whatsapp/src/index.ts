@@ -3,6 +3,8 @@ export type { WhatsAppProvider } from './provider'
 export type { WhatsAppSendResult, WhatsAppMediaDownload } from './provider'
 // Mig 143 (2026-05-07) · quoted reply opts pra sendText (Cloud + Evolution)
 export type { SendTextOptions, QuotedRefBaileys } from './provider'
+// Forward C (2026-05-07) · envio nativo de contato cross-provider
+export type { WhatsAppContactToSend } from './provider'
 
 // Cloud (Meta) · usado pela Lara
 export { WhatsAppCloudService, createWhatsAppCloudFromWaNumber } from './cloud'

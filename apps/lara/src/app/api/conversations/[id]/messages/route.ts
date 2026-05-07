@@ -21,6 +21,7 @@ import {
   EvolutionService,
   type SendTextOptions,
   type WhatsAppProvider,
+  type WhatsAppSendResult,
 } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
 import { createServerClient } from '@/lib/supabase';
@@ -493,7 +494,51 @@ export async function POST(
     );
   }
 
-  const result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+  // Forward C (2026-05-07) · envio nativo de contato quando payload.kind='contact'.
+  // Provider Cloud/Evolution implementam sendContact · destinatário recebe
+  // contato real navegável (não texto formatado). Fallback automático pra
+  // sendText se o método não existir OU o send falhar (ex: Evolution sem o
+  // endpoint /message/sendContact configurado). Quoted reply NÃO suportado em
+  // contato nativo · Cloud/Meta API não aceita context.message_id em
+  // type='contacts' · cai no fallback texto se houver replyTo.
+  let result: WhatsAppSendResult;
+  let usedNativeContact = false;
+  const wantNativeContact =
+    !!normalizedOutboundPayload &&
+    normalizedOutboundPayload.kind === 'contact' &&
+    !replyToProviderMsgId;
+  if (wantNativeContact && typeof wa.sendContact === 'function') {
+    const p = normalizedOutboundPayload as Record<string, unknown>;
+    const contactName = typeof p.name === 'string' ? p.name : 'Contato';
+    const contactPhone =
+      (typeof p.phone === 'string' && p.phone) ||
+      (typeof p.wa_id === 'string' && p.wa_id) ||
+      '';
+    if (contactPhone) {
+      const nativeRes = await wa.sendContact(conv.phone, {
+        name: contactName,
+        phone: contactPhone,
+        displayPhone: typeof p.display_phone === 'string' ? p.display_phone : null,
+        waId: typeof p.wa_id === 'string' ? p.wa_id : null,
+      });
+      if (nativeRes.ok) {
+        result = nativeRes;
+        usedNativeContact = true;
+      } else {
+        // Log estruturado · sem secret · fallback transparente.
+        console.warn('[messages POST] sendContact failed · falling back to sendText', {
+          channel: channelLabel,
+          error_preview: typeof nativeRes.error === 'string' ? nativeRes.error.slice(0, 200) : null,
+        });
+        result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+      }
+    } else {
+      result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+    }
+  } else {
+    result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+  }
+  void usedNativeContact;
 
   // Audit 2026-05-04/05: provider_msg_id só fica disponível após o send ·
   // UPDATE retroativo via updateStatus (saveOutbound roda antes pra preservar
