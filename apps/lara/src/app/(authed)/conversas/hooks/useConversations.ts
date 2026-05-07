@@ -198,6 +198,11 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
   const prevStatusRef = useRef(statusFilter);
   const lastSseEventAtRef = useRef<number>(0);
   const cursorRef = useRef<string | null>(null);
+  // Patch B (HIGH-1 flicker fix · 2026-05-07): sequence pra descartar respostas
+  // stale do fetchConversations. Mount + SSE onmessage + polling 30s podem
+  // disparar fetches concorrentes; sem sequence, o último a responder vence
+  // (mesmo sendo o pedido mais antigo) e atropela o estado mais novo.
+  const fetchSeqRef = useRef(0);
 
   // Mantém o ID selecionado sem causar re-render
   useEffect(() => {
@@ -208,13 +213,17 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
   // automatico no mount (browsers modernos bloqueiam sem user gesture).
 
   const fetchConversations = useCallback(async () => {
+    // Patch B · sequence local · descarta resposta stale após cada await.
+    const seq = ++fetchSeqRef.current;
     try {
       // P-02: refresh recarrega so a 1a pagina · cursor reseta
       const res = await fetch(
         `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&inbox=${inbox}`,
       );
+      if (seq !== fetchSeqRef.current) return;
       if (res.ok) {
         const payload: ListResponse = await res.json();
+        if (seq !== fetchSeqRef.current) return;
         const data = payload.items;
         cursorRef.current = payload.nextCursor;
         setHasMore(payload.nextCursor !== null);

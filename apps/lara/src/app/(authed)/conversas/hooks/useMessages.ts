@@ -50,13 +50,21 @@ export function useMessages(
     messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
   }, []);
 
-  const fetchMessages = useCallback(async (id: string, silent = false) => {
+  // Patch A (HIGH-1 flicker fix · 2026-05-07): aceita AbortSignal opcional ·
+  // descarta resposta stale quando troca de conversa antes do fetch retornar.
+  // Sem isso, fetch antigo da conv A pode vencer corrida e setar messages de A
+  // mesmo quando user já está em B → flicker visual de 2-4 ciclos até polling
+  // adaptativo cair pra 30s (SSE alive). Callers fora do useEffect (postMessage,
+  // sendInternalNote) não passam signal · comportamento legacy preservado.
+  const fetchMessages = useCallback(async (id: string, silent = false, signal?: AbortSignal) => {
     if (!silent) setIsLoading(true);
     try {
-      const res = await fetch(`/api/conversations/${id}/messages`);
+      const res = await fetch(`/api/conversations/${id}/messages`, signal ? { signal } : undefined);
+      if (signal?.aborted) return;
       if (res.ok) {
         const data = await res.json();
-        
+        if (signal?.aborted) return;
+
         // Deduplicação: usa Map pelo ID para garantir zero repetições
         const uniqueMap = new Map<string, Message>();
         data.forEach((msg: any) => {
@@ -75,13 +83,13 @@ export function useMessages(
             deliveryStatus: msg.delivery_status ?? null,
           });
         });
-        
+
         const formatted = Array.from(uniqueMap.values());
         const newCount = formatted.length;
-        
+
         // Só atualiza o state se tem conteúdo novo (evita re-render desnecessário)
         if (newCount !== lastCountRef.current || !silent) {
-          
+
           // Se for polling silencioso, e já tínhamos msgs, e entrou 1 nova do paciente... apita imediato!
           if (silent && lastCountRef.current > 0 && newCount > lastCountRef.current) {
             const lastMsg = formatted[formatted.length - 1];
@@ -89,12 +97,13 @@ export function useMessages(
                playNotificationSound();
             }
           }
-          
+
           // Primeira carga (lastCountRef era 0 antes deste batch) usa
           // scroll INSTANT · evita animacao parar no meio com imagens
           // ainda carregando. Mensagens novas (polling subsequente) usam
           // smooth pra dar feedback visual.
           const isInitialLoad = lastCountRef.current === 0 && newCount > 0;
+          if (signal?.aborted) return;
           setMessages(formatted);
           lastCountRef.current = newCount;
           if (newCount > 0) {
@@ -107,8 +116,12 @@ export function useMessages(
           }
         }
       }
+    } catch (e) {
+      // AbortError esperado quando troca de conversa · silencia.
+      if ((e as Error)?.name === 'AbortError') return;
+      throw e;
     } finally {
-      if (!silent) setIsLoading(false);
+      if (!silent && !signal?.aborted) setIsLoading(false);
     }
   }, [scrollToBottom]);
 
@@ -119,8 +132,13 @@ export function useMessages(
       return;
     }
 
+    // Patch A · AbortController por conversation · cleanup aborta TODOS os
+    // fetches em vôo (carga inicial + ticks pendentes) · garante que fetch
+    // antigo nunca executa setMessages após troca de conversa.
+    const ctrl = new AbortController();
+
     // Carga inicial
-    fetchMessages(conversationId);
+    fetchMessages(conversationId, false, ctrl.signal);
 
     // Polling adaptativo · SSE-aware
     // Se SSE entregou evento nos ultimos 30s, espaca polling pra 30s.
@@ -128,7 +146,8 @@ export function useMessages(
     const sseRef = opts?.lastSseEventAtRef;
     let timeoutId: ReturnType<typeof setTimeout>;
     function tick() {
-      fetchMessages(conversationId!, true); // silent = true, sem loading spinner
+      if (ctrl.signal.aborted) return;
+      fetchMessages(conversationId!, true, ctrl.signal); // silent = true, sem loading spinner
       const lastSse = sseRef?.current ?? 0;
       const sseAlive = lastSse > 0 && Date.now() - lastSse < 30000;
       const delay = sseAlive ? 30000 : 3000;
@@ -136,7 +155,10 @@ export function useMessages(
     }
     timeoutId = setTimeout(tick, 3000); // primeira passada em 3s
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      ctrl.abort();
+      clearTimeout(timeoutId);
+    };
   }, [conversationId, fetchMessages, opts?.lastSseEventAtRef]);
 
   /**
