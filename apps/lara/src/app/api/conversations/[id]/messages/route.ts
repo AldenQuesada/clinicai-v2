@@ -149,6 +149,39 @@ export async function POST(
       ? body.reply_to_message_id.trim()
       : null;
 
+  // Forward B (2026-05-07) · payload opcional pra mensagens ricas encaminhadas.
+  // Whitelist estrita · só `kind:'contact'` aceito hoje · qualquer outro shape
+  // → 422 invalid_payload_kind. Normaliza pra extrair APENAS campos da
+  // whitelist · NUNCA persiste vCard cru, email, endereço, org, ou arrays
+  // arbitrários (LGPD · disciplina mig 144).
+  let normalizedOutboundPayload: Record<string, unknown> | null = null;
+  if (body?.payload !== undefined && body.payload !== null) {
+    const raw = body.payload;
+    if (!raw || typeof raw !== 'object') {
+      return NextResponse.json({ error: 'invalid_payload_shape' }, { status: 422 });
+    }
+    const p = raw as Record<string, unknown>;
+    if (p.kind !== 'contact') {
+      return NextResponse.json({ error: 'invalid_payload_kind' }, { status: 422 });
+    }
+    const norm: Record<string, unknown> = { kind: 'contact' };
+    if (typeof p.name === 'string') norm.name = p.name;
+    if (typeof p.phone === 'string') norm.phone = p.phone;
+    if (typeof p.display_phone === 'string') norm.display_phone = p.display_phone;
+    if (typeof p.wa_id === 'string') norm.wa_id = p.wa_id;
+    if (p.source === 'cloud' || p.source === 'evolution') norm.source = p.source;
+    // forwarded_from: rastreabilidade da origem · 3 campos opcionais string.
+    if (p.forwarded_from && typeof p.forwarded_from === 'object') {
+      const ff = p.forwarded_from as Record<string, unknown>;
+      const ffNorm: Record<string, unknown> = {};
+      if (typeof ff.message_id === 'string') ffNorm.message_id = ff.message_id;
+      if (typeof ff.provider_msg_id === 'string') ffNorm.provider_msg_id = ff.provider_msg_id;
+      if (typeof ff.conversation_id === 'string') ffNorm.conversation_id = ff.conversation_id;
+      if (Object.keys(ffNorm).length > 0) norm.forwarded_from = ffNorm;
+    }
+    normalizedOutboundPayload = norm;
+  }
+
   // P-07 · pelo menos content OU midia
   const hasMedia = !!mediaPath && !!mediaType && !!mimeType;
   if (!content?.trim() && !hasMedia) {
@@ -427,18 +460,27 @@ export async function POST(
     }
   }
 
+  // Forward B · content_type='contact' quando payload é contato (consistente
+  // com inbound · UI dash filtra/renderiza ContactCard via payload.kind).
+  // Texto puro segue 'text'.
+  const outboundContentType: 'text' | 'contact' =
+    normalizedOutboundPayload?.kind === 'contact' ? 'contact' : 'text';
+
   const msgId = uuidv4();
   const savedId = await repos.messages.saveOutbound(conv.clinicId, {
     id: msgId,
     conversationId: id,
     sender: 'humano',
     content: content.trim(),
-    contentType: 'text',
+    contentType: outboundContentType,
     status: 'pending',
     channel: channelLabel,
     // Mig 143 · vínculo persistido aqui · independe do sucesso do send
     // (UI ainda assim renderiza quote do alvo · DB tem rastro).
     replyToProviderMsgId,
+    // Forward B · payload normalizado (whitelist contact-only) · NUNCA payload
+    // bruto · saveOutbound persiste em wa_messages.payload jsonb (mig 144).
+    payload: normalizedOutboundPayload,
   });
   if (!savedId) {
     console.error('[messages POST] saveOutbound retornou null', {

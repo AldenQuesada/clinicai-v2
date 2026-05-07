@@ -89,14 +89,16 @@ function groupMessagesByDay(messages: Message[]): GroupedMessages {
 // Shape canônico produzido pelo helper packages/whatsapp/src/payload.ts ·
 // salvo em wa_messages.payload jsonb pra mensagens com kind='contact'.
 // Type-guard local · não precisa importar zod/runtime validator.
-interface ContactPayloadShape {
+// Exportado pra reuso em ForwardModal (Forward B · 2026-05-07).
+export interface ContactPayloadShape {
   kind: 'contact';
   name?: string | null;
   phone?: string | null;
   display_phone?: string | null;
   wa_id?: string | null;
+  source?: 'cloud' | 'evolution';
 }
-function isContactPayload(payload: unknown): payload is ContactPayloadShape {
+export function isContactPayload(payload: unknown): payload is ContactPayloadShape {
   return (
     !!payload &&
     typeof payload === 'object' &&

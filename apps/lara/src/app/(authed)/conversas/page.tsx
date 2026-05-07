@@ -157,18 +157,20 @@ export default function ChatPage() {
     sendMessage(content, replyToMessageId);
   };
 
-  // Forward MVP A (2026-05-07) · POST direto pra conv destino · só texto.
-  // Não usa reply_to_message_id (forward ≠ reply) · não envia payload (MVP A).
-  // Retorna boolean pro modal mostrar erro local sem fechar em falha.
+  // Forward (2026-05-07) · POST direto pra conv destino. Modal monta o body
+  // (texto puro OU contato com payload normalizado · Forward B). Backend
+  // valida payload upstream (whitelist `kind:'contact'`) · 422 se shape
+  // inválido. Retorna boolean pro modal mostrar erro local sem fechar.
   const handleForwardToConversation = async (
     targetConversationId: string,
+    body: { content: string; payload?: unknown },
   ): Promise<boolean> => {
-    if (!forwardSourceMessage?.content) return false;
+    if (!body.content) return false;
     try {
       const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: forwardSourceMessage.content }),
+        body: JSON.stringify(body),
       });
       return res.ok;
     } catch {

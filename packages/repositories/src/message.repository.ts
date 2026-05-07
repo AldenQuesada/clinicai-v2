@@ -228,6 +228,10 @@ export class MessageRepository {
     if (input.replyToProviderMsgId !== undefined) {
       insertPayload.reply_to_provider_msg_id = input.replyToProviderMsgId
     }
+    // Forward B (2026-05-07) · payload normalizado de mensagem rica
+    // encaminhada · validação de shape acontece UPSTREAM (POST endpoint).
+    // Mensagens texto/mídia comuns não populam · coluna fica NULL.
+    if (input.payload !== undefined) insertPayload.payload = input.payload
 
     // Safety log · ver comentário em saveInbound. Outbound sem provider_msg_id
     // costuma ser:

@@ -21,10 +21,44 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft } from 'lucide-react';
+import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
+import { isContactPayload, type ContactPayloadShape } from './MessageArea';
+
+/**
+ * Forward B (2026-05-07) · build do body do POST · texto-only ou contato.
+ * Contato: content multi-linha "👤 Contato compartilhado\nNome: ...\nTelefone: ..."
+ * + payload normalizado com forwarded_from rastreando origem. Backend valida
+ * o payload (whitelist `kind:'contact'`) · client envia já normalizado mas
+ * server NÃO confia (re-extrai whitelist).
+ */
+function buildForwardBody(
+  msg: Message,
+  sourceConversationId: string | null,
+): { content: string; payload?: unknown } {
+  if (isContactPayload(msg.payload)) {
+    const c: ContactPayloadShape = msg.payload;
+    const name = c.name || 'Sem nome';
+    const phone = c.display_phone || c.phone || c.wa_id || 'Sem telefone';
+    const content = `👤 Contato compartilhado\nNome: ${name}\nTelefone: ${phone}`;
+    const forwarded_from: Record<string, string> = { message_id: msg.id };
+    if (msg.providerMsgId) forwarded_from.provider_msg_id = msg.providerMsgId;
+    if (sourceConversationId) forwarded_from.conversation_id = sourceConversationId;
+    const payload = {
+      kind: 'contact' as const,
+      name: c.name ?? null,
+      phone: c.phone ?? null,
+      display_phone: c.display_phone ?? null,
+      wa_id: c.wa_id ?? null,
+      source: c.source,
+      forwarded_from,
+    };
+    return { content, payload };
+  }
+  return { content: msg.content };
+}
 
 interface ForwardModalProps {
   /** Mensagem alvo do forward · caller já validou que tem content útil. */
@@ -35,10 +69,14 @@ interface ForwardModalProps {
   sourceConversationId: string | null;
   onClose: () => void;
   /**
-   * Caller deve fazer o POST · retorna `true` em sucesso, `false` em falha.
-   * Modal mostra erro local sem fechar quando false.
+   * Caller faz o POST com o body já montado (content + payload opcional pra
+   * contato). Retorna `true` em sucesso, `false` em falha. Modal mostra erro
+   * local sem fechar quando false.
    */
-  onConfirmForward: (targetConversationId: string) => Promise<boolean>;
+  onConfirmForward: (
+    targetConversationId: string,
+    body: { content: string; payload?: unknown },
+  ) => Promise<boolean>;
 }
 
 export function ForwardModal({
@@ -53,11 +91,15 @@ export function ForwardModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Forward B · detecta contato pra renderizar preview com nome+telefone
+  // em vez do content placeholder ("👤 Contato compartilhado: Maria").
+  const contactSource = isContactPayload(message.payload) ? message.payload : null;
   const previewText = useMemo(() => {
+    if (contactSource) return ''; // preview específico abaixo
     const text = (message.content || '').trim();
     if (!text) return '';
     return text.length > 140 ? `${text.slice(0, 140)}…` : text;
-  }, [message.content]);
+  }, [message.content, contactSource]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -76,7 +118,11 @@ export function ForwardModal({
     if (!pickedTarget?.conversation_id) return;
     setSending(true);
     setError(null);
-    const ok = await onConfirmForward(pickedTarget.conversation_id);
+    // Forward B · monta content (multi-linha pra contato) + payload (com
+    // forwarded_from rastreando origem) ANTES do POST. Backend re-valida
+    // shape (whitelist contact-only) · client/server zero confiança mútua.
+    const buildBody = buildForwardBody(message, sourceConversationId);
+    const ok = await onConfirmForward(pickedTarget.conversation_id, buildBody);
     setSending(false);
     if (ok) {
       onClose();
@@ -125,8 +171,29 @@ export function ForwardModal({
           </button>
         </div>
 
-        {/* Preview da msg original (sempre visível) */}
-        {previewText && (
+        {/* Preview da msg original (sempre visível). Forward B · contato
+            mostra card com nome+telefone · NUNCA expõe vCard, payload bruto,
+            email/endereço/org. Texto comum mostra trecho. */}
+        {contactSource ? (
+          <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
+            <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
+              <User className="w-3 h-3" strokeWidth={2} />
+              Contato compartilhado
+            </div>
+            <div className="text-[13px] font-semibold leading-snug break-words">
+              {contactSource.name || (
+                <span className="opacity-60 font-normal italic">Sem nome</span>
+              )}
+            </div>
+            <div className="text-[12px] tabular-nums font-mono opacity-85 leading-snug break-words">
+              {contactSource.display_phone ||
+                contactSource.phone ||
+                contactSource.wa_id || (
+                  <span className="opacity-60 font-normal italic font-sans">Sem telefone</span>
+                )}
+            </div>
+          </div>
+        ) : previewText ? (
           <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
             <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1">
               Mensagem
@@ -135,7 +202,7 @@ export function ForwardModal({
               {previewText}
             </p>
           </div>
-        )}
+        ) : null}
 
         {/* Step 2 · Confirmação */}
         {pickedTarget ? (

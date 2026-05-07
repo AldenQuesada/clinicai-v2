@@ -142,6 +142,13 @@ export interface SaveOutboundMessageInput {
    * normal sem reply.
    */
   replyToProviderMsgId?: string | null
+  /**
+   * Forward B (2026-05-07) · payload normalizado pra mensagens ricas
+   * encaminhadas (atualmente só `kind:'contact'`). Shape SEMPRE validado
+   * upstream (POST endpoint) · saveOutbound persiste opaque · NUNCA payload
+   * bruto do provider/cliente. Null/undefined pra texto/mídia comum.
+   */
+  payload?: unknown | null
 }
 
 export interface CreateTemplateInput {
