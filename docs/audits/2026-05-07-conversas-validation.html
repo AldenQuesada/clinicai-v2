@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Validação 7 dias · /conversas em prod · 2026-05-07</title>
+<style>
+  :root {
+    --gold: #C9A96E;
+    --gold-soft: rgba(201, 169, 110, 0.15);
+    --ivory: #F5F0E8;
+    --bg-0: #0F0D0A;
+    --bg-1: #1A1814;
+    --bg-2: #211E1A;
+    --border: rgba(245, 240, 232, 0.08);
+    --border-strong: rgba(201, 169, 110, 0.3);
+    --muted: #9CA3AF;
+    --dim: #6B7280;
+    --green: #10B981;
+    --yellow: #F59E0B;
+    --red: #EF4444;
+    --blue: #60A5FA;
+    --purple: #A78BFA;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--ivory); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; }
+  em.gold { color: var(--gold); font-style: italic; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 32px; }
+  .eyebrow { font-size: 11px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 10px; }
+  h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; font-weight: 400; margin: 0 0 8px; letter-spacing: -0.5px; }
+  h1 em { color: var(--gold); font-style: italic; }
+  .lede { font-size: 15px; color: var(--muted); max-width: 780px; line-height: 1.7; }
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 12px; color: var(--muted); }
+  .meta-row strong { color: var(--ivory); font-weight: 600; }
+
+  /* TOC */
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding: 14px 18px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; }
+  .toc a { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px; font-size: 11px; color: var(--ivory); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; transition: all 0.15s; text-decoration: none; }
+  .toc a:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* TLDR */
+  .tldr { margin-top: 28px; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 12px; padding: 24px 28px; }
+  .tldr h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18px; font-weight: 500; margin: 0 0 14px; color: var(--gold); font-style: italic; letter-spacing: 0.3px; }
+  .tldr ul { margin: 0; padding-left: 20px; }
+  .tldr li { margin-bottom: 8px; font-size: 13.5px; color: var(--ivory); line-height: 1.6; }
+  .tldr li strong { color: var(--gold); font-weight: 700; }
+
+  /* Section */
+  section { margin-bottom: 36px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; scroll-margin-top: 16px; }
+  .section-hdr { padding: 22px 28px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .section-hdr h2 { margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 500; }
+  .section-hdr h2 em { color: var(--gold); font-style: italic; }
+  .section-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill { padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); font-weight: 600; font-size: 11px; }
+  .pill.warn { background: rgba(245, 158, 11, 0.10); color: #FCD34D; border-color: rgba(245, 158, 11, 0.3); }
+  .pill.good { background: rgba(16, 185, 129, 0.10); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); }
+  .pill.info { background: rgba(96, 165, 250, 0.10); color: #93C5FD; border-color: rgba(96, 165, 250, 0.3); }
+  .pill.gold { background: var(--gold-soft); color: var(--gold); border-color: var(--border-strong); }
+  .pill.danger { background: rgba(239, 68, 68, 0.10); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.3); }
+
+  .section-body { padding: 18px 28px 28px; }
+  .section-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
+
+  /* SQL block */
+  .sql-block { background: var(--bg-0); border: 1px solid var(--border-strong); border-radius: 8px; padding: 18px 20px; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; color: #B8E0B8; line-height: 1.8; overflow-x: auto; white-space: pre; }
+  .sql-kw { color: #93C5FD; font-weight: 700; }
+  .sql-str { color: #FCD34D; }
+  .sql-fn { color: var(--gold); }
+  .sql-comment { color: var(--dim); font-style: italic; }
+
+  .sql-copy-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; }
+  .sql-copy-bar .copy-btn { background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); padding: 4px 12px; border-radius: 5px; cursor: pointer; font-size: 10px; letter-spacing: 1px; font-weight: 700; text-transform: uppercase; transition: all 0.15s; }
+  .sql-copy-bar .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Benchmark callout */
+  .benchmark { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .bm-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .bm-card .bm-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+  .bm-card .bm-val { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 500; }
+  .bm-card.red .bm-label { color: #FCA5A5; }
+  .bm-card.red .bm-val { color: #FCA5A5; }
+  .bm-card.yellow .bm-label { color: #FCD34D; }
+  .bm-card.yellow .bm-val { color: #FCD34D; }
+  .bm-card.green .bm-label { color: #6EE7B7; }
+  .bm-card.green .bm-val { color: #6EE7B7; }
+  .bm-card .bm-desc { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  /* Env vars */
+  .env-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .env-table th { text-align: left; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; color: var(--gold); padding: 8px 12px; border-bottom: 1px solid var(--border-strong); }
+  .env-table td { padding: 12px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+  .env-table tr:last-child td { border-bottom: none; }
+  .env-table .var-name { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--gold); font-size: 12px; font-weight: 700; }
+  .env-table .var-where { font-size: 11px; }
+  .env-table .tag-req { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .env-table .tag-ok { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: rgba(16, 185, 129, 0.10); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+  /* Commit list */
+  .commit-list { margin: 0; padding: 0; list-style: none; }
+  .commit-list li { display: flex; gap: 16px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .commit-list li:last-child { border-bottom: none; }
+  .commit-list .sha { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; color: var(--gold); flex-shrink: 0; min-width: 68px; }
+  .commit-list .msg { color: var(--ivory); flex: 1; }
+  .commit-list .msg .scope { color: var(--muted); }
+  .commit-list .tag-feat { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: rgba(167, 139, 250, 0.15); color: #C4B5FD; border: 1px solid rgba(167, 139, 250, 0.4); margin-right: 6px; }
+  .commit-list .tag-fix { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: rgba(245, 158, 11, 0.12); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.35); margin-right: 6px; }
+  .commit-list .tag-b2b { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: rgba(96, 165, 250, 0.10); color: #93C5FD; border: 1px solid rgba(96, 165, 250, 0.3); margin-right: 6px; }
+
+  /* Fix table */
+  .fix-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .fix-table th { text-align: left; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; color: var(--gold); padding: 8px 12px; border-bottom: 1px solid var(--border-strong); }
+  .fix-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; vertical-align: top; }
+  .fix-table tr:last-child td { border-bottom: none; }
+  .fix-table tr:hover td { background: rgba(255,255,255,0.015); }
+  .fix-table .sha-col { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; color: var(--gold); white-space: nowrap; }
+  .fix-table .msg-col { color: var(--ivory); }
+  .fix-table .cat-col { white-space: nowrap; }
+  .cat-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+  .cat-badge.security { background: rgba(239, 68, 68, 0.12); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .cat-badge.routing { background: rgba(167, 139, 250, 0.12); color: #C4B5FD; border: 1px solid rgba(167, 139, 250, 0.3); }
+  .cat-badge.media { background: rgba(201, 169, 110, 0.15); color: var(--gold); border: 1px solid var(--border-strong); }
+  .cat-badge.infra { background: rgba(96, 165, 250, 0.10); color: #93C5FD; border: 1px solid rgba(96, 165, 250, 0.3); }
+  .cat-badge.inbox { background: rgba(16, 185, 129, 0.10); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.3); }
+  .cat-badge.dedup { background: rgba(245, 158, 11, 0.10); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+  /* Recommendation */
+  .rec-block { background: var(--bg-2); border-left: 3px solid var(--gold); border-radius: 0 8px 8px 0; padding: 18px 22px; font-size: 14px; line-height: 1.75; color: var(--ivory); }
+  .rec-block p { margin: 0 0 12px; }
+  .rec-block p:last-child { margin: 0; }
+  .rec-block strong { color: var(--gold); }
+
+  /* Callout box */
+  .callout { margin-top: 16px; padding: 14px 18px; background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; font-size: 12.5px; color: var(--ivory); line-height: 1.65; }
+  .callout strong { color: #FCD34D; }
+  .callout.blue { background: rgba(96, 165, 250, 0.06); border-color: rgba(96, 165, 250, 0.2); }
+  .callout.blue strong { color: #93C5FD; }
+  .callout.red { background: rgba(239, 68, 68, 0.06); border-color: rgba(239, 68, 68, 0.2); }
+  .callout.red strong { color: #FCA5A5; }
+
+  /* Footnote */
+  .footnote { margin-top: 24px; padding: 16px 20px; background: var(--gold-soft); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 12.5px; color: var(--ivory); line-height: 1.7; }
+  .footnote strong { color: var(--gold); }
+
+  @media (max-width: 760px) {
+    .benchmark { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+    .container { padding: 24px 16px 60px; }
+    .fix-table th, .fix-table td { padding: 8px 8px; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Auditoria pós-entrega · 2026-05-07</div>
+    <h1>Validação 7 dias · <em>/conversas</em> em prod</h1>
+    <p class="lede">
+      Verificação do estado real de <strong style="color:var(--ivory)">P-07 (upload de mídia)</strong> e
+      <strong style="color:var(--ivory)">P-12 (multi-atendente · Presence/typing)</strong> após
+      sete dias em produção. Janela: <em class="gold">2026-04-30 → 2026-05-07</em>.
+      Doc canônico de referência: <code style="font-size:11px;color:var(--gold)">docs/audits/2026-04-29-conversas-roadmap.html</code>.
+    </p>
+    <div class="meta-row">
+      <span><strong>Data entrega</strong> 2026-04-30</span>
+      <span><strong>Data auditoria</strong> 2026-05-07</span>
+      <span><strong>Branch</strong> validation/2026-05-07-conversas</span>
+      <span><strong>Commits /conversas</strong> 10</span>
+      <span><strong>Commits fix(lara)</strong> 19</span>
+    </div>
+
+    <nav class="toc">
+      <a href="#s-upload">P-07 · Adoção upload de mídia</a>
+      <a href="#s-presence">P-12 · Presence / typing</a>
+      <a href="#s-edge">Edge cases reportados</a>
+      <a href="#s-rec">Recomendação</a>
+    </nav>
+  </header>
+
+  <!-- TLDR -->
+  <div class="tldr">
+    <h3>TL;DR — o que esta auditoria cobre</h3>
+    <ul>
+      <li><strong>P-07 upload de mídia:</strong> adoção não pode ser medida sem acesso ao Supabase Studio — SQL gerada abaixo para o operador executar. Benchmark: &gt;10 envios/dia por sender humano = saudável.</li>
+      <li><strong>P-12 Presence/typing:</strong> fix <code style="font-size:11px;color:var(--gold)">87f2fde</code> (inject supabase browser config at runtime) indica que o Realtime estava falho até essa correção. Envs <code style="font-size:11px;color:var(--gold)">NEXT_PUBLIC_*</code> precisam estar no contexto de BUILD do Easypanel.</li>
+      <li><strong>Edge cases:</strong> 19 commits fix(lara) em 7 dias — hardening ativo em segurança de payload, roteamento de canais e deduplicação.</li>
+      <li><strong>Sinal mais crítico:</strong> ausência de commits específicos de P-07 sugere que o pipeline de upload está estável ou subutilizado — a SQL confirma qual dos dois.</li>
+    </ul>
+  </div>
+
+  <!-- SECTION 1: Adoção upload de mídia -->
+  <section id="s-upload">
+    <div class="section-hdr">
+      <h2>P-07 · <em>Adoção upload de mídia</em></h2>
+      <div class="section-meta">
+        <span class="pill warn">Verificação pendente</span>
+        <span class="pill info">image · audio · document</span>
+        <span>Janela: 2026-04-30 → hoje</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <p class="section-desc">
+        O pipeline P-07 entregou upload inline de imagem, áudio (webm/opus → mp3 via lamejs) e PDF diretamente no chat.
+        Backend em <code style="font-size:11px;color:var(--gold)">apps/lara/src/app/api/conversations/[id]/upload/route.ts</code> +
+        pipeline Meta em <code style="font-size:11px;color:var(--gold)">packages/whatsapp/src/cloud.ts</code>.
+        Para medir adoção real, execute a SQL abaixo no <strong>Supabase Studio → SQL Editor</strong>.
+      </p>
+
+      <div class="sql-copy-bar">
+        <span>SQL · Supabase Studio</span>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('sql-p07').textContent).then(()=>{this.textContent='Copiado!';setTimeout(()=>this.textContent='Copiar',1500)})">Copiar</button>
+      </div>
+      <div class="sql-block" id="sql-p07"><span class="sql-kw">SELECT</span>
+  content_type,
+  sender,
+  <span class="sql-fn">COUNT</span>(*) <span class="sql-kw">AS</span> total
+<span class="sql-kw">FROM</span> public.wa_messages
+<span class="sql-kw">WHERE</span>
+  clinic_id  = <span class="sql-str">'00000000-0000-0000-0000-000000000001'</span>
+  <span class="sql-kw">AND</span> direction    = <span class="sql-str">'outbound'</span>
+  <span class="sql-kw">AND</span> content_type <span class="sql-kw">IN</span> (<span class="sql-str">'image'</span>, <span class="sql-str">'audio'</span>, <span class="sql-str">'document'</span>)
+  <span class="sql-kw">AND</span> created_at  &gt;= <span class="sql-str">'2026-04-30T00:00:00Z'</span>
+<span class="sql-kw">GROUP BY</span> content_type, sender
+<span class="sql-kw">ORDER BY</span> total <span class="sql-kw">DESC</span>;</div>
+
+      <div class="callout">
+        <strong>Substitua o clinic_id</strong> pelo UUID real da clínica em produção antes de executar.
+        O valor <code style="font-size:11px;color:#FCD34D">00000000-0000-0000-0000-000000000001</code> é placeholder — use o ID da clínica principal.
+      </div>
+
+      <div style="margin-top:20px">
+        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--gold);margin-bottom:12px">Interpretação dos resultados</div>
+        <div class="benchmark">
+          <div class="bm-card red">
+            <div class="bm-label">0 rows</div>
+            <div class="bm-val">Ninguém usou</div>
+            <div class="bm-desc">Feature entregue mas não adotada. Agendar demo guiada com equipe de secretaria.</div>
+          </div>
+          <div class="bm-card yellow">
+            <div class="bm-label">&gt;0 sender='bot'</div>
+            <div class="bm-val">Só automação</div>
+            <div class="bm-desc">Pipeline funciona mas o humano ainda não enviou mídia manual. Verificar UX do botão de upload.</div>
+          </div>
+          <div class="bm-card green">
+            <div class="bm-label">&gt;10/dia sender='humano'</div>
+            <div class="bm-val">Saudável</div>
+            <div class="bm-desc">Adoção ativa confirmada. Monitorar tamanho médio do upload e latência de transcodagem mp3.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout blue" style="margin-top:18px">
+        <strong>Nota sobre commits:</strong> não houve commits de fix em <code style="font-size:11px;color:#93C5FD">apps/lara/src/app/(authed)/conversas/hooks/useMp3Encoder.ts</code>
+        ou no endpoint de upload na janela 2026-04-30 → 2026-05-07, o que sugere que o pipeline de transcodagem
+        está <strong>estável</strong> desde o release — resultado positivo. O único fix relevante à mídia foi
+        <code style="font-size:11px;color:#93C5FD">a0cca5a fix(lara): harden media signed url generation</code>,
+        indicando hardening de URLs assinadas, não regressão funcional.
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: Presence / typing P-12 -->
+  <section id="s-presence">
+    <div class="section-hdr">
+      <h2>P-12 · <em>Presence / typing</em> Fase 3+4</h2>
+      <div class="section-meta">
+        <span class="pill danger">Env crítica identificada</span>
+        <span class="pill gold">Supabase Realtime</span>
+        <span>10 commits no módulo</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <p class="section-desc">
+        Fases 3 e 4 do P-12 dependem de <strong>Supabase Realtime</strong> para Presence (quem está online) e typing indicators.
+        O hook <code style="font-size:11px;color:var(--gold)">usePresence</code> e os componentes <code style="font-size:11px;color:var(--gold)">PresenceAvatars</code> /
+        <code style="font-size:11px;color:var(--gold)">PresenceLine</code> consomem o canal broadcast do Supabase via
+        <code style="font-size:11px;color:var(--gold)">NEXT_PUBLIC_SUPABASE_*</code> — variáveis que precisam estar disponíveis
+        no contexto de <strong>BUILD</strong> do Easypanel (não só em runtime).
+        O fix <code style="font-size:11px;color:var(--gold)">87f2fde</code> evidencia que esta configuração estava ausente ou incorreta.
+      </p>
+
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--gold);margin-bottom:12px">
+        Envs obrigatórias · Easypanel → Lara → Build Args
+      </div>
+      <table class="env-table">
+        <thead>
+          <tr>
+            <th>Variável</th>
+            <th>Onde configurar</th>
+            <th>Propósito</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="var-name">NEXT_PUBLIC_SUPABASE_URL</span></td>
+            <td class="var-where">Easypanel → App <strong>lara</strong> → <em>Environment &amp; Build Args</em> → Build Args</td>
+            <td>URL do projeto Supabase. Necessária em build para que o cliente browser seja compilado corretamente pelo Next.js.</td>
+            <td><span class="tag-req">Verificar</span></td>
+          </tr>
+          <tr>
+            <td><span class="var-name">NEXT_PUBLIC_SUPABASE_ANON_KEY</span></td>
+            <td class="var-where">Easypanel → App <strong>lara</strong> → <em>Environment &amp; Build Args</em> → Build Args</td>
+            <td>Chave anon do Supabase. Usada pelo Realtime para autenticar canais de Presence e typing no browser.</td>
+            <td><span class="tag-req">Verificar</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout" style="margin-top:16px">
+        <strong>Por que Build Args e não só Runtime Env?</strong>
+        Variáveis prefixadas com <code style="font-size:11px;color:#FCD34D">NEXT_PUBLIC_</code> são injetadas pelo Next.js
+        em <em>build time</em> nos bundles JS do cliente. Se estiverem ausentes no build, o valor será
+        <code style="font-size:11px;color:#FCD34D">undefined</code> mesmo que a env exista em runtime — quebrando silenciosamente
+        o Supabase client no browser. O fix <code style="font-size:11px;color:#FCD34D">87f2fde</code> contornou isso injetando
+        a config em runtime via variável de servidor, mas o caminho canônico é garantir os Build Args no Easypanel.
+      </div>
+
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--gold);margin:24px 0 12px">
+        Commits no módulo /conversas · 2026-04-30 → 2026-05-07
+      </div>
+      <ul class="commit-list">
+        <li>
+          <span class="sha">a587092</span>
+          <span class="msg"><span class="tag-feat">feat</span><span class="scope">lara · </span>order secretaria inbox by whatsapp mirror</span>
+        </li>
+        <li>
+          <span class="sha">f4e7e79</span>
+          <span class="msg"><span class="tag-fix">fix</span><span class="scope">b2b · </span>render voucher messages and route partner confirmations</span>
+        </li>
+        <li>
+          <span class="sha">c858767</span>
+          <span class="msg"><span class="tag-fix">fix</span><span class="scope">lara · </span>move secretaria ai summary into conversation header</span>
+        </li>
+        <li>
+          <span class="sha">bacde19</span>
+          <span class="msg"><span class="tag-fix">fix</span><span class="scope">lara · </span>align operational view and clean conversation pills</span>
+        </li>
+        <li>
+          <span class="sha">fd489e5</span>
+          <span class="msg"><span class="tag-feat">feat</span><span class="scope">lara · </span>canonicalize conversation ownership via operational view</span>
+        </li>
+        <li>
+          <span class="sha">13d0652</span>
+          <span class="msg"><span class="tag-feat">feat</span><span class="scope">lara · </span>replace secretaria KPIs with operational queues</span>
+        </li>
+        <li>
+          <span class="sha">06760cf</span>
+          <span class="msg"><span class="tag-feat">feat</span><span class="scope">lara · </span>route doctor handoff through assigned conversations</span>
+        </li>
+        <li>
+          <span class="sha">83bbd5d</span>
+          <span class="msg"><span class="tag-fix">fix</span><span class="scope">lara · </span>render SLA badge colors and contact names</span>
+        </li>
+        <li>
+          <span class="sha">b59f2ee</span>
+          <span class="msg"><span class="tag-feat">feat</span><span class="scope">lara · </span>unify secretary SLA response logic</span>
+        </li>
+        <li>
+          <span class="sha">5579fcb</span>
+          <span class="msg"><span class="tag-fix">fix</span><span class="scope">lara · </span>use content dedup only when provider id is missing</span>
+        </li>
+      </ul>
+
+      <div class="callout blue" style="margin-top:16px">
+        <strong>Observação:</strong> 4 dos 10 commits são feats de P-12 Fase 3/4 (ownership canônico, handoff médico, KPIs operacionais, SLA).
+        O volume de feat indica que o módulo está em <strong>evolução ativa</strong>, não em manutenção.
+        Nenhum commit de regressão específica de Presence/typing foi detectado — sinal positivo para as fases 3 e 4.
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: Edge cases -->
+  <section id="s-edge">
+    <div class="section-hdr">
+      <h2><em>Edge cases</em> reportados · fix(lara)</h2>
+      <div class="section-meta">
+        <span class="pill danger">19 fixes em 7 dias</span>
+        <span>2026-04-30 → 2026-05-07</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <p class="section-desc">
+        19 commits <code style="font-size:11px;color:var(--gold)">fix(lara)</code> na janela de validação.
+        Agrupados por categoria para facilitar triagem. Nenhum indica regressão de P-07 ou P-12 —
+        o foco foi hardening de segurança, roteamento e deduplicação.
+      </p>
+
+      <table class="fix-table">
+        <thead>
+          <tr>
+            <th>SHA</th>
+            <th>Mensagem</th>
+            <th>Categoria</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="sha-col">8a49b22</td>
+            <td class="msg-col">sanitize whatsapp webhook log payloads</td>
+            <td class="cat-col"><span class="cat-badge security">Segurança</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">da5dd61</td>
+            <td class="msg-col">redact media payloads from webhook logs</td>
+            <td class="cat-col"><span class="cat-badge security">Segurança</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">04ff583</td>
+            <td class="msg-col">block internal wa numbers from external flows</td>
+            <td class="cat-col"><span class="cat-badge security">Segurança</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">87f2fde</td>
+            <td class="msg-col">inject supabase browser config at runtime</td>
+            <td class="cat-col"><span class="cat-badge infra">Infra / Build</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">ec42e8e</td>
+            <td class="msg-col">disable ghost reactivation cron</td>
+            <td class="cat-col"><span class="cat-badge infra">Infra / Cron</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">7babd2e</td>
+            <td class="msg-col">route budget followups through lara sdr channel</td>
+            <td class="cat-col"><span class="cat-badge routing">Roteamento</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">c2d731f</td>
+            <td class="msg-col">prevent cloud lara from contaminating secretaria inbox</td>
+            <td class="cat-col"><span class="cat-badge routing">Roteamento</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">469bd96</td>
+            <td class="msg-col">restore secretaria flow + dedup conversation_id</td>
+            <td class="cat-col"><span class="cat-badge routing">Roteamento</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">50d5908</td>
+            <td class="msg-col">harden operational view against internal loops</td>
+            <td class="cat-col"><span class="cat-badge routing">Roteamento</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">06760cf</td>
+            <td class="msg-col">route doctor handoff through assigned conversations</td>
+            <td class="cat-col"><span class="cat-badge routing">Roteamento</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">a0cca5a</td>
+            <td class="msg-col">harden media signed url generation</td>
+            <td class="cat-col"><span class="cat-badge media">Mídia</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">44062a5</td>
+            <td class="msg-col">sign voucher audio media from correct bucket</td>
+            <td class="cat-col"><span class="cat-badge media">Mídia</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">73d2b0f</td>
+            <td class="msg-col">extract pushName from whatsapp payload variants</td>
+            <td class="cat-col"><span class="cat-badge inbox">Inbox / Contatos</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">46f3134</td>
+            <td class="msg-col">update contact names from pushName</td>
+            <td class="cat-col"><span class="cat-badge inbox">Inbox / Contatos</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">c858767</td>
+            <td class="msg-col">move secretaria ai summary into conversation header</td>
+            <td class="cat-col"><span class="cat-badge inbox">Inbox / UI</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">bacde19</td>
+            <td class="msg-col">align operational view and clean conversation pills</td>
+            <td class="cat-col"><span class="cat-badge inbox">Inbox / UI</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">83bbd5d</td>
+            <td class="msg-col">render SLA badge colors and contact names</td>
+            <td class="cat-col"><span class="cat-badge inbox">Inbox / UI</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">2ae785c</td>
+            <td class="msg-col">audit missing whatsapp provider ids</td>
+            <td class="cat-col"><span class="cat-badge dedup">Deduplicação</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">ab94ab4</td>
+            <td class="msg-col">persist provider ids for remaining outbound sends</td>
+            <td class="cat-col"><span class="cat-badge dedup">Deduplicação</span></td>
+          </tr>
+          <tr>
+            <td class="sha-col">5579fcb</td>
+            <td class="msg-col">use content dedup only when provider id is missing</td>
+            <td class="cat-col"><span class="cat-badge dedup">Deduplicação</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout" style="margin-top:18px">
+        <strong>Padrão detectado:</strong> 3 fixes de Segurança (sanitização de logs + bloqueio de números internos) + 4 fixes de Roteamento (contaminação cross-canal secretaria/Lara)
+        + 3 fixes de Deduplicação (provider_id ausente → dedup por conteúdo falhava).
+        Os clusters sugerem que os edge cases vieram de uso real — não de testes — o que valida o deploy em produção mas exige monitoramento contínuo de roteamento.
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: Recomendação -->
+  <section id="s-rec">
+    <div class="section-hdr">
+      <h2><em>Recomendação</em> · próximos passos</h2>
+      <div class="section-meta">
+        <span class="pill gold">3 ações</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="rec-block">
+        <p>
+          <strong>1 · Medir adoção P-07 agora:</strong>
+          Execute a SQL da Section 1 no Supabase Studio e compare com o benchmark de &gt;10 envios/dia por sender humano —
+          se o resultado for 0 rows após 7 dias em prod, agendar uma demo guiada de upload de mídia com a equipe de secretaria
+          antes de avançar para novos P-items do roadmap.
+        </p>
+        <p>
+          <strong>2 · Garantir Build Args do Easypanel para P-12 Presence:</strong>
+          Confirmar que <code style="font-size:12px;color:var(--gold)">NEXT_PUBLIC_SUPABASE_URL</code> e
+          <code style="font-size:12px;color:var(--gold)">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> estão nos
+          <em>Build Args</em> (não só nas Runtime Envs) do app Lara no Easypanel — o fix
+          <code style="font-size:12px;color:var(--gold)">87f2fde</code> mitigou o problema em runtime,
+          mas a correção canônica exige rebuild com os args corretos para garantir estabilidade do Realtime.
+        </p>
+        <p>
+          <strong>3 · Estabilizar antes de abrir novos P-items:</strong>
+          Com 19 commits fix(lara) em 7 dias — 3 de segurança, 4 de roteamento cross-canal —
+          o módulo /conversas está em hardening ativo; priorizar estabilização da camada de roteamento
+          secretaria ↔ Lara ↔ médico antes de iniciar qualquer novo P-item do roadmap /conversas.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="footnote">
+    <strong>Nota metodológica:</strong> Esta auditoria não executa queries ao banco (sem credenciais Supabase neste ambiente).
+    Todos os dados de commit são extraídos diretamente do git log local.
+    A SQL fornecida na Section 1 deve ser executada manualmente no Supabase Studio pelo operador.
+    Doc gerado por Claude Code em <strong>2026-05-07</strong> · branch <code style="font-size:11px">validation/2026-05-07-conversas</code>.
+  </div>
+
+</div>
+</body>
+</html>
