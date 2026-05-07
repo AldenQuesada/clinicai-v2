@@ -172,11 +172,11 @@ export async function POST(
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
   }
 
-  // Forward D1 (2026-05-07) · resolve original e injeta vars de mídia.
+  // Forward D1/E1 (2026-05-07) · resolve original e injeta vars de mídia.
   // Server lê wa_messages.media_url (Storage path canônico) · valida clinic_id
-  // (cross-tenant guard) · valida type='image' (MVP D1) · resolve MIME via
-  // extensão do path (fallback image/jpeg). Branches Cloud/Evolution rodam
-  // depois com mediaPath/mediaType/mimeType/fileName populados como se
+  // (cross-tenant guard) · valida type ∈ {'image','audio'} · resolve MIME via
+  // extensão do path com fallback seguro por tipo. Branches Cloud/Evolution
+  // rodam depois com mediaPath/mediaType/mimeType/fileName populados como se
   // tivessem vindo do body. Payload `media_forward` rastreia origem.
   let forwardPayload: Record<string, unknown> | null = null;
   if (forwardFromMessageId) {
@@ -187,27 +187,50 @@ export async function POST(
     if (original.clinicId !== ctx.clinic_id) {
       return NextResponse.json({ error: 'forward_source_wrong_clinic' }, { status: 422 });
     }
-    if (original.contentType !== 'image') {
+    // Whitelist · MVP D1=image · MVP E1=audio · video/sticker/document ficam fora.
+    const supportedForwardTypes = ['image', 'audio'] as const;
+    type SupportedForwardType = (typeof supportedForwardTypes)[number];
+    if (!supportedForwardTypes.includes(original.contentType as SupportedForwardType)) {
       return NextResponse.json({ error: 'unsupported_forward_type' }, { status: 422 });
     }
     if (!original.mediaUrl) {
       return NextResponse.json({ error: 'forward_source_missing_media' }, { status: 422 });
     }
-    // Resolve MIME via extensão do path · fallback image/jpeg seguro.
+    const forwardMediaType = original.contentType as SupportedForwardType;
+    // Resolve MIME via extensão do path · branch por tipo · fallback seguro.
     const lowerPath = original.mediaUrl.toLowerCase();
     const ext = lowerPath.split('.').pop() ?? '';
-    const mimeFromExt =
-      ext === 'png' ? 'image/png'
-      : ext === 'webp' ? 'image/webp'
-      : ext === 'gif' ? 'image/gif'
-      : 'image/jpeg';
+    let mimeFromExt: string;
+    let defaultFilename: string;
+    if (forwardMediaType === 'audio') {
+      // .ogg → audio/ogg (90% inbound) · .mp3 → audio/mpeg · .mp4/.m4a →
+      // audio/mp4 · fallback audio/ogg (formato canônico WhatsApp PTT).
+      mimeFromExt =
+        ext === 'mp3' ? 'audio/mpeg'
+        : ext === 'mp4' || ext === 'm4a' ? 'audio/mp4'
+        : ext === 'ogg' || ext === 'opus' ? 'audio/ogg'
+        : 'audio/ogg';
+      defaultFilename = `audio.${ext || 'ogg'}`;
+    } else {
+      // image · mantém comportamento D1.
+      mimeFromExt =
+        ext === 'png' ? 'image/png'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'gif' ? 'image/gif'
+        : 'image/jpeg';
+      defaultFilename = `image.${ext || 'jpg'}`;
+    }
     // Override vars do body · client NUNCA envia mediaPath/mimeType/fileName
     // pra forward · server é única fonte de verdade aqui.
-    content = original.content || '';
+    // Audio sem transcrição · placeholder seguro pra updateLastMessage e
+    // copy/preview futuros (NUNCA expõe path/URL no content).
+    const fallbackContent =
+      forwardMediaType === 'audio' ? '[áudio encaminhado]' : '';
+    content = original.content || fallbackContent;
     mediaPath = original.mediaUrl;
-    mediaType = 'image';
+    mediaType = forwardMediaType;
     mimeType = mimeFromExt;
-    fileName = original.mediaUrl.split('/').pop() || 'image.jpg';
+    fileName = original.mediaUrl.split('/').pop() || defaultFilename;
     // Payload media_forward · rastreia origem · saveOutbound persiste em
     // wa_messages.payload jsonb (mig 144). NUNCA copia payload bruto da
     // mensagem original · só id/conversation_id/provider_msg_id (whitelist).
@@ -216,7 +239,7 @@ export async function POST(
     if (original.conversationId) ff.conversation_id = original.conversationId;
     forwardPayload = {
       kind: 'media_forward',
-      media_type: 'image',
+      media_type: forwardMediaType,
       forwarded_from: ff,
     };
   }

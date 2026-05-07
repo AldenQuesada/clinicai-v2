@@ -21,19 +21,20 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User, Image as ImageIcon } from 'lucide-react';
+import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User, Image as ImageIcon, Mic } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { isContactPayload, type ContactPayloadShape } from './MessageArea';
 
 /**
- * Body que o modal envia pro POST · 3 modos mutuamente exclusivos:
+ * Body que o modal envia pro POST · 4 modos mutuamente exclusivos:
  *   · texto: { content }
  *   · contato (Onda B+C): { content, payload }
  *   · imagem (Onda D1 · 2026-05-07): { forward_from_message_id }
+ *   · áudio (Onda E1 · 2026-05-07): { forward_from_message_id }
  *     Server resolve original via getById · client NUNCA envia
- *     mediaPath/signed URL/payload pra imagem.
+ *     mediaPath/signed URL/payload pra mídia.
  */
 type ForwardBody = {
   content?: string;
@@ -49,8 +50,10 @@ function buildForwardBody(
   msg: Message,
   sourceConversationId: string | null,
 ): ForwardBody {
-  // Forward D1 · imagem · server resolve via id interno · zero leak de path/URL.
-  if (msg.type === 'image' && msg.id) {
+  // Forward D1/E1 · imagem ou áudio · server resolve via id interno · zero
+  // leak de path/URL. Mesma forma de body · server diferencia por
+  // original.contentType.
+  if ((msg.type === 'image' || msg.type === 'audio') && msg.id) {
     return { forward_from_message_id: msg.id };
   }
   if (isContactPayload(msg.payload)) {
@@ -112,18 +115,37 @@ export function ForwardModal({
   // signed URL (TTL ~1h) · suficiente pro preview no modal · NUNCA enviado
   // ao backend (POST recebe só forward_from_message_id e server resolve path).
   const isImageSource = message.type === 'image' && !!message.mediaUrl;
+  // Forward E1 (2026-05-07) · áudio · ícone + transcrição truncada como
+  // preview · backend reusa branch mídia (sendAudioById/sendVoice).
+  const isAudioSource = message.type === 'audio' && !!message.mediaUrl;
   const previewText = useMemo(() => {
-    if (contactSource || isImageSource) return ''; // preview específico abaixo
+    if (contactSource || isImageSource || isAudioSource) return ''; // previews específicos abaixo
     const text = (message.content || '').trim();
     if (!text) return '';
     return text.length > 140 ? `${text.slice(0, 140)}…` : text;
-  }, [message.content, contactSource, isImageSource]);
+  }, [message.content, contactSource, isImageSource, isAudioSource]);
   const imageCaption = useMemo(() => {
     if (!isImageSource) return '';
     const text = (message.content || '').trim();
     if (!text || text === '[imagem recebida]') return '';
     return text.length > 100 ? `${text.slice(0, 100)}…` : text;
   }, [message.content, isImageSource]);
+  // E1 · transcrição limpa pra exibir como caption · skip placeholders genéricos
+  // (`[audio recebido]`, `recebido`, `[áudio recebido — transcrição indisponível]`).
+  const audioTranscript = useMemo(() => {
+    if (!isAudioSource) return '';
+    const raw = (message.content || '').trim();
+    if (!raw) return '';
+    if (
+      raw === '[audio recebido]' ||
+      raw === '[áudio recebido — transcrição indisponível]' ||
+      raw === 'recebido' ||
+      raw.startsWith('[áudio')
+    ) {
+      return '';
+    }
+    return raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
+  }, [message.content, isAudioSource]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -195,10 +217,22 @@ export function ForwardModal({
           </button>
         </div>
 
-        {/* Preview da msg original (sempre visível). Forward B · contato
-            mostra card com nome+telefone. Forward D1 · imagem mostra
-            thumbnail + caption opcional. Texto comum mostra trecho. */}
-        {isImageSource ? (
+        {/* Preview da msg original (sempre visível). Forward B · contato.
+            Forward D1 · imagem com thumbnail. Forward E1 · áudio com ícone
+            + transcrição truncada. Texto comum mostra trecho. */}
+        {isAudioSource ? (
+          <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
+            <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
+              <Mic className="w-3 h-3" strokeWidth={2} />
+              Áudio
+            </div>
+            <p className="text-[13px] font-medium leading-snug">
+              {audioTranscript || (
+                <span className="opacity-70 italic font-normal">Mensagem de áudio</span>
+              )}
+            </p>
+          </div>
+        ) : isImageSource ? (
           <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
             <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
               <ImageIcon className="w-3 h-3" strokeWidth={2} />
