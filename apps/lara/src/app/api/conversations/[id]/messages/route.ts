@@ -172,12 +172,13 @@ export async function POST(
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
   }
 
-  // Forward D1/E1 (2026-05-07) · resolve original e injeta vars de mídia.
+  // Forward D1/E1/D2 (2026-05-07) · resolve original e injeta vars de mídia.
   // Server lê wa_messages.media_url (Storage path canônico) · valida clinic_id
-  // (cross-tenant guard) · valida type ∈ {'image','audio'} · resolve MIME via
-  // extensão do path com fallback seguro por tipo. Branches Cloud/Evolution
-  // rodam depois com mediaPath/mediaType/mimeType/fileName populados como se
-  // tivessem vindo do body. Payload `media_forward` rastreia origem.
+  // (cross-tenant guard) · valida type ∈ {'image','audio','document'} ·
+  // resolve MIME via extensão do path com fallback seguro por tipo. Branches
+  // Cloud/Evolution rodam depois com mediaPath/mediaType/mimeType/fileName
+  // populados como se tivessem vindo do body. Payload `media_forward` rastreia
+  // origem.
   let forwardPayload: Record<string, unknown> | null = null;
   if (forwardFromMessageId) {
     const original = await repos.messages.getById(forwardFromMessageId);
@@ -187,8 +188,9 @@ export async function POST(
     if (original.clinicId !== ctx.clinic_id) {
       return NextResponse.json({ error: 'forward_source_wrong_clinic' }, { status: 422 });
     }
-    // Whitelist · MVP D1=image · MVP E1=audio · video/sticker/document ficam fora.
-    const supportedForwardTypes = ['image', 'audio'] as const;
+    // Whitelist · MVP D1=image · MVP E1=audio · MVP D2=document · video/sticker
+    // ficam fora (providers não cobrem hoje).
+    const supportedForwardTypes = ['image', 'audio', 'document'] as const;
     type SupportedForwardType = (typeof supportedForwardTypes)[number];
     if (!supportedForwardTypes.includes(original.contentType as SupportedForwardType)) {
       return NextResponse.json({ error: 'unsupported_forward_type' }, { status: 422 });
@@ -211,6 +213,20 @@ export async function POST(
         : ext === 'ogg' || ext === 'opus' ? 'audio/ogg'
         : 'audio/ogg';
       defaultFilename = `audio.${ext || 'ogg'}`;
+    } else if (forwardMediaType === 'document') {
+      // D2 · pdf maioria · doc/docx/xls/xlsx/txt/zip também aceitos pela Meta
+      // até 100MB · fallback application/pdf (formato canônico de documento
+      // compartilhado em consultório · receita/orçamento/exame).
+      mimeFromExt =
+        ext === 'pdf' ? 'application/pdf'
+        : ext === 'doc' ? 'application/msword'
+        : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : ext === 'xls' ? 'application/vnd.ms-excel'
+        : ext === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : ext === 'txt' ? 'text/plain'
+        : ext === 'zip' ? 'application/zip'
+        : 'application/pdf';
+      defaultFilename = `documento.${ext || 'pdf'}`;
     } else {
       // image · mantém comportamento D1.
       mimeFromExt =
@@ -222,10 +238,12 @@ export async function POST(
     }
     // Override vars do body · client NUNCA envia mediaPath/mimeType/fileName
     // pra forward · server é única fonte de verdade aqui.
-    // Audio sem transcrição · placeholder seguro pra updateLastMessage e
+    // Audio/document sem caption · placeholder seguro pra updateLastMessage e
     // copy/preview futuros (NUNCA expõe path/URL no content).
     const fallbackContent =
-      forwardMediaType === 'audio' ? '[áudio encaminhado]' : '';
+      forwardMediaType === 'audio' ? '[áudio encaminhado]'
+      : forwardMediaType === 'document' ? '[documento encaminhado]'
+      : '';
     content = original.content || fallbackContent;
     mediaPath = original.mediaUrl;
     mediaType = forwardMediaType;

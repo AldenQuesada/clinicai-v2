@@ -21,18 +21,19 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User, Image as ImageIcon, Mic } from 'lucide-react';
+import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User, Image as ImageIcon, Mic, FileText } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { isContactPayload, type ContactPayloadShape } from './MessageArea';
 
 /**
- * Body que o modal envia pro POST · 4 modos mutuamente exclusivos:
+ * Body que o modal envia pro POST · 5 modos mutuamente exclusivos:
  *   · texto: { content }
  *   · contato (Onda B+C): { content, payload }
  *   · imagem (Onda D1 · 2026-05-07): { forward_from_message_id }
  *   · áudio (Onda E1 · 2026-05-07): { forward_from_message_id }
+ *   · documento (Onda D2 · 2026-05-07): { forward_from_message_id }
  *     Server resolve original via getById · client NUNCA envia
  *     mediaPath/signed URL/payload pra mídia.
  */
@@ -50,10 +51,13 @@ function buildForwardBody(
   msg: Message,
   sourceConversationId: string | null,
 ): ForwardBody {
-  // Forward D1/E1 · imagem ou áudio · server resolve via id interno · zero
-  // leak de path/URL. Mesma forma de body · server diferencia por
-  // original.contentType.
-  if ((msg.type === 'image' || msg.type === 'audio') && msg.id) {
+  // Forward D1/E1/D2 · imagem ou áudio ou documento · server resolve via id
+  // interno · zero leak de path/URL. Mesma forma de body · server diferencia
+  // por original.contentType.
+  if (
+    (msg.type === 'image' || msg.type === 'audio' || msg.type === 'document') &&
+    msg.id
+  ) {
     return { forward_from_message_id: msg.id };
   }
   if (isContactPayload(msg.payload)) {
@@ -118,12 +122,15 @@ export function ForwardModal({
   // Forward E1 (2026-05-07) · áudio · ícone + transcrição truncada como
   // preview · backend reusa branch mídia (sendAudioById/sendVoice).
   const isAudioSource = message.type === 'audio' && !!message.mediaUrl;
+  // Forward D2 (2026-05-07) · documento · ícone + nome derivado do path ·
+  // backend reusa branch mídia (sendDocumentById Cloud · sendMedia Evolution).
+  const isDocumentSource = message.type === 'document' && !!message.mediaUrl;
   const previewText = useMemo(() => {
-    if (contactSource || isImageSource || isAudioSource) return ''; // previews específicos abaixo
+    if (contactSource || isImageSource || isAudioSource || isDocumentSource) return '';
     const text = (message.content || '').trim();
     if (!text) return '';
     return text.length > 140 ? `${text.slice(0, 140)}…` : text;
-  }, [message.content, contactSource, isImageSource, isAudioSource]);
+  }, [message.content, contactSource, isImageSource, isAudioSource, isDocumentSource]);
   const imageCaption = useMemo(() => {
     if (!isImageSource) return '';
     const text = (message.content || '').trim();
@@ -146,6 +153,24 @@ export function ForwardModal({
     }
     return raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
   }, [message.content, isAudioSource]);
+  // D2 · nome do documento · prioriza content (caption explícita) · fallback
+  // pro basename do path (zero leak · só nome do arquivo, sem path completo).
+  // Ex: "5544abc/wa-cloud/conv1/uuid.pdf" → "uuid.pdf" → "documento.pdf".
+  // Skip placeholder genérico "[documento recebido]" do webhook.
+  const documentLabel = useMemo(() => {
+    if (!isDocumentSource) return '';
+    const raw = (message.content || '').trim();
+    if (raw && raw !== '[documento recebido]' && raw !== '[documento encaminhado]') {
+      return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+    }
+    if (message.mediaUrl) {
+      const basename = message.mediaUrl.split('/').pop() ?? '';
+      // Strip uuid prefix se houver (ex: uuid-arquivo.pdf → arquivo.pdf).
+      const stripped = basename.replace(/^[a-f0-9-]+\./, 'documento.');
+      return stripped || 'Documento';
+    }
+    return 'Documento';
+  }, [message.content, message.mediaUrl, isDocumentSource]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -219,8 +244,21 @@ export function ForwardModal({
 
         {/* Preview da msg original (sempre visível). Forward B · contato.
             Forward D1 · imagem com thumbnail. Forward E1 · áudio com ícone
-            + transcrição truncada. Texto comum mostra trecho. */}
-        {isAudioSource ? (
+            + transcrição truncada. Forward D2 · documento com ícone +
+            nome do arquivo. Texto comum mostra trecho. */}
+        {isDocumentSource ? (
+          <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
+            <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
+              <FileText className="w-3 h-3" strokeWidth={2} />
+              Documento
+            </div>
+            <p className="text-[13px] font-medium leading-snug break-words">
+              {documentLabel || (
+                <span className="opacity-70 italic font-normal">Documento</span>
+              )}
+            </p>
+          </div>
+        ) : isAudioSource ? (
           <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
             <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
               <Mic className="w-3 h-3" strokeWidth={2} />

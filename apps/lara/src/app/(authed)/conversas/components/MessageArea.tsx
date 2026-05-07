@@ -996,18 +996,22 @@ export function MessageArea({
                             · contact (Onda B+C · texto formatado OU contato nativo)
                             · image (Onda D1 · server resolve via forward_from_message_id)
                             · audio (Onda E1 · idem image · server reusa branch mídia)
-                            Document/video/sticker ficam fora · ondas futuras.
-                            Failed/internalNote sempre bloqueados. Image/audio não
-                            exigem content (caption/transcrição opcionais) ·
-                            text/contact exigem content útil. */}
+                            · document (Onda D2 · idem image/audio · sendDocumentById)
+                            Video/sticker ficam fora · providers não cobrem hoje.
+                            Failed/internalNote sempre bloqueados. Image/audio/document
+                            não exigem content (caption opcional) · text/contact
+                            exigem content útil. */}
                         {!!onForwardMessage &&
                           !isFailed &&
                           !msg.internalNote &&
                           (msg.type === 'text' ||
                             msg.type === 'contact' ||
                             msg.type === 'image' ||
-                            msg.type === 'audio') &&
-                          (msg.type === 'image' || msg.type === 'audio'
+                            msg.type === 'audio' ||
+                            msg.type === 'document') &&
+                          (msg.type === 'image' ||
+                          msg.type === 'audio' ||
+                          msg.type === 'document'
                             ? !!msg.mediaUrl && !!msg.id
                             : !!msg.content &&
                               msg.content.trim().length > 0 &&
