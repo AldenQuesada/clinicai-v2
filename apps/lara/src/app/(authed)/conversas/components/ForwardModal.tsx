@@ -21,23 +21,38 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User } from 'lucide-react';
+import { Forward, X, Search, Send, AlertTriangle, Loader, ArrowLeft, User, Image as ImageIcon } from 'lucide-react';
 import type { Conversation } from '../hooks/useConversations';
 import type { Message } from '../hooks/useMessages';
 import { getConversationDisplayName, formatPhoneBR } from '../lib/displayName';
 import { isContactPayload, type ContactPayloadShape } from './MessageArea';
 
 /**
- * Forward B (2026-05-07) · build do body do POST · texto-only ou contato.
- * Contato: content multi-linha "👤 Contato compartilhado\nNome: ...\nTelefone: ..."
- * + payload normalizado com forwarded_from rastreando origem. Backend valida
- * o payload (whitelist `kind:'contact'`) · client envia já normalizado mas
- * server NÃO confia (re-extrai whitelist).
+ * Body que o modal envia pro POST · 3 modos mutuamente exclusivos:
+ *   · texto: { content }
+ *   · contato (Onda B+C): { content, payload }
+ *   · imagem (Onda D1 · 2026-05-07): { forward_from_message_id }
+ *     Server resolve original via getById · client NUNCA envia
+ *     mediaPath/signed URL/payload pra imagem.
+ */
+type ForwardBody = {
+  content?: string;
+  payload?: unknown;
+  forward_from_message_id?: string;
+};
+
+/**
+ * Forward B (2026-05-07) · build do body do POST · texto-only OU contato OU
+ * imagem. Backend valida tudo upstream (clinic_id, type, media existe).
  */
 function buildForwardBody(
   msg: Message,
   sourceConversationId: string | null,
-): { content: string; payload?: unknown } {
+): ForwardBody {
+  // Forward D1 · imagem · server resolve via id interno · zero leak de path/URL.
+  if (msg.type === 'image' && msg.id) {
+    return { forward_from_message_id: msg.id };
+  }
   if (isContactPayload(msg.payload)) {
     const c: ContactPayloadShape = msg.payload;
     const name = c.name || 'Sem nome';
@@ -69,13 +84,13 @@ interface ForwardModalProps {
   sourceConversationId: string | null;
   onClose: () => void;
   /**
-   * Caller faz o POST com o body já montado (content + payload opcional pra
-   * contato). Retorna `true` em sucesso, `false` em falha. Modal mostra erro
-   * local sem fechar quando false.
+   * Caller faz o POST com o body já montado (content / contact-payload /
+   * forward_from_message_id pra imagem). Retorna `true` em sucesso, `false`
+   * em falha. Modal mostra erro local sem fechar quando false.
    */
   onConfirmForward: (
     targetConversationId: string,
-    body: { content: string; payload?: unknown },
+    body: ForwardBody,
   ) => Promise<boolean>;
 }
 
@@ -91,15 +106,24 @@ export function ForwardModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Forward B · detecta contato pra renderizar preview com nome+telefone
-  // em vez do content placeholder ("👤 Contato compartilhado: Maria").
+  // Forward B · detecta contato pra renderizar preview com nome+telefone.
   const contactSource = isContactPayload(message.payload) ? message.payload : null;
+  // Forward D1 · detecta imagem pra renderizar thumbnail. mediaUrl aqui é
+  // signed URL (TTL ~1h) · suficiente pro preview no modal · NUNCA enviado
+  // ao backend (POST recebe só forward_from_message_id e server resolve path).
+  const isImageSource = message.type === 'image' && !!message.mediaUrl;
   const previewText = useMemo(() => {
-    if (contactSource) return ''; // preview específico abaixo
+    if (contactSource || isImageSource) return ''; // preview específico abaixo
     const text = (message.content || '').trim();
     if (!text) return '';
     return text.length > 140 ? `${text.slice(0, 140)}…` : text;
-  }, [message.content, contactSource]);
+  }, [message.content, contactSource, isImageSource]);
+  const imageCaption = useMemo(() => {
+    if (!isImageSource) return '';
+    const text = (message.content || '').trim();
+    if (!text || text === '[imagem recebida]') return '';
+    return text.length > 100 ? `${text.slice(0, 100)}…` : text;
+  }, [message.content, isImageSource]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -172,9 +196,27 @@ export function ForwardModal({
         </div>
 
         {/* Preview da msg original (sempre visível). Forward B · contato
-            mostra card com nome+telefone · NUNCA expõe vCard, payload bruto,
-            email/endereço/org. Texto comum mostra trecho. */}
-        {contactSource ? (
+            mostra card com nome+telefone. Forward D1 · imagem mostra
+            thumbnail + caption opcional. Texto comum mostra trecho. */}
+        {isImageSource ? (
+          <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
+            <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" strokeWidth={2} />
+              Imagem
+            </div>
+            <img
+              src={message.mediaUrl ?? undefined}
+              alt="Pré-visualização"
+              className="rounded-md max-h-40 w-auto object-contain border border-white/[0.08]"
+              style={{ maxWidth: '100%' }}
+            />
+            {imageCaption && (
+              <p className="mt-1.5 text-[12px] italic leading-snug text-[hsl(var(--foreground))]/80 break-words line-clamp-2">
+                {imageCaption}
+              </p>
+            )}
+          </div>
+        ) : contactSource ? (
           <div className="px-4 py-2.5 border-b border-[hsl(var(--chat-border))] bg-white/[0.02] shrink-0">
             <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] opacity-60 mb-1.5 inline-flex items-center gap-1">
               <User className="w-3 h-3" strokeWidth={2} />

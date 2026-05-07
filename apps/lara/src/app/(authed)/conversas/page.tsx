@@ -158,14 +158,16 @@ export default function ChatPage() {
   };
 
   // Forward (2026-05-07) · POST direto pra conv destino. Modal monta o body
-  // (texto puro OU contato com payload normalizado · Forward B). Backend
-  // valida payload upstream (whitelist `kind:'contact'`) · 422 se shape
-  // inválido. Retorna boolean pro modal mostrar erro local sem fechar.
+  // em 3 modos: texto puro (Onda A), contato com payload (Onda B+C), ou
+  // imagem via forward_from_message_id (Onda D1 · server resolve original).
+  // Backend valida tudo upstream · 422 se shape inválido. Retorna boolean
+  // pro modal mostrar erro local sem fechar.
   const handleForwardToConversation = async (
     targetConversationId: string,
-    body: { content: string; payload?: unknown },
+    body: { content?: string; payload?: unknown; forward_from_message_id?: string },
   ): Promise<boolean> => {
-    if (!body.content) return false;
+    // Pelo menos content OU forward_from_message_id · backend re-valida.
+    if (!body.content && !body.forward_from_message_id) return false;
     try {
       const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
         method: 'POST',

@@ -901,19 +901,25 @@ export function MessageArea({
                             <CornerUpLeft className="w-3 h-3 pointer-events-none" strokeWidth={2} />
                           </button>
                         )}
-                        {/* Forward MVP A (2026-05-07) · só texto · gate
-                            inclui type='contact' porque content de contato
-                            é o texto formatado "👤 Contato compartilhado:
-                            Nome" · gera forward textual aceitável (MVP B).
-                            Mídia (image/audio/document/video/sticker) e
-                            failed/internalNote ficam fora · onda futura. */}
+                        {/* Forward (2026-05-07) · whitelist de tipos suportados:
+                            · text (Onda A)
+                            · contact (Onda B+C · texto formatado OU contato nativo)
+                            · image (Onda D1 · server resolve via forward_from_message_id)
+                            Document/audio/video/sticker ficam fora · ondas D2+.
+                            Failed/internalNote sempre bloqueados. Image não
+                            requer content (caption opcional) · text/contact
+                            exigem content útil. */}
                         {!!onForwardMessage &&
                           !isFailed &&
                           !msg.internalNote &&
-                          (msg.type === 'text' || msg.type === 'contact') &&
-                          !!msg.content &&
-                          msg.content.trim().length > 0 &&
-                          !isAudioPlaceholder(msg.content) && (
+                          (msg.type === 'text' ||
+                            msg.type === 'contact' ||
+                            msg.type === 'image') &&
+                          (msg.type === 'image'
+                            ? !!msg.mediaUrl && !!msg.id
+                            : !!msg.content &&
+                              msg.content.trim().length > 0 &&
+                              !isAudioPlaceholder(msg.content)) && (
                             <button
                               type="button"
                               onClick={(e) => {

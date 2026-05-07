@@ -109,13 +109,14 @@ export default function SecretariaPage() {
   // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
   const [forwardSourceMessage, setForwardSourceMessage] = useState<Message | null>(null);
 
-  // Forward (2026-05-07) · POST direto pra conv destino · texto OU contato
-  // com payload normalizado (Forward B). Backend valida payload upstream.
+  // Forward (2026-05-07) · POST direto pra conv destino · 3 modos: texto,
+  // contato com payload, OU imagem via forward_from_message_id (Onda D1 ·
+  // server resolve original). Backend valida tudo upstream.
   const handleForwardToConversation = async (
     targetConversationId: string,
-    body: { content: string; payload?: unknown },
+    body: { content?: string; payload?: unknown; forward_from_message_id?: string },
   ): Promise<boolean> => {
-    if (!body.content) return false;
+    if (!body.content && !body.forward_from_message_id) return false;
     try {
       const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
         method: 'POST',

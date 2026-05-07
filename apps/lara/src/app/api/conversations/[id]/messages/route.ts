@@ -141,13 +141,28 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const { content, internal, mediaPath, mediaType, mimeType, fileName } = body;
+  // Forward D1 (2026-05-07) · vars do body são `let` porque `forward_from_message_id`
+  // pode override (server resolve original e injeta content/mediaPath/etc).
+  const { internal } = body;
+  let content: string | undefined = body?.content;
+  let mediaPath: string | undefined = body?.mediaPath;
+  let mediaType: string | undefined = body?.mediaType;
+  let mimeType: string | undefined = body?.mimeType;
+  let fileName: string | undefined = body?.fileName;
   // Mig 143 (2026-05-07) · quoted reply opcional · uuid interno de wa_messages.
   // Validação completa acontece depois do conv lookup (precisa conv.id pra
   // checar se target pertence à mesma conversa).
   const replyToMessageId: string | null =
     typeof body?.reply_to_message_id === 'string' && body.reply_to_message_id.trim()
       ? body.reply_to_message_id.trim()
+      : null;
+  // Forward D1 (2026-05-07) · uuid interno de wa_messages a ser encaminhado.
+  // Server resolve original via getById, valida clinic_id + type + media,
+  // e popula content/mediaPath/mediaType/mimeType/fileName · client NUNCA
+  // envia path bruto · prevenção de cross-tenant + path traversal.
+  const forwardFromMessageId: string | null =
+    typeof body?.forward_from_message_id === 'string' && body.forward_from_message_id.trim()
+      ? body.forward_from_message_id.trim()
       : null;
 
   // Forward B (2026-05-07) · payload opcional pra mensagens ricas encaminhadas.
@@ -183,11 +198,9 @@ export async function POST(
     normalizedOutboundPayload = norm;
   }
 
-  // P-07 · pelo menos content OU midia
-  const hasMedia = !!mediaPath && !!mediaType && !!mimeType;
-  if (!content?.trim() && !hasMedia) {
-    return NextResponse.json({ error: 'Content ou media obrigatorio' }, { status: 400 });
-  }
+  // P-07 · gate de content/media movido pra DEPOIS da forward resolution
+  // (Forward D1 · 2026-05-07) · `forward_from_message_id` injeta vars
+  // server-side, então o gate precisa rodar com o estado pós-resolution.
 
   // Auth · valida JWT/clinic_id ANTES de service_role pra escrita.
   // wa_messages/wa_conversations sao RLS-hardened (authenticated nao tem
@@ -203,6 +216,61 @@ export async function POST(
   }
   if (!conv) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  // Forward D1 (2026-05-07) · resolve original e injeta vars de mídia.
+  // Server lê wa_messages.media_url (Storage path canônico) · valida clinic_id
+  // (cross-tenant guard) · valida type='image' (MVP D1) · resolve MIME via
+  // extensão do path (fallback image/jpeg). Branches Cloud/Evolution rodam
+  // depois com mediaPath/mediaType/mimeType/fileName populados como se
+  // tivessem vindo do body. Payload `media_forward` rastreia origem.
+  let forwardPayload: Record<string, unknown> | null = null;
+  if (forwardFromMessageId) {
+    const original = await repos.messages.getById(forwardFromMessageId);
+    if (!original) {
+      return NextResponse.json({ error: 'invalid_forward_source' }, { status: 422 });
+    }
+    if (original.clinicId !== ctx.clinic_id) {
+      return NextResponse.json({ error: 'forward_source_wrong_clinic' }, { status: 422 });
+    }
+    if (original.contentType !== 'image') {
+      return NextResponse.json({ error: 'unsupported_forward_type' }, { status: 422 });
+    }
+    if (!original.mediaUrl) {
+      return NextResponse.json({ error: 'forward_source_missing_media' }, { status: 422 });
+    }
+    // Resolve MIME via extensão do path · fallback image/jpeg seguro.
+    const lowerPath = original.mediaUrl.toLowerCase();
+    const ext = lowerPath.split('.').pop() ?? '';
+    const mimeFromExt =
+      ext === 'png' ? 'image/png'
+      : ext === 'webp' ? 'image/webp'
+      : ext === 'gif' ? 'image/gif'
+      : 'image/jpeg';
+    // Override vars do body · client NUNCA envia mediaPath/mimeType/fileName
+    // pra forward · server é única fonte de verdade aqui.
+    content = original.content || '';
+    mediaPath = original.mediaUrl;
+    mediaType = 'image';
+    mimeType = mimeFromExt;
+    fileName = original.mediaUrl.split('/').pop() || 'image.jpg';
+    // Payload media_forward · rastreia origem · saveOutbound persiste em
+    // wa_messages.payload jsonb (mig 144). NUNCA copia payload bruto da
+    // mensagem original · só id/conversation_id/provider_msg_id (whitelist).
+    const ff: Record<string, string> = { message_id: original.id };
+    if (original.providerMsgId) ff.provider_msg_id = original.providerMsgId;
+    if (original.conversationId) ff.conversation_id = original.conversationId;
+    forwardPayload = {
+      kind: 'media_forward',
+      media_type: 'image',
+      forwarded_from: ff,
+    };
+  }
+
+  // P-07 · pelo menos content OU midia · agora reflete forward override.
+  const hasMedia = !!mediaPath && !!mediaType && !!mimeType;
+  if (!content?.trim() && !hasMedia) {
+    return NextResponse.json({ error: 'Content ou media obrigatorio' }, { status: 400 });
   }
 
   // Sprint C · SC-03 (W-11): nota interna · NAO envia ao paciente
@@ -275,6 +343,9 @@ export async function POST(
       providerMsgId: sendResult.messageId ?? null,
       waMessageId: sendResult.messageId ?? null,
       channel: 'evolution',
+      // Forward D1 · payload media_forward quando vem de forward_from_message_id.
+      // Outbound manual via UI (paperclip) não popula · null preserva legacy.
+      payload: forwardPayload,
     });
     if (sendResult.ok) {
       const lastText = captionTrim || `[${mediaType}]`;
@@ -375,6 +446,8 @@ export async function POST(
       providerMsgId: sendResult.messageId ?? null,
       waMessageId: sendResult.messageId ?? null,
       channel: 'cloud',
+      // Forward D1 · payload media_forward quando vem de forward_from_message_id.
+      payload: forwardPayload,
     });
 
     // Auto-pause IA + atualiza last_message
@@ -409,6 +482,13 @@ export async function POST(
   // como 'cloud' no DB pra UI/analytics tratarem como Cloud.
   const channelLabel: 'cloud' | 'evolution' =
     transport === 'evolution' ? 'evolution' : 'cloud';
+
+  // Forward D1 (2026-05-07) · narrowing · neste ponto chegamos no branch texto,
+  // logo `!hasMedia` (caso contrário um dos branches de mídia já teria
+  // returnado). O gate "content OU media" garantiu content non-empty quando
+  // hasMedia=false. TypeScript não consegue narrowar a condicional composta ·
+  // assertion explícita aqui evita 6 non-null assertions abaixo.
+  const textContent: string = content as string;
 
   // Mig 143 (2026-05-07) · quoted reply pipeline.
   // Resolve target via getById, valida 3 invariantes (existe · mesma conv ·
@@ -472,7 +552,7 @@ export async function POST(
     id: msgId,
     conversationId: id,
     sender: 'humano',
-    content: content.trim(),
+    content: textContent.trim(),
     contentType: outboundContentType,
     status: 'pending',
     channel: channelLabel,
@@ -486,7 +566,7 @@ export async function POST(
   if (!savedId) {
     console.error('[messages POST] saveOutbound retornou null', {
       conv_id: id,
-      content_preview: content.trim().slice(0, 80),
+      content_preview: textContent.trim().slice(0, 80),
     });
     return NextResponse.json(
       { error: 'Falha ao salvar mensagem · saveOutbound retornou null' },
@@ -530,13 +610,13 @@ export async function POST(
           channel: channelLabel,
           error_preview: typeof nativeRes.error === 'string' ? nativeRes.error.slice(0, 200) : null,
         });
-        result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+        result = await wa.sendText(conv.phone, textContent.trim(), sendTextOptions);
       }
     } else {
-      result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+      result = await wa.sendText(conv.phone, textContent.trim(), sendTextOptions);
     }
   } else {
-    result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
+    result = await wa.sendText(conv.phone, textContent.trim(), sendTextOptions);
   }
   void usedNativeContact;
 
@@ -558,7 +638,7 @@ export async function POST(
   // pra sender='humano' (mig 2026-05-03 fix). Mantem chamada explicita
   // como redundancia segura · UPDATE condicional no saveOutbound nao
   // sobrescreve se already mais novo.
-  await repos.conversations.updateLastMessage(id, content.trim(), false);
+  await repos.conversations.updateLastMessage(id, textContent.trim(), false);
 
   return NextResponse.json({
     ok: true,
