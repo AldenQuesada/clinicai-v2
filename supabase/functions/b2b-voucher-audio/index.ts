@@ -674,6 +674,123 @@ async function logOutboundCanonical(payload: CanonicalPayload): Promise<Canonica
 // em 2026-05-06 · substituído por logOutboundCanonical que vai pela RPC
 // b2b_log_outbound_message. Mantemos a function removida do flow · zero callers.
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Ledger b2b_voucher_dispatch_events (mig 139 · 2026-05-07)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Cada envio de voucher deixa rastro num ledger dedicado · permite cross-link
+// voucher → wa_messages → wa_conversations → partnership numa só lookup. RPC
+// b2b_log_outbound_message popula wa_messages + b2b_comm_dispatch_log; este
+// ledger acrescenta a dimensão `voucher_id` que falta nas outras tabelas.
+//
+// Insert é best-effort · nunca derruba o envio do voucher. Idempotência via
+// UNIQUE(voucher_id, event_type, provider_msg_id) WHERE provider_msg_id IS NOT
+// NULL · 23505 é tratado como duplicate (esperado em retry/replay).
+//
+// Usa fetch direto pra /rest/v1/b2b_voucher_dispatch_events · evita pull do
+// supabase-js só pra esse insert (mesmo padrão do resto desta edge).
+
+type VoucherDispatchLedgerEvent = {
+  clinic_id: string
+  voucher_id: string
+  partnership_id?: string | null
+  recipient_role: 'beneficiary' | 'partner' | 'admin' | 'team' | 'unknown'
+  recipient_phone?: string | null
+  recipient_name?: string | null
+  event_type:
+    | 'voucher_text'
+    | 'voucher_audio'
+    | 'partner_confirmation'
+    | 'partner_followup'
+    | 'beneficiary_followup'
+    | 'manual_followup'
+    | 'system_note'
+    | 'unknown'
+  direction?: 'outbound' | 'inbound' | 'internal'
+  channel?: 'cloud' | 'evolution' | null
+  sender_instance?: string | null
+  wa_number_id?: string | null
+  conversation_id?: string | null
+  wa_message_pk?: string | null
+  provider_msg_id?: string | null
+  wa_message_id?: string | null
+  token?: string | null
+  status?: string | null
+  error_message?: string | null
+  sent_at?: string | null
+  raw?: Record<string, unknown>
+}
+
+async function insertVoucherDispatchLedgerEvent(
+  event: VoucherDispatchLedgerEvent,
+): Promise<void> {
+  try {
+    const r = await fetch(`${_SB_URL}/rest/v1/b2b_voucher_dispatch_events`, {
+      method: 'POST',
+      headers: {
+        'apikey': _SB_KEY,
+        'Authorization': `Bearer ${_SB_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        clinic_id:       event.clinic_id,
+        voucher_id:      event.voucher_id,
+        partnership_id:  event.partnership_id ?? null,
+        recipient_role:  event.recipient_role,
+        recipient_phone: event.recipient_phone ?? null,
+        recipient_name:  event.recipient_name ?? null,
+        event_type:      event.event_type,
+        direction:       event.direction ?? 'outbound',
+        channel:         event.channel ?? 'evolution',
+        sender_instance: event.sender_instance ?? null,
+        wa_number_id:    event.wa_number_id ?? null,
+        conversation_id: event.conversation_id ?? null,
+        wa_message_pk:   event.wa_message_pk ?? null,
+        provider_msg_id: event.provider_msg_id ?? null,
+        wa_message_id:   event.wa_message_id ?? null,
+        token:           event.token ?? null,
+        status:          event.status ?? 'sent',
+        error_message:   event.error_message ?? null,
+        sent_at:         event.sent_at ?? new Date().toISOString(),
+        raw:             event.raw ?? {},
+      }),
+    })
+    if (r.ok) {
+      console.log('[b2b-voucher-audio] voucher_dispatch_ledger_inserted', {
+        voucher_id: event.voucher_id,
+        event_type: event.event_type,
+        provider_msg_id: event.provider_msg_id,
+      })
+      return
+    }
+    const text = await r.text().catch(() => '')
+    // 23505 (PostgREST 409) · UNIQUE(voucher_id, event_type, provider_msg_id)
+    // bate em retry/replay · esperado, não é falha.
+    if (r.status === 409 || /23505|duplicate key/i.test(text)) {
+      console.warn('[b2b-voucher-audio] voucher_dispatch_ledger_duplicate', {
+        voucher_id: event.voucher_id,
+        event_type: event.event_type,
+        provider_msg_id: event.provider_msg_id,
+      })
+      return
+    }
+    console.warn('[b2b-voucher-audio] voucher_dispatch_ledger_insert_failed', {
+      voucher_id: event.voucher_id,
+      event_type: event.event_type,
+      provider_msg_id: event.provider_msg_id,
+      status: r.status,
+      body: text.slice(0, 300),
+    })
+  } catch (e) {
+    console.warn('[b2b-voucher-audio] voucher_dispatch_ledger_exception', {
+      voucher_id: event.voucher_id,
+      event_type: event.event_type,
+      error: (e as Error).message,
+    })
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return err('method_not_allowed', 405)
@@ -872,6 +989,34 @@ Deno.serve(async (req) => {
       if (!canonicalLogs.beneficiary_audio.ok) {
         canonicalWarnings.push(`beneficiary_audio: ${canonicalLogs.beneficiary_audio.error ?? 'unknown'}`)
       }
+      // Ledger b2b_voucher_dispatch_events · voucher_audio
+      await insertVoucherDispatchLedgerEvent({
+        clinic_id:       voucher.clinic_id,
+        voucher_id:      voucher.id,
+        partnership_id:  voucher.partnership_id ?? null,
+        recipient_role:  'beneficiary',
+        recipient_phone: voucher.recipient_phone ?? null,
+        recipient_name:  voucher.recipient_name ?? null,
+        event_type:      'voucher_audio',
+        direction:       'outbound',
+        channel:         'evolution',
+        sender_instance: channel.instance ?? null,
+        wa_number_id:    channel.waNumberId ?? null,
+        conversation_id: canonicalLogs.beneficiary_audio.conversation_id ?? null,
+        wa_message_pk:   canonicalLogs.beneficiary_audio.message_id ?? null,
+        provider_msg_id: waId,
+        wa_message_id:   waId,
+        token:           voucher.token ?? null,
+        status:          'sent',
+        raw: {
+          source:             'b2b-voucher-audio',
+          event:              'voucher_audio',
+          audio_storage_path: storagePath,
+          audio_url:          storagePath,
+          channel_source:     channel.source,
+          canonical_log:      canonicalLogs.beneficiary_audio,
+        },
+      })
     }
 
     // 2. Beneficiária · texto com link
@@ -906,6 +1051,33 @@ Deno.serve(async (req) => {
       if (!canonicalLogs.beneficiary_text.ok) {
         canonicalWarnings.push(`beneficiary_text: ${canonicalLogs.beneficiary_text.error ?? 'unknown'}`)
       }
+      // Ledger b2b_voucher_dispatch_events · voucher_text
+      await insertVoucherDispatchLedgerEvent({
+        clinic_id:       voucher.clinic_id,
+        voucher_id:      voucher.id,
+        partnership_id:  voucher.partnership_id ?? null,
+        recipient_role:  'beneficiary',
+        recipient_phone: voucher.recipient_phone ?? null,
+        recipient_name:  voucher.recipient_name ?? null,
+        event_type:      'voucher_text',
+        direction:       'outbound',
+        channel:         'evolution',
+        sender_instance: channel.instance ?? null,
+        wa_number_id:    channel.waNumberId ?? null,
+        conversation_id: canonicalLogs.beneficiary_text.conversation_id ?? null,
+        wa_message_pk:   canonicalLogs.beneficiary_text.message_id ?? null,
+        provider_msg_id: linkRes.waId,
+        wa_message_id:   linkRes.waId,
+        token:           voucher.token ?? null,
+        status:          'sent',
+        raw: {
+          source:         'b2b-voucher-audio',
+          event:          'voucher_text',
+          via:            linkRes.via ?? null,
+          channel_source: channel.source,
+          canonical_log:  canonicalLogs.beneficiary_text,
+        },
+      })
     }
 
     // 3. Parceiro · confirmação. Só loga se efetivamente enviou (waId).
@@ -942,6 +1114,36 @@ Deno.serve(async (req) => {
       if (!canonicalLogs.partner_confirmation.ok) {
         canonicalWarnings.push(`partner_confirmation: ${canonicalLogs.partner_confirmation.error ?? 'unknown'}`)
       }
+      // Ledger b2b_voucher_dispatch_events · partner_confirmation
+      await insertVoucherDispatchLedgerEvent({
+        clinic_id:       voucher.clinic_id,
+        voucher_id:      voucher.id,
+        partnership_id:  voucher.partnership_id ?? null,
+        recipient_role:  'partner',
+        recipient_phone: partnerConfirm.phone ?? null,
+        recipient_name:  partnership?.name ?? null,
+        event_type:      'partner_confirmation',
+        direction:       'outbound',
+        channel:         'evolution',
+        sender_instance: partnerConfirm.instance ?? null,
+        wa_number_id:    partnerConfirm.waNumberId ?? null,
+        conversation_id: canonicalLogs.partner_confirmation.conversation_id ?? null,
+        wa_message_pk:   canonicalLogs.partner_confirmation.message_id ?? null,
+        provider_msg_id: partnerConfirm.waId,
+        wa_message_id:   partnerConfirm.waId,
+        token:           voucher.token ?? null,
+        status:          'sent',
+        raw: {
+          source:           'b2b-voucher-audio',
+          event:            'partner_confirmation',
+          partnership_name: partnership?.name ?? null,
+          beneficiary_name: voucher.recipient_name ?? null,
+          combo:            voucher.combo ?? null,
+          via:              partnerConfirm.via ?? null,
+          panel_url:        partnerConfirm.panel_url ?? null,
+          canonical_log:    canonicalLogs.partner_confirmation,
+        },
+      })
     }
 
     return ok({
