@@ -558,6 +558,12 @@ export function MessageArea({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+        {/* DEBUG · cache-bust marker (Patch 2.9 · 2026-05-07) · faixa amarela
+            confirmando que o bundle novo carregou. Se você está vendo isso,
+            o código com o botão Responder está rodando. Removível depois. */}
+        <div className="mb-4 mx-auto max-w-fit px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 text-[10px] font-bold uppercase tracking-wider">
+          ✓ Build quoted-reply v2.9 · {new Date().toISOString().slice(0, 10)}
+        </div>
         {isLoadingMessages ? (
           <div className="text-center text-[hsl(var(--muted-foreground))] text-sm">Carregando mensagens...</div>
         ) : messages.length === 0 ? (
