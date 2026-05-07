@@ -24,6 +24,22 @@ export class MessageRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(private supabase: SupabaseClient<any>) {}
 
+  /**
+   * Mig 143 (2026-05-07) · lookup direto por id interno · usado pelo endpoint
+   * POST /messages quando aceita reply_to_message_id no body, pra resolver
+   * o provider_msg_id alvo + validar conversation match + direction antes de
+   * passar pro provider como quoted reply.
+   */
+  async getById(messageId: string): Promise<MessageDTO | null> {
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('*')
+      .eq('id', messageId)
+      .maybeSingle()
+    if (!data) return null
+    return mapMessageRow(data)
+  }
+
   async listByConversation(
     conversationId: string,
     opts: { limit?: number; ascending?: boolean } = {},

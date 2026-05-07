@@ -1,6 +1,8 @@
 // Provider interface (canonico · ADR-029-mira-evolution-adapter)
 export type { WhatsAppProvider } from './provider'
 export type { WhatsAppSendResult, WhatsAppMediaDownload } from './provider'
+// Mig 143 (2026-05-07) · quoted reply opts pra sendText (Cloud + Evolution)
+export type { SendTextOptions, QuotedRefBaileys } from './provider'
 
 // Cloud (Meta) · usado pela Lara
 export { WhatsAppCloudService, createWhatsAppCloudFromWaNumber } from './cloud'

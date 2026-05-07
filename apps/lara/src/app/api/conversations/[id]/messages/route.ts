@@ -19,6 +19,7 @@ import {
   WhatsAppCloudService,
   createWhatsAppCloudFromWaNumber,
   EvolutionService,
+  type SendTextOptions,
   type WhatsAppProvider,
 } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
@@ -136,6 +137,13 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
   const { content, internal, mediaPath, mediaType, mimeType, fileName } = body;
+  // Mig 143 (2026-05-07) · quoted reply opcional · uuid interno de wa_messages.
+  // Validação completa acontece depois do conv lookup (precisa conv.id pra
+  // checar se target pertence à mesma conversa).
+  const replyToMessageId: string | null =
+    typeof body?.reply_to_message_id === 'string' && body.reply_to_message_id.trim()
+      ? body.reply_to_message_id.trim()
+      : null;
 
   // P-07 · pelo menos content OU midia
   const hasMedia = !!mediaPath && !!mediaType && !!mimeType;
@@ -363,6 +371,58 @@ export async function POST(
   // como 'cloud' no DB pra UI/analytics tratarem como Cloud.
   const channelLabel: 'cloud' | 'evolution' =
     transport === 'evolution' ? 'evolution' : 'cloud';
+
+  // Mig 143 (2026-05-07) · quoted reply pipeline.
+  // Resolve target via getById, valida 3 invariantes (existe · mesma conv ·
+  // tem provider_msg_id) e monta SendTextOptions conforme transport. Falha
+  // hard com 422 quando target inválido · sem fallback silencioso (regra
+  // explícita do escopo · UI mostra erro pra usuário decidir).
+  let sendTextOptions: SendTextOptions | undefined;
+  let replyToProviderMsgId: string | null = null;
+  if (replyToMessageId) {
+    const target = await repos.messages.getById(replyToMessageId);
+    if (!target) {
+      return NextResponse.json({ error: 'invalid_reply_target' }, { status: 422 });
+    }
+    if (target.conversationId !== id) {
+      return NextResponse.json(
+        { error: 'invalid_reply_target_conversation' },
+        { status: 422 },
+      );
+    }
+    if (!target.providerMsgId) {
+      return NextResponse.json(
+        { error: 'reply_target_no_provider_id' },
+        { status: 422 },
+      );
+    }
+    replyToProviderMsgId = target.providerMsgId;
+
+    if (transport === 'evolution') {
+      // remoteJid: prefere conv.remoteJid (populado pelo webhook em LID e
+      // gravado em outbound device · ver whatsapp-evolution/route.ts).
+      // Fallback `${phone}@s.whatsapp.net` cobre convs inbound padrão BR
+      // que não tiveram LID · Evolution aceita esse format pra Baileys.
+      const remoteJid =
+        conv.remoteJid && conv.remoteJid.length > 0
+          ? conv.remoteJid
+          : `${conv.phone}@s.whatsapp.net`;
+      sendTextOptions = {
+        quotedBaileys: {
+          remoteJid,
+          fromMe: target.direction === 'outbound',
+          id: target.providerMsgId,
+          text: target.content?.slice(0, 200) ?? '',
+        },
+      };
+    } else {
+      // Cloud + env_fallback usam mesma API Meta · context.message_id (wamid)
+      sendTextOptions = {
+        quotedProviderMsgId: target.providerMsgId,
+      };
+    }
+  }
+
   const msgId = uuidv4();
   const savedId = await repos.messages.saveOutbound(conv.clinicId, {
     id: msgId,
@@ -372,6 +432,9 @@ export async function POST(
     contentType: 'text',
     status: 'pending',
     channel: channelLabel,
+    // Mig 143 · vínculo persistido aqui · independe do sucesso do send
+    // (UI ainda assim renderiza quote do alvo · DB tem rastro).
+    replyToProviderMsgId,
   });
   if (!savedId) {
     console.error('[messages POST] saveOutbound retornou null', {
@@ -384,7 +447,7 @@ export async function POST(
     );
   }
 
-  const result = await wa.sendText(conv.phone, content.trim());
+  const result = await wa.sendText(conv.phone, content.trim(), sendTextOptions);
 
   // Audit 2026-05-04/05: provider_msg_id só fica disponível após o send ·
   // UPDATE retroativo via updateStatus (saveOutbound roda antes pra preservar
