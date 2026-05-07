@@ -107,6 +107,42 @@ export function isContactPayload(payload: unknown): payload is ContactPayloadSha
   );
 }
 
+// ─── Copy helpers (Copy A · 2026-05-07) ───────────────────────────────────
+// Resolve texto seguro pra copiar pra clipboard. NUNCA expõe payload bruto,
+// vCard, signed URL de mídia, JSON, tokens. Retorna null quando nada útil
+// está disponível · botão Copiar gate por isso.
+//
+// Casos:
+//   · contato → "Contato compartilhado\nNome: ...\nTelefone: ..."
+//   · texto/document/image · content quando útil · senão label seguro
+//   · audio · content (transcrição se houver) · senão "[áudio]"
+//   · falha → null (botão NÃO aparece)
+function getCopyTextForMessage(msg: Message): string | null {
+  // Contato compartilhado · prioriza payload normalizado · zero vCard
+  if (isContactPayload(msg.payload)) {
+    const c = msg.payload;
+    const name = c.name || 'Sem nome';
+    const phone = c.display_phone || c.phone || c.wa_id || 'Sem telefone';
+    return `Contato compartilhado\nNome: ${name}\nTelefone: ${phone}`;
+  }
+  const raw = (msg.content || '').trim();
+  // Audio · prioriza transcrição · placeholder "[áudio]" se vazio/genérico
+  if (msg.type === 'audio') {
+    const stripped = stripAudioPlaceholder(msg.content);
+    if (stripped && stripped !== 'recebido') return stripped;
+    return '[áudio]';
+  }
+  if (msg.type === 'image') {
+    return raw && !isAudioPlaceholder(msg.content) ? raw : '[imagem]';
+  }
+  if (msg.type === 'document') {
+    return raw && !isAudioPlaceholder(msg.content) ? raw : '[documento]';
+  }
+  // Texto puro · só copia se tem content útil · sem fallback
+  if (raw && !isAudioPlaceholder(msg.content)) return raw;
+  return null;
+}
+
 // ─── Audio placeholder detection (audit 2026-05-06) ────────────────────────
 // Edge b2b-voucher-audio grava content como '[áudio] <transcript>'. O dash
 // renderizava esse content como balão de TEXTO porque o startsWith('[audio')
@@ -362,6 +398,46 @@ export function MessageArea({
 }: MessageAreaProps) {
   // React A · controla qual balão tem popover de emoji aberto · null=fechado.
   const [reactionOpenForId, setReactionOpenForId] = useState<string | null>(null);
+  // Copy A (2026-05-07) · feedback "Copiado" por 2s · null=nenhum balão copiado.
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  // Copy A · handler do botão Copiar · resolve texto seguro, escreve clipboard,
+  // mostra feedback. Defensivo contra Clipboard API ausente (HTTP, iframe sem
+  // allow) · execCommand fallback é minimal.
+  const handleCopyMessage = useCallback(async (msg: Message) => {
+    const text = getCopyTextForMessage(msg);
+    if (!text) return;
+    let ok = false;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      // Fallback execCommand · cobre HTTP/contextos não-HTTPS sem Clipboard.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        ok = false;
+      }
+    }
+    if (ok) {
+      setCopiedMessageId(msg.id);
+      setTimeout(() => {
+        setCopiedMessageId((curr) => (curr === msg.id ? null : curr));
+      }, 2000);
+    }
+  }, []);
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
 
@@ -944,6 +1020,34 @@ export function MessageArea({
                               <Forward className="w-3 h-3 pointer-events-none" strokeWidth={2} />
                             </button>
                           )}
+                        {/* Copy A (2026-05-07) · botão Copiar · 100% client-side.
+                            Helper getCopyTextForMessage retorna null quando
+                            nada útil disponível · gate esconde botão.
+                            Não copia payload bruto, vCard, signed URL.
+                            Feedback "Copiado" por 2s via copiedMessageId. */}
+                        {!isFailed && !msg.internalNote && getCopyTextForMessage(msg) !== null && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleCopyMessage(msg);
+                            }}
+                            title={copiedMessageId === msg.id ? 'Copiado' : 'Copiar'}
+                            aria-label={copiedMessageId === msg.id ? 'Copiado' : 'Copiar mensagem'}
+                            className={`ml-1 inline-flex items-center justify-center w-5 h-5 rounded transition-all cursor-pointer ${
+                              copiedMessageId === msg.id
+                                ? 'opacity-100 bg-[hsl(var(--success))]/[0.18] text-[hsl(var(--success))]'
+                                : 'opacity-60 hover:opacity-100 hover:bg-white/[0.1]'
+                            }`}
+                          >
+                            {copiedMessageId === msg.id ? (
+                              <Check className="w-3 h-3 pointer-events-none" strokeWidth={2.5} />
+                            ) : (
+                              <Copy className="w-3 h-3 pointer-events-none" strokeWidth={2} />
+                            )}
+                          </button>
+                        )}
                         {/* React A (2026-05-07) · botão Reagir + popover.
                             Habilitado em qualquer balão não-internalNote/failed
                             com id (precisa pra POST). Backend valida providerMsgId. */}
