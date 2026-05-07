@@ -286,6 +286,56 @@ export class MessageRepository {
       }
     }
 
+    // Reativação 'archived' → 'active' pos-outbound (audit 2026-05-07).
+    //
+    // Caso real: voucher B2B dispatchado via Mira→Mih caiu em conv archived.
+    // Outbound foi salvo, mas /secretaria não mostrou (UI filtra status='active'
+    // ou 'paused' apenas). Resultado: mensagem invisível para a Luciana.
+    //
+    // Regra: outbound NOVO em conv archived deve reativar pra entrar de volta
+    // no inbox operacional. Defesa em camadas:
+    //   - eq('status', 'archived')  · só reativa archived, não toca
+    //                                  resolved/closed/dra (status terminais
+    //                                  ou estados governados por outras telas)
+    //   - is('deleted_at', null)    · não reativa conv soft-deletada
+    //   - sem mexer em wa_number_id, inbox_role, context_type · isolamento
+    //                                  de funil intacto · canal/persona nunca
+    //                                  trocam por reativação
+    //
+    // Aplica pra TODOS os senders (humano · lara · sistema/system) · qualquer
+    // outbound novo é sinal de atividade operacional. RPC b2b_log_outbound_message
+    // (mig 132 linhas 503-506) já tem lógica equivalente em SQL · este patch
+    // cobre os 9 call sites TS de saveOutbound (3 webhooks + painel humano).
+    try {
+      const { data: reactivated } = await this.supabase
+        .from('wa_conversations')
+        .update({
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.conversationId)
+        .eq('status', 'archived')
+        .is('deleted_at', null)
+        .select('id')
+      if (reactivated && reactivated.length > 0) {
+        // eslint-disable-next-line no-console
+        console.info('[saveOutbound] reactivated_archived_conversation', {
+          conversation_id: input.conversationId,
+          sender: input.sender,
+          channel: input.channel ?? null,
+          provider_msg_id: input.providerMsgId ?? null,
+          reason: 'outbound_message',
+          source: 'MessageRepository.saveOutbound',
+        })
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[saveOutbound] reactivate archived check failed', {
+        conversationId: input.conversationId,
+        err: (err as Error)?.message,
+      })
+    }
+
     return id
   }
 
