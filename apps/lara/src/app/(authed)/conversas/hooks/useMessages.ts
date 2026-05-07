@@ -224,7 +224,10 @@ export function useMessages(
     return false;
   };
 
-  const sendMessage = async (overrideContent?: string) => {
+  const sendMessage = async (
+    overrideContent?: string,
+    explicitReplyToMessageId?: string | null,
+  ) => {
     const content = overrideContent || newMessage.trim();
     if (!conversationId || !content) return;
 
@@ -233,10 +236,12 @@ export function useMessages(
     }
     setSendStatus('sending');
 
-    // Mig 143 · captura snapshot do replyTarget no início do envio. Limpa
-    // imediatamente pra não vazar pra próxima mensagem se user clicar Send
-    // duas vezes rápido.
-    const replyId = replyTarget?.id ?? null;
+    // Patch 2.6 (2026-05-07) · prioriza arg explícito vindo do MessageArea
+    // (snapshot do replyTarget?.id capturado SINCRONAMENTE no onClick do
+    // botão Send / Enter). Fallback pra closure interna mantém backward compat
+    // pra callers fora do MessageArea (ex: transfer flow no page.tsx que não
+    // passa replyId · `?? null` mantém comportamento sem reply).
+    const replyId = explicitReplyToMessageId ?? replyTarget?.id ?? null;
     const replyProviderMsgId = replyTarget?.providerMsgId ?? null;
     if (replyTarget) setReplyTarget(null);
 

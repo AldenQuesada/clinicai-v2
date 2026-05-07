@@ -137,17 +137,20 @@ export default function ChatPage() {
     }
   }, [selectedConversation?.conversation_id]);
 
-  const handleSendMessage = () => {
+  // Patch 2.6 (2026-05-07) · aceita content + replyToMessageId vindos do
+  // MessageArea (snapshot SINCRONO no onClick). Hardening contra closure
+  // stale dentro de useMessages.sendMessage · backend valida o target.
+  const handleSendMessage = (content?: string, replyToMessageId?: string | null) => {
     if (selectedConversation) {
       // Calcula 30 minutos a partir de agora para o visual ser instantâneo
       const pauseUntil = new Date(Date.now() + 30 * 60000).toISOString();
-      setSelectedConversation(prev => prev ? { 
-        ...prev, 
+      setSelectedConversation(prev => prev ? {
+        ...prev,
         ai_enabled: false,
-        ai_paused_until: pauseUntil 
+        ai_paused_until: pauseUntil
       } : prev);
     }
-    sendMessage();
+    sendMessage(content, replyToMessageId);
   };
 
   const handleAction = async (

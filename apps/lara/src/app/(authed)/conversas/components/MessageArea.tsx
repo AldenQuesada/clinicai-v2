@@ -199,7 +199,13 @@ interface MessageAreaProps {
   isLoadingMessages: boolean;
   newMessage: string;
   onNewMessageChange: (val: string) => void;
-  onSendMessage: () => void;
+  /**
+   * Patch 2.6 (2026-05-07) · aceita content + replyToMessageId explícitos.
+   * MessageArea passa snapshot do replyTarget?.id capturado SINCRONAMENTE
+   * no onClick · evita closure stale dentro de useMessages.sendMessage.
+   * Callers que não enviam reply passam null (ou só content).
+   */
+  onSendMessage: (content: string, replyToMessageId?: string | null) => void | Promise<void>;
   /** P-06: retentar uma msg que falhou */
   onRetryMessage?: (tempId: string) => void;
   /** P-06: descartar uma msg que falhou */
@@ -439,7 +445,14 @@ export function MessageArea({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendTyping(false); // P-12 Fase 4 · stop typing antes de enviar
-      onSendMessage();
+      // Patch 2.6 (2026-05-07) · captura replyTarget?.id SINCRONAMENTE aqui ·
+      // garante que reply chega ao server mesmo se setReplyTarget(null) for
+      // disparado em paralelo. Guards (!isNoteMode/!staged) são defensivos:
+      // este branch só é alcançado quando ambos são false (note + staged
+      // têm Enter handlers próprios mais cedo no textarea onKeyDown).
+      const replyToMessageId =
+        !isNoteMode && !staged && replyTarget?.id ? replyTarget.id : null;
+      onSendMessage(newMessage, replyToMessageId);
     }
   };
 
@@ -613,10 +626,17 @@ export function MessageArea({
                   ? messagesByProviderMsgId.get(msg.replyToProviderMsgId) ?? null
                   : null;
                 const hasQuotedLink = !!msg.replyToProviderMsgId;
-                // Mig 143 · só permite "Responder" em mensagens que JÁ foram
-                // confirmadas pelo provider (têm providerMsgId). Otimísticas
-                // e msgs antigas pré-mig falhariam com 422 reply_target_no_provider_id.
-                const canReply = !!onSetReplyTarget && !isFailed && !!msg.providerMsgId;
+                // Patch 2.6 (2026-05-07) · removido gate por providerMsgId.
+                // Backend valida target.providerMsgId e retorna 422
+                // `reply_target_no_provider_id` quando faltar · UI não precisa
+                // pré-filtrar (evita esconder o botão por falha de mapeamento
+                // do GET response). Optimistic msg + nota interna seguem
+                // bloqueadas via id presente + isFailed + !internalNote.
+                const canReply =
+                  !!onSetReplyTarget &&
+                  !isFailed &&
+                  !msg.internalNote &&
+                  !!msg.id;
 
                 return (
                   <div key={msg.id} className={`group flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : 'items-center gap-1.5'}`}>
@@ -1067,7 +1087,12 @@ export function MessageArea({
                 sendMedia(newMessage);
               } else {
                 sendTyping(false); // P-12 Fase 4 · stop typing
-                onSendMessage();
+                // Patch 2.6 (2026-05-07) · captura replyTarget?.id no onClick
+                // (sincronamente · pré-await) e propaga explicitamente. Hardening
+                // contra closure stale dentro de useMessages.sendMessage.
+                const replyToMessageId =
+                  !isNoteMode && !staged && replyTarget?.id ? replyTarget.id : null;
+                onSendMessage(newMessage, replyToMessageId);
               }
             }}
             disabled={
