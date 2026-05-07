@@ -102,6 +102,34 @@ export class WaNumberRepository {
   }
 
   /**
+   * Lista wa_numbers ativos filtrados por `default_context_type` (mig 136).
+   *
+   * Audit Mih ghost Lara (2026-05-07 · Patch A): cron `/api/cron/orcamento-
+   * followup` antes pegava `listActive(clinicId)[0]` arbitrário · podia cair
+   * em canal Mih/Mira. Filtrar por default_context_type='lara_sdr' garante
+   * que crons da Lara só usam canal Cloud Lara · isolamento de funis.
+   *
+   * Ordem determinística: created_at ASC + label ASC (tiebreak) · escolha do
+   * `[0]` pelo caller é estável entre execuções.
+   */
+  async listActiveByDefaultContextType(
+    clinicId: string,
+    defaultContextType: string,
+  ): Promise<WaNumberDTO[]> {
+    const { data } = await this.supabase
+      .from('wa_numbers')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('is_active', true)
+      .eq('default_context_type', defaultContextType)
+      .order('created_at', { ascending: true })
+      .order('label', { ascending: true, nullsFirst: false })
+    return ((data ?? []) as unknown[])
+      .map(mapRow)
+      .filter((n) => n.phone.length >= 10)
+  }
+
+  /**
    * Lista wa_numbers do tipo professional_private com info completa (incluindo
    * professional_name via JOIN). Usado pela UI Configuracoes > Profissionais.
    *

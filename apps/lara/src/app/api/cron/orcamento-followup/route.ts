@@ -27,7 +27,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { createWhatsAppCloudFromWaNumber, WhatsAppCloudService } from '@clinicai/whatsapp'
+import { createWhatsAppCloudFromWaNumber } from '@clinicai/whatsapp'
 import { makeRepos } from '@/lib/repos'
 import { validateCronSecret } from '@clinicai/utils'
 import { createLogger, hashPhone } from '@clinicai/logger'
@@ -147,13 +147,11 @@ export async function GET(req: NextRequest) {
   const repos = makeRepos(supabase)
   const waRepo = new WaNumberRepository(supabase)
 
-  // Fallback service (env global) · usado quando clinica nao tem wa_number ativo
-  const fallbackWa = new WhatsAppCloudService({
-    wa_number_id: 'fallback-env',
-    clinic_id: '00000000-0000-0000-0000-000000000001',
-    phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-    access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
-  })
+  // Patch A 2026-05-07 · audit Mih ghost Lara · fallbackWa env-global REMOVIDO.
+  // Antes caía em fallbackWa quando listActive[0] não era Cloud · misturava
+  // creds entre clínicas em multi-tenant futuro. Agora se não houver canal
+  // wa_number_id com default_context_type='lara_sdr' ativo, o cron skipa
+  // sem enviar (fail-closed) · log estruturado pra investigação.
 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
@@ -193,14 +191,51 @@ export async function GET(req: NextRequest) {
           continue
         }
 
-        // Resolve wa_number ativo da clinica (1a opcao) · fallback env global
-        const activeNumbers = await waRepo.listActive(cand.clinicId).catch(() => [])
-        const firstActive = activeNumbers.length > 0 ? activeNumbers[0] : null
-        let wa: WhatsAppCloudService | null = null
-        if (firstActive?.id) {
-          wa = await createWhatsAppCloudFromWaNumber(supabase, firstActive.id)
+        // Patch A 2026-05-07 · resolve canal Lara SDR (Cloud · default_context_type='lara_sdr')
+        // Sem fallback env-global · fail-closed se canal não existe ou factory falhar.
+        const sdrNumbers = await waRepo
+          .listActiveByDefaultContextType(cand.clinicId, 'lara_sdr')
+          .catch(() => [])
+        const sdrChannel = sdrNumbers.length > 0 ? sdrNumbers[0] : null
+
+        if (!sdrChannel?.id) {
+          log.warn(
+            {
+              clinic_id: cand.clinicId,
+              orc_id: cand.orcamentoId,
+              reason: 'no_lara_sdr_channel',
+            },
+            'orc.followup.skip · sem wa_number lara_sdr ativo na clinica',
+          )
+          failed++
+          continue
         }
-        const sender = wa ?? fallbackWa
+
+        const wa = await createWhatsAppCloudFromWaNumber(supabase, sdrChannel.id)
+        if (!wa) {
+          log.warn(
+            {
+              clinic_id: cand.clinicId,
+              orc_id: cand.orcamentoId,
+              wa_number_id: sdrChannel.id,
+              reason: 'cloud_factory_returned_null',
+            },
+            'orc.followup.skip · createWhatsAppCloudFromWaNumber retornou null',
+          )
+          failed++
+          continue
+        }
+        const sender = wa
+        log.info(
+          {
+            clinic_id: cand.clinicId,
+            orc_id: cand.orcamentoId,
+            selected_wa_number_id: sdrChannel.id,
+            selected_default_context_type: 'lara_sdr',
+            sdr_candidates: sdrNumbers.length,
+          },
+          'orc.followup.channel_resolved',
+        )
 
         // Monta mensagem
         const firstName = (subject.name ?? '').trim().split(/\s+/)[0] || ''
