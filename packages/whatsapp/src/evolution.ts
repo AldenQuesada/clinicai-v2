@@ -23,6 +23,7 @@ import type {
   WhatsAppContactToSend,
   WhatsAppMediaDownload,
   WhatsAppProvider,
+  WhatsAppReactionTarget,
   WhatsAppSendResult,
 } from './provider'
 
@@ -157,6 +158,59 @@ export class EvolutionService implements WhatsAppProvider {
       return { ok: true, data, messageId: data?.key?.id ?? null }
     } catch (err) {
       log.error({ err, instance: this.cfg.instance }, 'evolution.sendVoice.exception')
+      return { ok: false, error: String(err), messageId: null }
+    }
+  }
+
+  /**
+   * React A (2026-05-07) · envia reação via Evolution/Baileys.
+   * Endpoint: POST /message/sendReaction/{instance}.
+   * Remover reação: reaction='' (string vazia · Baileys convenção).
+   *
+   * Caller resolve `remoteJid` via wa_conversations.remote_jid OU
+   * `${phone}@s.whatsapp.net` fallback. `fromMe` derivado de direction
+   * da msg alvo (outbound=true · paciente reagiu na nossa msg).
+   */
+  async sendReaction(
+    phone: string,
+    target: WhatsAppReactionTarget,
+    emoji: string | null,
+  ): Promise<WhatsAppSendResult> {
+    const remoteJid =
+      target.remoteJid && target.remoteJid.length > 0
+        ? target.remoteJid
+        : `${phone}@s.whatsapp.net`
+    const body = {
+      key: {
+        remoteJid,
+        fromMe: Boolean(target.fromMe),
+        id: target.providerMsgId,
+      },
+      reaction: emoji ?? '',
+    }
+    try {
+      const res = await fetch(this.url(`/message/sendReaction/${this.cfg.instance}`), {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          { instance: this.cfg.instance, status: res.status, err: err.slice(0, 300) },
+          'evolution.sendReaction.failed',
+        )
+        return { ok: false, error: err, messageId: null }
+      }
+      const data = await res.json().catch(() => null)
+      const messageId = data?.key?.id ?? null
+      log.info(
+        { instance: this.cfg.instance, messageId, removing: !emoji },
+        'evolution.sendReaction.ok',
+      )
+      return { ok: true, data, messageId }
+    } catch (err) {
+      log.error({ err, instance: this.cfg.instance }, 'evolution.sendReaction.exception')
       return { ok: false, error: String(err), messageId: null }
     }
   }

@@ -17,63 +17,14 @@ import {
 } from '@clinicai/supabase';
 import {
   WhatsAppCloudService,
-  createWhatsAppCloudFromWaNumber,
   EvolutionService,
   type SendTextOptions,
-  type WhatsAppProvider,
   type WhatsAppSendResult,
 } from '@clinicai/whatsapp';
 import { makeRepos } from '@/lib/repos';
 import { createServerClient } from '@/lib/supabase';
+import { resolveProviderForConv } from '@/lib/whatsapp/resolve-provider';
 import { v4 as uuidv4 } from 'uuid';
-
-/**
- * Mig 91/92 · resolve provider per-tenant baseado no wa_numbers do conv.
- * Lê o row e instancia Cloud OU Evolution conforme phone_number_id/instance_id.
- * Fallback Cloud env-global se conv.waNumberId for null (legacy).
- */
-async function resolveProviderForConv(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  conv: { id: string; clinicId: string; waNumberId: string | null },
-): Promise<{ provider: WhatsAppProvider; transport: 'cloud' | 'evolution' | 'env_fallback' }> {
-  if (conv.waNumberId) {
-    const { data: row } = await supabase
-      .from('wa_numbers')
-      .select('id, phone_number_id, access_token, instance_id, api_url, api_key, is_active')
-      .eq('id', conv.waNumberId)
-      .maybeSingle();
-
-    if (row?.is_active) {
-      // Evolution · instance_id presente E api_url/api_key configurados
-      if (row.instance_id && row.api_url && row.api_key) {
-        return {
-          provider: new EvolutionService({
-            apiUrl: String(row.api_url),
-            apiKey: String(row.api_key),
-            instance: String(row.instance_id),
-          }),
-          transport: 'evolution',
-        };
-      }
-      // Cloud · phone_number_id + access_token
-      if (row.phone_number_id && row.access_token) {
-        const cloud = await createWhatsAppCloudFromWaNumber(supabase, conv.waNumberId);
-        if (cloud) return { provider: cloud, transport: 'cloud' };
-      }
-    }
-  }
-  // Fallback · env global (legacy · Lara antiga)
-  return {
-    provider: new WhatsAppCloudService({
-      wa_number_id: 'fallback-env',
-      clinic_id: conv.clinicId,
-      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
-    }),
-    transport: 'env_fallback',
-  };
-}
 
 export const dynamic = 'force-dynamic';
 
@@ -131,6 +82,9 @@ export async function GET(
       // (contact, location, reaction, sticker, forward, poll). Null pra
       // texto/mídia simples · UI faz type-guard `payload?.kind === 'contact'`.
       payload: m.payload ?? null,
+      // React A (2026-05-07) · emoji corrente · UI renderiza chip abaixo
+      // do balão · null = sem reação.
+      reaction: m.reaction ?? null,
     })),
   );
 }

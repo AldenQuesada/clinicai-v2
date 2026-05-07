@@ -410,6 +410,27 @@ export class MessageRepository {
   }
 
   /**
+   * React A (2026-05-07) · UPDATE in-place de wa_messages.reaction.
+   *
+   * Atendente reage à msg do paciente · `emoji` string com 1+ emoji.
+   * Removendo reação · `emoji=null` zera coluna.
+   *
+   * Caller (POST endpoint) já validou:
+   *   · target existe · clinicId match (cross-tenant guard)
+   *   · target.providerMsgId existe (precisa pra send no provider)
+   *   · provider send retornou ok ANTES desta chamada
+   *
+   * Persiste APENAS a reação corrente · histórico não preservado neste MVP.
+   * Não cria nova linha · evita duplicação e mantém 1:1 com mensagem alvo.
+   */
+  async updateReaction(messageId: string, emoji: string | null): Promise<void> {
+    await this.supabase
+      .from('wa_messages')
+      .update({ reaction: emoji ?? null })
+      .eq('id', messageId)
+  }
+
+  /**
    * Sprint C · SC-03 (W-11): Salva nota interna · NAO envia ao paciente.
    * Usa direction='outbound' + sender='atendente' + internal_note=true.
    * UI filtra internal_note=true pra renderizar amarelo · webhook ignora.

@@ -377,6 +377,13 @@ export interface MessageDTO {
    * type-guard `kind === 'contact'`).
    */
   payload?: unknown | null
+  /**
+   * React A (2026-05-07) · emoji da última reação aplicada à mensagem.
+   * Coluna `wa_messages.reaction` (text · existe desde mig legacy 90+).
+   * UPDATE in-place quando atendente reage · NULL quando reação é removida.
+   * Cobre apenas a reação CORRENTE · histórico não é preservado neste MVP.
+   */
+  reaction?: string | null
 }
 
 export interface TemplateDTO {

@@ -79,6 +79,22 @@ export interface WhatsAppContactToSend {
 }
 
 /**
+ * React A (2026-05-07) · alvo de reação cross-provider.
+ *
+ * Cloud (Meta): só `providerMsgId` (wamid) é necessário · `recipient` é o
+ *   `phone` do balão.
+ * Evolution (Baileys): exige `key` completo · `remoteJid` (vem de
+ *   wa_conversations.remote_jid OU `${phone}@s.whatsapp.net` fallback) +
+ *   `fromMe` (derivado de direction · outbound→true, inbound→false) +
+ *   `id` (= providerMsgId).
+ */
+export interface WhatsAppReactionTarget {
+  providerMsgId: string
+  remoteJid?: string | null
+  fromMe?: boolean | null
+}
+
+/**
  * Provider canonico. Implementadores: WhatsAppCloudService, EvolutionService.
  * Cada metodo deve nunca throw · retorna WhatsAppSendResult com ok=false em erro.
  */
@@ -103,6 +119,17 @@ export interface WhatsAppProvider {
   sendContact?(
     phone: string,
     contact: WhatsAppContactToSend,
+  ): Promise<WhatsAppSendResult>
+
+  /**
+   * React A (2026-05-07) · envia reação emoji em mensagem alvo.
+   * Cloud: `type:'reaction'` · Evolution: `/message/sendReaction`.
+   * `emoji` null/'' remove reação existente (provider envia empty string).
+   */
+  sendReaction?(
+    phone: string,
+    target: WhatsAppReactionTarget,
+    emoji: string | null,
   ): Promise<WhatsAppSendResult>
 
   /** Marca msg como lida · falha silenciosa (nao critico) */

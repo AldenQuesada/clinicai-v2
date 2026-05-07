@@ -5,6 +5,8 @@ export type { WhatsAppSendResult, WhatsAppMediaDownload } from './provider'
 export type { SendTextOptions, QuotedRefBaileys } from './provider'
 // Forward C (2026-05-07) · envio nativo de contato cross-provider
 export type { WhatsAppContactToSend } from './provider'
+// React A (2026-05-07) · alvo de reação cross-provider
+export type { WhatsAppReactionTarget } from './provider'
 
 // Cloud (Meta) · usado pela Lara
 export { WhatsAppCloudService, createWhatsAppCloudFromWaNumber } from './cloud'

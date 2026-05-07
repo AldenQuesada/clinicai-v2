@@ -74,6 +74,8 @@ export default function ChatPage() {
     // do target via Responder button + composer preview com X cancel.
     replyTarget,
     setReplyTarget,
+    // React A (2026-05-07) · reação emoji outbound · POST + optimistic update
+    reactToMessage,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
 
   // P-03/P-04: insights globais do clinic · independente do filtro ativo.
@@ -629,6 +631,7 @@ export default function ChatPage() {
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}
           onForwardMessage={setForwardSourceMessage}
+          onReactMessage={reactToMessage}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}

@@ -30,5 +30,8 @@ export function mapMessageRow(row: any): MessageDTO {
     // Mig 144 (2026-05-07) · payload normalizado pra mensagens ricas (contact,
     // location, reaction, sticker, forward, poll) · null pra texto/mídia simples
     payload: row.payload ?? null,
+    // React A (2026-05-07) · emoji corrente · UI dash renderiza chip abaixo
+    // do balão · null = sem reação ou removida
+    reaction: typeof row.reaction === 'string' ? row.reaction : null,
   }
 }

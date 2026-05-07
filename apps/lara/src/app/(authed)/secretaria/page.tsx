@@ -104,6 +104,8 @@ export default function SecretariaPage() {
     // exibir botão Responder em /secretaria também (não só /conversas).
     replyTarget,
     setReplyTarget,
+    // React A (2026-05-07) · reação emoji outbound
+    reactToMessage,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
 
   // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
@@ -631,6 +633,7 @@ export default function SecretariaPage() {
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}
           onForwardMessage={setForwardSourceMessage}
+          onReactMessage={reactToMessage}
         />
 
         <LeadInfoPanel

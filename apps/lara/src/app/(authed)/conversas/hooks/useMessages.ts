@@ -45,6 +45,12 @@ export interface Message {
    * packages/whatsapp/src/payload.ts garante shape mínimo.
    */
   payload?: unknown | null;
+  /**
+   * React A (2026-05-07) · emoji corrente da reação atendente→paciente.
+   * UPDATE in-place no `wa_messages.reaction` (coluna existe desde mig
+   * legacy 90+). UI renderiza chip abaixo do balão. null = sem reação.
+   */
+  reaction?: string | null;
 }
 
 export function useMessages(
@@ -108,6 +114,8 @@ export function useMessages(
             replyToProviderMsgId: typeof msg.reply_to_provider_msg_id === 'string' ? msg.reply_to_provider_msg_id : null,
             // Mig 144 (2026-05-07) · payload normalizado · UI tipa via guard
             payload: msg.payload ?? null,
+            // React A (2026-05-07) · emoji corrente · null se sem reação
+            reaction: typeof msg.reaction === 'string' ? msg.reaction : null,
           });
         });
 
@@ -347,6 +355,40 @@ export function useMessages(
     setTimeout(() => setSendStatus('idle'), 3000);
   };
 
+  /**
+   * React A (2026-05-07) · envia reação ao backend · POST /messages/[id]/reaction.
+   * Optimistic update local em sucesso · provider falha mantém estado anterior.
+   * `emoji=null` ou `''` remove reação existente.
+   */
+  const reactToMessage = async (
+    messageId: string,
+    emoji: string | null,
+  ): Promise<boolean> => {
+    if (!conversationId) return false;
+    try {
+      const res = await fetch(
+        `/api/conversations/${conversationId}/messages/${messageId}/reaction`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        },
+      );
+      if (res.ok) {
+        // Optimistic update · feedback imediato · polling/SSE eventualmente
+        // sincroniza estado canônico (caso reação venha por outro caminho).
+        const normalized = emoji && emoji.trim().length > 0 ? emoji.trim() : null;
+        setMessages(prev =>
+          prev.map(m => (m.id === messageId ? { ...m, reaction: normalized } : m)),
+        );
+        return true;
+      }
+    } catch {
+      // network/abort · UI mantém estado atual · re-fetch eventualmente corrige
+    }
+    return false;
+  };
+
   return {
     messages,
     isLoading,
@@ -362,5 +404,7 @@ export function useMessages(
     // setReplyTarget(msg) e o composer mostra preview com X cancel.
     replyTarget,
     setReplyTarget,
+    // React A · emoji reaction outbound
+    reactToMessage,
   };
 }

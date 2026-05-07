@@ -20,6 +20,7 @@ import type {
   WhatsAppContactToSend,
   WhatsAppMediaDownload,
   WhatsAppProvider,
+  WhatsAppReactionTarget,
   WhatsAppSendResult,
 } from './provider'
 
@@ -203,6 +204,60 @@ export class WhatsAppCloudService implements WhatsAppProvider {
       log.error(
         { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id },
         'sendContact exception',
+      )
+      return { ok: false, error: String(err), messageId: null }
+    }
+  }
+
+  /**
+   * React A (2026-05-07) · envia reação emoji em mensagem alvo via Meta.
+   * Endpoint: POST /{phone_number_id}/messages com type='reaction'.
+   * Remover reação: emoji='' (string vazia · Meta convenção · oficial).
+   */
+  async sendReaction(
+    to: string,
+    target: WhatsAppReactionTarget,
+    emoji: string | null,
+  ): Promise<WhatsAppSendResult> {
+    const url = `${GRAPH_API}/${this.phoneNumberId}/messages`
+    const body: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'reaction',
+      reaction: {
+        message_id: target.providerMsgId,
+        emoji: emoji ?? '',
+      },
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        log.error(
+          { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, status: res.status, err: err.slice(0, 300) },
+          'sendReaction falhou',
+        )
+        return { ok: false, error: err, messageId: null }
+      }
+      const data = await res.json()
+      const messageId =
+        (data as { messages?: Array<{ id?: string }> } | null)?.messages?.[0]?.id ?? null
+      log.info(
+        { clinic_id: this.clinic_id, wa_number_id: this.wa_number_id, messageId, removing: !emoji },
+        'sendReaction ok',
+      )
+      return { ok: true, data, messageId }
+    } catch (err) {
+      log.error(
+        { err, clinic_id: this.clinic_id, wa_number_id: this.wa_number_id },
+        'sendReaction exception',
       )
       return { ok: false, error: String(err), messageId: null }
     }

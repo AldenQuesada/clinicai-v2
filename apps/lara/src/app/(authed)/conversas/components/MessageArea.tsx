@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft, Copy, Forward } from 'lucide-react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, CornerUpLeft, Copy, Forward, Smile } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
+import { EmojiReactionPopover } from './EmojiReactionPopover';
 import { CopilotSummary } from './CopilotSummary';
 import { SecretariaSummary } from './SecretariaSummary';
 import { SmartReplies } from './SmartReplies';
@@ -327,6 +328,12 @@ interface MessageAreaProps {
    * útil (não-failed, não-internalNote) ficam habilitadas via gate canForward.
    */
   onForwardMessage?: (message: Message) => void;
+  /**
+   * React A (2026-05-07) · Reage com emoji em mensagem alvo. `emoji=null`
+   * ou string vazia remove. Provider valida + envia · DB UPDATE in-place.
+   * Hook (useMessages.reactToMessage) faz POST + optimistic update local.
+   */
+  onReactMessage?: (messageId: string, emoji: string | null) => Promise<boolean>;
 }
 
 export function MessageArea({
@@ -351,7 +358,10 @@ export function MessageArea({
   replyTarget = null,
   onSetReplyTarget,
   onForwardMessage,
+  onReactMessage,
 }: MessageAreaProps) {
+  // React A · controla qual balão tem popover de emoji aberto · null=fechado.
+  const [reactionOpenForId, setReactionOpenForId] = useState<string | null>(null);
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
 
@@ -934,7 +944,66 @@ export function MessageArea({
                               <Forward className="w-3 h-3 pointer-events-none" strokeWidth={2} />
                             </button>
                           )}
+                        {/* React A (2026-05-07) · botão Reagir + popover.
+                            Habilitado em qualquer balão não-internalNote/failed
+                            com id (precisa pra POST). Backend valida providerMsgId. */}
+                        {!!onReactMessage && !isFailed && !msg.internalNote && !!msg.id && (
+                          <span className="relative ml-1 inline-block">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setReactionOpenForId((prev) =>
+                                  prev === msg.id ? null : msg.id,
+                                );
+                              }}
+                              title="Reagir"
+                              aria-label="Reagir mensagem"
+                              aria-expanded={reactionOpenForId === msg.id}
+                              className="inline-flex items-center justify-center w-5 h-5 rounded opacity-60 hover:opacity-100 hover:bg-white/[0.1] transition-all cursor-pointer"
+                            >
+                              <Smile className="w-3 h-3 pointer-events-none" strokeWidth={2} />
+                            </button>
+                            {reactionOpenForId === msg.id && (
+                              <EmojiReactionPopover
+                                currentReaction={msg.reaction ?? null}
+                                onSelect={async (emoji) => {
+                                  setReactionOpenForId(null);
+                                  await onReactMessage(msg.id, emoji);
+                                }}
+                                onRemove={
+                                  msg.reaction
+                                    ? async () => {
+                                        setReactionOpenForId(null);
+                                        await onReactMessage(msg.id, null);
+                                      }
+                                    : undefined
+                                }
+                                onClose={() => setReactionOpenForId(null)}
+                              />
+                            )}
+                          </span>
+                        )}
                       </div>
+                      {/* React A · chip de reação corrente · clique remove ·
+                          aparece DENTRO do balão na borda inferior pra ficar
+                          claro o vínculo com a msg. */}
+                      {msg.reaction && !isFailed && !msg.internalNote && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onReactMessage) onReactMessage(msg.id, null);
+                          }}
+                          title="Remover reação"
+                          aria-label="Remover reação"
+                          className="mt-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[12px] bg-white/[0.1] hover:bg-[hsl(var(--danger))]/[0.15] border border-white/[0.15] cursor-pointer transition-colors leading-none"
+                        >
+                          <span className="pointer-events-none">{msg.reaction}</span>
+                        </button>
+                      )}
                     </div>
                     {isFailed && (
                       <div className="flex items-center gap-2 mt-1.5">
