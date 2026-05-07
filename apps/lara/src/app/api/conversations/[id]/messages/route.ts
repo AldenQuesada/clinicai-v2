@@ -126,6 +126,10 @@ export async function GET(
       // localizar mensagem original respondida e renderizar bubble com quote.
       provider_msg_id: m.providerMsgId ?? null,
       reply_to_provider_msg_id: m.replyToProviderMsgId ?? null,
+      // Mig 144 (2026-05-07) · payload normalizado de mensagem rica
+      // (contact, location, reaction, sticker, forward, poll). Null pra
+      // texto/mídia simples · UI faz type-guard `payload?.kind === 'contact'`.
+      payload: m.payload ?? null,
     })),
   );
 }

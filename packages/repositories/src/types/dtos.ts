@@ -368,6 +368,15 @@ export interface MessageDTO {
    * provider devolve no send/receive.
    */
   providerMsgId?: string | null
+  /**
+   * Mig 144 (2026-05-07) · payload normalizado pra mensagens ricas
+   * (contact, location, reaction, sticker, forward, poll). Shape mínimo
+   * com discriminator `kind` · NUNCA payload bruto do provider. Null pra
+   * mensagens de texto/mídia simples (continuam usando content + media_url).
+   * Tipo `unknown` aqui · validação final fica no consumer (ex: UI faz
+   * type-guard `kind === 'contact'`).
+   */
+  payload?: unknown | null
 }
 
 export interface TemplateDTO {

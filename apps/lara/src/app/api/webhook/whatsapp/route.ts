@@ -557,6 +557,9 @@ async function processInboundMessage(
     providerMsgId: message.id,
     waMessageId: message.id,
     channel: 'cloud',
+    // Mig 144 (2026-05-07) · payload normalizado · null pra texto/mídia simples,
+    // populado pra contato compartilhado (kind='contact') via extractContent.
+    payload: extracted.payload ?? null,
   });
   if (!inboundId) {
     await stageLog('saveInbound_returned_null', { conv_id: conv.id });

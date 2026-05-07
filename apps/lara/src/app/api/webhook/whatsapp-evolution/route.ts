@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { createLogger, hashPhone } from '@clinicai/logger';
-import { EvolutionService } from '@clinicai/whatsapp';
+import { EvolutionService, mapEvolutionContactPayload } from '@clinicai/whatsapp';
 import { v4 as uuidv4 } from 'uuid';
 import { makeRepos } from '@/lib/repos';
 import {
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
     .eq('id', wa_number_id)
     .maybeSingle();
 
-  // Extract content + tipo · text/audio/image/video/sticker/document
+  // Extract content + tipo · text/audio/image/video/sticker/document/contact
   const msg = data?.message ?? {};
   const msgRec = msg as Record<string, unknown>;
   const audioMsg = msgRec.audioMessage;
@@ -287,6 +287,10 @@ export async function POST(request: NextRequest) {
   const videoMsg = msgRec.videoMessage;
   const stickerMsg = msgRec.stickerMessage;
   const documentMsg = msgRec.documentMessage;
+  // Mig 144 (2026-05-07) · contato compartilhado · contactMessage (1 contato)
+  // OU contactsArrayMessage (múltiplos · MVP pega primeiro). Antes deste
+  // patch caía em empty_message e era silenciosamente descartado.
+  const hasContact = !!(msgRec.contactMessage || msgRec.contactsArrayMessage);
 
   let content: string =
     msg?.conversation ||
@@ -297,6 +301,9 @@ export async function POST(request: NextRequest) {
 
   let contentType = 'text';
   let needsDownload = false;
+  // Mig 144 · payload normalizado pra mensagens ricas (contact MVP) · null
+  // pra texto/mídia simples. Helper canônico extrai shape mínimo via vCard.
+  let messagePayload: unknown | null = null;
   if (audioMsg) {
     contentType = 'audio';
     if (!content) content = '[audio recebido]';
@@ -317,6 +324,25 @@ export async function POST(request: NextRequest) {
     contentType = 'document';
     content = '[documento recebido]';
     needsDownload = true;
+  } else if (hasContact) {
+    // Mig 144 · payload extraído via helper canônico · NUNCA payload bruto
+    // do Baileys (vCard original opcional preservado pra forward futuro,
+    // mas email/endereço/org NÃO copiados).
+    const payload = mapEvolutionContactPayload(msgRec);
+    if (payload) {
+      contentType = 'contact';
+      content = payload.name
+        ? `👤 Contato compartilhado: ${payload.name}`
+        : '👤 Contato compartilhado';
+      messagePayload = payload;
+    } else {
+      // vCard mal-formado · sem name nem phone extraível · log + drop.
+      log.warn(
+        { instance, phone_hash: hashPhone(phone) },
+        'webhook_evolution.contact.unparseable',
+      );
+      return NextResponse.json({ ok: true, skip: 'contact_unparseable' });
+    }
   }
 
   if (!content) {
@@ -683,6 +709,9 @@ export async function POST(request: NextRequest) {
     providerMsgId: key.id ?? null,
     waMessageId: key.id ?? null,
     channel: 'evolution',
+    // Mig 144 (2026-05-07) · payload normalizado · null pra texto/mídia simples,
+    // populado pra contato compartilhado (kind='contact').
+    payload: messagePayload,
   });
   if (!insertedId) {
     await evoTraceLog({ stage: 'saveInbound_returned_null', signature_ok: true, result_status: 500, result_summary: 'conv=' + conv.id.slice(0,8) });

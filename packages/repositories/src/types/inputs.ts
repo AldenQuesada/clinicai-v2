@@ -112,6 +112,14 @@ export interface SaveInboundMessageInput {
   waMessageId?: string | null
   /** 'cloud' (Meta) ou 'evolution' (Baileys). Default DB = 'cloud'. */
   channel?: 'cloud' | 'evolution'
+  /**
+   * Mig 144 (2026-05-07) · payload normalizado de mensagem rica · contact,
+   * location, reaction, sticker metadata, forward, poll. Shape mínimo via
+   * helper `mapInboundToPayload(provider, msg)` em `packages/whatsapp` ·
+   * NUNCA payload bruto do provider. Persistido em `wa_messages.payload`
+   * jsonb. Null/undefined pra texto/mídia simples (caminho legacy).
+   */
+  payload?: unknown | null
 }
 
 export interface SaveOutboundMessageInput {

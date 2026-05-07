@@ -27,5 +27,8 @@ export function mapMessageRow(row: any): MessageDTO {
     // Mig 143 (2026-05-07) · quoted reply linkage · expõe IDs cross-provider
     providerMsgId: row.provider_msg_id ?? null,
     replyToProviderMsgId: row.reply_to_provider_msg_id ?? null,
+    // Mig 144 (2026-05-07) · payload normalizado pra mensagens ricas (contact,
+    // location, reaction, sticker, forward, poll) · null pra texto/mídia simples
+    payload: row.payload ?? null,
   }
 }

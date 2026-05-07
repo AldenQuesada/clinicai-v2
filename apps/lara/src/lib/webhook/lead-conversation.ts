@@ -20,6 +20,7 @@ import {
   isGoodHumanName,
   shouldUpdateName,
 } from '@clinicai/utils'
+import { mapCloudContactPayload } from '@clinicai/whatsapp'
 import { createLogger, hashPhone } from '@clinicai/logger'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -311,13 +312,18 @@ export async function resolveConversation(
 }
 
 /**
- * Extrai content type + texto + mediaId do payload Meta.
+ * Extrai content type + texto + mediaId + payload do payload Meta.
  * Texto vira placeholder pra mídia · será substituído por transcrição/caption.
+ *
+ * Mig 144 (2026-05-07) · payload normalizado pra mensagens ricas · contact
+ * é o primeiro caso (helper canônico em packages/whatsapp/src/payload.ts).
+ * Texto/mídia simples seguem com payload null (caminho legacy).
  */
 export interface ExtractedContent {
   contentType: string
   textContent: string
   mediaId: string | null
+  payload?: unknown | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -326,32 +332,59 @@ export function extractContent(message: any): ExtractedContent {
 
   switch (contentType) {
     case 'text':
-      return { contentType, textContent: message.text?.body || '', mediaId: null }
+      return { contentType, textContent: message.text?.body || '', mediaId: null, payload: null }
     case 'image':
       return {
         contentType,
         textContent: message.image?.caption || '[imagem recebida]',
         mediaId: message.image?.id || null,
+        payload: null,
       }
     case 'audio':
       return {
         contentType,
         textContent: '[audio recebido]',
         mediaId: message.audio?.id || null,
+        payload: null,
       }
     case 'video':
       return {
         contentType,
         textContent: '[video recebido]',
         mediaId: message.video?.id || null,
+        payload: null,
       }
     case 'sticker':
       return {
         contentType,
         textContent: '[sticker recebido]',
         mediaId: message.sticker?.id || null,
+        payload: null,
       }
+    case 'contacts': {
+      // Mig 144 · contato compartilhado · MVP do "WhatsApp Web no dash".
+      // Meta envia array `contacts[]` · MVP cobre primeiro contato. Helper
+      // canônico extrai apenas {name, phone, wa_id} normalizados · NUNCA
+      // payload bruto (zero email/endereço/org · zero array inteiro).
+      const first = Array.isArray(message.contacts) && message.contacts.length > 0
+        ? message.contacts[0]
+        : null
+      const payload = first ? mapCloudContactPayload(first) : null
+      if (payload) {
+        return {
+          contentType: 'contact',
+          textContent: payload.name
+            ? `👤 Contato compartilhado: ${payload.name}`
+            : '👤 Contato compartilhado',
+          mediaId: null,
+          payload,
+        }
+      }
+      // Fallback seguro · payload mal-formado preserva content_type legacy
+      // ('contacts') · UI segue mostrando [contacts recebido] como texto.
+      return { contentType: 'contacts', textContent: '[contacts recebido]', mediaId: null, payload: null }
+    }
     default:
-      return { contentType, textContent: `[${contentType} recebido]`, mediaId: null }
+      return { contentType, textContent: `[${contentType} recebido]`, mediaId: null, payload: null }
   }
 }

@@ -89,6 +89,10 @@ export class MessageRepository {
     if (input.providerMsgId !== undefined) insertPayload.provider_msg_id = input.providerMsgId
     if (input.waMessageId !== undefined) insertPayload.wa_message_id = input.waMessageId
     if (input.channel !== undefined) insertPayload.channel = input.channel
+    // Mig 144 (2026-05-07) · payload normalizado de mensagem rica · só inclui
+    // quando explicitamente fornecido (caller passou via mapInboundToPayload).
+    // Mensagens texto/mídia simples não populam · coluna fica NULL.
+    if (input.payload !== undefined) insertPayload.payload = input.payload
 
     // Safety log · provider_msg_id ausente impede idempotência via UNIQUE
     // uq_wa_messages_provider_id · útil pra catalogar rotas que ainda não
