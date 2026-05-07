@@ -640,18 +640,28 @@ export function MessageArea({
 
                 return (
                   <div key={msg.id} className={`group flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : 'items-center gap-1.5'}`}>
-                    {/* Mig 143 · Reply button · não-user · aparece no hover.
-                        Posiciono ANTES do balão pra ficar à direita (do lado
-                        de fora) em mensagens outbound (justify-end). */}
+                    {/* Patch 2.7 (2026-05-07) · Reply button outbound (à
+                        ESQUERDA do balão · `justify-end` empurra ambos pra
+                        direita). Sempre visível (mobile/touch não tem hover) ·
+                        opacity-70 baseline + hover-100 mantém discrição.
+                        z-20 + relative cria stacking context próprio · evita
+                        que qualquer overlay do balão (decorations, hover
+                        states) absorva o click. preventDefault+stopPropagation
+                        defensivo contra qualquer handler ancestral que tente
+                        cancelar o click. */}
                     {canReply && !isUser && (
                       <button
                         type="button"
-                        onClick={() => onSetReplyTarget?.(msg)}
-                        title="Responder esta mensagem"
-                        aria-label="Responder esta mensagem"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.1] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.06] shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSetReplyTarget?.(msg);
+                        }}
+                        title="Responder"
+                        aria-label="Responder mensagem"
+                        className="relative z-20 opacity-70 hover:opacity-100 transition-opacity h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-[hsl(var(--primary))]/[0.15] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.1] shrink-0 cursor-pointer"
                       >
-                        <Reply className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        <Reply className="w-4 h-4 pointer-events-none" strokeWidth={1.5} />
                       </button>
                     )}
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2 transition-colors ${
@@ -796,17 +806,24 @@ export function MessageArea({
                         </button>
                       </div>
                     )}
-                    {/* Mig 143 · Reply button para mensagens inbound · aparece
-                        DEPOIS do balão (à direita, fora) em hover. */}
+                    {/* Patch 2.7 (2026-05-07) · Reply button inbound (à
+                        DIREITA do balão · `justify-start` empurra ambos pra
+                        esquerda · botão fica logo após o balão). Mesmas
+                        propriedades do par outbound · sempre visível, z-20
+                        relative, preventDefault+stopPropagation. */}
                     {canReply && isUser && (
                       <button
                         type="button"
-                        onClick={() => onSetReplyTarget?.(msg)}
-                        title="Responder esta mensagem"
-                        aria-label="Responder esta mensagem"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.1] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.06] shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSetReplyTarget?.(msg);
+                        }}
+                        title="Responder"
+                        aria-label="Responder mensagem"
+                        className="relative z-20 opacity-70 hover:opacity-100 transition-opacity h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-[hsl(var(--primary))]/[0.15] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.1] shrink-0 cursor-pointer"
                       >
-                        <Reply className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        <Reply className="w-4 h-4 pointer-events-none" strokeWidth={1.5} />
                       </button>
                     )}
                   </div>
