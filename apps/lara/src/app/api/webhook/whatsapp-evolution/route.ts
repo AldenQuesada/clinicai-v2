@@ -292,6 +292,43 @@ export async function POST(request: NextRequest) {
   // patch caía em empty_message e era silenciosamente descartado.
   const hasContact = !!(msgRec.contactMessage || msgRec.contactsArrayMessage);
 
+  // React B (2026-05-07) · paciente reagiu a uma msg nossa · UPDATE coluna
+  // reaction da mensagem alvo · NUNCA cria nova linha wa_messages. Baileys
+  // payload `reactionMessage = { key:{remoteJid,fromMe,id}, text:'👍' }`.
+  // text vazio = paciente removeu reação (vira NULL). Antes deste patch
+  // caía em empty_message e era silenciosamente descartado.
+  const reactionMsg = msgRec.reactionMessage as
+    | { key?: { id?: string }; text?: string }
+    | undefined;
+  if (reactionMsg && typeof reactionMsg.key?.id === 'string') {
+    const targetKeyId = reactionMsg.key.id;
+    const rawEmoji = typeof reactionMsg.text === 'string' ? reactionMsg.text : '';
+    const trimmed = rawEmoji.trim();
+    const normalizedEmoji = trimmed.length === 0 || trimmed.length > 32 ? null : trimmed;
+    const reactionRepos = makeRepos(supabase);
+    const target = await reactionRepos.messages.findByProviderMsgId(clinic_id, targetKeyId);
+    if (target) {
+      await reactionRepos.messages.updateReaction(target.id, normalizedEmoji);
+      log.info(
+        {
+          instance,
+          clinic_id,
+          target_msg_id: target.id.slice(0, 8),
+          conv_id: target.conversationId.slice(0, 8),
+          removing: !normalizedEmoji,
+        },
+        'webhook_evolution.reaction.applied',
+      );
+    } else {
+      // Alvo não encontrado · paciente reagiu a msg nunca persistida (raro).
+      log.warn(
+        { instance, clinic_id, target_key_id_tail: targetKeyId.slice(-12) },
+        'webhook_evolution.reaction.target_not_found',
+      );
+    }
+    return NextResponse.json({ ok: true, kind: 'reaction_applied' });
+  }
+
   let content: string =
     msg?.conversation ||
     msg?.extendedTextMessage?.text ||

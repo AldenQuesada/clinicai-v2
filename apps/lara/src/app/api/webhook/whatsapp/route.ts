@@ -303,6 +303,40 @@ async function processInboundMessage(
     return;
   }
 
+  // React B (2026-05-07) · paciente reagiu a uma msg nossa · UPDATE coluna
+  // reaction da mensagem alvo · NUNCA cria nova linha wa_messages. Cloud
+  // payload `{ type:'reaction', reaction:{ message_id, emoji } }`. emoji=''
+  // (string vazia) · paciente removeu reação · vira NULL.
+  if (message?.type === 'reaction' && typeof message?.reaction?.message_id === 'string') {
+    const targetWamid = message.reaction.message_id as string;
+    const rawEmoji = typeof message.reaction.emoji === 'string' ? message.reaction.emoji : '';
+    const trimmed = rawEmoji.trim();
+    const normalizedEmoji = trimmed.length === 0 || trimmed.length > 32 ? null : trimmed;
+    const target = await repos.messages.findByProviderMsgId(clinic_id, targetWamid);
+    if (target) {
+      await repos.messages.updateReaction(target.id, normalizedEmoji);
+      log.info(
+        {
+          clinic_id,
+          phone_hash: hashPhone(phone),
+          target_msg_id: target.id.slice(0, 8),
+          conv_id: target.conversationId.slice(0, 8),
+          removing: !normalizedEmoji,
+        },
+        'webhook_cloud.reaction.applied',
+      );
+    } else {
+      // Alvo não encontrado · paciente reagiu a msg que nunca foi persistida
+      // no dash (raro · ex: msg pre-Lara · conversa órfã). Não cria nada ·
+      // log estruturado · sem retry infinito.
+      log.warn(
+        { clinic_id, phone_hash: hashPhone(phone), target_wamid_tail: targetWamid.slice(-12) },
+        'webhook_cloud.reaction.target_not_found',
+      );
+    }
+    return;
+  }
+
   // Audit fix N7: WhatsApp service per-tenant via wa_numbers (não env global)
   // Fallback pra construtor sem args (env global) só quando wa_number_id não resolveu
   // - mantém continuidade enquanto wa_numbers está sendo populado.

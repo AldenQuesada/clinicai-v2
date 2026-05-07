@@ -40,6 +40,35 @@ export class MessageRepository {
     return mapMessageRow(data)
   }
 
+  /**
+   * React B (2026-05-07) · busca msg pelo `provider_msg_id` (wamid Cloud OU
+   * key.id Evolution) DENTRO do clinic_id. UNIQUE constraint
+   * `uq_wa_messages_provider_id (clinic_id, provider_msg_id)` garante 1 ou 0
+   * resultados · cross-tenant guard via filtro explícito (RLS via service_role).
+   *
+   * Usado pelos webhooks pra resolver alvo de reação inbound · paciente reagiu
+   * a uma msg nossa · `reaction.message_id` (Cloud) ou `reactionMessage.key.id`
+   * (Evolution) é o provider_msg_id alvo. Filtro `deleted_at IS NULL` skip
+   * mensagens soft-deletadas.
+   *
+   * Retorna null se não achar (ex: paciente reagiu a msg nunca persistida no
+   * dash · raro mas possível em forks ou inbound antes da Lara existir).
+   */
+  async findByProviderMsgId(
+    clinicId: string,
+    providerMsgId: string,
+  ): Promise<MessageDTO | null> {
+    const { data } = await this.supabase
+      .from('wa_messages')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('provider_msg_id', providerMsgId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!data) return null
+    return mapMessageRow(data)
+  }
+
   async listByConversation(
     conversationId: string,
     opts: { limit?: number; ascending?: boolean } = {},
