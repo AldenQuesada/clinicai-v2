@@ -66,6 +66,10 @@ export default function ChatPage() {
     discardMessage,
     sendStatus,
     messagesEndRef,
+    // Mig 143 (2026-05-07) · quoted reply state · MessageArea controla seleção
+    // do target via Responder button + composer preview com X cancel.
+    replyTarget,
+    setReplyTarget,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
 
   // P-03/P-04: insights globais do clinic · independente do filtro ativo.
@@ -592,6 +596,8 @@ export default function ChatPage() {
           copilotSmartReplies={copilot?.smart_replies || []}
           onRefreshCopilot={() => refreshCopilot(true)}
           onSendInternalNote={sendInternalNote}
+          replyTarget={replyTarget}
+          onSetReplyTarget={setReplyTarget}
         />
 
         {/* 3. Coluna Direita: Informacoes e Controle de Pausa */}

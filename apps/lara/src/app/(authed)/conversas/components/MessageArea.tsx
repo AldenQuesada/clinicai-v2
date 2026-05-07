@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download } from 'lucide-react';
+import { Send, Loader, User, AlertTriangle, RotateCw, X, StickyNote, Check, CheckCheck, Sparkles, RefreshCw, Paperclip, Mic, FileText, Download, Reply, CornerUpLeft } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { CopilotSummary } from './CopilotSummary';
 import { SecretariaSummary } from './SecretariaSummary';
@@ -217,6 +217,13 @@ interface MessageAreaProps {
   onRefreshCopilot?: () => void;
   /** Sprint C · SC-03 (W-11): envia nota interna · cor amarela · so atendentes veem */
   onSendInternalNote?: (content: string) => void;
+  /**
+   * Mig 143 (2026-05-07) · quoted reply · mensagem alvo selecionada via botão
+   * "Responder" no balão. Composer mostra preview com X cancel acima do
+   * textarea. Ao enviar, sendMessage inclui reply_to_message_id no POST.
+   */
+  replyTarget?: Message | null;
+  onSetReplyTarget?: (msg: Message | null) => void;
 }
 
 export function MessageArea({
@@ -238,6 +245,8 @@ export function MessageArea({
   copilotSmartReplies = [],
   onRefreshCopilot,
   onSendInternalNote,
+  replyTarget = null,
+  onSetReplyTarget,
 }: MessageAreaProps) {
   // Sprint C · SC-03: toggle entre msg normal e nota interna
   const [isNoteMode, setIsNoteMode] = useState(false);
@@ -304,6 +313,31 @@ export function MessageArea({
     () => groupMessagesByDay(messages),
     [messages],
   );
+
+  // Mig 143 (2026-05-07) · lookup providerMsgId → Message pra resolver quoted
+  // target dentro do balão (preview "respondendo a..."). Skip msgs sem
+  // providerMsgId (otimísticas, ou pré-mig 143).
+  const messagesByProviderMsgId = useMemo(() => {
+    const map = new Map<string, Message>();
+    for (const m of messages) {
+      if (m.providerMsgId) map.set(m.providerMsgId, m);
+    }
+    return map;
+  }, [messages]);
+
+  // Mig 143 · helper · gera snippet curto (≤80 chars) da msg pro preview do
+  // composer + balão. Áudio sem texto vira "🎧 Áudio", imagem "🖼️ Imagem", etc.
+  const previewSnippet = useCallback((m: Message): string => {
+    if (m.type === 'audio') {
+      const stripped = stripAudioPlaceholder(m.content);
+      return stripped && stripped !== 'recebido' ? `🎧 ${stripped}` : '🎧 Áudio';
+    }
+    if (m.type === 'image') return '🖼️ Imagem';
+    if (m.type === 'document') return '📄 Documento';
+    const text = (m.content || '').trim();
+    if (!text) return '(sem texto)';
+    return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  }, []);
 
   // ─── Sprint C · SC-02 (W-09) · Quick Templates ──────────────────────────
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -573,8 +607,33 @@ export function MessageArea({
                   );
                 }
 
+                // Mig 143 · resolve target do quoted reply (se houver). Se o
+                // target não estiver na lista atual (paginação), mostra placeholder.
+                const quotedTarget = msg.replyToProviderMsgId
+                  ? messagesByProviderMsgId.get(msg.replyToProviderMsgId) ?? null
+                  : null;
+                const hasQuotedLink = !!msg.replyToProviderMsgId;
+                // Mig 143 · só permite "Responder" em mensagens que JÁ foram
+                // confirmadas pelo provider (têm providerMsgId). Otimísticas
+                // e msgs antigas pré-mig falhariam com 422 reply_target_no_provider_id.
+                const canReply = !!onSetReplyTarget && !isFailed && !!msg.providerMsgId;
+
                 return (
-                  <div key={msg.id} className={`flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : ''}`}>
+                  <div key={msg.id} className={`group flex ${isUser ? 'justify-start' : 'justify-end'} ${isFailed ? 'flex-col items-end' : 'items-center gap-1.5'}`}>
+                    {/* Mig 143 · Reply button · não-user · aparece no hover.
+                        Posiciono ANTES do balão pra ficar à direita (do lado
+                        de fora) em mensagens outbound (justify-end). */}
+                    {canReply && !isUser && (
+                      <button
+                        type="button"
+                        onClick={() => onSetReplyTarget?.(msg)}
+                        title="Responder esta mensagem"
+                        aria-label="Responder esta mensagem"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.1] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.06] shrink-0"
+                      >
+                        <Reply className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+                    )}
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2 transition-colors ${
                       isFailed
                         ? 'bg-[hsl(var(--danger))]/10 border border-[hsl(var(--danger))]/40 text-[hsl(var(--foreground))] rounded-tr-sm'
@@ -598,6 +657,26 @@ export function MessageArea({
                           : resolveOutboundLabel(msg, selectedConversation?.inbox_role)
                         }
                       </div>
+                      {/* Mig 143 · preview do quoted target dentro do balão.
+                          Mostra autor + snippet · click leva pro target via
+                          scroll/highlight (TODO em onda futura · agora só visual). */}
+                      {hasQuotedLink && (
+                        <div className="mb-1.5 pl-2 py-1 pr-2 rounded border-l-2 border-[hsl(var(--primary))]/60 bg-white/[0.05]">
+                          <div className="flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                            <CornerUpLeft className="w-2.5 h-2.5" strokeWidth={2} />
+                            <span>
+                              {quotedTarget
+                                ? (quotedTarget.sender === 'user'
+                                    ? (selectedConversation.lead_name || 'Paciente')
+                                    : (quotedTarget.isManual ? 'Atendente' : 'Lara'))
+                                : 'Mensagem original'}
+                            </span>
+                          </div>
+                          <p className="text-[11.5px] italic leading-snug opacity-80 break-words mt-0.5">
+                            {quotedTarget ? previewSnippet(quotedTarget) : '(mensagem fora desta página)'}
+                          </p>
+                        </div>
+                      )}
                       {msg.type === 'image' && msg.mediaUrl && (
                         <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="block mb-2 cursor-pointer transition-opacity hover:opacity-85 mt-1" style={{ maxWidth: 280 }}>
                           <img src={msg.mediaUrl} alt="Mídia" className="rounded-xl w-full h-auto object-contain" style={{ maxHeight: 320 }} />
@@ -697,6 +776,19 @@ export function MessageArea({
                         </button>
                       </div>
                     )}
+                    {/* Mig 143 · Reply button para mensagens inbound · aparece
+                        DEPOIS do balão (à direita, fora) em hover. */}
+                    {canReply && isUser && (
+                      <button
+                        type="button"
+                        onClick={() => onSetReplyTarget?.(msg)}
+                        title="Responder esta mensagem"
+                        aria-label="Responder esta mensagem"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.1] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] border border-white/[0.06] shrink-0"
+                      >
+                        <Reply className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -739,6 +831,34 @@ export function MessageArea({
           <div className="mb-2 text-xs text-[#FBBF24] flex items-center justify-center bg-[#FBBF24]/10 py-1 rounded-md gap-1.5">
             <StickyNote className="w-3 h-3" />
             <strong>Modo nota interna</strong> · esta mensagem NÃO será enviada ao paciente, só atendentes veem.
+          </div>
+        )}
+
+        {/* Mig 143 (2026-05-07) · preview do quoted reply target acima do
+            composer. X cancela. Composer envia reply_to_message_id no POST.
+            Some quando isNoteMode (notas internas não suportam reply). */}
+        {replyTarget && !isNoteMode && (
+          <div className="mb-2 flex items-stretch gap-2 px-3 py-2 rounded-md bg-[hsl(var(--primary))]/[0.06] border border-[hsl(var(--primary))]/[0.25] border-l-4 border-l-[hsl(var(--primary))]">
+            <CornerUpLeft className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-0.5" strokeWidth={2} />
+            <div className="flex-1 min-w-0">
+              <div className="font-meta uppercase text-[9.5px] tracking-[0.16em] text-[hsl(var(--primary))]">
+                Respondendo a {replyTarget.sender === 'user'
+                  ? (selectedConversation?.lead_name || 'Paciente')
+                  : (replyTarget.isManual ? 'Atendente' : 'Lara')}
+              </div>
+              <p className="text-[12px] italic text-[hsl(var(--foreground))]/85 leading-snug truncate mt-0.5">
+                {previewSnippet(replyTarget)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSetReplyTarget?.(null)}
+              title="Cancelar reply"
+              aria-label="Cancelar reply"
+              className="self-start h-6 w-6 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.12] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] shrink-0"
+            >
+              <X className="w-3 h-3" strokeWidth={2} />
+            </button>
           </div>
         )}
 

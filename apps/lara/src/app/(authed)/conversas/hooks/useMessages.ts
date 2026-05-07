@@ -27,6 +27,16 @@ export interface Message {
   internalNote?: boolean;
   /** Sprint C · SC-01 (W-06): status do envio Cloud API · ✓ ✓✓ azul */
   deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed' | null;
+  /**
+   * Mig 143 (2026-05-07) · quoted reply · provider_msg_id da mensagem
+   * (wamid Cloud OU Baileys key.id). Usado pra resolver target em replies.
+   */
+  providerMsgId?: string | null;
+  /**
+   * Mig 143 (2026-05-07) · quoted reply · provider_msg_id da mensagem alvo
+   * (quem essa mensagem está respondendo). Renderiza preview no balão.
+   */
+  replyToProviderMsgId?: string | null;
 }
 
 export function useMessages(
@@ -37,6 +47,10 @@ export function useMessages(
   const [isLoading, setIsLoading] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'error'>('idle');
+  // Mig 143 (2026-05-07) · quoted reply target · null = sem reply pendente.
+  // Limpa automaticamente ao trocar de conversa (effect abaixo) e após
+  // sendMessage bem-sucedido. UI mostra preview acima do composer.
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const lastCountRef = useRef(0);
 
@@ -81,6 +95,9 @@ export function useMessages(
             // Sprint C: campos podem vir undefined se mig 86 ainda nao aplicada
             internalNote: msg.internal_note === true,
             deliveryStatus: msg.delivery_status ?? null,
+            // Mig 143 (2026-05-07) · quoted reply linkage cross-provider
+            providerMsgId: typeof msg.provider_msg_id === 'string' ? msg.provider_msg_id : null,
+            replyToProviderMsgId: typeof msg.reply_to_provider_msg_id === 'string' ? msg.reply_to_provider_msg_id : null,
           });
         });
 
@@ -125,6 +142,13 @@ export function useMessages(
     }
   }, [scrollToBottom]);
 
+  // Mig 143 (2026-05-07) · troca de conversa cancela qualquer reply pendente.
+  // Sem isso, replyTarget de uma conv antiga vazaria pra próxima conv e o
+  // POST validaria 422 invalid_reply_target_conversation.
+  useEffect(() => {
+    setReplyTarget(null);
+  }, [conversationId]);
+
   useEffect(() => {
     if (!conversationId) {
       setMessages([]);
@@ -165,14 +189,25 @@ export function useMessages(
    * Posta o conteudo no server. Retorna true se OK, false se falhou.
    * Marca a msg otimistica como `failed:true` em caso de erro · usuario decide
    * entre retry/descartar (P-06).
+   *
+   * Mig 143 (2026-05-07) · `replyToMessageId` (uuid wa_messages) opcional ·
+   * server resolve provider_msg_id e envia quoted reply (Cloud context.message_id
+   * ou Baileys quoted block). Validações server-side: 422 se target sem
+   * provider_msg_id ou de outra conversa.
    */
-  const postMessage = async (content: string, optimisticId: string): Promise<boolean> => {
+  const postMessage = async (
+    content: string,
+    optimisticId: string,
+    replyToMessageId?: string | null,
+  ): Promise<boolean> => {
     if (!conversationId) return false;
     try {
+      const body: Record<string, unknown> = { content };
+      if (replyToMessageId) body.reply_to_message_id = replyToMessageId;
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
         // Server confirmou · refetch traz o id real e remove o temp
@@ -198,6 +233,13 @@ export function useMessages(
     }
     setSendStatus('sending');
 
+    // Mig 143 · captura snapshot do replyTarget no início do envio. Limpa
+    // imediatamente pra não vazar pra próxima mensagem se user clicar Send
+    // duas vezes rápido.
+    const replyId = replyTarget?.id ?? null;
+    const replyProviderMsgId = replyTarget?.providerMsgId ?? null;
+    if (replyTarget) setReplyTarget(null);
+
     // Otimismo: adiciona a mensagem na tela instantaneamente
     const optimisticId = `temp-${Date.now()}`;
     const optimisticMsg: Message = {
@@ -207,11 +249,13 @@ export function useMessages(
       createdAt: new Date().toISOString(),
       type: 'text',
       isManual: true,
+      // Mig 143 · espelha o link no balão otimístico pra preview imediato
+      replyToProviderMsgId: replyProviderMsgId,
     };
     setMessages(prev => [...prev, optimisticMsg]);
     setTimeout(scrollToBottom, 100);
 
-    const ok = await postMessage(content, optimisticId);
+    const ok = await postMessage(content, optimisticId, replyId);
     setSendStatus(ok ? 'idle' : 'error');
     setTimeout(() => setSendStatus('idle'), 3000);
   };
@@ -299,5 +343,9 @@ export function useMessages(
     discardMessage,
     messagesEndRef,
     sendStatus,
+    // Mig 143 · quoted reply state · MessageArea seleciona target via
+    // setReplyTarget(msg) e o composer mostra preview com X cancel.
+    replyTarget,
+    setReplyTarget,
   };
 }
