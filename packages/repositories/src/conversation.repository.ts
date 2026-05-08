@@ -592,13 +592,16 @@ export class ConversationRepository {
     total: number
     luciana: number
     mirian: number
+    /** Onda 3 (2026-05-08) · count de conversas atribuidas ao Dr. Alden ·
+        operational_owner='alden' via UUID na view (mig 146). */
+    alden: number
     aguardando: number
     urgente: number
   }> {
     const view = 'wa_conversations_operational_view'
     const activeStatuses: ConversationStatus[] = ['active', 'paused']
 
-    const [totalQ, mirianQ, lucianaQ, aguardandoQ, urgenteQ] = await Promise.all([
+    const [totalQ, mirianQ, aldenQ, lucianaQ, aguardandoQ, urgenteQ] = await Promise.all([
       this.supabase
         .from(view)
         .select('id', { count: 'exact', head: true })
@@ -610,6 +613,14 @@ export class ConversationRepository {
         .eq('clinic_id', clinicId)
         .in('status', activeStatuses)
         .or('is_dra.eq.true,operational_owner.eq.mirian'),
+      // Onda 3 · Alden eh APENAS via operational_owner='alden' (mig 146 · UUID).
+      // is_dra continua Mirian-only por decisao de produto.
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('operational_owner', 'alden'),
       this.supabase
         .from(view)
         .select('id', { count: 'exact', head: true })
@@ -634,6 +645,7 @@ export class ConversationRepository {
       total: totalQ.count ?? 0,
       luciana: lucianaQ.count ?? 0,
       mirian: mirianQ.count ?? 0,
+      alden: aldenQ.count ?? 0,
       aguardando: aguardandoQ.count ?? 0,
       urgente: urgenteQ.count ?? 0,
     }

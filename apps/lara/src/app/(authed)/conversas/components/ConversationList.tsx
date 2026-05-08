@@ -91,13 +91,15 @@ export function ConversationList({
   }, []);
 
   // Tabs canônicas (Alden 2026-05-05 · view wa_conversations_operational_view):
-  //   Todas · Secretaria · Dra · Aguardando · Urgentes
+  //   Todas · Secretaria · Dra · Alden · Aguardando · Urgentes
   // KPI B 2026-05-07 · "Luciana" virou "Secretaria" (bucket default da fila,
   // nao pessoa · auditoria confirmou). is_luciana column + operational_owner
   // ='luciana' continuam como chave interna por compat.
+  // Onda 3 2026-05-08 · "Alden" novo · operational_owner='alden' via UUID na
+  // view (mig 146) · is_dra continua Mirian-only.
   // Removidos: Retorno (sem estrutura no DB · regex frágil), Lara Ativa
   // (estado IA · não fila operacional), VOCÊ/MIRA (não são donos aqui).
-  const tabs = ['Todas', 'Secretaria', 'Dra', 'Aguardando', 'Urgentes'];
+  const tabs = ['Todas', 'Secretaria', 'Dra', 'Alden', 'Aguardando', 'Urgentes'];
 
   // Extrair todas as tags únicas disponíveis nas conversas atuais para o filtro
   const allTags = useMemo(() => {
@@ -123,12 +125,15 @@ export function ConversationList({
       //   Secretaria ← operational_owner === 'luciana' (bucket default ·
       //                KPI B 2026-05-07: rename visual sem mudar chave interna)
       //   Dra        ← operational_owner === 'mirian' OU is_dra
+      //   Alden      ← operational_owner === 'alden' (Onda 3 2026-05-08 ·
+      //                view mig 146 reconhece via UUID puro)
       //   Aguardando ← is_aguardando (já exclui assigned_to=Mirian na view)
       //   Urgentes   ← is_urgente OU op_response_color ∈ {vermelho, critico}
       // Tab Todas não filtra · mostra tudo dos donos canônicos juntos.
       if (statusFilter === 'active') {
         const isDra = conv.is_dra === true || conv.operational_owner === 'mirian';
         const isSecretaria = conv.is_luciana === true || conv.operational_owner === 'luciana';
+        const isAlden = conv.operational_owner === 'alden';
         const isUrgente =
           conv.is_urgente === true ||
           (typeof conv.op_response_color === 'string' &&
@@ -136,6 +141,7 @@ export function ConversationList({
 
         if (activeTab === 'Secretaria' && !isSecretaria) return false;
         if (activeTab === 'Dra' && !isDra) return false;
+        if (activeTab === 'Alden' && !isAlden) return false;
         if (activeTab === 'Aguardando' && !conv.is_aguardando) return false;
         if (activeTab === 'Urgentes' && !isUrgente) return false;
       }

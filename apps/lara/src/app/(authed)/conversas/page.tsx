@@ -16,7 +16,7 @@ import { useCopilot } from './hooks/useCopilot';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
-import { DOCTOR_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
+import { DOCTOR_USER_ID, ALDEN_USER_ID, isDoctor, isAssignedToDoctor } from '@/lib/clinic-profiles';
 import { AlertCircle, Clock, MessageCircle, CheckCircle2, RefreshCw, UserPlus, Search, MessageSquarePlus, ArrowUpDown, Filter, CheckCircle, Archive, Stethoscope, ArrowLeft } from 'lucide-react';
 
 export default function ChatPage() {
@@ -184,7 +184,7 @@ export default function ChatPage() {
   };
 
   const handleAction = async (
-    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'devolver',
+    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'transfer_alden' | 'devolver',
   ) => {
     if (!selectedConversation?.conversation_id) return;
     const cid = selectedConversation.conversation_id;
@@ -274,6 +274,37 @@ export default function ChatPage() {
           } : prev);
           setModalConfig(null);
         }
+      });
+    }
+    else if (action === 'transfer_alden') {
+      // Onda 3 (2026-05-08) · Transferir pra Dr Alden · paralelo da
+      // transferencia pra Mirian. Mesmo fluxo (assume Lara · /assign Alden ·
+      // msg auto). Alden eh reconhecido na view via UUID puro (mig 146 ·
+      // operational_owner='alden') · KPI/aba dedicado.
+      setModalConfig({
+        isOpen: true,
+        title: 'Transferir para Dr. Alden',
+        description: 'Deseja transferir este lead para o Dr. Alden? A inteligência artificial será pausada e o paciente será avisado automaticamente.',
+        confirmText: 'Transferir',
+        onConfirm: async () => {
+          const assumeRes = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          const assumeData = await assumeRes.json();
+          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: ALDEN_USER_ID }),
+          });
+          const assignData = await assignRes.json().catch(() => ({}));
+          await sendMessage('Entendi! Vou encaminhar sua conversa para o Dr. Alden. Ele vai entrar em contato com você em breve!');
+          setSelectedConversation(prev => prev ? {
+            ...prev,
+            ai_enabled: false,
+            assigned_to: ALDEN_USER_ID,
+            assigned_at: assignData?.assigned_at || new Date().toISOString(),
+            ai_paused_until: assumeData.pauseStatus?.ai_paused_until || prev.ai_paused_until,
+          } : prev);
+          setModalConfig(null);
+        },
       });
     }
     else if (action === 'devolver') {
@@ -544,6 +575,17 @@ export default function ChatPage() {
                   onClick={() => handleAction('transfer')}
                   title={`Transferir para ${displayResponsible()}`}
                   className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <Stethoscope className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                {/* Onda 3 (2026-05-08) · botao Transferir para Dr Alden ·
+                    paralelo do botao Mirian acima · operational_owner='alden'
+                    via UUID na view (mig 146). */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('transfer_alden')}
+                  title="Transferir para Dr. Alden"
+                  className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/10 transition-colors cursor-pointer shrink-0"
                 >
                   <Stethoscope className="w-4 h-4" strokeWidth={1.5} />
                 </button>

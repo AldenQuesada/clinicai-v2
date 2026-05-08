@@ -67,12 +67,13 @@ export interface Conversation {
   // em /api/conversations a partir de wa_conversations_operational_view.
   // Campos opcionais pra retrocompat · undefined em mensagens antigas até
   // a view ter sido aplicada.
-  /** Dono operacional canônico · 'mirian' (Dra) ou 'luciana' (default) */
-  operational_owner?: 'luciana' | 'mirian' | string | null;
-  /** Label de exibição do dono ('Secretaria' ou 'Mirian' · KPI B 2026-05-07
-      renomeou 'Luciana' → 'Secretaria' na view; chave interna `operational_owner`
-      continua 'luciana' por compat). Pode vir 'Luciana' temporariamente em rows
-      vindas de cache antes do reload do PostgREST schema. */
+  /** Dono operacional canônico · 'mirian' (Dra) · 'alden' (Onda 3 · UUID
+      via mig 146) · 'luciana' (default · bucket Secretaria). */
+  operational_owner?: 'luciana' | 'mirian' | 'alden' | string | null;
+  /** Label de exibição do dono ('Secretaria' · 'Mirian' · 'Alden').
+      KPI B 2026-05-07 renomeou 'Luciana' → 'Secretaria' na view; chave interna
+      `operational_owner` continua 'luciana' por compat. Onda 3 2026-05-08
+      adicionou 'Alden' (label) · operational_owner='alden' (chave). */
   operational_owner_label?: string | null;
   /** True quando default (active conv) · NOT is_dra */
   is_luciana?: boolean;

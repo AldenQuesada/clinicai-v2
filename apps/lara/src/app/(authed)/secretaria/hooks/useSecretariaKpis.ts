@@ -22,6 +22,9 @@ export interface SecretariaKpis {
   total: number
   luciana: number
   mirian: number
+  /** Onda 3 (2026-05-08) · count fila Alden · operational_owner='alden'
+      via UUID na view (mig 146). */
+  alden: number
   aguardando: number
   urgente: number
 }
@@ -32,6 +35,7 @@ const ZERO: SecretariaKpis = {
   total: 0,
   luciana: 0,
   mirian: 0,
+  alden: 0,
   aguardando: 0,
   urgente: 0,
 }

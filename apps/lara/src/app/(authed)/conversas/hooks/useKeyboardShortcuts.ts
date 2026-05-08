@@ -5,7 +5,7 @@ export interface KeyboardShortcutsArgs {
   conversations: Conversation[];
   selectedConversation: Conversation | null;
   setSelectedConversation: (c: Conversation | null) => void;
-  dispatchAction: (action: 'assume' | 'resolve' | 'archive' | 'transfer') => void;
+  dispatchAction: (action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'transfer_alden') => void;
   /**
    * Quando true, todos os atalhos sao desabilitados (ex: modal aberto).
    */

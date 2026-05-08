@@ -39,7 +39,7 @@ import { useCopilot } from '../conversas/hooks/useCopilot';
 // da tela · resolve subestimação anterior (KPIs eram .filter().length em
 // array paginado de 50 itens · auditoria 2026-05-07: 91 reais vs 50 mostrados).
 import { useSecretariaKpis } from './hooks/useSecretariaKpis';
-import { DOCTOR_USER_ID, isDoctor } from '@/lib/clinic-profiles';
+import { DOCTOR_USER_ID, ALDEN_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
   RefreshCw,
@@ -82,11 +82,12 @@ export default function SecretariaPage() {
   //   ESCOPO  · todos | abertas | resolvidas (lente de status)
   //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
   // Default = aguardando (fila operacional da Luciana visivel direto)
-  // 5 KPIs canônicos (Alden 2026-05-05 · view wa_conversations_operational_view):
-  //   Todos | Luciana | Mirian | Aguardando | Urgente
-  // Default 'todos' pra Luciana/outros · 'mirian' pra Mirian (efeito abaixo).
-  // Removidos: Retorno (sem estrutura no DB · regex frágil), Abertas/Resolvidas.
-  type KpiId = 'todos' | 'luciana' | 'mirian' | 'aguardando' | 'urgente';
+  // 6 KPIs canônicos (KPI B 2026-05-07 · Onda 3 Alden 2026-05-08 ·
+  // view wa_conversations_operational_view):
+  //   Todos | Secretaria | Mirian | Alden | Aguardando | Urgente
+  // Default 'todos' pra Secretaria/outros · 'mirian' pra Mirian (effect abaixo).
+  // 'luciana' continua key INTERNA do bucket Secretaria (compat view/API).
+  type KpiId = 'todos' | 'luciana' | 'mirian' | 'alden' | 'aguardando' | 'urgente';
   const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
   const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
@@ -195,6 +196,12 @@ export default function SecretariaPage() {
   const isLucianaConv = (c: typeof conversations[number]) =>
     c.is_luciana === true || c.operational_owner === 'luciana';
 
+  // Onda 3 (2026-05-08) · Alden via operational_owner='alden' (mig 146 ·
+  // UUID na view). NUNCA por LIKE de nome. Fallback: assigned_to===ALDEN_ID
+  // pra rows velhas que ainda nao tem operational_owner (cache pre-mig).
+  const isAldenConv = (c: typeof conversations[number]) =>
+    c.operational_owner === 'alden' || c.assigned_to === ALDEN_USER_ID;
+
   const isUrgenteConv = (c: typeof conversations[number]) =>
     c.is_urgente === true ||
     (typeof c.op_response_color === 'string' &&
@@ -215,6 +222,9 @@ export default function SecretariaPage() {
   const mirianLocal = conversations.filter(
     (c) => isOperational(c) && isMirianConv(c),
   ).length;
+  const aldenLocal = conversations.filter(
+    (c) => isOperational(c) && isAldenConv(c),
+  ).length;
   const aguardandoLocal = conversations.filter(
     (c) => isOperational(c) && c.is_aguardando === true,
   ).length;
@@ -225,6 +235,7 @@ export default function SecretariaPage() {
   const todosCount = kpisHasFetched ? serverKpis.total : todosLocal;
   const lucianaCount = kpisHasFetched ? serverKpis.luciana : lucianaLocal;
   const mirianCount = kpisHasFetched ? serverKpis.mirian : mirianLocal;
+  const aldenCount = kpisHasFetched ? serverKpis.alden : aldenLocal;
   const aguardandoCount = kpisHasFetched ? serverKpis.aguardando : aguardandoLocal;
   const urgenteCount = kpisHasFetched ? serverKpis.urgente : urgenteLocal;
 
@@ -256,6 +267,7 @@ export default function SecretariaPage() {
     activeKpi === 'aguardando' ? 'Aguardando'
     : activeKpi === 'urgente' ? 'Urgentes'
     : activeKpi === 'mirian' ? 'Dra'
+    : activeKpi === 'alden' ? 'Alden'
     : activeKpi === 'luciana' ? 'Secretaria'
     : 'Todas';
 
@@ -266,6 +278,8 @@ export default function SecretariaPage() {
       ? conversations.filter((c) => isOperational(c) && isMirianConv(c))
       : activeKpi === 'luciana'
       ? conversations.filter((c) => isOperational(c) && isLucianaConv(c))
+      : activeKpi === 'alden'
+      ? conversations.filter((c) => isOperational(c) && isAldenConv(c))
       : activeKpi === 'urgente'
       ? conversations.filter((c) => isOperational(c) && isUrgenteConv(c))
       : conversations;
@@ -295,7 +309,7 @@ export default function SecretariaPage() {
   }, [selectedConversation?.conversation_id]);
 
   const handleAction = async (
-    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'devolver',
+    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'transfer_alden' | 'devolver',
   ) => {
     if (!selectedConversation?.conversation_id) return;
     const cid = selectedConversation.conversation_id;
@@ -361,6 +375,40 @@ export default function SecretariaPage() {
                   ...prev,
                   ai_enabled: false,
                   assigned_to: DOCTOR_USER_ID,
+                  assigned_at: assignData?.assigned_at || new Date().toISOString(),
+                }
+              : prev,
+          );
+          setModalConfig(null);
+        },
+      });
+    } else if (action === 'transfer_alden') {
+      // Onda 3 (2026-05-08) · Transferir pra Dr Alden · paralelo ao Mirian.
+      // Mesmo POST /assign body { user_id: ALDEN_USER_ID } · view (mig 146)
+      // reconhece via UUID puro · KPI/aba Alden separados.
+      setModalConfig({
+        isOpen: true,
+        title: 'Transferir para Dr. Alden',
+        description:
+          'Deseja transferir esta conversa para o Dr. Alden? A conversa vai pra fila Alden · paciente é avisado.',
+        confirmText: 'Transferir',
+        onConfirm: async () => {
+          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: ALDEN_USER_ID }),
+          });
+          const assignData = await assignRes.json().catch(() => ({}));
+          await sendMessage(
+            'Vou encaminhar para o Dr. Alden avaliar com carinho e já te retorno.',
+          );
+          setSelectedConversation((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ai_enabled: false,
+                  assigned_to: ALDEN_USER_ID,
                   assigned_at: assignData?.assigned_at || new Date().toISOString(),
                 }
               : prev,
@@ -489,6 +537,18 @@ export default function SecretariaPage() {
                 value: mirianCount,
                 color: 'accent',
                 title: 'Conversas transferidas pra Dra Mirian (assigned_to)',
+                group: 'dono' as const,
+              },
+              // Onda 3 (2026-05-08) · Dr Alden como dono operacional separado.
+              // operational_owner='alden' via UUID na view (mig 146) · is_dra
+              // continua Mirian-only por decisao de produto.
+              {
+                id: 'alden' as const,
+                icon: Stethoscope,
+                label: 'Alden',
+                value: aldenCount,
+                color: 'primary',
+                title: 'Conversas transferidas pra Dr Alden (assigned_to)',
                 group: 'dono' as const,
               },
               // ── Grupo FILA (colorido) ──
@@ -644,6 +704,7 @@ export default function SecretariaPage() {
             if (tab === 'Aguardando') setActiveKpi('aguardando');
             else if (tab === 'Urgentes') setActiveKpi('urgente');
             else if (tab === 'Dra') setActiveKpi('mirian');
+            else if (tab === 'Alden') setActiveKpi('alden');
             else if (tab === 'Secretaria') setActiveKpi('luciana');
             else setActiveKpi('todos');
           }}

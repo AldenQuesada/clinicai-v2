@@ -33,7 +33,7 @@ interface LeadInfoPanelProps {
   selectedConversation: Conversation | null;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  onAction?: (action: 'assume' | 'resolve' | 'archive' | 'transfer') => void;
+  onAction?: (action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'transfer_alden') => void;
   onStatusChange?: () => void;
   responsavelLabel?: string;
   copilotActions?: NextActionItem[];

@@ -22,9 +22,19 @@ export const DOCTOR_USER_ID = '20289f86-0895-403d-a19e-c24ac87e85a0'
     runtime hoje · mantido aqui pra histórico operacional) */
 export const SECRETARY_USER_ID = '9f1a1468-4315-4f5b-9588-0113d56982d2'
 
+/** Dr. Alden Quesada · owner do clinic. Onda 3 (2026-05-08) · adicionado como
+    dono operacional separado da Mirian na fila Secretaria. View
+    wa_conversations_operational_view (mig 146) reconhece via UUID puro ·
+    NUNCA via LIKE de nome (homonimo · risco). KPI/aba/transfer separados. */
+export const ALDEN_USER_ID = '06757b9f-2a03-43ae-bd37-28021eb6afeb'
+
 /** True se o user_id é o profissional médico (a Dra). Usado por:
  *   - default tab no inbox
  *   - decisão de mostrar botão "Devolver para Secretária"
+ *
+ * Onda 3 NÃO inclui Alden aqui · "Dra" continua significando Mirian (decisão
+ * de produto · is_dra na view tambem fica Mirian-only). Pra checar se eh
+ * qualquer dono operacional (Mirian OU Alden), usar isOperationalOwner.
  */
 export function isDoctor(userId: string | null | undefined): boolean {
   return !!userId && userId === DOCTOR_USER_ID
@@ -33,4 +43,16 @@ export function isDoctor(userId: string | null | undefined): boolean {
 /** True se a conversa está atribuída à Dra (entrou na fila Dra). */
 export function isAssignedToDoctor(assignedTo: string | null | undefined): boolean {
   return !!assignedTo && assignedTo === DOCTOR_USER_ID
+}
+
+/** True se a conversa esta atribuida ao Dr Alden (entrou na fila Alden ·
+    operational_owner='alden' na view). */
+export function isAssignedToAlden(assignedTo: string | null | undefined): boolean {
+  return !!assignedTo && assignedTo === ALDEN_USER_ID
+}
+
+/** True se assigned_to eh um dono operacional canonico (Mirian OU Alden) ·
+    util pra UI que precisa diferenciar "tem dono medico" vs "fila Secretaria". */
+export function isOperationalOwner(assignedTo: string | null | undefined): boolean {
+  return !!assignedTo && (assignedTo === DOCTOR_USER_ID || assignedTo === ALDEN_USER_ID)
 }
