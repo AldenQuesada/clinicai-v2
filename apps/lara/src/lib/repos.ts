@@ -17,6 +17,7 @@ import {
   ClinicRepository,
   ClinicDataRepository,
   TemplateRepository,
+  ProcedureRepository,
   BroadcastRepository,
   BudgetRepository,
   InboxNotificationRepository,
@@ -46,6 +47,8 @@ export interface Repos {
   clinic: ClinicRepository
   clinicData: ClinicDataRepository
   templates: TemplateRepository
+  /** Copilot Context A (2026-05-07) · catalogo de procedimentos da clinica · sem precos */
+  procedures: ProcedureRepository
   broadcasts: BroadcastRepository
   budget: BudgetRepository
   inboxNotifications: InboxNotificationRepository
@@ -72,6 +75,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     clinic: new ClinicRepository(sb),
     clinicData: new ClinicDataRepository(sb),
     templates: new TemplateRepository(sb),
+    procedures: new ProcedureRepository(sb),
     broadcasts: new BroadcastRepository(sb),
     budget: new BudgetRepository(sb),
     inboxNotifications: new InboxNotificationRepository(sb),

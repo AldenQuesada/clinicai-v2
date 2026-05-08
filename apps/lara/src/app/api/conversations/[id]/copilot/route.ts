@@ -69,10 +69,14 @@ export async function GET(
       }
     }
 
-    // 3. Coleta contexto · lead, clinic, msgs em paralelo
-    const [lead, clinic, messages] = await Promise.all([
+    // 3. Coleta contexto · lead, clinic, procedimentos, msgs em paralelo
+    // Copilot Context A (2026-05-07) · adicionado procedures pro Copilot
+    // explicar "como funciona X" sem alucinar. Procedimentos vem SEM preco
+    // (ProcedureRepository ja exclui no SELECT · guardrail commit 87a5610).
+    const [lead, clinic, procedures, messages] = await Promise.all([
       conv.leadId ? repos.leads.findByPhones(ctx.clinic_id, [conv.phone]) : null,
       repos.clinic.getById(ctx.clinic_id),
+      repos.procedures.getActiveByClinic(ctx.clinic_id),
       repos.messages.listByConversation(id, { ascending: true }),
     ])
 
@@ -80,11 +84,27 @@ export async function GET(
     const leadDto = lead ? lead.get(conv.phone) ?? null : null
 
     // 4. Build input + chama Anthropic
+    // Copilot Context A · address/inboxRole/procedures injetados como fonte
+    // de verdade. pixKey null por enquanto (auditoria 2026-05-07 confirmou
+    // clinics.settings.pix_key vazio · IA respondera "vou confirmar com a
+    // equipe" via guardrail). Quando pix_key for populado, leitura aqui ja
+    // funciona via clinic.settings (precisa expor no DTO em sprint futura).
     const output = await generateCopilot({
       clinicId: ctx.clinic_id,
       userId: ctx.user_id ?? undefined,
       clinicName: clinic?.name ?? 'Clínica',
       responsibleLabel: clinic?.responsibleName ?? undefined,
+      address: clinic?.address ?? null,
+      procedures: procedures.map((p) => ({
+        nome: p.nome,
+        categoria: p.categoria,
+        descricao: p.descricao,
+        duracaoMin: p.duracaoMin,
+        sessoes: p.sessoes,
+        observacoes: p.observacoes,
+      })),
+      inboxRole: conv.inboxRole ?? null,
+      pixKey: null,
       lead: {
         name: leadDto?.name ?? conv.displayName ?? null,
         phone: conv.phone,

@@ -22,6 +22,7 @@ export {
   type ClinicHoursDay,
 } from './clinic.repository'
 export { TemplateRepository } from './template.repository'
+export { ProcedureRepository, type ProcedureDTO } from './procedure.repository'
 export {
   BroadcastRepository,
   type BroadcastDTO,
