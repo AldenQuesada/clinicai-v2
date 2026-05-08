@@ -6,6 +6,7 @@ import { AssignmentSection } from './AssignmentSection';
 import { HandoffSecretariaSection } from './HandoffSecretariaSection';
 import { PipelineBar } from './PipelineBar';
 import { TimelineSection } from './TimelineSection';
+import { AssignmentHistoryPanel } from './AssignmentHistoryPanel';
 import { NextActions } from './NextActions';
 import { NextAppointmentCard } from './NextAppointmentCard';
 import { useState } from 'react';
@@ -321,7 +322,7 @@ export function LeadInfoPanel({
           )}
         </div>
 
-        {/* ─── ZONA HISTÓRICO · timeline ─── */}
+        {/* ─── ZONA HISTÓRICO · timeline + transferencias ─── */}
         <div className="px-5 py-4 space-y-5">
           <div>
             <div className="flex items-center gap-2 mb-2.5">
@@ -330,6 +331,14 @@ export function LeadInfoPanel({
             </div>
             <TimelineSection conversationId={selectedConversation.conversation_id} />
           </div>
+
+          {/* UI A (2026-05-08) · historico semantico de transferencias ·
+              consome /api/conversations/[id]/assignment-events (Mig 148 view) ·
+              NAO faz polling automatico · refetch ao mudar conversation_id +
+              botao manual "Atualizar". */}
+          <AssignmentHistoryPanel
+            conversationId={selectedConversation.conversation_id}
+          />
 
           {/* Atalhos pro CRM legacy · só em /conversas · cortado em /secretaria
               porque os Quick Actions (zona BAIXO FIXA) já cobrem agenda · CRM
