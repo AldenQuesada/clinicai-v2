@@ -658,6 +658,82 @@ export class ConversationRepository {
   }
 
   /**
+   * Historico de assignment de uma conversa · le da view semantica
+   * public.wa_conversation_assignment_events_view (Mig 148 · grants Mig 149).
+   *
+   * Source · rotula transicoes do audit_wa_conversations bruto:
+   *   assignment_action · assigned | returned | reassigned | profile_changed | updated
+   *   from_owner/to_owner · secretaria | alden | mirian | luciana | responsavel
+   *
+   * Multi-tenant guard:
+   *   View nao tem RLS proprio · scope manual via .eq('clinic_id', ...) +
+   *   .eq('conversation_id', ...) garante que o caller so ve eventos da
+   *   conv requisitada da clinic do JWT. Caller deve validar conv ownership
+   *   (clinicId match) ANTES de chamar este metodo.
+   *
+   * Limit:
+   *   Cap em 50 por chamada · evita payload gigante em conv com muitos
+   *   handoffs. Ordenacao audit_at DESC · mais recente primeiro.
+   *
+   * NAO retorna old_data/new_data brutos · view ja descarta esses campos
+   * sensiveis · so colunas semanticas/canonicas sao expostas.
+   */
+  async getAssignmentEvents(
+    conversationId: string,
+    clinicId: string,
+    limit = 50,
+  ): Promise<
+    Array<{
+      auditAt: string
+      assignmentAction: string
+      fromOwner: string
+      fromAssignedToName: string | null
+      toOwner: string
+      toAssignedToName: string | null
+      actorRole: string | null
+      auditReason: string | null
+      phone: string | null
+      displayName: string | null
+      status: string | null
+    }>
+  > {
+    const { data, error } = await this.supabase
+      .from('wa_conversation_assignment_events_view')
+      .select(
+        // SELECT explicito · campos seguros · NUNCA old_data/new_data/audit_id.
+        'audit_at, assignment_action, ' +
+          'from_owner, from_assigned_to_name, ' +
+          'to_owner, to_assigned_to_name, ' +
+          'actor_role, audit_reason, ' +
+          'phone, display_name, status',
+      )
+      .eq('clinic_id', clinicId)
+      .eq('conversation_id', conversationId)
+      .order('audit_at', { ascending: false })
+      .limit(Math.max(1, Math.min(50, limit)))
+
+    if (error || !data) return []
+
+    return data.map((r) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row = r as any
+      return {
+        auditAt: String(row.audit_at ?? ''),
+        assignmentAction: String(row.assignment_action ?? 'updated'),
+        fromOwner: String(row.from_owner ?? 'responsavel'),
+        fromAssignedToName: row.from_assigned_to_name ?? null,
+        toOwner: String(row.to_owner ?? 'responsavel'),
+        toAssignedToName: row.to_assigned_to_name ?? null,
+        actorRole: row.actor_role ?? null,
+        auditReason: row.audit_reason ?? null,
+        phone: row.phone ?? null,
+        displayName: row.display_name ?? null,
+        status: row.status ?? null,
+      }
+    })
+  }
+
+  /**
    * Sprint B (2026-04-29): Copiloto AI cache.
    * getCopilot le ai_copilot + ai_copilot_at + last_message_at pra decidir
    * se cache esta fresco. Tolerante a coluna ausente (migration pode nao
