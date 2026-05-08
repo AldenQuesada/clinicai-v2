@@ -571,6 +571,75 @@ export class ConversationRepository {
   }
 
   /**
+   * KPI Secretaria · Patch SECRETARIA KPI A (2026-05-07).
+   *
+   * Counts reais pro topo da Secretaria · independente da paginacao da lista
+   * (PAGE_SIZE=50). Fonte: wa_conversations_operational_view (mesma SoT que
+   * a UI usa pros pills/filtros). 5 COUNT(*) em paralelo · sem RPC nova.
+   *
+   * Semantica preservada (Onda 2 vai renomear Luciana, NAO neste patch):
+   *   - todos       · isOperational (status active+paused)
+   *   - mirian      · is_dra OU operational_owner='mirian'
+   *   - luciana     · is_luciana OU operational_owner='luciana'
+   *   - aguardando  · is_aguardando=true
+   *   - urgente     · is_urgente=true
+   *
+   * View ja restringe wa_number_id (hardcoded · "Secretaria B&H") + inbox_role
+   * = 'secretaria' + filtros de archived/cross-loop · multi-tenant scope vem
+   * via clinic_id no SELECT (RLS de wa_conversations vale pra view).
+   */
+  async getSecretariaKpiCounts(clinicId: string): Promise<{
+    total: number
+    luciana: number
+    mirian: number
+    aguardando: number
+    urgente: number
+  }> {
+    const view = 'wa_conversations_operational_view'
+    const activeStatuses: ConversationStatus[] = ['active', 'paused']
+
+    const [totalQ, mirianQ, lucianaQ, aguardandoQ, urgenteQ] = await Promise.all([
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses),
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .or('is_dra.eq.true,operational_owner.eq.mirian'),
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .or('is_luciana.eq.true,operational_owner.eq.luciana'),
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('is_aguardando', true),
+      this.supabase
+        .from(view)
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .in('status', activeStatuses)
+        .eq('is_urgente', true),
+    ])
+
+    return {
+      total: totalQ.count ?? 0,
+      luciana: lucianaQ.count ?? 0,
+      mirian: mirianQ.count ?? 0,
+      aguardando: aguardandoQ.count ?? 0,
+      urgente: urgenteQ.count ?? 0,
+    }
+  }
+
+  /**
    * Sprint B (2026-04-29): Copiloto AI cache.
    * getCopilot le ai_copilot + ai_copilot_at + last_message_at pra decidir
    * se cache esta fresco. Tolerante a coluna ausente (migration pode nao

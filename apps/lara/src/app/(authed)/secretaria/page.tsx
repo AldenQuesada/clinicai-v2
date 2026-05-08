@@ -35,6 +35,10 @@ import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
 // reusa cache server-side (mig 85, 10min TTL) · zero endpoint novo · custo
 // marginal porque secretaria troca conversa menos vezes que /conversas.
 import { useCopilot } from '../conversas/hooks/useCopilot';
+// Patch SECRETARIA KPI A (2026-05-07) · counts reais via servidor pra topo
+// da tela · resolve subestimação anterior (KPIs eram .filter().length em
+// array paginado de 50 itens · auditoria 2026-05-07: 91 reais vs 50 mostrados).
+import { useSecretariaKpis } from './hooks/useSecretariaKpis';
 import { DOCTOR_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
@@ -196,19 +200,33 @@ export default function SecretariaPage() {
     (typeof c.op_response_color === 'string' &&
       ['vermelho', 'critico'].includes(c.op_response_color));
 
-  const todosCount = conversations.filter(isOperational).length;
-  const lucianaCount = conversations.filter(
+  // Patch SECRETARIA KPI A (2026-05-07) · counts reais via /api/secretaria/
+  // kpis · 5 COUNT(*) na wa_conversations_operational_view. Antes: contagem
+  // local subestimava porque conversations vem paginado em PAGE_SIZE=50.
+  const { kpis: serverKpis, hasFetched: kpisHasFetched } = useSecretariaKpis();
+
+  // Fallback local · usado SO ate o primeiro fetch terminar (kpisHasFetched=
+  // false) ou se endpoint quebrar de vez (mantem ultimo valor server e cai
+  // pra contagem local nao-paginada quando primeiro tick falha).
+  const todosLocal = conversations.filter(isOperational).length;
+  const lucianaLocal = conversations.filter(
     (c) => isOperational(c) && isLucianaConv(c),
   ).length;
-  const mirianCount = conversations.filter(
+  const mirianLocal = conversations.filter(
     (c) => isOperational(c) && isMirianConv(c),
   ).length;
-  const aguardandoCount = conversations.filter(
+  const aguardandoLocal = conversations.filter(
     (c) => isOperational(c) && c.is_aguardando === true,
   ).length;
-  const urgenteCount = conversations.filter(
+  const urgenteLocal = conversations.filter(
     (c) => isOperational(c) && isUrgenteConv(c),
   ).length;
+
+  const todosCount = kpisHasFetched ? serverKpis.total : todosLocal;
+  const lucianaCount = kpisHasFetched ? serverKpis.luciana : lucianaLocal;
+  const mirianCount = kpisHasFetched ? serverKpis.mirian : mirianLocal;
+  const aguardandoCount = kpisHasFetched ? serverKpis.aguardando : aguardandoLocal;
+  const urgenteCount = kpisHasFetched ? serverKpis.urgente : urgenteLocal;
 
   // Tab title mostra urgentes como sinal mais forte de pendencia
   useEffect(() => {
