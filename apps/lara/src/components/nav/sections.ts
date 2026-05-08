@@ -20,6 +20,7 @@ import {
   Briefcase,
   Bell,
   HelpCircle,
+  History,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -141,6 +142,17 @@ export const SECTIONS: readonly Section[] = [
     icon: ClipboardList,
     requires: 'patients:view',
     external: true,
+  },
+  {
+    // Onda 2026-05-08 · Logs de Transferencias WhatsApp · API
+    // /api/logs/assignment-events (Mig 148 view + 149 grants).
+    // 'reports:view' inclui owner/admin/receptionist/therapist/viewer ·
+    // exclui secretaria (sidebar minimal pra ela).
+    key: 'logs',
+    label: 'Logs',
+    path: '/logs',
+    icon: History,
+    requires: 'reports:view',
   },
   {
     key: 'configuracoes',
