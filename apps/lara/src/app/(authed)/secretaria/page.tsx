@@ -256,7 +256,7 @@ export default function SecretariaPage() {
     activeKpi === 'aguardando' ? 'Aguardando'
     : activeKpi === 'urgente' ? 'Urgentes'
     : activeKpi === 'mirian' ? 'Dra'
-    : activeKpi === 'luciana' ? 'Luciana'
+    : activeKpi === 'luciana' ? 'Secretaria'
     : 'Todas';
 
   // Filtro local · garante que lista visível bata com o count quando a tab
@@ -463,14 +463,20 @@ export default function SecretariaPage() {
                 label: 'Todos',
                 value: todosCount,
                 color: 'foreground',
-                title: 'Todas as conversas operacionais (Luciana + Mirian)',
+                title: 'Todas as conversas operacionais (Secretaria + Mirian)',
                 group: 'escopo' as const,
               },
-              // ── Grupo DONO (canônico) ──
+              // ── Grupo DONO (canônico · KPI B 2026-05-07: rename visual
+              //    "Luciana" → "Secretaria" porque o bucket eh fila default,
+              //    nao pessoa · auditoria 2026-05-07 confirmou Luciana real
+              //    assigned_to=1 vs fila Luciana=90).
+              //    id 'luciana' continua interno · operational_owner='luciana'
+              //    + is_luciana=true continuam como chave/coluna · so o label
+              //    visual mudou.
               {
                 id: 'luciana' as const,
                 icon: CircleDot,
-                label: 'Luciana',
+                label: 'Secretaria',
                 value: lucianaCount,
                 color: 'primary',
                 title: 'Conversas operacionais da Secretaria (default · não atribuídas à Dra)',
@@ -638,7 +644,7 @@ export default function SecretariaPage() {
             if (tab === 'Aguardando') setActiveKpi('aguardando');
             else if (tab === 'Urgentes') setActiveKpi('urgente');
             else if (tab === 'Dra') setActiveKpi('mirian');
-            else if (tab === 'Luciana') setActiveKpi('luciana');
+            else if (tab === 'Secretaria') setActiveKpi('luciana');
             else setActiveKpi('todos');
           }}
           onlineUsers={inboxOnline}

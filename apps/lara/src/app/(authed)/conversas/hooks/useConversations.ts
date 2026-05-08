@@ -69,7 +69,10 @@ export interface Conversation {
   // a view ter sido aplicada.
   /** Dono operacional canônico · 'mirian' (Dra) ou 'luciana' (default) */
   operational_owner?: 'luciana' | 'mirian' | string | null;
-  /** Label de exibição do dono ('Luciana' ou 'Mirian') */
+  /** Label de exibição do dono ('Secretaria' ou 'Mirian' · KPI B 2026-05-07
+      renomeou 'Luciana' → 'Secretaria' na view; chave interna `operational_owner`
+      continua 'luciana' por compat). Pode vir 'Luciana' temporariamente em rows
+      vindas de cache antes do reload do PostgREST schema. */
   operational_owner_label?: string | null;
   /** True quando default (active conv) · NOT is_dra */
   is_luciana?: boolean;

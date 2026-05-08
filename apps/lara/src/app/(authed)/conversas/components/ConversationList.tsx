@@ -91,10 +91,13 @@ export function ConversationList({
   }, []);
 
   // Tabs canônicas (Alden 2026-05-05 · view wa_conversations_operational_view):
-  //   Todas · Luciana · Dra · Aguardando · Urgentes
+  //   Todas · Secretaria · Dra · Aguardando · Urgentes
+  // KPI B 2026-05-07 · "Luciana" virou "Secretaria" (bucket default da fila,
+  // nao pessoa · auditoria confirmou). is_luciana column + operational_owner
+  // ='luciana' continuam como chave interna por compat.
   // Removidos: Retorno (sem estrutura no DB · regex frágil), Lara Ativa
   // (estado IA · não fila operacional), VOCÊ/MIRA (não são donos aqui).
-  const tabs = ['Todas', 'Luciana', 'Dra', 'Aguardando', 'Urgentes'];
+  const tabs = ['Todas', 'Secretaria', 'Dra', 'Aguardando', 'Urgentes'];
 
   // Extrair todas as tags únicas disponíveis nas conversas atuais para o filtro
   const allTags = useMemo(() => {
@@ -117,20 +120,21 @@ export function ConversationList({
 
       // 2. Filtro de aba · view operacional canônica é fonte de verdade
       // (Alden 2026-05-05 · wa_conversations_operational_view).
-      //   Luciana   ← operational_owner === 'luciana'
-      //   Dra       ← operational_owner === 'mirian' OU is_dra
+      //   Secretaria ← operational_owner === 'luciana' (bucket default ·
+      //                KPI B 2026-05-07: rename visual sem mudar chave interna)
+      //   Dra        ← operational_owner === 'mirian' OU is_dra
       //   Aguardando ← is_aguardando (já exclui assigned_to=Mirian na view)
-      //   Urgentes  ← is_urgente OU op_response_color ∈ {vermelho, critico}
+      //   Urgentes   ← is_urgente OU op_response_color ∈ {vermelho, critico}
       // Tab Todas não filtra · mostra tudo dos donos canônicos juntos.
       if (statusFilter === 'active') {
         const isDra = conv.is_dra === true || conv.operational_owner === 'mirian';
-        const isLuciana = conv.is_luciana === true || conv.operational_owner === 'luciana';
+        const isSecretaria = conv.is_luciana === true || conv.operational_owner === 'luciana';
         const isUrgente =
           conv.is_urgente === true ||
           (typeof conv.op_response_color === 'string' &&
             ['vermelho', 'critico'].includes(conv.op_response_color));
 
-        if (activeTab === 'Luciana' && !isLuciana) return false;
+        if (activeTab === 'Secretaria' && !isSecretaria) return false;
         if (activeTab === 'Dra' && !isDra) return false;
         if (activeTab === 'Aguardando' && !conv.is_aguardando) return false;
         if (activeTab === 'Urgentes' && !isUrgente) return false;
