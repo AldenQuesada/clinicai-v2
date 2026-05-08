@@ -20,6 +20,8 @@ export {
   type ClinicSocial,
   type ClinicHours,
   type ClinicHoursDay,
+  type ClinicFiscal,
+  type ClinicBank,
 } from './clinic.repository'
 export { TemplateRepository } from './template.repository'
 export { ProcedureRepository, type ProcedureDTO } from './procedure.repository'

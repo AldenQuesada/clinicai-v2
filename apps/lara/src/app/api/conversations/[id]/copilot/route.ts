@@ -85,10 +85,10 @@ export async function GET(
 
     // 4. Build input + chama Anthropic
     // Copilot Context A · address/inboxRole/procedures injetados como fonte
-    // de verdade. pixKey null por enquanto (auditoria 2026-05-07 confirmou
-    // clinics.settings.pix_key vazio · IA respondera "vou confirmar com a
-    // equipe" via guardrail). Quando pix_key for populado, leitura aqui ja
-    // funciona via clinic.settings (precisa expor no DTO em sprint futura).
+    // de verdade. Copilot Context B (2026-05-07) · pixKey agora resolvido
+    // pelo ClinicRepository em cascata: settings.pix_key (admin · futuro) >
+    // fiscal.bancos[].pix (estado atual prod · Mirian Sicredi). Null se nada
+    // cadastrado · IA fallback "vou confirmar com a equipe".
     const output = await generateCopilot({
       clinicId: ctx.clinic_id,
       userId: ctx.user_id ?? undefined,
@@ -104,7 +104,7 @@ export async function GET(
         observacoes: p.observacoes,
       })),
       inboxRole: conv.inboxRole ?? null,
-      pixKey: null,
+      pixKey: clinic?.pixKey ?? null,
       lead: {
         name: leadDto?.name ?? conv.displayName ?? null,
         phone: conv.phone,
