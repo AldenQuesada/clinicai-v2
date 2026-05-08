@@ -120,6 +120,9 @@ export default function SecretariaPage() {
   const {
     copilot: secretariaCopilot,
     isLoading: isSecretariaCopilotLoading,
+    error: secretariaCopilotError,
+    hasFetched: secretariaCopilotHasFetched,
+    refresh: refreshSecretariaCopilot,
   } = useCopilot(selectedConversation?.conversation_id || null);
 
   // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
@@ -638,11 +641,12 @@ export default function SecretariaPage() {
           messagesEndRef={messagesEndRef}
           copilotSummary=""
           copilotSummaryLoading={isSecretariaCopilotLoading}
-          copilotSummaryError={null}
+          copilotSummaryError={secretariaCopilotError}
           copilotGeneratedAt=""
           copilotCached={false}
           copilotSmartReplies={secretariaCopilot?.smart_replies || []}
-          onRefreshCopilot={() => {}}
+          onRefreshCopilot={() => refreshSecretariaCopilot(true)}
+          copilotHasFetched={secretariaCopilotHasFetched}
           onSendInternalNote={sendInternalNote}
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}

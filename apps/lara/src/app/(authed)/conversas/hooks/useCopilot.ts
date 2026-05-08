@@ -19,6 +19,13 @@ export interface UseCopilotResult {
   copilot: CopilotData | null
   isLoading: boolean
   error: string | null
+  /**
+   * SmartReplies B (2026-05-07) · true depois da PRIMEIRA tentativa de fetch
+   * pra essa conversa (sucesso OU falha · não conta o ciclo loading inicial).
+   * Permite UI distinguir "ainda buscando" de "buscou e veio vazio" pra mostrar
+   * hint discreto só após resposta real.
+   */
+  hasFetched: boolean
   /** Re-busca · forceRefresh=true ignora cache server */
   refresh: (forceRefresh?: boolean) => Promise<void>
 }
@@ -35,6 +42,10 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
   const [copilot, setCopilot] = useState<CopilotData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // SmartReplies B (2026-05-07) · vira true ao fim da primeira tentativa de
+  // fetch (sucesso OU erro). Reseta ao trocar conversa pra não vazar estado
+  // "fetched" entre conversas distintas.
+  const [hasFetched, setHasFetched] = useState(false)
 
   const fetchCopilot = useCallback(
     async (cid: string, forceRefresh = false) => {
@@ -45,18 +56,21 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
         const res = await fetch(url)
         if (!res.ok) {
           if (res.status === 402) {
-            setError('Limite de IA atingido pra hoje · entre em contato com admin.')
+            setError('Limite de IA do dia atingido')
           } else {
-            setError(`Falhou ${res.status}`)
+            setError('Sugestões indisponíveis agora')
           }
           return
         }
         const data = (await res.json()) as CopilotData
         setCopilot(data)
-      } catch (e) {
-        setError((e as Error).message || 'Erro ao gerar copiloto')
+      } catch {
+        // SmartReplies B · msg genérica · stack trace fica no console do
+        // browser (fetch lança Error padrão), não vaza pro usuário final.
+        setError('Sugestões indisponíveis agora')
       } finally {
         setIsLoading(false)
+        setHasFetched(true)
       }
     },
     [],
@@ -67,8 +81,10 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
     if (!conversationId) {
       setCopilot(null)
       setError(null)
+      setHasFetched(false)
       return
     }
+    setHasFetched(false)
     fetchCopilot(conversationId, false)
   }, [conversationId, fetchCopilot])
 
@@ -80,5 +96,5 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
     [conversationId, fetchCopilot],
   )
 
-  return { copilot: copilot ?? EMPTY, isLoading, error, refresh }
+  return { copilot: copilot ?? EMPTY, isLoading, error, hasFetched, refresh }
 }

@@ -118,6 +118,7 @@ export default function ChatPage() {
     copilot,
     isLoading: isCopilotLoading,
     error: copilotError,
+    hasFetched: copilotHasFetched,
     refresh: refreshCopilot,
   } = useCopilot(selectedConversation?.conversation_id || null);
 
@@ -627,6 +628,7 @@ export default function ChatPage() {
           copilotCached={copilot?.cached ?? false}
           copilotSmartReplies={copilot?.smart_replies || []}
           onRefreshCopilot={() => refreshCopilot(true)}
+          copilotHasFetched={copilotHasFetched}
           onSendInternalNote={sendInternalNote}
           replyTarget={replyTarget}
           onSetReplyTarget={setReplyTarget}

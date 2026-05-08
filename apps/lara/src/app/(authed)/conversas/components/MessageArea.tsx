@@ -348,6 +348,14 @@ interface MessageAreaProps {
   /** Sprint B · W-03: 3 chips clicaveis acima do textarea */
   copilotSmartReplies?: string[];
   onRefreshCopilot?: () => void;
+  /**
+   * SmartReplies B (2026-05-07) · feedback discreto pra erro/vazio do copilot.
+   * `copilotHasFetched` true após primeira tentativa real (sucesso OU erro) ·
+   * permite SmartReplies mostrar hint "Sem sugestões úteis" só DEPOIS de
+   * tentativa concreta, evitando flash falso em conversa nova.
+   * `copilotError` reusa `copilotSummaryError` (mesmo erro do copilot).
+   */
+  copilotHasFetched?: boolean;
   /** Sprint C · SC-03 (W-11): envia nota interna · cor amarela · so atendentes veem */
   onSendInternalNote?: (content: string) => void;
   /**
@@ -390,6 +398,7 @@ export function MessageArea({
   copilotCached = false,
   copilotSmartReplies = [],
   onRefreshCopilot,
+  copilotHasFetched = false,
   onSendInternalNote,
   replyTarget = null,
   onSetReplyTarget,
@@ -1352,12 +1361,19 @@ export function MessageArea({
             onUseAnswer={(text) => onNewMessageChange(text)}
           />
         )}
-        {/* Sprint B · W-03: smart replies acima do textarea (Lara IA · cache
-            10min em wa_conversations.ai_copilot, mig 85). Sempre renderizado ·
-            self-hides se replies vazio (linha 18 SmartReplies.tsx). */}
+        {/* Sprint B · W-03 + SmartReplies B (2026-05-07): chips acima textarea
+            (Lara IA · cache 10min em wa_conversations.ai_copilot, mig 85).
+            Sempre renderizado · também mostra loading/erro/vazio discretos
+            quando copilotHasFetched=true · retry chama onRefreshCopilot.
+            Erro só passa pra SmartReplies em /secretaria (lá é único canal de
+            feedback IA · em /conversas o banner CopilotSummary já mostra
+            erro · evita duplicação). */}
         <SmartReplies
           replies={copilotSmartReplies}
           isLoading={copilotSummaryLoading}
+          error={selectedConversation?.inbox_role === 'secretaria' ? copilotSummaryError : null}
+          hasFetched={copilotHasFetched}
+          onRetry={onRefreshCopilot}
           onPick={(text) => onNewMessageChange(text)}
         />
 
