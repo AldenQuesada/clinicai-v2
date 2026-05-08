@@ -20,9 +20,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface SecretariaKpis {
   total: number
-  luciana: number
+  /** Mig 147 (2026-05-08) · bucket default da Secretaria · operational_owner
+      ='secretaria'. NUNCA mais via 'luciana' (Luciana virou pessoa real). */
+  secretaria: number
   mirian: number
-  /** Onda 3 (2026-05-08) · count fila Alden · operational_owner='alden'
+  /** Onda 3 (2026-05-06) · count fila Alden · operational_owner='alden'
       via UUID na view (mig 146). */
   alden: number
   aguardando: number
@@ -33,7 +35,7 @@ const REFRESH_INTERVAL_MS = 30_000
 
 const ZERO: SecretariaKpis = {
   total: 0,
-  luciana: 0,
+  secretaria: 0,
   mirian: 0,
   alden: 0,
   aguardando: 0,

@@ -68,12 +68,13 @@ export interface Conversation {
   // Campos opcionais pra retrocompat · undefined em mensagens antigas até
   // a view ter sido aplicada.
   /** Dono operacional canônico · 'mirian' (Dra) · 'alden' (Onda 3 · UUID
-      via mig 146) · 'luciana' (default · bucket Secretaria). */
-  operational_owner?: 'luciana' | 'mirian' | 'alden' | string | null;
-  /** Label de exibição do dono ('Secretaria' · 'Mirian' · 'Alden').
-      KPI B 2026-05-07 renomeou 'Luciana' → 'Secretaria' na view; chave interna
-      `operational_owner` continua 'luciana' por compat. Onda 3 2026-05-08
-      adicionou 'Alden' (label) · operational_owner='alden' (chave). */
+      via mig 146) · 'secretaria' (default · bucket sem dono · mig 147
+      normalizou · luciana NAO eh mais alias) · 'luciana' (so se assigned
+      real ativa). */
+  operational_owner?: 'secretaria' | 'mirian' | 'alden' | 'luciana' | string | null;
+  /** Label de exibição do dono ('Secretaria' · 'Mirian' · 'Alden' · 'Luciana').
+      Mig 147 (2026-05-08) normalizou bucket default de 'Luciana' pra
+      'Secretaria' · 'Luciana' so aparece se ha assigned real. */
   operational_owner_label?: string | null;
   /** True quando default (active conv) · NOT is_dra */
   is_luciana?: boolean;

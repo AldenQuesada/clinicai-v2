@@ -122,17 +122,17 @@ export function ConversationList({
 
       // 2. Filtro de aba · view operacional canônica é fonte de verdade
       // (Alden 2026-05-05 · wa_conversations_operational_view).
-      //   Secretaria ← operational_owner === 'luciana' (bucket default ·
-      //                KPI B 2026-05-07: rename visual sem mudar chave interna)
+      //   Secretaria ← operational_owner === 'secretaria' (mig 147 normaliz ·
+      //                bucket default · NUNCA mais via 'luciana' alias)
       //   Dra        ← operational_owner === 'mirian' OU is_dra
-      //   Alden      ← operational_owner === 'alden' (Onda 3 2026-05-08 ·
+      //   Alden      ← operational_owner === 'alden' (Onda 3 2026-05-06 ·
       //                view mig 146 reconhece via UUID puro)
       //   Aguardando ← is_aguardando (já exclui assigned_to=Mirian na view)
       //   Urgentes   ← is_urgente OU op_response_color ∈ {vermelho, critico}
       // Tab Todas não filtra · mostra tudo dos donos canônicos juntos.
       if (statusFilter === 'active') {
         const isDra = conv.is_dra === true || conv.operational_owner === 'mirian';
-        const isSecretaria = conv.is_luciana === true || conv.operational_owner === 'luciana';
+        const isSecretaria = conv.operational_owner === 'secretaria';
         const isAlden = conv.operational_owner === 'alden';
         const isUrgente =
           conv.is_urgente === true ||

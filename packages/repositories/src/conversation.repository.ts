@@ -590,9 +590,12 @@ export class ConversationRepository {
    */
   async getSecretariaKpiCounts(clinicId: string): Promise<{
     total: number
-    luciana: number
+    /** Mig 147 (2026-05-08) · bucket default da fila Secretaria · count via
+        operational_owner='secretaria' (sempre · NUNCA mais via 'luciana' ·
+        Luciana virou pessoa real, nao alias). */
+    secretaria: number
     mirian: number
-    /** Onda 3 (2026-05-08) · count de conversas atribuidas ao Dr. Alden ·
+    /** Onda 3 (2026-05-06) · count de conversas atribuidas ao Dr. Alden ·
         operational_owner='alden' via UUID na view (mig 146). */
     alden: number
     aguardando: number
@@ -601,7 +604,7 @@ export class ConversationRepository {
     const view = 'wa_conversations_operational_view'
     const activeStatuses: ConversationStatus[] = ['active', 'paused']
 
-    const [totalQ, mirianQ, aldenQ, lucianaQ, aguardandoQ, urgenteQ] = await Promise.all([
+    const [totalQ, mirianQ, aldenQ, secretariaQ, aguardandoQ, urgenteQ] = await Promise.all([
       this.supabase
         .from(view)
         .select('id', { count: 'exact', head: true })
@@ -621,12 +624,15 @@ export class ConversationRepository {
         .eq('clinic_id', clinicId)
         .in('status', activeStatuses)
         .eq('operational_owner', 'alden'),
+      // Mig 147 · bucket default = operational_owner='secretaria'. NAO mais
+      // 'luciana' OR is_luciana=true · view foi normalizada · Luciana so eh
+      // owner se realmente atribuida (rara · 0 em prod hoje).
       this.supabase
         .from(view)
         .select('id', { count: 'exact', head: true })
         .eq('clinic_id', clinicId)
         .in('status', activeStatuses)
-        .or('is_luciana.eq.true,operational_owner.eq.luciana'),
+        .eq('operational_owner', 'secretaria'),
       this.supabase
         .from(view)
         .select('id', { count: 'exact', head: true })
@@ -643,7 +649,7 @@ export class ConversationRepository {
 
     return {
       total: totalQ.count ?? 0,
-      luciana: lucianaQ.count ?? 0,
+      secretaria: secretariaQ.count ?? 0,
       mirian: mirianQ.count ?? 0,
       alden: aldenQ.count ?? 0,
       aguardando: aguardandoQ.count ?? 0,

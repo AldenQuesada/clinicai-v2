@@ -83,11 +83,11 @@ export default function SecretariaPage() {
   //   OPERACAO · aguardando | urgente | dra (fila de trabalho)
   // Default = aguardando (fila operacional da Luciana visivel direto)
   // 6 KPIs canônicos (KPI B 2026-05-07 · Onda 3 Alden 2026-05-08 ·
-  // view wa_conversations_operational_view):
+  // Mig 147 owner-normalization 2026-05-08 · view wa_conversations_operational_view):
   //   Todos | Secretaria | Mirian | Alden | Aguardando | Urgente
   // Default 'todos' pra Secretaria/outros · 'mirian' pra Mirian (effect abaixo).
-  // 'luciana' continua key INTERNA do bucket Secretaria (compat view/API).
-  type KpiId = 'todos' | 'luciana' | 'mirian' | 'alden' | 'aguardando' | 'urgente';
+  // KpiId 'secretaria' (mig 147 normalizou · luciana NAO eh mais alias).
+  type KpiId = 'todos' | 'secretaria' | 'mirian' | 'alden' | 'aguardando' | 'urgente';
   const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
   const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
@@ -179,7 +179,7 @@ export default function SecretariaPage() {
   // Modelo (Alden 2026-05-05): apenas 2 donos operacionais neste dashboard.
   //
   //   Todos:      todas as conversas active+paused do dashboard
-  //   Luciana:    operational_owner === 'luciana' OU is_luciana === true
+  //   Secretaria: operational_owner === 'secretaria' (mig 147 · default bucket)
   //   Mirian:     operational_owner === 'mirian'  OU is_dra === true
   //   Aguardando: is_aguardando (já exclui Mirian na view)
   //   Urgente:    is_urgente OU op_response_color ∈ {vermelho, critico}
@@ -193,10 +193,13 @@ export default function SecretariaPage() {
   const isMirianConv = (c: typeof conversations[number]) =>
     c.is_dra === true || c.operational_owner === 'mirian';
 
-  const isLucianaConv = (c: typeof conversations[number]) =>
-    c.is_luciana === true || c.operational_owner === 'luciana';
+  // Mig 147 (2026-05-08) · bucket default da Secretaria · operational_owner
+  // ='secretaria' direto. NUNCA mais via is_luciana/operational_owner='luciana'
+  // · view normalizada (Luciana so eh owner se realmente atribuida).
+  const isSecretariaConv = (c: typeof conversations[number]) =>
+    c.operational_owner === 'secretaria';
 
-  // Onda 3 (2026-05-08) · Alden via operational_owner='alden' (mig 146 ·
+  // Onda 3 (2026-05-06) · Alden via operational_owner='alden' (mig 146 ·
   // UUID na view). NUNCA por LIKE de nome. Fallback: assigned_to===ALDEN_ID
   // pra rows velhas que ainda nao tem operational_owner (cache pre-mig).
   const isAldenConv = (c: typeof conversations[number]) =>
@@ -216,8 +219,8 @@ export default function SecretariaPage() {
   // false) ou se endpoint quebrar de vez (mantem ultimo valor server e cai
   // pra contagem local nao-paginada quando primeiro tick falha).
   const todosLocal = conversations.filter(isOperational).length;
-  const lucianaLocal = conversations.filter(
-    (c) => isOperational(c) && isLucianaConv(c),
+  const secretariaLocal = conversations.filter(
+    (c) => isOperational(c) && isSecretariaConv(c),
   ).length;
   const mirianLocal = conversations.filter(
     (c) => isOperational(c) && isMirianConv(c),
@@ -233,7 +236,7 @@ export default function SecretariaPage() {
   ).length;
 
   const todosCount = kpisHasFetched ? serverKpis.total : todosLocal;
-  const lucianaCount = kpisHasFetched ? serverKpis.luciana : lucianaLocal;
+  const secretariaCount = kpisHasFetched ? serverKpis.secretaria : secretariaLocal;
   const mirianCount = kpisHasFetched ? serverKpis.mirian : mirianLocal;
   const aldenCount = kpisHasFetched ? serverKpis.alden : aldenLocal;
   const aguardandoCount = kpisHasFetched ? serverKpis.aguardando : aguardandoLocal;
@@ -268,7 +271,7 @@ export default function SecretariaPage() {
     : activeKpi === 'urgente' ? 'Urgentes'
     : activeKpi === 'mirian' ? 'Dra'
     : activeKpi === 'alden' ? 'Alden'
-    : activeKpi === 'luciana' ? 'Secretaria'
+    : activeKpi === 'secretaria' ? 'Secretaria'
     : 'Todas';
 
   // Filtro local · garante que lista visível bata com o count quando a tab
@@ -276,8 +279,8 @@ export default function SecretariaPage() {
   const filteredConversations =
     activeKpi === 'mirian'
       ? conversations.filter((c) => isOperational(c) && isMirianConv(c))
-      : activeKpi === 'luciana'
-      ? conversations.filter((c) => isOperational(c) && isLucianaConv(c))
+      : activeKpi === 'secretaria'
+      ? conversations.filter((c) => isOperational(c) && isSecretariaConv(c))
       : activeKpi === 'alden'
       ? conversations.filter((c) => isOperational(c) && isAldenConv(c))
       : activeKpi === 'urgente'
@@ -514,20 +517,17 @@ export default function SecretariaPage() {
                 title: 'Todas as conversas operacionais (Secretaria + Mirian)',
                 group: 'escopo' as const,
               },
-              // ── Grupo DONO (canônico · KPI B 2026-05-07: rename visual
-              //    "Luciana" → "Secretaria" porque o bucket eh fila default,
-              //    nao pessoa · auditoria 2026-05-07 confirmou Luciana real
-              //    assigned_to=1 vs fila Luciana=90).
-              //    id 'luciana' continua interno · operational_owner='luciana'
-              //    + is_luciana=true continuam como chave/coluna · so o label
-              //    visual mudou.
+              // ── Grupo DONO (canônico · KPI B 2026-05-07 rename visual ·
+              //    Mig 147 2026-05-08 normalizou: id 'secretaria' agora · view
+              //    retorna operational_owner='secretaria' direto · NUNCA mais
+              //    'luciana' como alias · Luciana so se atribuida real).
               {
-                id: 'luciana' as const,
+                id: 'secretaria' as const,
                 icon: CircleDot,
                 label: 'Secretaria',
-                value: lucianaCount,
+                value: secretariaCount,
                 color: 'primary',
-                title: 'Conversas operacionais da Secretaria (default · não atribuídas à Dra)',
+                title: 'Conversas operacionais da Secretaria (default · não atribuídas)',
                 group: 'dono' as const,
               },
               {
@@ -705,7 +705,7 @@ export default function SecretariaPage() {
             else if (tab === 'Urgentes') setActiveKpi('urgente');
             else if (tab === 'Dra') setActiveKpi('mirian');
             else if (tab === 'Alden') setActiveKpi('alden');
-            else if (tab === 'Secretaria') setActiveKpi('luciana');
+            else if (tab === 'Secretaria') setActiveKpi('secretaria');
             else setActiveKpi('todos');
           }}
           onlineUsers={inboxOnline}
