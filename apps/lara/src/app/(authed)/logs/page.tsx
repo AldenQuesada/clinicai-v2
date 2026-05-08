@@ -387,8 +387,8 @@ export default function LogsPage() {
                         <td className="px-3 py-2.5 align-top text-right whitespace-nowrap">
                           {e.conversation_id ? (
                             <Link
-                              href="/conversas"
-                              title="Ir pra inbox · busca pelo telefone do paciente"
+                              href={`/secretaria?conversationId=${e.conversation_id}`}
+                              title="Abrir conversa direto na inbox secretaria"
                               className="inline-flex items-center gap-1 text-[11px] text-[hsl(var(--primary))] hover:underline cursor-pointer"
                             >
                               Abrir conversa

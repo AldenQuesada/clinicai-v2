@@ -35,6 +35,9 @@ import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
 // reusa cache server-side (mig 85, 10min TTL) · zero endpoint novo · custo
 // marginal porque secretaria troca conversa menos vezes que /conversas.
 import { useCopilot } from '../conversas/hooks/useCopilot';
+// Open from /logs (2026-05-08) · auto-seleciona conversa via
+// ?conversationId=<uuid> · valida UUID · loadMore ate achar (cap 5).
+import { useAutoSelectFromQuery } from '../conversas/hooks/useAutoSelectFromQuery';
 // Patch SECRETARIA KPI A (2026-05-07) · counts reais via servidor pra topo
 // da tela · resolve subestimação anterior (KPIs eram .filter().length em
 // array paginado de 50 itens · auditoria 2026-05-07: 91 reais vs 50 mostrados).
@@ -70,6 +73,19 @@ export default function SecretariaPage() {
     loadMore,
     lastSseEventAtRef,
   } = useConversations({ inbox: 'secretaria' });
+
+  // Open from /logs (2026-05-08) · seleciona conversa via ?conversationId=<uuid>
+  // ao montar a pagina · loadMore automatico ate achar (cap 5 paginas).
+  // Side-effect-only · UI sem banner quando notFound (operadora ve /secretaria
+  // normal · sem barulho · pode buscar manualmente).
+  useAutoSelectFromQuery({
+    conversations,
+    selectedConversation,
+    setSelectedConversation,
+    hasMore,
+    isLoadingMore,
+    loadMore,
+  });
 
   const [isLeadPanelExpanded, setIsLeadPanelExpanded] = useState(false);
   const [showAskDoctor, setShowAskDoctor] = useState(false);

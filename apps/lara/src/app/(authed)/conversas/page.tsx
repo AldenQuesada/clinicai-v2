@@ -13,6 +13,7 @@ import { useMessages } from './hooks/useMessages';
 import { useInsights } from './hooks/useInsights';
 import { useClinicInfo } from './hooks/useClinicInfo';
 import { useCopilot } from './hooks/useCopilot';
+import { useAutoSelectFromQuery } from './hooks/useAutoSelectFromQuery';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useClinicMembers } from './hooks/useClinicMembers';
 import { usePresence } from './hooks/usePresence';
@@ -33,6 +34,18 @@ export default function ChatPage() {
     loadMore,
     lastSseEventAtRef,
   } = useConversations();
+
+  // Open from /logs (2026-05-08) · seleciona conversa via ?conversationId=<uuid>
+  // ao montar a pagina · simetrico ao /secretaria · loadMore automatico
+  // (cap 5 paginas) · side-effect-only sem banner UI.
+  useAutoSelectFromQuery({
+    conversations,
+    selectedConversation,
+    setSelectedConversation,
+    hasMore,
+    isLoadingMore,
+    loadMore,
+  });
 
   // Polish 2026-04-30 · painel direito colapsado por default · expande
   // automaticamente quando uma conversa e selecionada (ao trocar tambem).
