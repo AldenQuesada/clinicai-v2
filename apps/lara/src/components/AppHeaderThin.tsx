@@ -40,21 +40,31 @@ export function AppHeaderThin({ user }: { user: UserMenuProfile }) {
         zIndex: 20,
       }}
     >
-      {/* Section title (esquerda) */}
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+      {/* Section title (esquerda) · 1 linha · "Lara · Clinica AI - <Pagina>".
+          Pagina em Cormorant Garamond italic bold (brandbook). */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, lineHeight: 1.1 }}>
         <p
           className="eyebrow"
-          style={{ marginBottom: 2, fontSize: 9, letterSpacing: 3 }}
+          style={{ margin: 0, fontSize: 9, letterSpacing: 3 }}
         >
           Lara · Clinica AI
         </p>
+        <span
+          style={{
+            fontSize: 9,
+            color: 'var(--b2b-border)',
+            letterSpacing: 3,
+          }}
+        >
+          -
+        </span>
         <span
           style={{
             fontSize: 20,
             color: 'var(--b2b-ivory)',
             fontStyle: 'italic',
             fontFamily: '"Cormorant Garamond", Georgia, serif',
-            fontWeight: 400,
+            fontWeight: 700,
             letterSpacing: -0.2,
           }}
         >
