@@ -734,6 +734,138 @@ export class ConversationRepository {
   }
 
   /**
+   * Log global de assignment events da clinica · le da view semantica
+   * public.wa_conversation_assignment_events_view (Mig 148 · grants 149).
+   *
+   * Diferente de getAssignmentEvents(conversationId, ...) que escopa por
+   * conversa, este metodo escopa por clinic e aplica filtros opcionais
+   * pra alimentar pagina global de Logs de Transferencias.
+   *
+   * Defaults:
+   *   - limit: 50 · cap 200
+   *   - excludeProfileChanged: true (profile_changed eh ruido tecnico ·
+   *     so aparece se filters.includeTechnical=true)
+   *   - ordem: audit_at DESC (api ja eh DESC · view nao tem default · explicit)
+   *
+   * Filtros opcionais:
+   *   - action · assignment_action exato
+   *   - fromOwner / toOwner · from_owner / to_owner exatos
+   *   - actorRole · actor_role exato
+   *   - q · busca em display_name OU phone via ilike
+   *   - dateFrom / dateTo · ISO timestamp · audit_at >= dateFrom AND <= dateTo
+   *   - includeTechnical · false (default) exclui profile_changed
+   *
+   * Retorna conversation_id (uso futuro · UI pode navegar pra conversa) ·
+   * nao expoe audit_id, old_data, new_data, changed_fields.
+   */
+  async getAssignmentEventsLog(
+    clinicId: string,
+    filters: {
+      limit?: number
+      action?: string | null
+      fromOwner?: string | null
+      toOwner?: string | null
+      actorRole?: string | null
+      q?: string | null
+      includeTechnical?: boolean
+      dateFrom?: string | null
+      dateTo?: string | null
+    } = {},
+  ): Promise<
+    Array<{
+      auditAt: string
+      assignmentAction: string
+      fromOwner: string
+      fromAssignedToName: string | null
+      toOwner: string
+      toAssignedToName: string | null
+      actorRole: string | null
+      auditReason: string | null
+      phone: string | null
+      displayName: string | null
+      status: string | null
+      conversationId: string | null
+    }>
+  > {
+    const limit = Math.max(1, Math.min(200, filters.limit ?? 50))
+    const includeTechnical = filters.includeTechnical === true
+
+    let query = this.supabase
+      .from('wa_conversation_assignment_events_view')
+      .select(
+        // SELECT explicito · campos seguros · NUNCA audit_id/old_data/new_data/changed_fields.
+        // conversation_id incluido pra navegacao futura (Spec UI 2026-05-08).
+        'audit_at, assignment_action, ' +
+          'from_owner, from_assigned_to_name, ' +
+          'to_owner, to_assigned_to_name, ' +
+          'actor_role, audit_reason, ' +
+          'phone, display_name, status, ' +
+          'conversation_id',
+      )
+      .eq('clinic_id', clinicId)
+
+    if (!includeTechnical) {
+      query = query.neq('assignment_action', 'profile_changed')
+    }
+    if (filters.action) {
+      query = query.eq('assignment_action', filters.action)
+    }
+    if (filters.fromOwner) {
+      query = query.eq('from_owner', filters.fromOwner)
+    }
+    if (filters.toOwner) {
+      query = query.eq('to_owner', filters.toOwner)
+    }
+    if (filters.actorRole) {
+      query = query.eq('actor_role', filters.actorRole)
+    }
+    if (filters.dateFrom) {
+      const d = new Date(filters.dateFrom)
+      if (!Number.isNaN(d.getTime())) {
+        query = query.gte('audit_at', d.toISOString())
+      }
+    }
+    if (filters.dateTo) {
+      const d = new Date(filters.dateTo)
+      if (!Number.isNaN(d.getTime())) {
+        query = query.lte('audit_at', d.toISOString())
+      }
+    }
+    if (filters.q && filters.q.trim().length > 0) {
+      // Sanitiza pra evitar quebra do PostgREST .or() · escapa virgula/parenteses
+      // que tem semantica de separador. ilike eh case-insensitive.
+      const safe = filters.q.trim().replace(/[,()]/g, ' ')
+      // .or() aceita CSV de filtros · busca em display_name OU phone
+      query = query.or(`display_name.ilike.%${safe}%,phone.ilike.%${safe}%`)
+    }
+
+    const { data, error } = await query
+      .order('audit_at', { ascending: false })
+      .limit(limit)
+
+    if (error || !data) return []
+
+    return data.map((r) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row = r as any
+      return {
+        auditAt: String(row.audit_at ?? ''),
+        assignmentAction: String(row.assignment_action ?? 'updated'),
+        fromOwner: String(row.from_owner ?? 'responsavel'),
+        fromAssignedToName: row.from_assigned_to_name ?? null,
+        toOwner: String(row.to_owner ?? 'responsavel'),
+        toAssignedToName: row.to_assigned_to_name ?? null,
+        actorRole: row.actor_role ?? null,
+        auditReason: row.audit_reason ?? null,
+        phone: row.phone ?? null,
+        displayName: row.display_name ?? null,
+        status: row.status ?? null,
+        conversationId: row.conversation_id ?? null,
+      }
+    })
+  }
+
+  /**
    * Sprint B (2026-04-29): Copiloto AI cache.
    * getCopilot le ai_copilot + ai_copilot_at + last_message_at pra decidir
    * se cache esta fresco. Tolerante a coluna ausente (migration pode nao
