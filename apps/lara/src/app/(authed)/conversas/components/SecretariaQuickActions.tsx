@@ -41,64 +41,64 @@ const ACTIONS: Record<string, QuickAction> = {
     id: 'oferecer_horarios',
     icon: CalendarPlus,
     label: 'Oferecer horários',
-    template: (n) =>
-      `Olá, ${n || '[nome]'}! 🌿 Para [PROCEDIMENTO/CONSULTA] tenho disponibilidade em: [DATA1] · [DATA2] · [DATA3]. Qual fica melhor pra você?`,
+    template: () =>
+      'Consigo verificar os melhores horários para você. Você prefere atendimento no período da manhã ou da tarde?',
     color: '#F59E0B',
   },
   confirmar: {
     id: 'confirmar',
     icon: CheckCircle,
     label: 'Confirmar',
-    template: (n) =>
-      `Olá, ${n || '[nome]'}! Confirmando seu agendamento [DATA] às [HORÁRIO] com a Dra. Mirian. Posso confirmar sua presença? 🌿`,
+    template: () =>
+      'Passando para confirmar seu horário. Está tudo certo para você comparecer?',
     color: '#10B981',
   },
   reagendar: {
     id: 'reagendar',
     icon: CalendarClock,
     label: 'Reagendar',
-    template: (n) =>
-      `${n || 'Olá'}, vamos reagendar seu horário? Tenho disponibilidade em: [DATA1] · [DATA2] · [DATA3]. Qual fica melhor? 📅`,
+    template: () =>
+      'Sem problema, conseguimos verificar uma nova opção de horário para você. Qual período fica melhor: manhã ou tarde?',
     color: '#F59E0B',
   },
   valores: {
     id: 'valores',
     icon: DollarSign,
     label: 'Valores',
-    template: (n) =>
-      `${n || 'Olá'}, sobre os valores de [PROCEDIMENTO]:\n\n• Avaliação inicial: R$ [VALOR]\n• Aplicação: a partir de R$ [VALOR]\n\nFormas de pagamento: PIX, cartão (até [X]x sem juros) ou boleto. 💛`,
+    template: () =>
+      'Te explico sim. Como o valor pode variar conforme a avaliação e a melhor indicação para o seu caso, vou confirmar direitinho com a equipe para te passar com clareza.',
     color: '#C9A96E',
   },
   endereco: {
     id: 'endereco',
     icon: MapPin,
     label: 'Endereço',
-    template: (n) =>
-      `${n || 'Olá'}! Nosso endereço é [ENDEREÇO COMPLETO]. Localização no Maps: [LINK]. Estacionamento: [INFO]. Qualquer coisa me chama! 📍`,
+    template: () =>
+      'Claro. Vou te enviar o endereço certinho da clínica por aqui para você vir com tranquilidade.',
     color: '#93C5FD',
   },
   pre_consulta: {
     id: 'pre_consulta',
     icon: Sparkles,
     label: 'Pré-consulta',
-    template: (n) =>
-      `${n || 'Olá'}! Algumas orientações pra sua consulta:\n\n• Jejum: [TEMPO]\n• Levar acompanhante: [SIM/NÃO]\n• Documentos: RG · cartão SUS · exames anteriores\n• Pode usar maquiagem leve\n\nQualquer dúvida me avise! 🌿`,
+    template: () =>
+      'Antes do seu atendimento, a orientação principal é vir com tranquilidade e, se tiver alguma dúvida ou informação importante sobre sua saúde, pode me mandar por aqui.',
     color: '#A894C9',
   },
   pos_procedimento: {
     id: 'pos_procedimento',
     icon: Heart,
     label: 'Pós-procedimento',
-    template: (n) =>
-      `${n || 'Querida'}, parabéns pela escolha! 💛 Cuidados pós-procedimento:\n\n• Próximas 48h: [CUIDADOS]\n• Evite: [LISTA]\n• Próximo retorno: [DATA]\n\nQualquer reação ou dúvida me chame imediatamente.`,
+    template: () =>
+      'Como você está se sentindo após o atendimento? Se tiver qualquer dúvida ou desconforto, me avise por aqui para orientarmos da forma correta.',
     color: '#10B981',
   },
   marcar_retoque: {
     id: 'marcar_retoque',
     icon: CalendarPlus,
     label: 'Marcar retoque',
-    template: (n) =>
-      `${n || 'Olá'}! Está na hora do seu retoque 🌿 A Dra. Mirian tem disponibilidade em: [DATA1] · [DATA2] · [DATA3]. Qual fica melhor pra você?`,
+    template: () =>
+      'Podemos verificar a melhor data para sua revisão/retorno. Você prefere manhã ou tarde?',
     color: '#C9A96E',
   },
   pedir_dra: {
