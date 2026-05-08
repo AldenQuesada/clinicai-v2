@@ -44,7 +44,11 @@ export function useInsights() {
   const fetchInsights = useCallback(async () => {
     try {
       const res = await fetch('/api/conversations/insights')
-      if (!res.ok) return
+      // Auth/API Hardening A (2026-05-08) · checa content-type antes de
+      // parsear · sessao expirada → JSON 401 (mig middleware). Defesa extra
+      // contra HTML/proxy · evita Unexpected token '<' no console.
+      const ct = res.headers.get('content-type') || ''
+      if (!res.ok || !ct.includes('application/json')) return
       const data = (await res.json()) as Insights
       if (!stoppedRef.current) setInsights(data)
     } catch {

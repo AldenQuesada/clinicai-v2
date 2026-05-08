@@ -226,7 +226,11 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
         `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&inbox=${inbox}`,
       );
       if (seq !== fetchSeqRef.current) return;
-      if (res.ok) {
+      // Auth/API Hardening A (2026-05-08) · checa content-type antes de
+      // parsear · sessao expirada → JSON 401 do middleware. Defesa extra
+      // contra HTML/proxy · evita Unexpected token '<'.
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
         const payload: ListResponse = await res.json();
         if (seq !== fetchSeqRef.current) return;
         const data = payload.items;
@@ -339,7 +343,10 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
     try {
       const url = `/api/conversations?status=${statusFilter}&limit=${PAGE_SIZE}&before=${encodeURIComponent(cursorRef.current)}&inbox=${inbox}`;
       const res = await fetch(url);
-      if (res.ok) {
+      // Auth/API Hardening A · idem fetchConversations · checa content-type
+      // antes de parsear pra evitar Unexpected token '<' em sessao expirada.
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
         const payload: ListResponse = await res.json();
         cursorRef.current = payload.nextCursor;
         setHasMore(payload.nextCursor !== null);

@@ -28,7 +28,13 @@ export async function GET(request: NextRequest) {
     supabase = result.supabase;
   } catch (err) {
     log.warn({ err: (err as Error)?.message }, 'sse.global.unauthorized');
-    return new Response('Unauthorized', { status: 401 });
+    // Auth/API Hardening A (2026-05-08) · Content-Type explicito plain text ·
+    // EventSource client trata onerror cleanly · sem misinterpretar como
+    // text/event-stream e tentar parsear "Unauthorized" como evento.
+    return new Response('Unauthorized', {
+      status: 401,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 
   const clinicId = ctx.clinic_id;

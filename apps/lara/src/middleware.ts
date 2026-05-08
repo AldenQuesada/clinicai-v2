@@ -35,6 +35,29 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
+/**
+ * Auth/API Hardening A (2026-05-08) · /api/* sem sessao valida deve retornar
+ * JSON 401, NUNCA HTML do /login. Sem isso, fetch().json() no client crasha
+ * com `Unexpected token '<'` quando refresh_token rate-limita (429 Supabase
+ * Auth) ou JWT expira · auditoria 2026-05-08 mapeou cascata.
+ *
+ * SSE (route.ts) tem auth check proprio · ja retorna 401 plain text · este
+ * helper nao afeta.
+ */
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith('/api/')
+}
+
+function jsonUnauthorizedResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'unauthorized', code: 'session_expired' },
+    {
+      status: 401,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    },
+  )
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -48,7 +71,7 @@ export async function middleware(req: NextRequest) {
   // Defensive · createMiddlewareClient pode throw se env vars faltarem ·
   // getUser() pode throw se refresh token corrupto / clock skew / network.
   // Sem catch, exception escapa → digest opaco no RSC seguinte. Tratar como
-  // sessao invalida e redirecionar pra /login.
+  // sessao invalida e redirecionar pra /login (pages) OU JSON 401 (api).
   let user = null as { id: string } | null
   try {
     const supabase = createMiddlewareClient(req, res)
@@ -56,6 +79,10 @@ export async function middleware(req: NextRequest) {
     user = result.data.user
   } catch (e) {
     console.error('[middleware] auth check failed:', (e as Error).message)
+    // Auth/API Hardening A · /api/* sempre JSON · pages mantem redirect HTML
+    if (isApiPath(pathname)) {
+      return jsonUnauthorizedResponse()
+    }
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('error', 'session_expired')
     if (pathname !== '/') {
@@ -65,6 +92,10 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!user) {
+    // Auth/API Hardening A · /api/* sempre JSON · pages mantem redirect HTML
+    if (isApiPath(pathname)) {
+      return jsonUnauthorizedResponse()
+    }
     const loginUrl = new URL('/login', req.url)
     if (pathname !== '/') {
       loginUrl.searchParams.set('redirect', pathname + req.nextUrl.search)

@@ -54,7 +54,13 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
       try {
         const url = `/api/conversations/${cid}/copilot${forceRefresh ? '?refresh=1' : ''}`
         const res = await fetch(url)
-        if (!res.ok) {
+        // Auth/API Hardening A (2026-05-08) · checa content-type antes de
+        // parsear · sessao expirada/rate-limited devolve JSON 401 (nao mais
+        // HTML do /login · mig middleware). Defesa extra: se response NAO
+        // for application/json (401 plain · proxy injetando algo), trata
+        // como erro generico em vez de crashar com Unexpected token.
+        const ct = res.headers.get('content-type') || ''
+        if (!res.ok || !ct.includes('application/json')) {
           if (res.status === 402) {
             setError('Limite de IA do dia atingido')
           } else {
