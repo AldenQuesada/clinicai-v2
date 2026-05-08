@@ -561,12 +561,15 @@ export default function SecretariaPage() {
                 title: 'Paciente esperando resposta humana · view canônica',
                 group: 'fila' as const,
               },
+              // KPI Urgente · usa token --danger (mesmo da tag urgente nas
+              // conversas) · realce permanente + pulso leve no icone quando
+              // count > 0 · "atencao operacional", nao alarme.
               {
                 id: 'urgente' as const,
                 icon: AlertCircle,
                 label: 'Urgente',
                 value: urgenteCount,
-                color: 'destructive',
+                color: 'danger',
                 title: 'Alerta crítico · is_urgente da view (>5min sem resposta humana)',
                 group: 'fila' as const,
               },
@@ -576,6 +579,13 @@ export default function SecretariaPage() {
               const isActive = activeKpi === k.id;
               const prev = arr[idx - 1];
               const showDivider = !!prev && prev.group !== k.group;
+              // Realce permanente do KPI Urgente · alinhado com a tag urgente
+              // existente nas conversas (--danger token canonico). Sempre
+              // mostra bg + border vermelho suave mesmo inativo · pulso leve
+              // no icone quando ha conversa(s) urgente(s) · zero animacao
+              // quando count==0 (estado calmo).
+              const isUrgentKpi = k.id === 'urgente';
+              const urgentHighlight = isUrgentKpi && k.value > 0;
               return (
                 <div key={k.id} className="flex items-center gap-1.5">
                   {showDivider && (
@@ -591,14 +601,24 @@ export default function SecretariaPage() {
                         : 'hover:-translate-y-[2px] hover:bg-white/[0.03]'
                     }`}
                     style={{
-                      background: isActive ? colorVar.replace(')', ' / 0.10)') : undefined,
+                      // KPI Urgente sempre traz seu bg/border tenue mesmo
+                      // inativo · isActive empilha intensidade.
+                      background: isActive
+                        ? colorVar.replace(')', ' / 0.10)')
+                        : isUrgentKpi
+                          ? colorVar.replace(')', ' / 0.06)')
+                          : undefined,
                       boxShadow: isActive
                         ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.35)')}`
-                        : undefined,
+                        : isUrgentKpi
+                          ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.20)')}`
+                          : undefined,
                     }}
                   >
                     <div
-                      className="p-1 rounded-md transition-colors shrink-0"
+                      className={`p-1 rounded-md transition-colors shrink-0 ${
+                        urgentHighlight ? 'animate-pulse' : ''
+                      }`}
                       style={{
                         background: colorVar.replace(')', ' / 0.10)'),
                         color: colorVar,
