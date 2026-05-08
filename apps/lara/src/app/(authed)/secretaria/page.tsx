@@ -8,7 +8,8 @@
  *     com inbox_role='secretaria' (inbound direto + handoffs).
  *   - LeadInfoPanel inboxRole='secretaria' · oculta AgentPauseSection,
  *     NextActions IA e botao Passar pra Secretaria (nao faz sentido aqui).
- *   - Sem useCopilot (zero token Anthropic).
+ *   - useCopilot (SmartReplies A · 2026-05-07) · 3 chips IA acima composer ·
+ *     empilha com DoctorAnswerCard · cache server-side 10min · custo marginal.
  *   - Sem KPIs Lara · mostra "Handoffs hoje" + "Inbound direto" + "Aguardando".
  *
  * Reusa: ConversationList, MessageArea, LeadInfoPanel, ConfirmModal,
@@ -30,6 +31,10 @@ import { useMessages } from '../conversas/hooks/useMessages';
 import { useClinicMembers } from '../conversas/hooks/useClinicMembers';
 import { usePresence } from '../conversas/hooks/usePresence';
 import { useKeyboardShortcuts } from '../conversas/hooks/useKeyboardShortcuts';
+// SmartReplies A (2026-05-07) · expor sugestões IA também na secretaria ·
+// reusa cache server-side (mig 85, 10min TTL) · zero endpoint novo · custo
+// marginal porque secretaria troca conversa menos vezes que /conversas.
+import { useCopilot } from '../conversas/hooks/useCopilot';
 import { DOCTOR_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
@@ -107,6 +112,15 @@ export default function SecretariaPage() {
     // React A (2026-05-07) · reação emoji outbound
     reactToMessage,
   } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
+
+  // SmartReplies A (2026-05-07) · copilot IA também na secretaria · 3 chips
+  // acima do composer (empilhado com DoctorAnswerCard, não substituído).
+  // 1 fetch ao trocar conversa · cache server-side 10min em wa_conversations.
+  // ai_copilot · zero token novo se conversa já tem cache fresco.
+  const {
+    copilot: secretariaCopilot,
+    isLoading: isSecretariaCopilotLoading,
+  } = useCopilot(selectedConversation?.conversation_id || null);
 
   // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
   const [forwardSourceMessage, setForwardSourceMessage] = useState<Message | null>(null);
@@ -623,11 +637,11 @@ export default function SecretariaPage() {
           sendStatus={sendStatus}
           messagesEndRef={messagesEndRef}
           copilotSummary=""
-          copilotSummaryLoading={false}
+          copilotSummaryLoading={isSecretariaCopilotLoading}
           copilotSummaryError={null}
           copilotGeneratedAt=""
           copilotCached={false}
-          copilotSmartReplies={[]}
+          copilotSmartReplies={secretariaCopilot?.smart_replies || []}
           onRefreshCopilot={() => {}}
           onSendInternalNote={sendInternalNote}
           replyTarget={replyTarget}

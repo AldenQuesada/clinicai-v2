@@ -1339,24 +1339,27 @@ export function MessageArea({
           </div>
         )}
 
-        {/* Roadmap A2 · botões de ação rápida pra secretaria (zero digitação)
-            Aparece so em conv com inbox_role='secretaria' · /conversas (Lara)
-            mantém SmartReplies IA tradicional. */}
-        {selectedConversation?.inbox_role === 'secretaria' ? (
-          /* Sprint 1 · DoctorAnswerCard fica no chat (relevante ao contexto da msg).
-             SecretariaQuickActions movido pro painel direito (zona BAIXO FIXA). */
+        {/* SmartReplies A (2026-05-07) · empilhar DoctorAnswerCard + SmartReplies
+            em vez de mutex. Em /secretaria, ambos aparecem (Q&A da Dra fica no
+            topo, sugestões IA logo abaixo). Em /conversas (Lara) o card da Dra
+            não existe · só SmartReplies. SmartReplies retorna null se replies
+            vazio E não loading · sem poluição visual quando /conversas/secretaria
+            ainda não tem dados de copilot. */}
+        {selectedConversation?.inbox_role === 'secretaria' && (
+          /* Sprint 1 · DoctorAnswerCard fica no chat (relevante ao contexto da msg). */
           <DoctorAnswerCard
             conversationId={selectedConversation.conversation_id}
             onUseAnswer={(text) => onNewMessageChange(text)}
           />
-        ) : (
-          /* Sprint B · W-03: smart replies acima do textarea (Lara IA) */
-          <SmartReplies
-            replies={copilotSmartReplies}
-            isLoading={copilotSummaryLoading}
-            onPick={(text) => onNewMessageChange(text)}
-          />
         )}
+        {/* Sprint B · W-03: smart replies acima do textarea (Lara IA · cache
+            10min em wa_conversations.ai_copilot, mig 85). Sempre renderizado ·
+            self-hides se replies vazio (linha 18 SmartReplies.tsx). */}
+        <SmartReplies
+          replies={copilotSmartReplies}
+          isLoading={copilotSummaryLoading}
+          onPick={(text) => onNewMessageChange(text)}
+        />
 
         {/* Sprint C · SC-02 (W-09): quick templates dropdown · "/" ou Ctrl+T */}
         {isDropdownOpen && (
