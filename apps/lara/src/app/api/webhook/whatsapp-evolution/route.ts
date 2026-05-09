@@ -52,6 +52,10 @@ interface EvolutionPayload {
       pushName?: string;
     };
     messageType?: string;
+    // Audit 2026-05-09 · Unix seconds (Baileys) · canonical pra sent_at em
+    // wa_messages. Pode chegar como number (caminho normal) ou string (alguns
+    // setups Evolution) · helper de parse trata ambos.
+    messageTimestamp?: number | string;
     pushName?: string;
     notifyName?: string;
     verifiedBizName?: string;
@@ -754,7 +758,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, skip: 'duplicate' });
   }
 
-  const sentAtStr = new Date().toISOString();
+  // PATCH TIMESTAMP A 2026-05-09 · sent_at canonical = data.messageTimestamp
+  // (Unix seconds Baileys). Antes usava new Date().toISOString() · gerava
+  // sent_at = hora do webhook · drift de até ~80min em redelivery atrasado
+  // (caso Evanir 2026-05-08: hit_at 17:50 vs messageTimestamp 16:30). Fallback
+  // pra now() apenas se ausente/inválido, com trace dedicado pra catalogar
+  // payloads anômalos.
+  const rawMessageTs: unknown = body?.data?.messageTimestamp;
+  const messageTsNum: number =
+    typeof rawMessageTs === 'number'
+      ? rawMessageTs
+      : typeof rawMessageTs === 'string' && /^\d+$/.test(rawMessageTs)
+        ? Number(rawMessageTs)
+        : NaN;
+  let sentAtStr: string;
+  if (Number.isFinite(messageTsNum) && messageTsNum > 0) {
+    sentAtStr = new Date(messageTsNum * 1000).toISOString();
+  } else {
+    sentAtStr = new Date().toISOString();
+    await evoTraceLog({
+      stage: 'message_timestamp_missing_fallback',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'provider=' + (key.id ?? 'null').slice(-12) +
+        ' raw_ts=' + (rawMessageTs === undefined || rawMessageTs === null
+          ? 'null'
+          : String(rawMessageTs).slice(0, 20)),
+    });
+  }
 
   // ─── Branch OUTBOUND humano · clinica digitou direto no celular fisico ────
   // Salva como outbound + sender='humano' · NAO dispara auto-greeting nem
@@ -776,6 +808,10 @@ export async function POST(request: NextRequest) {
     // foi enviado via app · skip pra nao duplicar
     const recentOutboundDup = await (async () => {
       try {
+        // PATCH TIMESTAMP A 2026-05-09 · janela usa created_at (tempo de
+        // gravação no DB), não sent_at. Após sent_at canonical virar
+        // messageTimestamp do payload, redelivery atrasado teria sent_at
+        // antigo mas é eco recém-chegado · só created_at reflete "veio agora".
         const cutoff = new Date(Date.now() - 30_000).toISOString();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: dup } = await (supabase as any)
@@ -784,7 +820,7 @@ export async function POST(request: NextRequest) {
           .eq('conversation_id', conv.id)
           .eq('direction', 'outbound')
           .eq('content', content)
-          .gte('sent_at', cutoff)
+          .gte('created_at', cutoff)
           .maybeSingle();
         return !!dup;
       } catch { return false; }
