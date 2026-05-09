@@ -265,6 +265,7 @@ export async function POST(request: NextRequest) {
   // a cada inbound LID pra construir mapping LID↔phone over time.
   let phone: string = '';
   let isLidOutboundUnresolved = false;
+  let isLidInboundUnresolved = false;
   if (isOutboundFromDevice) {
     if (remoteJid.endsWith('@lid')) {
       // outbound LID · marca pra lookup posterior por remote_jid
@@ -276,18 +277,31 @@ export async function POST(request: NextRequest) {
     const senderPn = key?.senderPn || data?.senderPn || '';
     phone = senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
     if (!phone) {
-      log.warn({ remoteJid }, 'webhook_evolution.lid_without_senderPn');
-      return NextResponse.json({ ok: true, skip: 'lid_without_senderPn' });
+      // PATCH ROOT CAUSE 2026-05-09 · inbound @lid sem senderPn não pode mais
+      // ser descartado silenciosamente. Marca pra lookup unificado abaixo
+      // (Layer 1 wa_conversations.remote_jid · Layer 2 wa_contact_identities ·
+      // terminal_pending_identity se nada resolver). Antes deste patch o webhook
+      // fazia `return skip:'lid_without_senderPn'` SEM evoTraceLog · perdia
+      // mensagens reais (Grupo A · Ana/Sandra/Jô/Região 22/Andreia).
+      isLidInboundUnresolved = true;
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
   }
 
-  if (!isLidOutboundUnresolved && !/^\d{10,15}$/.test(phone)) {
+  if (!isLidOutboundUnresolved && !isLidInboundUnresolved && !/^\d{10,15}$/.test(phone)) {
     await evoTraceLog({ stage: 'skip_bad_phone', signature_ok: true, result_status: 200, result_summary: 'phone_len=' + phone.length });
     return NextResponse.json({ ok: true, skip: 'bad_phone', phone });
   }
-  await evoTraceLog({ stage: 'phone_resolved', signature_ok: true, result_status: 200, result_summary: 'last8=' + (phone.slice(-8) || 'lid') });
+  await evoTraceLog({
+    stage: 'phone_resolved',
+    signature_ok: true,
+    result_status: 200,
+    result_summary: 'last8=' + (
+      phone.slice(-8) ||
+      (isLidInboundUnresolved ? 'lid_in' : isLidOutboundUnresolved ? 'lid_out' : 'unknown')
+    ),
+  });
 
   // Resolve wa_number pela instance (RPC mig 92)
   const supabase = createServerClient();
@@ -405,6 +419,20 @@ export async function POST(request: NextRequest) {
         'webhook_evolution.reaction.target_not_found',
       );
     }
+    // PATCH ROOT CAUSE 2026-05-09 · terminal trace · reaction_applied antes
+    // não tinha trace · agora todo terminal de sucesso é auditável.
+    await evoTraceLog({
+      stage: 'terminal_reaction_applied',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'target_provider=' + (targetKeyId ?? 'null').slice(-12) +
+        ' target_found=' + (target ? 'y' : 'n') +
+        ' provider=' + (key?.id ?? 'null').slice(-12) +
+        ' remote=' + remoteJid.slice(0, 24) +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' wa_num=' + wa_number_id.slice(0, 8),
+    });
     return NextResponse.json({ ok: true, kind: 'reaction_applied' });
   }
 
@@ -457,11 +485,39 @@ export async function POST(request: NextRequest) {
         { instance, phone_hash: hashPhone(phone) },
         'webhook_evolution.contact.unparseable',
       );
+      // PATCH ROOT CAUSE 2026-05-09 · terminal trace.
+      await evoTraceLog({
+        stage: 'terminal_skipped_non_message',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=contact_unparseable' +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' fromMe=' + String(!!key?.fromMe) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8),
+      });
       return NextResponse.json({ ok: true, skip: 'contact_unparseable' });
     }
   }
 
   if (!content) {
+    // PATCH ROOT CAUSE 2026-05-09 · terminal trace · empty_message antes
+    // era silencioso · cobre payloads sem texto/mídia conhecida.
+    await evoTraceLog({
+      stage: 'terminal_skipped_non_message',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'reason=empty_message' +
+        ' provider=' + (key?.id ?? 'null').slice(-12) +
+        ' remote=' + remoteJid.slice(0, 24) +
+        ' fromMe=' + String(!!key?.fromMe) +
+        ' msg_type=' + (data?.messageType ?? 'unknown') +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' wa_num=' + wa_number_id.slice(0, 8),
+    });
     return NextResponse.json({ ok: true, skip: 'empty_message' });
   }
 
@@ -700,15 +756,225 @@ export async function POST(request: NextRequest) {
     }
 
     if (!conv) {
+      // PATCH ROOT CAUSE 2026-05-09 · era 'lid_unmapped' sem trace · agora terminal explícito.
+      await evoTraceLog({
+        stage: 'terminal_pending_conversation',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=lid_outbound_no_mapping' +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' fromMe=true' +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
+      });
       log.warn(
         { instance, remoteJid },
         'webhook_evolution.outbound_lid.no_mapping · skip · espera inbound LID prévio salvar mapping',
       );
       return NextResponse.json({ ok: true, skip: 'lid_unmapped', remoteJid });
     }
+  } else if (isLidInboundUnresolved) {
+    // PATCH ROOT CAUSE 2026-05-09 · NOVO bloco · inbound @lid sem senderPn.
+    //
+    // Ordem de resolução (estrita · não cria phone fake, não cria lead/conv novos):
+    //   Layer 1: wa_conversations.remote_jid + wa_number_id (LIMIT 2 · estrito)
+    //     · count=1 → usa conv (phone pode ser null · wa_messages.phone é nullable)
+    //     · count>=2 → terminal_pending_conversation reason=multiple
+    //   Layer 2: wa_contact_identities (jid_lid · UNIQUE strong em (clinic, type, value))
+    //     · identity vinculada a conv ativa com wa_number_id correto → usa
+    //   Terminal: terminal_pending_identity
+    //
+    // Antes deste patch, inbound @lid sem senderPn fazia
+    // `return skip:'lid_without_senderPn'` SEM evoTraceLog · perdia mensagens
+    // reais (Grupo A · Ana/Sandra/Jô/Região 22/Andreia confirmados em audit).
+
+    // ─── Layer 1 · wa_conversations.remote_jid (estrito) ───────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: convsByJid } = await (supabase as any)
+      .from('wa_conversations')
+      .select('*')
+      .eq('clinic_id', clinic_id)
+      .eq('wa_number_id', wa_number_id)
+      .eq('remote_jid', remoteJid)
+      .is('deleted_at', null)
+      .limit(2);
+    const convsCount = (convsByJid ?? []).length;
+    if (convsCount >= 2) {
+      await evoTraceLog({
+        stage: 'terminal_pending_conversation',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=lid_multiple_conversations_for_remote_jid' +
+          ' n=' + convsCount +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
+      });
+      log.warn(
+        { instance, clinic_id, remoteJid, n: convsCount },
+        'webhook_evolution.lid_inbound.multiple_conversations',
+      );
+      return NextResponse.json({ ok: true, skip: 'pending_conversation', remoteJid });
+    }
+    if (convsCount === 1) {
+      const convByJid = (convsByJid ?? [])[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadRow } = convByJid.lead_id
+        ? await (supabase as any)
+            .from('leads')
+            .select('*')
+            .eq('id', convByJid.lead_id)
+            .maybeSingle()
+        : { data: null };
+      lead = leadRow ?? null;
+      conv = {
+        id: convByJid.id,
+        clinicId: convByJid.clinic_id,
+        waNumberId: convByJid.wa_number_id,
+        leadId: convByJid.lead_id,
+        phone: convByJid.phone,
+        status: convByJid.status,
+        aiEnabled: convByJid.ai_enabled,
+        aiPausedUntil: convByJid.ai_paused_until,
+        lastMessageAt: convByJid.last_message_at,
+        lastLeadMsg: convByJid.last_lead_msg,
+        lastMessageText: convByJid.last_message_text,
+        inboxRole: convByJid.inbox_role,
+        handoffToSecretariaAt: convByJid.handoff_to_secretaria_at,
+        remoteJid: convByJid.remote_jid,
+        displayName: convByJid.display_name,
+      } as unknown as Awaited<ReturnType<typeof resolveConversation>>;
+      phone = convByJid.phone ?? '';
+      await evoTraceLog({
+        stage: 'lid_inbound_conv_resolved_by_remote_jid',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'conv=' + convByJid.id.slice(0, 8) +
+          ' has_lead=' + (leadRow ? 'y' : 'n') +
+          ' has_phone=' + (phone ? 'y' : 'n') +
+          ' provider=' + (key?.id ?? 'null').slice(-12),
+      });
+    }
+
+    // ─── Layer 2 · wa_contact_identities (jid_lid) ─────────────────────────
+    if (!conv) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: identityRow } = await (supabase as any)
+        .from('wa_contact_identities')
+        .select('id, conversation_id, lead_id, contact_id, is_verified, confidence_score')
+        .eq('clinic_id', clinic_id)
+        .eq('identity_type', 'jid_lid')
+        .eq('identity_value_norm', remoteJid)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (identityRow?.conversation_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: convFromIdentity } = await (supabase as any)
+          .from('wa_conversations')
+          .select('*')
+          .eq('id', identityRow.conversation_id)
+          .eq('clinic_id', clinic_id)
+          .eq('wa_number_id', wa_number_id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (convFromIdentity) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: leadRow } = convFromIdentity.lead_id
+            ? await (supabase as any)
+                .from('leads')
+                .select('*')
+                .eq('id', convFromIdentity.lead_id)
+                .maybeSingle()
+            : { data: null };
+          lead = leadRow ?? null;
+          conv = {
+            id: convFromIdentity.id,
+            clinicId: convFromIdentity.clinic_id,
+            waNumberId: convFromIdentity.wa_number_id,
+            leadId: convFromIdentity.lead_id,
+            phone: convFromIdentity.phone,
+            status: convFromIdentity.status,
+            aiEnabled: convFromIdentity.ai_enabled,
+            aiPausedUntil: convFromIdentity.ai_paused_until,
+            lastMessageAt: convFromIdentity.last_message_at,
+            lastLeadMsg: convFromIdentity.last_lead_msg,
+            lastMessageText: convFromIdentity.last_message_text,
+            inboxRole: convFromIdentity.inbox_role,
+            handoffToSecretariaAt: convFromIdentity.handoff_to_secretaria_at,
+            remoteJid: convFromIdentity.remote_jid,
+            displayName: convFromIdentity.display_name,
+          } as unknown as Awaited<ReturnType<typeof resolveConversation>>;
+          phone = convFromIdentity.phone ?? '';
+          // Best-effort · persiste remote_jid no conv pra Layer 1 acertar
+          // próxima vez · idempotente quando ja for igual (UPDATE no-op).
+          if (!convFromIdentity.remote_jid) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (supabase as any)
+                .from('wa_conversations')
+                .update({ remote_jid: remoteJid })
+                .eq('id', convFromIdentity.id);
+            } catch { /* silent */ }
+          }
+          await evoTraceLog({
+            stage: 'lid_inbound_conv_resolved_by_identity',
+            signature_ok: true,
+            result_status: 200,
+            result_summary:
+              'conv=' + convFromIdentity.id.slice(0, 8) +
+              ' identity=' + identityRow.id.slice(0, 8) +
+              ' confidence=' + (identityRow.confidence_score ?? 0) +
+              ' verified=' + (identityRow.is_verified ? 'y' : 'n') +
+              ' provider=' + (key?.id ?? 'null').slice(-12),
+          });
+        }
+      }
+    }
+
+    // ─── Terminal · nada resolveu ──────────────────────────────────────────
+    if (!conv) {
+      await evoTraceLog({
+        stage: 'terminal_pending_identity',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=lid_inbound_no_mapping' +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' fromMe=false' +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
+      });
+      log.warn(
+        { instance, clinic_id, remoteJid },
+        'webhook_evolution.lid_inbound.pending_identity',
+      );
+      return NextResponse.json({ ok: true, skip: 'pending_identity', remoteJid });
+    }
   } else {
     lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName, supabase });
     if (!lead) {
+      // PATCH ROOT CAUSE 2026-05-09 · terminal trace.
+      await evoTraceLog({
+        stage: 'terminal_failed_before_save',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'reason=lead_create_failed' +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' phone_last8=' + phone.slice(-8) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
+      });
       log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
       return NextResponse.json({ ok: false, error: 'lead_create_failed' }, { status: 500 });
     }
@@ -722,6 +988,19 @@ export async function POST(request: NextRequest) {
       waNumberId: wa_number_id,
     });
     if (!conv || !lead) {
+      // PATCH ROOT CAUSE 2026-05-09 · terminal trace.
+      await evoTraceLog({
+        stage: 'terminal_failed_before_save',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'reason=conversation_create_failed' +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' phone_last8=' + phone.slice(-8) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
+      });
       return NextResponse.json({ ok: false, error: 'conversation_create_failed' }, { status: 500 });
     }
     // Salva remote_jid no inbound LID · constrói mapping pra outbound LID futuro
