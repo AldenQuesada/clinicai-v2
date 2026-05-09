@@ -580,6 +580,8 @@ export async function POST(request: NextRequest) {
   let conv: Awaited<ReturnType<typeof resolveConversation>> = null;
   let lead: Awaited<ReturnType<typeof resolveLead>> = null;
   if (isLidOutboundUnresolved) {
+    // Patch A 2026-05-09 · lookup conv por (clinic_id, wa_number_id, remote_jid)
+    // + deleted_at IS NULL · evita reaproveitar conv soft-deletada.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: convByJid } = await (supabase as any)
       .from('wa_conversations')
@@ -587,39 +589,51 @@ export async function POST(request: NextRequest) {
       .eq('clinic_id', clinic_id)
       .eq('wa_number_id', wa_number_id)
       .eq('remote_jid', remoteJid)
+      .is('deleted_at', null)
       .maybeSingle();
     if (convByJid) {
-      // Reutiliza lead da conv encontrada
+      // Patch A 2026-05-09 · lead OPCIONAL · conv legítima sem lead pode existir
+      // (lead deletado/órfão) · NÃO bloqueia save de outbound externo. Se a conv
+      // existe com remote_jid igual + wa_number_id atual + não-deletada, a msg
+      // outbound pertence a essa conv mesmo sem lead.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadRow } = await (supabase as any)
         .from('leads')
         .select('*')
         .eq('id', convByJid.lead_id)
         .maybeSingle();
-      if (leadRow) {
-        lead = leadRow;
-        conv = {
-          id: convByJid.id,
-          clinicId: convByJid.clinic_id,
-          waNumberId: convByJid.wa_number_id,
-          leadId: convByJid.lead_id,
-          phone: convByJid.phone,
-          status: convByJid.status,
-          aiEnabled: convByJid.ai_enabled,
-          aiPausedUntil: convByJid.ai_paused_until,
-          lastMessageAt: convByJid.last_message_at,
-          lastLeadMsg: convByJid.last_lead_msg,
-          lastMessageText: convByJid.last_message_text,
-          inboxRole: convByJid.inbox_role,
-          handoffToSecretariaAt: convByJid.handoff_to_secretaria_at,
-          remoteJid: convByJid.remote_jid,
-          displayName: convByJid.display_name,
-        } as unknown as Awaited<ReturnType<typeof resolveConversation>>;
-        phone = convByJid.phone; // recupera phone real pra dedup downstream
-      }
+      lead = leadRow ?? null;
+      conv = {
+        id: convByJid.id,
+        clinicId: convByJid.clinic_id,
+        waNumberId: convByJid.wa_number_id,
+        leadId: convByJid.lead_id,
+        phone: convByJid.phone,
+        status: convByJid.status,
+        aiEnabled: convByJid.ai_enabled,
+        aiPausedUntil: convByJid.ai_paused_until,
+        lastMessageAt: convByJid.last_message_at,
+        lastLeadMsg: convByJid.last_lead_msg,
+        lastMessageText: convByJid.last_message_text,
+        inboxRole: convByJid.inbox_role,
+        handoffToSecretariaAt: convByJid.handoff_to_secretaria_at,
+        remoteJid: convByJid.remote_jid,
+        displayName: convByJid.display_name,
+      } as unknown as Awaited<ReturnType<typeof resolveConversation>>;
+      phone = convByJid.phone ?? '';
+      await evoTraceLog({
+        stage: 'lid_existing_conversation_found',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'conv=' + convByJid.id.slice(0, 8) + ' has_lead=' + (leadRow ? 'y' : 'n'),
+      });
     }
     // Fallback: se NAO tem mapping local, query Evolution API histórico
     // dessa LID buscando inbound com senderPn · resolve LID → phone real.
-    if ((!conv || !lead) && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
+    // Patch A 2026-05-09 · só dispara se conv NÃO existe · conv válida sem
+    // lead segue caminho legítimo · não cria lead novo via resolveLead.
+    if (!conv && waRow?.api_url && waRow?.api_key && waRow?.instance_id) {
       try {
         const r = await fetch(
           `${String(waRow.api_url)}/chat/findMessages/${String(waRow.instance_id)}`,
@@ -681,7 +695,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!conv || !lead) {
+    if (!conv) {
       log.warn(
         { instance, remoteJid },
         'webhook_evolution.outbound_lid.no_mapping · skip · espera inbound LID prévio salvar mapping',
@@ -723,7 +737,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await evoTraceLog({ stage: 'lead_conv_resolved', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
+  await evoTraceLog({
+    stage: 'lead_conv_resolved',
+    signature_ok: true,
+    result_status: 200,
+    result_summary: 'conv=' + conv.id.slice(0, 8) + ' has_lead=' + (lead ? 'y' : 'n'),
+  });
 
   // Dedup soft · Evolution retry pode entregar 2x na mesma janela curta
   // Audit 2026-05-04: dedup por conteúdo é FALLBACK pra payloads sem key.id.
@@ -771,6 +790,13 @@ export async function POST(request: NextRequest) {
       } catch { return false; }
     })();
     if (recentOutboundDup) {
+      await evoTraceLog({
+        stage: 'recentOutboundDup_skip',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'conv=' + conv.id.slice(0, 8) + ' provider=' + (key.id ?? 'null').slice(-12),
+      });
       log.info(
         { clinic_id, conv_id: conv.id, contentPreview: content.slice(0, 60) },
         'webhook_evolution.outbound_device.skip_app_echo',
@@ -781,6 +807,13 @@ export async function POST(request: NextRequest) {
     // Audit 2026-05-04: key.id = wa_message_id da Evolution. Popula
     // provider_msg_id pra idempotência via UNIQUE uq_wa_messages_provider_id ·
     // protege contra Evolution re-entregar o mesmo eco do device.
+    await evoTraceLog({
+      stage: 'before_saveOutbound',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'conv=' + conv.id.slice(0, 8) + ' provider=' + (key.id ?? 'null').slice(-12),
+    });
     const outId = await repos.messages.saveOutbound(clinic_id, {
       conversationId: conv.id,
       sender: 'humano',
@@ -795,17 +828,41 @@ export async function POST(request: NextRequest) {
     });
     if (outId) {
       await repos.conversations.updateLastMessage(conv.id, content, false, sentAtStr);
+      await evoTraceLog({
+        stage: 'after_saveOutbound_ok',
+        signature_ok: true,
+        result_status: 200,
+        result_summary: 'msg=' + outId.slice(0, 8),
+      });
       log.info(
         { clinic_id, conv_id: conv.id, contentType },
         'webhook_evolution.outbound_device.saved',
       );
     } else {
+      await evoTraceLog({
+        stage: 'saveOutbound_returned_null',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'conv=' + conv.id.slice(0, 8) + ' provider=' + (key.id ?? 'null').slice(-12),
+      });
       log.warn(
         { clinic_id, conv_id: conv.id },
         'webhook_evolution.outbound_device.save_failed',
       );
     }
     return NextResponse.json({ ok: true, kind: 'outbound_device', conversation_id: conv.id });
+  }
+
+  // Patch A 2026-05-09 · narrowing pra TS · INBOUND path SEMPRE tem lead
+  // (else block acima já fez early return se resolveLead retornou null).
+  // Guard defensivo explícito porque lead virou nullable no branch outbound LID.
+  if (!lead) {
+    log.error(
+      { clinic_id, conv_id: conv.id },
+      'webhook_evolution.inbound.lead_unexpectedly_null',
+    );
+    return NextResponse.json({ ok: false, error: 'lead_missing' }, { status: 500 });
   }
 
   await evoTraceLog({ stage: 'before_saveInbound', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
