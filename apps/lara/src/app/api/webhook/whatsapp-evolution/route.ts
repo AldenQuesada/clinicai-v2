@@ -71,7 +71,43 @@ function timingSafeEqual(a: string, b: string): boolean {
   return d === 0;
 }
 
-export async function POST(request: NextRequest) {
+// 11A 2026-05-09 · wrapper try/catch global · captura qualquer exceção
+// não tratada do handler real e grava terminal_failed_unhandled_exception
+// em wa_webhook_log via cliente novo (não depende do supabase do escopo
+// interno · pode falhar em qualquer ponto da execução). Antes deste patch,
+// exceções não tratadas iam direto pro Next.js 500 sem trace · violava a
+// regra "todo evento de webhook precisa terminar em estado auditável".
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    return await processEvolutionWebhookImpl(request);
+  } catch (err) {
+    const errMsg = (err as Error)?.message ?? String(err);
+    const errStack = (err as Error)?.stack?.slice(0, 500) ?? '';
+    log.error(
+      { err: errMsg, stack: errStack },
+      'webhook_evolution.unhandled_exception',
+    );
+    // Best-effort terminal trace · cria client novo isolado · falha silente
+    // se algo na chain (env, network, schema) também der erro.
+    try {
+      const supabase = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('wa_webhook_log').insert({
+        endpoint: '/api/webhook/whatsapp-evolution',
+        method: 'POST',
+        signature_ok: null,
+        signature_reason: 'evo:terminal_failed_unhandled_exception',
+        result_status: 500,
+        result_summary: 'err=' + errMsg.slice(0, 120),
+      });
+    } catch {
+      // silent · não pode quebrar webhook por falha de logging do logging
+    }
+    return NextResponse.json({ ok: false, error: 'unhandled_exception' }, { status: 500 });
+  }
+}
+
+async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextResponse> {
   // Diag (2026-05-04 ·): captura raw body ANTES de qualquer validação pra
   // forensics quando Easypanel logs não bastam (incidente Michele 11:01 UTC).
   const rawBody = await request.text();
@@ -127,6 +163,13 @@ export async function POST(request: NextRequest) {
     '';
   if (!expected) {
     await evoTraceLog({ stage: 'misconfig_no_secret', signature_ok: false, result_status: 500 });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_failed_misconfig',
+      signature_ok: false,
+      result_status: 500,
+      result_summary: 'reason=wa_inbound_secret_missing',
+    });
     log.error(
       {
         has_wa_inbound: !!process.env.WA_INBOUND_SECRET,
@@ -138,6 +181,13 @@ export async function POST(request: NextRequest) {
   }
   if (!timingSafeEqual(providedSecret, expected)) {
     await evoTraceLog({ stage: 'unauthorized', signature_ok: false, result_status: 401 });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_failed_auth',
+      signature_ok: false,
+      result_status: 401,
+      result_summary: 'reason=signature_mismatch provided_len=' + providedSecret.length,
+    });
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
   await evoTraceLog({ stage: 'auth_ok', signature_ok: true, result_status: 200 });
@@ -147,6 +197,13 @@ export async function POST(request: NextRequest) {
     body = JSON.parse(rawBody) as EvolutionPayload;
   } catch {
     await evoTraceLog({ stage: 'invalid_json', signature_ok: true, result_status: 400 });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_failed_invalid_json',
+      signature_ok: true,
+      result_status: 400,
+      result_summary: 'reason=raw_body_not_parseable raw_len=' + rawBody.length,
+    });
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
@@ -162,6 +219,13 @@ export async function POST(request: NextRequest) {
   if (event === 'messages.update' || event === 'MESSAGES_UPDATE') {
     const instanceForUpdate = body?.instance || '';
     if (!instanceForUpdate) {
+      // 11A · terminal trace.
+      await evoTraceLog({
+        stage: 'terminal_skipped_status_no_instance',
+        signature_ok: true,
+        result_status: 200,
+        result_summary: 'event=' + event,
+      });
       return NextResponse.json({ ok: true, skip: 'no_instance' });
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,6 +233,13 @@ export async function POST(request: NextRequest) {
       ? ((body as { data: unknown[] }).data)
       : [(body as { data?: unknown }).data].filter(Boolean);
     if (dataArr.length === 0) {
+      // 11A · terminal trace.
+      await evoTraceLog({
+        stage: 'terminal_skipped_status_no_data',
+        signature_ok: true,
+        result_status: 200,
+        result_summary: 'event=' + event + ' instance=' + instanceForUpdate,
+      });
       return NextResponse.json({ ok: true, skip: 'no_data' });
     }
     const supabaseUpd = createServerClient();
@@ -223,17 +294,38 @@ export async function POST(request: NextRequest) {
         'webhook_evolution.statuses.applied',
       );
     }
+    // 11A · terminal trace · sucesso de status_applied (delivery_status update).
+    await evoTraceLog({
+      stage: 'terminal_status_applied',
+      signature_ok: true,
+      result_status: 200,
+      result_summary: 'event=' + event + ' instance=' + instanceForUpdate + ' applied=' + appliedCount,
+    });
     return NextResponse.json({ ok: true, kind: 'status_applied', count: appliedCount });
   }
 
   if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
     await evoTraceLog({ stage: 'skip_not_message_event', signature_ok: true, result_status: 200, result_summary: 'event=' + event });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_not_message_event',
+      signature_ok: true,
+      result_status: 200,
+      result_summary: 'event=' + event,
+    });
     return NextResponse.json({ ok: true, skip: 'not_message_event' });
   }
 
   const instance = body?.instance || '';
   if (!instance) {
     await evoTraceLog({ stage: 'skip_no_instance', signature_ok: true, result_status: 200 });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_no_instance',
+      signature_ok: true,
+      result_status: 200,
+      result_summary: 'event=' + event,
+    });
     return NextResponse.json({ ok: true, skip: 'no_instance' });
   }
   await evoTraceLog({ stage: 'event_messages_upsert', signature_ok: true, result_status: 200 });
@@ -255,6 +347,16 @@ export async function POST(request: NextRequest) {
   const remoteJid: string = key?.remoteJid || '';
   if (!remoteJid || remoteJid.includes('@g.us')) {
     await evoTraceLog({ stage: 'skip_group_or_invalid', signature_ok: true, result_status: 200, result_summary: 'remoteJid=' + remoteJid.slice(0,40) });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_group_or_invalid',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'remote=' + remoteJid.slice(0, 40) +
+        ' fromMe=' + String(!!key?.fromMe) +
+        ' provider=' + (key?.id ?? 'null').slice(-12),
+    });
     return NextResponse.json({ ok: true, skip: 'group_or_invalid' });
   }
 
@@ -291,6 +393,17 @@ export async function POST(request: NextRequest) {
 
   if (!isLidOutboundUnresolved && !isLidInboundUnresolved && !/^\d{10,15}$/.test(phone)) {
     await evoTraceLog({ stage: 'skip_bad_phone', signature_ok: true, result_status: 200, result_summary: 'phone_len=' + phone.length });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_bad_phone',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'phone_len=' + phone.length +
+        ' remote=' + remoteJid.slice(0, 24) +
+        ' fromMe=' + String(!!key?.fromMe) +
+        ' provider=' + (key?.id ?? 'null').slice(-12),
+    });
     return NextResponse.json({ ok: true, skip: 'bad_phone', phone });
   }
   await evoTraceLog({
@@ -317,6 +430,16 @@ export async function POST(request: NextRequest) {
   );
   if (resolveErr || !resolveRes?.ok) {
     await evoTraceLog({ stage: 'skip_instance_unresolved', signature_ok: true, result_status: 200, result_summary: 'instance=' + instance });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_instance_unresolved',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'instance=' + instance +
+        ' provider=' + (key?.id ?? 'null').slice(-12) +
+        ' err=' + (resolveErr?.message ?? resolveRes?.error ?? 'null').toString().slice(0, 60),
+    });
     log.warn(
       { instance, err: resolveErr?.message ?? resolveRes?.error },
       'webhook_evolution.instance_unresolved',
@@ -339,6 +462,18 @@ export async function POST(request: NextRequest) {
     const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone);
     if (internalCheck.internal) {
       await evoTraceLog({ stage: 'skip_internal_wa_number', signature_ok: true, result_status: 200, result_summary: 'target=' + (internalCheck.label ?? '') });
+      // 11A · terminal trace · prefix unificado.
+      await evoTraceLog({
+        stage: 'terminal_skipped_internal_number',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'target=' + (internalCheck.label ?? '') +
+          ' role=' + (internalCheck.inboxRole ?? '') +
+          ' type=' + (internalCheck.numberType ?? '') +
+          ' active=' + String(!!internalCheck.isActive) +
+          ' provider=' + (key?.id ?? 'null').slice(-12),
+      });
       log.info(
         {
           phone_hash: hashPhone(phone),
@@ -356,6 +491,17 @@ export async function POST(request: NextRequest) {
   // Filter · so processa secretaria · evita interferir em legacy flows da Mih
   if (inboxRole !== 'secretaria') {
     await evoTraceLog({ stage: 'skip_not_secretaria_inbox', signature_ok: true, result_status: 200, result_summary: 'inbox=' + inboxRole });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_skipped_not_secretaria_inbox',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'inbox=' + inboxRole +
+        ' instance=' + instance +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' provider=' + (key?.id ?? 'null').slice(-12),
+    });
     return NextResponse.json({
       ok: true,
       skip: 'not_secretaria_inbox',
@@ -1034,6 +1180,17 @@ export async function POST(request: NextRequest) {
   // legítimas iguais com provider_msg_id distinto.
   if (!key?.id && await repos.messages.findRecentDuplicate(conv.id, content)) {
     await evoTraceLog({ stage: 'skip_duplicate', signature_ok: true, result_status: 200, result_summary: 'conv=' + conv.id.slice(0,8) });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_duplicate_provider',
+      signature_ok: true,
+      result_status: 200,
+      result_summary:
+        'reason=content_match_no_provider_id' +
+        ' conv=' + conv.id.slice(0, 8) +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' fromMe=' + String(!!key?.fromMe),
+    });
     return NextResponse.json({ ok: true, skip: 'duplicate' });
   }
 
@@ -1112,6 +1269,17 @@ export async function POST(request: NextRequest) {
         result_summary:
           'conv=' + conv.id.slice(0, 8) + ' provider=' + (key.id ?? 'null').slice(-12),
       });
+      // 11A · terminal trace · prefix unificado.
+      await evoTraceLog({
+        stage: 'terminal_duplicate_app_echo',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=ui_dashboard_echo_within_30s' +
+          ' conv=' + conv.id.slice(0, 8) +
+          ' provider=' + (key.id ?? 'null').slice(-12) +
+          ' clinic=' + clinic_id.slice(0, 8),
+      });
       log.info(
         { clinic_id, conv_id: conv.id, contentPreview: content.slice(0, 60) },
         'webhook_evolution.outbound_device.skip_app_echo',
@@ -1149,6 +1317,19 @@ export async function POST(request: NextRequest) {
         result_status: 200,
         result_summary: 'msg=' + outId.slice(0, 8),
       });
+      // 11A · terminal trace · prefix unificado.
+      await evoTraceLog({
+        stage: 'terminal_persisted_outbound',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'msg=' + outId.slice(0, 8) +
+          ' conv=' + conv.id.slice(0, 8) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' content_type=' + contentType +
+          ' provider=' + (key.id ?? 'null').slice(-12) +
+          ' sent_at=' + sentAtStr,
+      });
       log.info(
         { clinic_id, conv_id: conv.id, contentType },
         'webhook_evolution.outbound_device.saved',
@@ -1160,6 +1341,17 @@ export async function POST(request: NextRequest) {
         result_status: 500,
         result_summary:
           'conv=' + conv.id.slice(0, 8) + ' provider=' + (key.id ?? 'null').slice(-12),
+      });
+      // 11A · terminal trace · prefix unificado.
+      await evoTraceLog({
+        stage: 'terminal_failed_save_outbound',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'conv=' + conv.id.slice(0, 8) +
+          ' provider=' + (key.id ?? 'null').slice(-12) +
+          ' clinic=' + clinic_id.slice(0, 8) +
+          ' content_type=' + contentType,
       });
       log.warn(
         { clinic_id, conv_id: conv.id },
@@ -1173,6 +1365,18 @@ export async function POST(request: NextRequest) {
   // (else block acima já fez early return se resolveLead retornou null).
   // Guard defensivo explícito porque lead virou nullable no branch outbound LID.
   if (!lead) {
+    // 11A · terminal trace · era silencioso (só log.error).
+    await evoTraceLog({
+      stage: 'terminal_failed_unexpected_null_lead',
+      signature_ok: true,
+      result_status: 500,
+      result_summary:
+        'reason=inbound_lead_null_after_else_block' +
+        ' conv=' + conv.id.slice(0, 8) +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' provider=' + (key?.id ?? 'null').slice(-12) +
+        ' remote=' + remoteJid.slice(0, 24),
+    });
     log.error(
       { clinic_id, conv_id: conv.id },
       'webhook_evolution.inbound.lead_unexpectedly_null',
@@ -1199,6 +1403,18 @@ export async function POST(request: NextRequest) {
   });
   if (!insertedId) {
     await evoTraceLog({ stage: 'saveInbound_returned_null', signature_ok: true, result_status: 500, result_summary: 'conv=' + conv.id.slice(0,8) });
+    // 11A · terminal trace · prefix unificado.
+    await evoTraceLog({
+      stage: 'terminal_failed_save_inbound',
+      signature_ok: true,
+      result_status: 500,
+      result_summary:
+        'conv=' + conv.id.slice(0, 8) +
+        ' clinic=' + clinic_id.slice(0, 8) +
+        ' provider=' + (key?.id ?? 'null').slice(-12) +
+        ' content_type=' + contentType +
+        ' lead=' + lead.id.slice(0, 8),
+    });
     log.error(
       { clinic_id, conv_id: conv.id, contentType, contentPreview: content.slice(0, 60) },
       'webhook_evolution.save_inbound_failed · skipping updateLastMessage to avoid orphan preview',
@@ -1206,6 +1422,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'save_failed' }, { status: 500 });
   }
   await evoTraceLog({ stage: 'after_saveInbound_ok', signature_ok: true, result_status: 200, result_summary: 'msg_id=' + insertedId.slice(0,8) });
+  // 11A · terminal trace · prefix unificado · sucesso de inbound persistido.
+  await evoTraceLog({
+    stage: 'terminal_persisted_inbound',
+    signature_ok: true,
+    result_status: 200,
+    result_summary:
+      'msg=' + insertedId.slice(0, 8) +
+      ' conv=' + conv.id.slice(0, 8) +
+      ' clinic=' + clinic_id.slice(0, 8) +
+      ' lead=' + lead.id.slice(0, 8) +
+      ' content_type=' + contentType +
+      ' provider=' + (key?.id ?? 'null').slice(-12) +
+      ' sent_at=' + sentAtStr,
+  });
 
   // Bug 2 fix: Evolution às vezes envia 2 webhooks (audio + text-transcricao)
   // pra mesma mensagem · resultando em UI com "transcricao separada do audio".
