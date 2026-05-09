@@ -138,13 +138,20 @@ export default function SecretariaPage() {
   // acima do composer (empilhado com DoctorAnswerCard, não substituído).
   // 1 fetch ao trocar conversa · cache server-side 10min em wa_conversations.
   // ai_copilot · zero token novo se conversa já tem cache fresco.
+  // J3 opcao B (2026-05-08) · scope='smart_replies' · servidor gera apenas
+  // smart_replies (summary + next_actions descartados pela UI da Secretaria,
+  // que usa SecretariaSummary Haiku no header como fonte do TLDR). Cache full
+  // do /conversas continua sendo lido (smart_replies do payload full sao
+  // validos), mas /secretaria NAO escreve cache · evita poluir o jsonb.
   const {
     copilot: secretariaCopilot,
     isLoading: isSecretariaCopilotLoading,
     error: secretariaCopilotError,
     hasFetched: secretariaCopilotHasFetched,
     refresh: refreshSecretariaCopilot,
-  } = useCopilot(selectedConversation?.conversation_id || null);
+  } = useCopilot(selectedConversation?.conversation_id || null, {
+    scope: 'smart_replies',
+  });
 
   // Forward MVP A (2026-05-07) · msg-fonte do encaminhamento · null = modal fechado.
   const [forwardSourceMessage, setForwardSourceMessage] = useState<Message | null>(null);

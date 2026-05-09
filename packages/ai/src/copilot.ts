@@ -84,6 +84,14 @@ export interface CopilotInput {
    * a chave correta com a equipe".
    */
   pixKey?: string | null
+  /**
+   * J3 opcao B (2026-05-08) · modo de geracao.
+   *  - 'full' (default · /conversas) · gera summary + next_actions + smart_replies
+   *  - 'smart_replies_only' (/secretaria) · gera APENAS smart_replies ·
+   *    summary='' e next_actions=[] no output · economia ~83% nos output tokens.
+   *    Mesmo SYSTEM_PROMPT (guardrails preserved) · max_tokens reduzido.
+   */
+  mode?: 'full' | 'smart_replies_only'
   /** Dados do lead — null se desconhecido */
   lead: {
     name: string | null
@@ -311,7 +319,12 @@ function parseOutput(raw: string): CopilotOutput {
 }
 
 /**
- * Gera o copiloto AI · 1 chamada Anthropic Opus 4.7 retorna 3 features.
+ * Gera o copiloto AI · 1 chamada Anthropic Opus 4.7.
+ *
+ * Mode default ('full') · retorna summary + next_actions + smart_replies.
+ * Mode 'smart_replies_only' (J3 opcao B · /secretaria) · retorna apenas
+ * smart_replies; summary='' e next_actions=[] no output. Mesmo SYSTEM_PROMPT
+ * (guardrails preservados) · max_tokens reduzido pra economizar output tokens.
  *
  * Throws:
  *  - Error('BUDGET_EXCEEDED · ...') se gastos do dia ultrapassam limit
@@ -319,17 +332,21 @@ function parseOutput(raw: string): CopilotOutput {
  *  - Error de parse se modelo retornar JSON invalido (raro)
  */
 export async function generateCopilot(input: CopilotInput): Promise<CopilotOutput> {
+  const isSmartOnly = input.mode === 'smart_replies_only'
   const userPrompt = buildUserPrompt(input)
+  const finalUserPrompt = isSmartOnly
+    ? `${userPrompt}\n\nMODE: SMART_REPLIES_ONLY · gere APENAS o campo "smart_replies" (3 strings). "summary" deve ser string vazia "" e "next_actions" deve ser array vazio []. Todas as guardrails de preco/promessa/endereco/Pix/procedimento continuam OBRIGATORIAS.`
+    : userPrompt
 
   const raw = await callAnthropic({
     clinic_id: input.clinicId,
     user_id: input.userId,
-    source: 'lara.conversas.copilot',
+    source: isSmartOnly ? 'lara.conversas.copilot.smart_only' : 'lara.conversas.copilot',
     model: MODELS.OPUS,
-    max_tokens: 1500,
+    max_tokens: isSmartOnly ? 600 : 1500,
     temperature: 0.2,
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }],
+    messages: [{ role: 'user', content: finalUserPrompt }],
   })
 
   return parseOutput(raw)

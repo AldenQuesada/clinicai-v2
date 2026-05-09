@@ -30,6 +30,16 @@ export interface UseCopilotResult {
   refresh: (forceRefresh?: boolean) => Promise<void>
 }
 
+/**
+ * J3 opcao B (2026-05-08) · opcoes do hook.
+ *  - scope='full' (default · /conversas) · summary + next_actions + smart_replies
+ *  - scope='smart_replies' (/secretaria) · apenas smart_replies do servidor ·
+ *    summary='' e next_actions=[] no payload · zero cache write server-side.
+ */
+export interface UseCopilotOptions {
+  scope?: 'smart_replies' | 'full'
+}
+
 const EMPTY: CopilotData = {
   cached: false,
   generated_at: '',
@@ -38,7 +48,11 @@ const EMPTY: CopilotData = {
   smart_replies: [],
 }
 
-export function useCopilot(conversationId: string | null): UseCopilotResult {
+export function useCopilot(
+  conversationId: string | null,
+  options?: UseCopilotOptions,
+): UseCopilotResult {
+  const scope = options?.scope ?? 'full'
   const [copilot, setCopilot] = useState<CopilotData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +66,11 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
       setIsLoading(true)
       setError(null)
       try {
-        const url = `/api/conversations/${cid}/copilot${forceRefresh ? '?refresh=1' : ''}`
+        const params = new URLSearchParams()
+        if (forceRefresh) params.set('refresh', '1')
+        if (scope === 'smart_replies') params.set('scope', 'smart_replies')
+        const qs = params.toString()
+        const url = `/api/conversations/${cid}/copilot${qs ? `?${qs}` : ''}`
         const res = await fetch(url)
         // Auth/API Hardening A (2026-05-08) · checa content-type antes de
         // parsear · sessao expirada/rate-limited devolve JSON 401 (nao mais
@@ -79,7 +97,7 @@ export function useCopilot(conversationId: string | null): UseCopilotResult {
         setHasFetched(true)
       }
     },
-    [],
+    [scope],
   )
 
   // Re-fetcha quando troca conversa

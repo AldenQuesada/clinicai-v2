@@ -47,6 +47,13 @@ export async function GET(
   const { id } = await params
   const { searchParams } = new URL(request.url)
   const forceRefresh = searchParams.get('refresh') === '1'
+  // J3 opcao B (2026-05-08) · /secretaria pede ?scope=smart_replies pra
+  // economizar output tokens · summary e next_actions descartados pela UI.
+  // Cache full continua sendo lido (smart_replies do cache full sao validos)
+  // mas NAO escreve cache no modo smart_replies_only (evita poluir o jsonb
+  // monolitico ai_copilot com payload parcial · /conversas precisa do cache
+  // intacto).
+  const isSmartOnly = searchParams.get('scope') === 'smart_replies'
 
   try {
     const { ctx, repos } = await loadServerReposContext()
@@ -61,10 +68,20 @@ export async function GET(
     if (!forceRefresh) {
       const cached = await repos.conversations.getCopilot(id)
       if (cached && isCacheFresh(cached)) {
+        const cachedOutput = (cached.aiCopilot as CopilotOutput) ?? {
+          summary: '',
+          next_actions: [],
+          smart_replies: [],
+        }
+        // J3 opcao B · scope=smart_replies retorna apenas smart_replies do
+        // cache full · summary e next_actions zerados no body pra deixar o
+        // contrato consistente com o modo de geracao smart_replies_only.
         return NextResponse.json({
           cached: true,
           generated_at: cached.aiCopilotAt,
-          ...(cached.aiCopilot as CopilotOutput),
+          summary: isSmartOnly ? '' : cachedOutput.summary,
+          next_actions: isSmartOnly ? [] : cachedOutput.next_actions,
+          smart_replies: cachedOutput.smart_replies ?? [],
         })
       }
     }
@@ -105,6 +122,7 @@ export async function GET(
       })),
       inboxRole: conv.inboxRole ?? null,
       pixKey: clinic?.pixKey ?? null,
+      mode: isSmartOnly ? 'smart_replies_only' : 'full',
       lead: {
         name: leadDto?.name ?? conv.displayName ?? null,
         phone: conv.phone,
@@ -122,10 +140,15 @@ export async function GET(
       })),
     })
 
-    // 5. Persiste cache (best-effort · nao bloqueia retorno se falhar)
-    repos.conversations.updateCopilot(id, output).catch(() => {
-      /* swallow · proxima request re-gera */
-    })
+    // 5. Persiste cache (best-effort · nao bloqueia retorno se falhar).
+    // J3 opcao B · scope=smart_replies NAO escreve cache pra evitar poluir o
+    // jsonb monolitico ai_copilot com payload parcial. Cache full continua
+    // sendo populado SO por chamadas /conversas (sem scope).
+    if (!isSmartOnly) {
+      repos.conversations.updateCopilot(id, output).catch(() => {
+        /* swallow · proxima request re-gera */
+      })
+    }
 
     return NextResponse.json({
       cached: false,
