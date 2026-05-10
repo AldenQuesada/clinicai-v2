@@ -456,6 +456,105 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
   const wa_number_id = String(resolveRes.wa_number_id);
   await evoTraceLog({ stage: 'tenant_resolved', signature_ok: true, result_status: 200, result_summary: 'clinic=' + clinic_id.slice(0,8) + ' role=' + inboxRole });
 
+  // 11B.2 2026-05-10 · helper pending queue · enfileira eventos @lid sem
+  // resolução segura (sem mensagem persistida) pra reprocessamento futuro.
+  // Fail-soft: se INSERT falhar (RLS, schema drift, etc) trace + log + segue.
+  // Idempotente via UNIQUE partial (clinic_id, provider_msg_id) WHERE status
+  // IN ('pending','mapped','failed') · 23505 vira pending_lid_event_duplicate.
+  type PendingLidReason =
+    | 'lid_without_senderpn_no_conversation'
+    | 'lid_without_senderpn_ambiguous_conversation'
+    | 'lid_without_senderpn_no_identity'
+    | 'lid_identity_ambiguous'
+    | 'manual_review'
+    | 'reprocessor_error';
+  const enqueuePendingLidEvent = async (reason: PendingLidReason): Promise<void> => {
+    try {
+      // Reaproveita parsing já feito na entrada do handler (Patch Timestamp A).
+      const tsRaw: unknown = body?.data?.messageTimestamp;
+      const tsEpoch: number | null =
+        typeof tsRaw === 'number'
+          ? tsRaw
+          : typeof tsRaw === 'string' && /^\d+$/.test(tsRaw)
+            ? Number(tsRaw)
+            : null;
+      const tsIso =
+        tsEpoch && Number.isFinite(tsEpoch) && tsEpoch > 0
+          ? new Date(tsEpoch * 1000).toISOString()
+          : null;
+      const senderPnLocal = (key?.senderPn || data?.senderPn || '') || null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from('wa_pending_lid_events').insert({
+        clinic_id,
+        wa_number_id: wa_number_id || null,
+        phone_number_id: traceInstance,
+        provider_msg_id: key?.id ?? null,
+        remote_jid: remoteJid,
+        from_me: !!key?.fromMe,
+        sender_pn: senderPnLocal,
+        message_type: data?.messageType ?? null,
+        content_preview: (typeof content === 'string' ? content : '').slice(0, 240) || null,
+        message_timestamp_epoch: tsEpoch,
+        message_timestamp: tsIso,
+        raw_body: parsedBodyTrace ?? body ?? {},
+        reason,
+        status: 'pending',
+      });
+      if (error) {
+        if (error.code === '23505') {
+          await evoTraceLog({
+            stage: 'pending_lid_event_duplicate',
+            signature_ok: true,
+            result_status: 200,
+            result_summary:
+              'reason=' + reason +
+              ' provider=' + (key?.id ?? 'null').slice(-12) +
+              ' remote=' + remoteJid.slice(0, 24),
+          });
+          return;
+        }
+        await evoTraceLog({
+          stage: 'pending_lid_event_failed',
+          signature_ok: true,
+          result_status: 500,
+          result_summary:
+            'reason=' + reason +
+            ' code=' + (error.code ?? '?') +
+            ' err=' + (error.message ?? 'unknown').slice(0, 80),
+        });
+        log.warn(
+          { clinic_id, remoteJid, reason, code: error.code, err: error.message },
+          'webhook_evolution.pending_lid_event.failed',
+        );
+        return;
+      }
+      await evoTraceLog({
+        stage: 'pending_lid_event_enqueued',
+        signature_ok: true,
+        result_status: 200,
+        result_summary:
+          'reason=' + reason +
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' fromMe=' + String(!!key?.fromMe) +
+          ' msg_ts=' + (tsEpoch ?? 'null'),
+      });
+    } catch (err) {
+      await evoTraceLog({
+        stage: 'pending_lid_event_failed',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'reason=' + reason +
+          ' exception=' + ((err as Error)?.message ?? 'unknown').slice(0, 80),
+      });
+      log.warn(
+        { clinic_id, remoteJid, reason, err: (err as Error)?.message },
+        'webhook_evolution.pending_lid_event.exception',
+      );
+    }
+  };
+
   // 11C.2 2026-05-10 · Inbox Secretaria espelha o WhatsApp real da clínica.
   // Mensagens vindas de números internos (Mira/Mirian/Alden/Marci/etc) também
   // entram no dash · não são mais skipadas. Mantém a DETECÇÃO (logging para
@@ -925,6 +1024,10 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
           ' wa_num=' + wa_number_id.slice(0, 8) +
           ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
       });
+      // 11B.2 · enfileira na pending queue (fail-soft, idempotente)
+      if (key?.id) {
+        await enqueuePendingLidEvent('lid_without_senderpn_no_conversation');
+      }
       log.warn(
         { instance, remoteJid },
         'webhook_evolution.outbound_lid.no_mapping · skip · espera inbound LID prévio salvar mapping',
@@ -971,6 +1074,10 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
           ' wa_num=' + wa_number_id.slice(0, 8) +
           ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
       });
+      // 11B.2 · enfileira na pending queue (fail-soft, idempotente)
+      if (key?.id) {
+        await enqueuePendingLidEvent('lid_without_senderpn_ambiguous_conversation');
+      }
       log.warn(
         { instance, clinic_id, remoteJid, n: convsCount },
         'webhook_evolution.lid_inbound.multiple_conversations',
@@ -1108,6 +1215,10 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
           ' wa_num=' + wa_number_id.slice(0, 8) +
           ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
       });
+      // 11B.2 · enfileira na pending queue (fail-soft, idempotente)
+      if (key?.id) {
+        await enqueuePendingLidEvent('lid_without_senderpn_no_identity');
+      }
       log.warn(
         { instance, clinic_id, remoteJid },
         'webhook_evolution.lid_inbound.pending_identity',
