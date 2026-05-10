@@ -38,6 +38,7 @@ import { transcribeAudio } from '@/services/transcription.service'
 import { resolveMiraInstance } from '@/lib/mira-instance'
 import { createEvolutionServiceForMiraChannel } from '@/lib/mira-channel-evolution'
 import { hasVoucherIntent } from '@/lib/b2b/voucher-intent'
+import { parseImplicitVoucherRequest } from '@/lib/b2b/voucher-implicit-intent'
 import { createLogger, hashPhone } from '@clinicai/logger'
 
 const log = createLogger({ app: 'mira' })
@@ -238,14 +239,28 @@ export async function processWebhookMessage(
       pushName: msg.pushName,
     })
   } else {
-    // GATE C1.1 (audit 2026-05-05) · parceiro sem intenção de voucher NÃO
-    // recebe resposta automática · proteção contra Mira responder mensagens
-    // pessoais ("oi", "bom dia", "preciso falar com você") só porque o phone
-    // do parceiro está em b2b_partnership_wa_senders (whitelist do trigger
-    // 800-03). State preemption acima já cobriu fluxos voucher pendentes
-    // (voucherPending/bulkVoucherPending) · este else final só responde
-    // partner que demonstrou intenção clara de voucher/convite/presente.
-    if (role === 'partner' && !hasVoucherIntent(content)) {
+    // GATE C1.1 (audit 2026-05-05 · refinado P7 2026-05-10) · parceiro sem
+    // intenção de voucher NÃO recebe resposta automática · proteção contra
+    // Mira responder mensagens pessoais ("oi", "bom dia") só porque o phone
+    // do parceiro está em b2b_partnership_wa_senders. State preemption acima
+    // já cobriu fluxos voucher pendentes (voucherPending/bulkVoucherPending).
+    //
+    // P7 partner-voucher-implicit-v1 (2026-05-10) · parceira frequentemente
+    // manda só nome+telefone sem keyword ("Maria 44999887766", "segue contato
+    // Juliana 4499..."). parseImplicitVoucherRequest detecta telefone BR
+    // válido na mensagem · combinado com role=partner = intenção implícita
+    // de voucher. Gate C1.1 permite passagem · classifier downstream OU
+    // override abaixo encaminha pro b2b-emit-voucher handler (mesmo fluxo
+    // SIM/NAO + emissão via Mih).
+    let implicitVoucher = role === 'partner'
+      ? parseImplicitVoucherRequest(content, { senderPhone: msg.phone })
+      : null
+
+    if (
+      role === 'partner' &&
+      !hasVoucherIntent(content) &&
+      !(implicitVoucher && implicitVoucher.hasPhone)
+    ) {
       log.info(
         {
           clinicId,
@@ -258,18 +273,59 @@ export async function processWebhookMessage(
       return { ok: true, skip: 'partner_no_voucher_intent' }
     }
 
+    if (role === 'partner' && implicitVoucher && implicitVoucher.hasPhone) {
+      // Log seguro · hashPhone do candidate (não expõe valor real)
+      log.info(
+        {
+          clinicId,
+          phoneHash: hashPhone(msg.phone),
+          candidate_phone_hash: hashPhone(implicitVoucher.phoneE164 ?? ''),
+          has_name: !!implicitVoucher.candidateName,
+          confidence: implicitVoucher.confidence,
+          via: hasVoucherIntent(content) ? 'keyword+phone' : 'phone_only',
+          parser_version: 'partner-voucher-implicit-v1',
+        },
+        'mira.implicit_voucher.detected',
+      )
+    }
+
     if (role === 'admin' && isGlobalAdminCommand(content)) {
       await repos.miraState.clear(msg.phone)
     }
     const classification = await classifyIntent(content, role)
-    chosenIntent = classification.intent
-    const handler = dispatchHandler(classification.intent)
+    let effectiveIntent = classification.intent
+
+    // P7 · override · se parceira tem phone implícito mas classifier não
+    // acertou (caiu em partner.other/unknown), força partner.emit_voucher.
+    // O handler b2b-emit-voucher já re-extrai phone+name do texto · sem
+    // duplicar lógica · só destrava o caminho correto.
+    if (
+      role === 'partner' &&
+      implicitVoucher &&
+      implicitVoucher.hasPhone &&
+      (effectiveIntent === 'partner.other' || effectiveIntent === 'unknown')
+    ) {
+      log.info(
+        {
+          clinicId,
+          phoneHash: hashPhone(msg.phone),
+          original_intent: classification.intent,
+          forced_intent: 'partner.emit_voucher',
+          confidence: implicitVoucher.confidence,
+        },
+        'mira.implicit_voucher.classifier_override',
+      )
+      effectiveIntent = 'partner.emit_voucher'
+    }
+
+    chosenIntent = effectiveIntent
+    const handler = dispatchHandler(effectiveIntent)
     result = await handler({
       clinicId,
       phone: msg.phone,
       role,
       text: content,
-      intent: classification.intent,
+      intent: effectiveIntent,
       repos,
       pushName: msg.pushName,
     })
