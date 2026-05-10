@@ -8,6 +8,7 @@ export {
 } from './budget'
 export {
   generateCopilot,
+  pickRelevantCommercialProcedures,
   type CopilotInput,
   type CopilotOutput,
   type CopilotProcedureSummary,

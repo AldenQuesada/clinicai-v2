@@ -304,7 +304,7 @@ function normalizeForMatch(s: string): string {
  * Sempre retorna objetos no shape de CopilotCommercialProcedure ·
  * mantem ordem de relevancia (matches primeiro).
  */
-function pickRelevantCommercialProcedures(
+export function pickRelevantCommercialProcedures(
   pool: CopilotCommercialProcedure[],
   lead: CopilotInput['lead'],
   messages: CopilotInput['messages'],
