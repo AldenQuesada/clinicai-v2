@@ -154,14 +154,12 @@ export async function GET(req: NextRequest) {
       ])
       .gte('hit_at', new Date(Date.now() - window_hours * 3600 * 1000).toISOString()),
 
-    // 10. silent_loss_candidates_window · DEFERRED nesta versão.
-    //   Cálculo correto exige NOT EXISTS cruzando wa_webhook_event_audit_view
-    //   + wa_webhook_log_audit_view + wa_messages + wa_pending_lid_events ·
-    //   complexidade alta via query builder · solução robusta = RPC dedicada
-    //   (migration futura: wa_lid_silent_loss_count). Por ora retorna null e
-    //   marca check como warn explícito (`silent_loss_check_deferred`) ·
-    //   cumpre regra "sem migration nesta etapa".
-    Promise.resolve({ data: null, error: null }),
+    // 10. silent_loss_candidates_window · RPC wa_lid_silent_loss_count (11E.1).
+    //   Conta DISTINCT provider_msg_id de events messages.upsert @lid sem
+    //   senderPn que NÃO existem em wa_messages NEM em wa_pending_lid_events.
+    //   Sinal de perda silenciosa real. Read-only · SECURITY DEFINER ·
+    //   service_role only · clamp 1-168h.
+    sb.rpc('wa_lid_silent_loss_count', { p_window_hours: window_hours }),
   ])
 
   // Helper · extrai count|null + erro · estrutura uniforme
@@ -190,13 +188,24 @@ export async function GET(req: NextRequest) {
       })
     : null
 
-  // silent_loss · DEFERRED · sem RPC dedicada nesta versão · sempre null
-  // (não confundir com 0). Próxima migration adiciona RPC e este monitor
-  // passa a chamar e popular o número real.
-  const silent_loss_candidates_window: number | null = null
-  const silent_loss_rpc_available = false
-  // suppress unused var warning
-  void silentLossRes
+  // silent_loss · 11E.1 · RPC wa_lid_silent_loss_count.
+  // Sucesso → number real + rpc_available=true.
+  // Erro (RPC ausente, perm negada, timeout) → null + rpc_available=false ·
+  // monitor mantém check warn deferred.
+  let silent_loss_candidates_window: number | null = null
+  let silent_loss_rpc_available = false
+  let silent_loss_err: string | null = null
+  if (silentLossRes?.error) {
+    silent_loss_err = String(
+      silentLossRes.error.message ?? silentLossRes.error,
+    ).slice(0, 120)
+  } else if (typeof silentLossRes?.data === 'number') {
+    silent_loss_candidates_window = silentLossRes.data
+    silent_loss_rpc_available = true
+  } else if (silentLossRes?.data !== null && silentLossRes?.data !== undefined) {
+    // resposta não-numérica · trata como erro defensivo
+    silent_loss_err = 'rpc_response_non_numeric:' + String(silentLossRes.data).slice(0, 60)
+  }
 
   // Compõe checks descritivos
   const checks: CheckResult[] = []
@@ -242,15 +251,36 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // silent_loss · sem RPC dedicada nesta versão · marca como deferred warn
-  // pra deixar explícito que o monitor está incompleto até próxima migration.
-  checks.push({
-    level: 'warn',
-    name: 'silent_loss_check_deferred',
-    detail:
-      'aguarda RPC wa_lid_silent_loss_count em migration futura · sem essa, ' +
-      'monitor não detecta silent loss real (apenas pending_insert_failed)',
-  })
+  // silent_loss · 11E.1 · RPC ativa.
+  if (silent_loss_rpc_available && silent_loss_candidates_window !== null) {
+    if (silent_loss_candidates_window === 0) {
+      checks.push({
+        level: 'ok',
+        name: 'silent_loss',
+        detail:
+          'silent_loss_candidates=0 window=' + window_hours + 'h',
+      })
+    } else {
+      checks.push({
+        level: 'fail',
+        name: 'silent_loss_detected',
+        detail:
+          'silent_loss_candidates=' +
+          silent_loss_candidates_window +
+          ' window=' +
+          window_hours +
+          'h · provider events @lid sem senderPn não estão em wa_messages nem wa_pending_lid_events',
+      })
+    }
+  } else {
+    checks.push({
+      level: 'warn',
+      name: 'silent_loss_check_unavailable',
+      detail:
+        'RPC wa_lid_silent_loss_count indisponível · err=' +
+        (silent_loss_err ?? 'unknown'),
+    })
+  }
 
   if (terminal_pending_window.count > 0) {
     checks.push({
@@ -274,9 +304,8 @@ export async function GET(req: NextRequest) {
       'h',
   })
 
-  // Verdict consolidado · ordem de prioridade dos failures
-  // silent_loss check está deferred · não dispara fail_silent_loss_detected
-  // até a RPC dedicada ser implementada.
+  // Verdict consolidado · ordem de prioridade dos failures.
+  // silent_loss > 0 dispara fail_silent_loss_detected (11E.1 · RPC ativa).
   let verdict: Verdict = 'ok'
   if (
     silent_loss_candidates_window !== null &&
