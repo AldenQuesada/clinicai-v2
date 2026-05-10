@@ -24,7 +24,13 @@ export {
   type ClinicBank,
 } from './clinic.repository'
 export { TemplateRepository } from './template.repository'
-export { ProcedureRepository, type ProcedureDTO } from './procedure.repository'
+export {
+  ProcedureRepository,
+  type ProcedureDTO,
+  type CommercialProcedureDTO,
+  type CommercialObjection,
+  type GetCommercialContentOptions,
+} from './procedure.repository'
 export {
   BroadcastRepository,
   type BroadcastDTO,

@@ -16,11 +16,48 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { loadServerReposContext } from '@/lib/repos'
-import { generateCopilot, type CopilotOutput } from '@clinicai/ai'
+import {
+  generateCopilot,
+  type CopilotOutput,
+  type CopilotCommercialProcedure,
+} from '@clinicai/ai'
+import type { CommercialProcedureDTO } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
 
 const CACHE_TTL_MS = 10 * 60 * 1000 // 10 min
+
+/**
+ * P7.1 B.1 · Feature flag temporario · habilita uso de conteudo comercial
+ * curado (clinic_procedimentos_comercial via RPC get_procedimentos_comercial)
+ * no prompt do Copilot. Quando false/ausente, Copilot continua usando
+ * `repos.procedures.getActiveByClinic` (comportamento atual). Quando true,
+ * tenta buscar conteudo comercial em paralelo · fallback silencioso ao
+ * comportamento atual em qualquer falha.
+ */
+const USE_COMMERCIAL_PROCEDURE_CONTENT =
+  process.env.USE_COMMERCIAL_PROCEDURE_CONTENT === 'true'
+
+/**
+ * P7.1 B.1 · Converte DTO do repositorio pro shape esperado pelo CopilotInput.
+ * Trivial mapping · evita dep cruzada packages/ai → packages/repositories.
+ */
+function toCopilotCommercial(
+  d: CommercialProcedureDTO,
+): CopilotCommercialProcedure {
+  return {
+    nome: d.nome,
+    categoria: d.categoria,
+    pitch_curto: d.pitch_curto,
+    pitch_premium: d.pitch_premium,
+    promessa_permitida: d.promessa_permitida,
+    promessa_proibida: d.promessa_proibida,
+    objecoes: d.objecoes,
+    quando_indicar: d.quando_indicar,
+    quando_nao_indicar: d.quando_nao_indicar,
+    nivel_risco_comunicacao: d.nivel_risco_comunicacao,
+  }
+}
 
 function isCacheFresh(cached: {
   aiCopilot: unknown | null
@@ -90,15 +127,37 @@ export async function GET(
     // Copilot Context A (2026-05-07) · adicionado procedures pro Copilot
     // explicar "como funciona X" sem alucinar. Procedimentos vem SEM preco
     // (ProcedureRepository ja exclui no SELECT · guardrail commit 87a5610).
-    const [lead, clinic, procedures, messages] = await Promise.all([
+    // P7.1 B.1 (2026-05-10) · quando feature flag USE_COMMERCIAL_PROCEDURE_CONTENT,
+    // busca conteudo comercial curado em paralelo · fallback silencioso pra
+    // procedures simples se RPC falhar.
+    const commercialPromise: Promise<CommercialProcedureDTO[]> =
+      USE_COMMERCIAL_PROCEDURE_CONTENT
+        ? repos.procedures.getCommercialContent(ctx.clinic_id).catch(() => [])
+        : Promise.resolve([])
+
+    const [lead, clinic, procedures, messages, commercial] = await Promise.all([
       conv.leadId ? repos.leads.findByPhones(ctx.clinic_id, [conv.phone]) : null,
       repos.clinic.getById(ctx.clinic_id),
       repos.procedures.getActiveByClinic(ctx.clinic_id),
       repos.messages.listByConversation(id, { ascending: true }),
+      commercialPromise,
     ])
 
     // findByPhones retorna Map<phone, LeadDTO> · pega o lead se houver
     const leadDto = lead ? lead.get(conv.phone) ?? null : null
+
+    // P7.1 B.1 · log seguro · count + flag · NUNCA conteudo (pitch tem texto comercial)
+    if (USE_COMMERCIAL_PROCEDURE_CONTENT) {
+      console.info(
+        '[copilot] commercial_content',
+        JSON.stringify({
+          flag: true,
+          conv_id: id,
+          procs_simple: procedures.length,
+          procs_commercial: commercial.length,
+        }),
+      )
+    }
 
     // 4. Build input + chama Anthropic
     // Copilot Context A · address/inboxRole/procedures injetados como fonte
@@ -112,6 +171,9 @@ export async function GET(
       clinicName: clinic?.name ?? 'Clínica',
       responsibleLabel: clinic?.responsibleName ?? undefined,
       address: clinic?.address ?? null,
+      // P7.1 B.1 · procedures simples mantidos sempre como fallback ·
+      // commercialProcedures vence quando presente E nao-vazio (cap inteligente
+      // dentro de buildUserPrompt do packages/ai).
       procedures: procedures.map((p) => ({
         nome: p.nome,
         categoria: p.categoria,
@@ -120,6 +182,9 @@ export async function GET(
         sessoes: p.sessoes,
         observacoes: p.observacoes,
       })),
+      commercialProcedures: commercial.length > 0
+        ? commercial.map(toCopilotCommercial)
+        : undefined,
       inboxRole: conv.inboxRole ?? null,
       pixKey: clinic?.pixKey ?? null,
       mode: isSmartOnly ? 'smart_replies_only' : 'full',

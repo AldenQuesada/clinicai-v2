@@ -10,4 +10,7 @@ export {
   generateCopilot,
   type CopilotInput,
   type CopilotOutput,
+  type CopilotProcedureSummary,
+  type CopilotCommercialProcedure,
+  type CopilotClinicAddress,
 } from './copilot'
