@@ -25,6 +25,10 @@ on:
     # /api/cron/divergence-check · 1x/dia 09h30 UTC = 06h30 SP · Camada 12c
     # Soak window 2026-04-28 → 2026-05-28 · valida legacy vs v2 nas 4 tabelas
     - cron: '30 9 * * *'
+    # /api/cron/lid-pending-monitor · 1x/dia 10h30 UTC = 07h30 BRT · Step 11F
+    # Read-only health check do pipeline @lid (Evolution Baileys) · zero side
+    # effect · usa RPC wa_lid_silent_loss_count (11E.1). Window=24h.
+    - cron: '30 10 * * *'
   # Permite trigger manual via UI
   workflow_dispatch:
     inputs:
@@ -36,6 +40,7 @@ on:
           # reactivate desabilitado 2026-05-06 · endpoint é no-op
           - orcamento-followup
           - divergence-check
+          - lid-pending-monitor
 
 jobs:
   dispatch:
@@ -47,12 +52,16 @@ jobs:
         run: |
           set -e
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ENDPOINTS="${{ github.event.inputs.job }}"
+            case "${{ github.event.inputs.job }}" in
+              lid-pending-monitor) ENDPOINTS="lid-pending-monitor?window_hours=24" ;;
+              *) ENDPOINTS="${{ github.event.inputs.job }}" ;;
+            esac
           else
             case "${{ github.event.schedule }}" in
               # "15 * * * *") ENDPOINTS="reactivate" ;;  # desabilitado 2026-05-06
               "0 13 * * *") ENDPOINTS="orcamento-followup" ;;
               "30 9 * * *") ENDPOINTS="divergence-check" ;;
+              "30 10 * * *") ENDPOINTS="lid-pending-monitor?window_hours=24" ;;
               *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
           fi
