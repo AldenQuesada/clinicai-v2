@@ -456,27 +456,33 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
   const wa_number_id = String(resolveRes.wa_number_id);
   await evoTraceLog({ stage: 'tenant_resolved', signature_ok: true, result_status: 200, result_summary: 'clinic=' + clinic_id.slice(0,8) + ' role=' + inboxRole });
 
-  // Guard universal · phone vindo de inbound NÃO pode ser um dos NOSSOS
-  // wa_numbers (ativo OU inativo · Mira/Marci/Alden mesmo desativados ainda
-  // são números operacionais). Audit 2026-05-05 substituiu guard antigo
-  // que filtrava is_active=true · deixava inativos escaparem.
-  // Outbound device passa direto · clínica pode legitimamente mandar pra
-  // próprio número (paciente cadastrado também é nosso wa_number, etc).
+  // 11C.2 2026-05-10 · Inbox Secretaria espelha o WhatsApp real da clínica.
+  // Mensagens vindas de números internos (Mira/Mirian/Alden/Marci/etc) também
+  // entram no dash · não são mais skipadas. Mantém a DETECÇÃO (logging para
+  // audit) mas NÃO retorna early · fluxo segue até saveInbound.
+  //
+  // Antes: if internal → skip + terminal_skipped_internal_number + return
+  // Agora: if internal → trace não-terminal · wasInternalNumber=true ·
+  //        resolveLead/Conv chamados sem supabase pra desativar
+  //        guard "cinto-suspensório" interno · saveInbound persiste normal.
+  let wasInternalNumber = false;
   if (phone && !isOutboundFromDevice) {
     const internalCheck = await isInternalWaNumber(supabase, clinic_id, phone);
     if (internalCheck.internal) {
-      await evoTraceLog({ stage: 'skip_internal_wa_number', signature_ok: true, result_status: 200, result_summary: 'target=' + (internalCheck.label ?? '') });
-      // 11A · terminal trace · prefix unificado.
+      wasInternalNumber = true;
       await evoTraceLog({
-        stage: 'terminal_skipped_internal_number',
+        stage: 'internal_wa_number_detected_continue',
         signature_ok: true,
         result_status: 200,
         result_summary:
-          'target=' + (internalCheck.label ?? '') +
+          'reason=secretaria_inbox_must_match_real_whatsapp_inbox' +
+          ' target=' + (internalCheck.label ?? '') +
           ' role=' + (internalCheck.inboxRole ?? '') +
           ' type=' + (internalCheck.numberType ?? '') +
           ' active=' + String(!!internalCheck.isActive) +
-          ' provider=' + (key?.id ?? 'null').slice(-12),
+          ' provider=' + (key?.id ?? 'null').slice(-12) +
+          ' remote=' + remoteJid.slice(0, 24) +
+          ' fromMe=' + String(!!key?.fromMe),
       });
       log.info(
         {
@@ -486,9 +492,8 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
           own_type: internalCheck.numberType,
           own_active: internalCheck.isActive,
         },
-        'webhook_evolution.skip_internal_wa_number',
+        'webhook_evolution.internal_wa_number_detected_continue',
       );
-      return NextResponse.json({ ok: true, skip: 'internal_wa_number', target: internalCheck.label });
     }
   }
 
@@ -1110,7 +1115,13 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
       return NextResponse.json({ ok: true, skip: 'pending_identity', remoteJid });
     }
   } else {
-    lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName, supabase });
+    // 11C.2 2026-05-10 · quando o phone é interno (wasInternalNumber=true),
+    // passa supabase=undefined pra desativar o guard "cinto-suspensório"
+    // do helper (lead-conversation.ts:103/272 · only blocks if supabase is
+    // provided). Internal já foi detectado upstream e a regra de negócio
+    // (espelhar inbox real) exige criar/reusar lead+conv mesmo pra interno.
+    const supabaseForResolve = wasInternalNumber ? undefined : supabase;
+    lead = await resolveLead({ leads: repos.leads, clinic_id, phone, pushName: safePushName, supabase: supabaseForResolve });
     if (!lead) {
       // PATCH ROOT CAUSE 2026-05-09 · terminal trace.
       await evoTraceLog({
@@ -1123,6 +1134,7 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
           ' phone_last8=' + phone.slice(-8) +
           ' clinic=' + clinic_id.slice(0, 8) +
           ' wa_num=' + wa_number_id.slice(0, 8) +
+          ' was_internal=' + String(wasInternalNumber) +
           ' msg_ts=' + (body?.data?.messageTimestamp ?? 'null'),
       });
       log.error({ clinic_id, phone_hash: hashPhone(phone) }, 'webhook_evolution.lead.create.failed');
@@ -1134,7 +1146,7 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
       phone,
       lead,
       pushName: safePushName,
-      supabase,
+      supabase: supabaseForResolve,
       waNumberId: wa_number_id,
     });
     if (!conv || !lead) {
