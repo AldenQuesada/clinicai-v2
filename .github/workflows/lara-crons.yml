@@ -7,6 +7,7 @@
 # Setup necessário:
 #   GitHub repo → Settings → Secrets and variables → Actions → New repo secret
 #     · CRON_SECRET = <mesmo valor da env CRON_SECRET no Easypanel>
+#     · WA_LID_REPROCESS_SECRET = secret dedicado do reprocessador @lid (11G)
 #
 # Gerar segredo: openssl rand -hex 32
 
@@ -28,11 +29,13 @@ on:
     # /api/cron/lid-pending-monitor · 1x/dia 10h30 UTC = 07h30 BRT · Step 11F
     # Read-only health check do pipeline @lid (Evolution Baileys) · zero side
     # effect · usa RPC wa_lid_silent_loss_count (11E.1). Window=24h.
+    # 11H: fail semantics · workflow exit 1 em fail_*/silent_loss>0/etc.
     - cron: '30 10 * * *'
     # /api/cron/lid-pending-reprocess · 1x/dia 11h00 UTC = 08h00 BRT · Step 11G
     # POST com gate: chama o monitor antes; só drena se pending_total>0 e
     # verdict != fail_silent_loss_detected. Body: dry_run=false limit=10.
     # Auth: WA_LID_REPROCESS_SECRET dedicado (segrega blast radius do read-only).
+    # 11H: hardened · checa ok/failed na resposta do reprocessador.
     - cron: '0 11 * * *'
   # Permite trigger manual via UI
   workflow_dispatch:
@@ -48,6 +51,11 @@ on:
           - lid-pending-monitor
           - lid-pending-reprocess
 
+# 11H: GITHUB_TOKEN precisa criar issues automáticas em fail.
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest
@@ -61,7 +69,7 @@ jobs:
           ENDPOINTS=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             case "${{ github.event.inputs.job }}" in
-              lid-pending-monitor) ENDPOINTS="lid-pending-monitor?window_hours=24" ;;
+              lid-pending-monitor) KIND=monitor ;;
               lid-pending-reprocess) KIND=reprocess ;;
               *) ENDPOINTS="${{ github.event.inputs.job }}" ;;
             esac
@@ -70,7 +78,7 @@ jobs:
               # "15 * * * *") ENDPOINTS="reactivate" ;;  # desabilitado 2026-05-06
               "0 13 * * *") ENDPOINTS="orcamento-followup" ;;
               "30 9 * * *") ENDPOINTS="divergence-check" ;;
-              "30 10 * * *") ENDPOINTS="lid-pending-monitor?window_hours=24" ;;
+              "30 10 * * *") KIND=monitor ;;
               "0 11 * * *") KIND=reprocess ;;
               *) echo "schedule desconhecido: ${{ github.event.schedule }}" && exit 1 ;;
             esac
@@ -79,8 +87,9 @@ jobs:
           echo "endpoints=$ENDPOINTS" >> "$GITHUB_OUTPUT"
           echo "Disparando: kind=$KIND endpoints=$ENDPOINTS"
 
-      - name: Fire crons
-        if: steps.route.outputs.kind != 'reprocess'
+      # ─── Simple crons (orcamento-followup, divergence-check) ────────
+      - name: Fire simple crons
+        if: steps.route.outputs.kind == 'simple'
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
@@ -101,6 +110,85 @@ jobs:
             fi
           done
 
+      # ─── lid-pending-monitor com fail semantics (11H) ───────────────
+      - name: Run lid-pending-monitor with fail semantics
+        if: steps.route.outputs.kind == 'monitor'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -e
+          BASE="https://lara.miriandpaula.com.br"
+          echo "→ GET /api/cron/lid-pending-monitor?window_hours=24"
+          HTTP_CODE=$(curl -fsS -o /tmp/monitor-response.json -w "%{http_code}" \
+            -H "x-cron-secret: $CRON_SECRET" \
+            -m 60 \
+            "$BASE/api/cron/lid-pending-monitor?window_hours=24" || echo "000")
+          echo "  status=$HTTP_CODE"
+          if [ -f /tmp/monitor-response.json ]; then
+            echo "  resp=$(head -c 600 /tmp/monitor-response.json)"
+          fi
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::monitor retornou HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Parse JSON · fail-CLOSED se algum campo crítico não for parseável.
+          OK=$(jq -r '.ok // false' /tmp/monitor-response.json)
+          VERDICT=$(jq -r '.verdict // "unknown"' /tmp/monitor-response.json)
+          PENDING_TOTAL=$(jq -r '.pending_total // 0' /tmp/monitor-response.json)
+          PENDING_OVER_24H=$(jq -r '.pending_over_24h // 0' /tmp/monitor-response.json)
+          FAILED_TOTAL=$(jq -r '.failed_total // 0' /tmp/monitor-response.json)
+          PENDING_INSERT_FAILED=$(jq -r '.pending_insert_failed_24h // 0' /tmp/monitor-response.json)
+          SILENT_LOSS=$(jq -r '.silent_loss_candidates_24h // 0' /tmp/monitor-response.json)
+          SILENT_LOSS_AVAIL=$(jq -r '.silent_loss_rpc_available // false' /tmp/monitor-response.json)
+          echo "  ok=$OK verdict=$VERDICT pending_total=$PENDING_TOTAL pending_over_24h=$PENDING_OVER_24H failed_total=$FAILED_TOTAL pending_insert_failed=$PENDING_INSERT_FAILED silent_loss=$SILENT_LOSS rpc_avail=$SILENT_LOSS_AVAIL"
+
+          # ── Fail semantics (11H) ───────────────────────────────────
+          FAIL_REASONS=""
+
+          if [ "$OK" != "true" ]; then
+            FAIL_REASONS="$FAIL_REASONS ok!=true"
+          fi
+
+          case "$VERDICT" in
+            fail_*) FAIL_REASONS="$FAIL_REASONS verdict=$VERDICT" ;;
+          esac
+
+          if [ "$SILENT_LOSS" != "0" ]; then
+            FAIL_REASONS="$FAIL_REASONS silent_loss=$SILENT_LOSS"
+          fi
+
+          if [ "$PENDING_INSERT_FAILED" != "0" ]; then
+            FAIL_REASONS="$FAIL_REASONS pending_insert_failed=$PENDING_INSERT_FAILED"
+          fi
+
+          if [ "$FAILED_TOTAL" != "0" ]; then
+            FAIL_REASONS="$FAIL_REASONS failed_total=$FAILED_TOTAL"
+          fi
+
+          # warn_pending_over_24h promovido a fail (pending antigo precisa ação).
+          if [ "$VERDICT" = "warn_pending_over_24h" ] || [ "$PENDING_OVER_24H" != "0" ]; then
+            FAIL_REASONS="$FAIL_REASONS pending_over_24h=$PENDING_OVER_24H"
+          fi
+
+          # silent_loss_check_unavailable promovido a fail · RPC 11E.1 já deveria estar ativa.
+          if [ "$SILENT_LOSS_AVAIL" != "true" ]; then
+            FAIL_REASONS="$FAIL_REASONS silent_loss_rpc_unavailable"
+          fi
+
+          # warn_pending_growing → success + warning explícito.
+          if [ "$VERDICT" = "warn_pending_growing" ]; then
+            echo "::warning::pending growing detected · monitorar tendência"
+          fi
+
+          if [ -n "$FAIL_REASONS" ]; then
+            echo "::error::lid-pending-monitor FAIL · reasons:$FAIL_REASONS · verdict=$VERDICT"
+            exit 1
+          fi
+
+          echo "✓ lid-pending-monitor saudável · verdict=$VERDICT"
+
+      # ─── lid-pending-reprocess com gate hardened (11G+11H) ──────────
       - name: Reprocess @lid pending with monitor gate
         if: steps.route.outputs.kind == 'reprocess'
         env:
@@ -113,24 +201,37 @@ jobs:
           # ── 1. Monitor gate ──────────────────────────────────────────
           # Read-only · usa CRON_SECRET (mesmo dos demais crons read-only).
           echo "→ gate · GET /api/cron/lid-pending-monitor?window_hours=24"
-          MONITOR_BODY=$(curl -fsS \
+          MON_HTTP=$(curl -fsS -o /tmp/monitor-response.json -w "%{http_code}" \
             -H "x-cron-secret: $CRON_SECRET" \
             -m 60 \
-            "$BASE/api/cron/lid-pending-monitor?window_hours=24")
-          echo "  monitor_resp=$(echo "$MONITOR_BODY" | head -c 400)"
+            "$BASE/api/cron/lid-pending-monitor?window_hours=24" || echo "000")
+          echo "  status=$MON_HTTP"
+          if [ -f /tmp/monitor-response.json ]; then
+            echo "  monitor_resp=$(head -c 400 /tmp/monitor-response.json)"
+          fi
+          if [ "$MON_HTTP" != "200" ]; then
+            echo "::error::monitor gate retornou HTTP $MON_HTTP · NÃO drenando"
+            exit 1
+          fi
 
-          VERDICT=$(echo "$MONITOR_BODY" | jq -r '.verdict // "unknown"')
-          PENDING_TOTAL=$(echo "$MONITOR_BODY" | jq -r '.pending_total // 0')
-          SILENT_LOSS=$(echo "$MONITOR_BODY" | jq -r '.silent_loss_candidates_24h // 0')
-          echo "  verdict=$VERDICT pending_total=$PENDING_TOTAL silent_loss=$SILENT_LOSS"
+          OK=$(jq -r '.ok // false' /tmp/monitor-response.json)
+          VERDICT=$(jq -r '.verdict // "unknown"' /tmp/monitor-response.json)
+          PENDING_TOTAL=$(jq -r '.pending_total // 0' /tmp/monitor-response.json)
+          SILENT_LOSS=$(jq -r '.silent_loss_candidates_24h // 0' /tmp/monitor-response.json)
+          echo "  ok=$OK verdict=$VERDICT pending_total=$PENDING_TOTAL silent_loss=$SILENT_LOSS"
 
-          # Gate A: silent loss → ABORT (não drenar enquanto há perda real).
-          if [ "$VERDICT" = "fail_silent_loss_detected" ]; then
+          if [ "$OK" != "true" ]; then
+            echo "::error::monitor ok=$OK · NÃO drenando"
+            exit 1
+          fi
+
+          # Gate A: silent loss > 0 → ABORT (não drenar enquanto há perda real).
+          if [ "$SILENT_LOSS" != "0" ]; then
             echo "::error::silent loss detected (count=$SILENT_LOSS) · NÃO drenando · investigar antes"
             exit 1
           fi
 
-          # Gate B: outros fail_* → ABORT (estado degradado · não amplificar).
+          # Gate B: qualquer fail_* → ABORT (estado degradado · não amplificar).
           case "$VERDICT" in
             fail_*)
               echo "::error::monitor verdict=$VERDICT · NÃO drenando · investigar"
@@ -148,7 +249,7 @@ jobs:
           # POST · usa WA_LID_REPROCESS_SECRET dedicado (segrega blast radius).
           # dry_run=false explícito · limit=10 (clamp [1,50] · default 20 do endpoint).
           echo "→ POST /api/cron/lid-pending-reprocess (dry_run=false limit=10)"
-          REPROC_HTTP=$(curl -fsS -o /tmp/reproc.json -w "%{http_code}" \
+          REPROC_HTTP=$(curl -fsS -o /tmp/reprocess-response.json -w "%{http_code}" \
             -X POST \
             -H "x-cron-secret: $WA_LID_REPROCESS_SECRET" \
             -H "Content-Type: application/json" \
@@ -156,10 +257,85 @@ jobs:
             -m 120 \
             "$BASE/api/cron/lid-pending-reprocess" || echo "000")
           echo "  status=$REPROC_HTTP"
-          if [ -f /tmp/reproc.json ]; then
-            echo "  resp=$(cat /tmp/reproc.json | head -c 600)"
+          if [ -f /tmp/reprocess-response.json ]; then
+            echo "  resp=$(head -c 600 /tmp/reprocess-response.json)"
           fi
           if [ "$REPROC_HTTP" != "200" ]; then
-            echo "::error::reprocessor retornou $REPROC_HTTP"
+            echo "::error::reprocessor retornou HTTP $REPROC_HTTP"
             exit 1
           fi
+
+          # 11H: validar payload do reprocessador.
+          REPROC_OK=$(jq -r '.ok // false' /tmp/reprocess-response.json 2>/dev/null || echo "false")
+          REPROC_FAILED=$(jq -r '.failed // 0' /tmp/reprocess-response.json 2>/dev/null || echo "0")
+          if [ "$REPROC_OK" != "true" ]; then
+            echo "::error::reprocessor ok=$REPROC_OK"
+            exit 1
+          fi
+          if [ "$REPROC_FAILED" != "0" ] && [ "$REPROC_FAILED" != "null" ]; then
+            echo "::error::reprocessor failed=$REPROC_FAILED"
+            exit 1
+          fi
+          echo "✓ reprocessor success"
+
+      # ─── 11H: artifacts (sempre, mesmo em failure) ─────────────────
+      - name: Upload monitor-response.json artifact
+        if: always() && (steps.route.outputs.kind == 'monitor' || steps.route.outputs.kind == 'reprocess')
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-response-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/monitor-response.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload reprocess-response.json artifact
+        if: always() && steps.route.outputs.kind == 'reprocess'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reprocess-response-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/reprocess-response.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # ─── 11H: issue automática em failure (com dedup) ──────────────
+      - name: Open issue on failure (dedupe by title)
+        if: failure() && (steps.route.outputs.kind == 'monitor' || steps.route.outputs.kind == 'reprocess')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          KIND: ${{ steps.route.outputs.kind }}
+        run: |
+          set +e
+          VERDICT="unknown"
+          if [ -f /tmp/monitor-response.json ]; then
+            VERDICT=$(jq -r '.verdict // "unknown"' /tmp/monitor-response.json 2>/dev/null || echo "unknown")
+          fi
+          TITLE="@lid monitor failure: $VERDICT"
+
+          # Dedup: skip se já há issue aberta com esse título.
+          EXISTING=$(gh issue list -R "$GH_REPO" --search "in:title \"$TITLE\"" --state open --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" 2>/dev/null | head -n1)
+          if [ -n "$EXISTING" ]; then
+            echo "issue #$EXISTING já aberta com título \"$TITLE\" · pulando criação"
+            exit 0
+          fi
+
+          MONITOR_JSON="(monitor-response.json não capturado)"
+          if [ -f /tmp/monitor-response.json ]; then
+            MONITOR_JSON=$(jq -c '.' /tmp/monitor-response.json 2>/dev/null || cat /tmp/monitor-response.json)
+          fi
+          REPROC_SECTION=""
+          if [ -f /tmp/reprocess-response.json ]; then
+            REPROC_JSON=$(jq -c '.' /tmp/reprocess-response.json 2>/dev/null || cat /tmp/reprocess-response.json)
+            REPROC_SECTION=$(printf '\n\n## Reprocess response\n```json\n%s\n```' "$REPROC_JSON")
+          fi
+
+          BODY=$(printf '## Run\n%s\n\n## Kind\n%s\n\n## Monitor response\n```json\n%s\n```%s\n\n---\n*Issue criada automaticamente pelo workflow lara-crons.yml (Step 11H). Dedup por título. Feche quando o pipeline @lid voltar a saudável.*' "$RUN_URL" "$KIND" "$MONITOR_JSON" "$REPROC_SECTION")
+
+          gh issue create -R "$GH_REPO" \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "incident,@lid,cron-failure" 2>&1 || \
+          gh issue create -R "$GH_REPO" \
+            --title "$TITLE" \
+            --body "$BODY"
