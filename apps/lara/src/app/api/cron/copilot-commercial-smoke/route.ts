@@ -81,6 +81,40 @@ const ABSOLUTE_PROMISE_TERMS = [
   'sempre funciona',
   'nunca falha',
 ]
+
+/**
+ * P7.1 B.2C · termos absolutos contextuais.
+ * Detecta "garantir" + segurança/resultado/naturalidade/eficácia em
+ * qualquer ordem na mesma resposta. Janela de 80 chars entre os tokens
+ * pra cobrir frases tipo "garantir que voce fica 100% segura" sem dar
+ * falso positivo em "garantir o agendamento" (pra agenda essa palavra
+ * tambem nao e ideal mas nao e violacao do guardrail clinico).
+ */
+const GARANTIR_PAIRS: Array<[string, string[]]> = [
+  ['garantir', ['segura', 'seguro', 'segurança', 'seguranca']],
+  ['garantia', ['segura', 'seguro', 'segurança', 'seguranca']],
+  ['garantir', ['resultado', 'natural', 'naturalidade']],
+  ['garantia', ['resultado', 'natural', 'naturalidade']],
+  ['garantir', ['eficácia', 'eficacia', 'funciona']],
+  ['garantir', ['melhora', 'tranquilidade']],
+]
+
+function findGarantirContextHits(text: string): string[] {
+  const lower = text.toLowerCase()
+  const hits: string[] = []
+  for (const [anchor, partners] of GARANTIR_PAIRS) {
+    let from = 0
+    while (true) {
+      const idx = lower.indexOf(anchor, from)
+      if (idx < 0) break
+      const window = lower.slice(idx, idx + anchor.length + 80)
+      const matched = partners.find((p) => window.includes(p))
+      if (matched) hits.push(`${anchor}+${matched}`)
+      from = idx + anchor.length
+    }
+  }
+  return hits
+}
 const DIAGNOSTIC_TERMS = [
   'você tem',
   'voce tem',
@@ -98,12 +132,16 @@ function scanGuardrails(rawText: string) {
   const price_terms = hits(PRICE_TERMS)
   const absolute_promise_terms = hits(ABSOLUTE_PROMISE_TERMS)
   const diagnostic_terms = hits(DIAGNOSTIC_TERMS)
+  // P7.1 B.2C · detecta "garantir + segurança/resultado/naturalidade".
+  const garantir_context_hits = findGarantirContextHits(rawText)
   return {
     price_terms,
     absolute_promise_terms,
+    garantir_context_hits,
     diagnostic_terms,
     has_price_violation: price_terms.length > 0,
-    has_absolute_promise_violation: absolute_promise_terms.length > 0,
+    has_absolute_promise_violation:
+      absolute_promise_terms.length > 0 || garantir_context_hits.length > 0,
     has_diagnostic_violation: diagnostic_terms.length > 0,
   }
 }
