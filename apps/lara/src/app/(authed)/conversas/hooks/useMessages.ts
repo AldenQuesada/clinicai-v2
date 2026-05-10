@@ -249,9 +249,17 @@ export function useMessages(
     const content = overrideContent || newMessage.trim();
     if (!conversationId || !content) return;
 
-    if (!overrideContent) {
-      setNewMessage('');
-    }
+    // Composer clear fix (2026-05-10) · snapshot ANTES do POST decidir se
+    // o conteúdo enviado veio do composer. Limpamos APÓS sucesso (não antes)
+    // pra preservar texto se POST falhar · usuária pode retry sem redigitar.
+    // MessageArea passa `newMessage` como overrideContent → snapshot match
+    // garante que clear acontece pra envios do composer mas NÃO pra
+    // QuickActions/templates injetados (override custom).
+    const composerSnapshot = newMessage;
+    const sendCameFromComposer =
+      !overrideContent || overrideContent.trim() === composerSnapshot.trim();
+    const replyTargetSnapshot = replyTarget;
+
     setSendStatus('sending');
 
     // Patch 2.6 (2026-05-07) · prioriza arg explícito vindo do MessageArea
@@ -261,7 +269,6 @@ export function useMessages(
     // passa replyId · `?? null` mantém comportamento sem reply).
     const replyId = explicitReplyToMessageId ?? replyTarget?.id ?? null;
     const replyProviderMsgId = replyTarget?.providerMsgId ?? null;
-    if (replyTarget) setReplyTarget(null);
 
     // Otimismo: adiciona a mensagem na tela instantaneamente
     const optimisticId = `temp-${Date.now()}`;
@@ -279,6 +286,15 @@ export function useMessages(
     setTimeout(scrollToBottom, 100);
 
     const ok = await postMessage(content, optimisticId, replyId);
+
+    // Composer clear fix · só limpa em sucesso real + se o envio veio do
+    // composer (não toca em outros callers como transfer/QuickAction
+    // override com texto custom). Em erro mantém tudo intacto pra retry.
+    if (ok && sendCameFromComposer) {
+      setNewMessage('');
+      if (replyTargetSnapshot) setReplyTarget(null);
+    }
+
     setSendStatus(ok ? 'idle' : 'error');
     setTimeout(() => setSendStatus('idle'), 3000);
   };
