@@ -368,6 +368,9 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
   let phone: string = '';
   let isLidOutboundUnresolved = false;
   let isLidInboundUnresolved = false;
+  // 11C 2026-05-09 · captura senderPn raw pra writer wa_contact_identities
+  // (jid_lid → phone real). Só populado em inbound @lid com senderPn presente.
+  let senderPnRaw: string = '';
   if (isOutboundFromDevice) {
     if (remoteJid.endsWith('@lid')) {
       // outbound LID · marca pra lookup posterior por remote_jid
@@ -377,6 +380,7 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
     }
   } else if (remoteJid.endsWith('@lid')) {
     const senderPn = key?.senderPn || data?.senderPn || '';
+    senderPnRaw = senderPn;
     phone = senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
     if (!phone) {
       // PATCH ROOT CAUSE 2026-05-09 · inbound @lid sem senderPn não pode mais
@@ -1172,6 +1176,127 @@ async function processEvolutionWebhookImpl(request: NextRequest): Promise<NextRe
     result_status: 200,
     result_summary: 'conv=' + conv.id.slice(0, 8) + ' has_lead=' + (lead ? 'y' : 'n'),
   });
+
+  // 11C 2026-05-09 · WRITER wa_contact_identities (jid_lid → phone real).
+  //
+  // Roda APENAS em INBOUND @lid com senderPn populado (caminho `else` normal
+  // que resolveu lead via senderPn). Outbound device, isLidOutboundUnresolved
+  // e isLidInboundUnresolved NÃO disparam · não há senderPn canônico.
+  //
+  // Idempotente via uq_wa_contact_identities_strong (clinic_id, identity_type,
+  // identity_value_norm) WHERE deleted_at IS NULL.
+  //
+  // contact_id é NOT NULL na tabela · faz lookup por (clinic_id, primary_lead_id).
+  // Se contact não existe, faz SKIP (fail-soft) · não cria wa_contacts (esse é
+  // domínio do backfill canônico, não do webhook).
+  //
+  // Fail-soft completo: qualquer erro vira trace e não bloqueia saveInbound.
+  if (
+    !isOutboundFromDevice &&
+    remoteJid.endsWith('@lid') &&
+    senderPnRaw &&
+    conv &&
+    lead
+  ) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: contactRow } = await (supabase as any)
+        .from('wa_contacts')
+        .select('id')
+        .eq('clinic_id', clinic_id)
+        .eq('primary_lead_id', lead.id)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (!contactRow?.id) {
+        await evoTraceLog({
+          stage: 'identity_writer_skipped_no_contact',
+          signature_ok: true,
+          result_status: 200,
+          result_summary:
+            'reason=no_wa_contact_for_lead' +
+            ' lead=' + lead.id.slice(0, 8) +
+            ' clinic=' + clinic_id.slice(0, 8) +
+            ' remote=' + remoteJid.slice(0, 24),
+        });
+      } else {
+        const senderPnPhone = senderPnRaw.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: upsertErr } = await (supabase as any)
+          .from('wa_contact_identities')
+          .upsert(
+            {
+              clinic_id,
+              wa_number_id,
+              contact_id: contactRow.id,
+              conversation_id: conv.id,
+              lead_id: lead.id,
+              identity_type: 'jid_lid',
+              identity_value: remoteJid,
+              identity_value_norm: remoteJid,
+              confidence_score: 100,
+              source: 'webhook_evolution_lid_senderpn',
+              is_primary: false,
+              is_verified: true,
+              last_seen_at: new Date().toISOString(),
+              metadata: {
+                senderPn: senderPnRaw,
+                sender_phone: senderPnPhone,
+                provider_msg_id: key?.id ?? null,
+                message_type: data?.messageType ?? null,
+                from_me: !!key?.fromMe,
+                route: 'whatsapp-evolution',
+              },
+            },
+            {
+              onConflict: 'clinic_id,identity_type,identity_value_norm',
+              ignoreDuplicates: false,
+            },
+          );
+        if (upsertErr) {
+          await evoTraceLog({
+            stage: 'identity_writer_failed',
+            signature_ok: true,
+            result_status: 500,
+            result_summary:
+              'err=' + (upsertErr.message ?? 'unknown').slice(0, 100) +
+              ' contact=' + contactRow.id.slice(0, 8) +
+              ' remote=' + remoteJid.slice(0, 24),
+          });
+          log.warn(
+            { clinic_id, contact_id: contactRow.id, remoteJid, err: upsertErr.message },
+            'webhook_evolution.identity_writer.failed',
+          );
+        } else {
+          await evoTraceLog({
+            stage: 'identity_writer_upserted',
+            signature_ok: true,
+            result_status: 200,
+            result_summary:
+              'contact=' + contactRow.id.slice(0, 8) +
+              ' lead=' + lead.id.slice(0, 8) +
+              ' conv=' + conv.id.slice(0, 8) +
+              ' remote=' + remoteJid.slice(0, 24) +
+              ' phone_last8=' + senderPnPhone.slice(-8),
+          });
+        }
+      }
+    } catch (err) {
+      // Fail-soft total · não pode quebrar saveInbound por falha de writer.
+      await evoTraceLog({
+        stage: 'identity_writer_failed',
+        signature_ok: true,
+        result_status: 500,
+        result_summary:
+          'err=' + ((err as Error)?.message ?? 'unknown').slice(0, 100) +
+          ' remote=' + remoteJid.slice(0, 24),
+      });
+      log.warn(
+        { clinic_id, remoteJid, err: (err as Error)?.message },
+        'webhook_evolution.identity_writer.exception',
+      );
+    }
+  }
 
   // Dedup soft · Evolution retry pode entregar 2x na mesma janela curta
   // Audit 2026-05-04: dedup por conteúdo é FALLBACK pra payloads sem key.id.
