@@ -1,3 +1,14 @@
+/**
+ * Database types · auto-gerado via supabase Management API.
+ *
+ * NAO EDITAR MANUALMENTE. Pra regenerar:
+ *
+ *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
+ *
+ * Ultima geracao: 2026-05-11T06:28:15.934Z
+ * Project ref: oqboitkpcvuaudouwvkl
+ */
+
 export type Json =
   | string
   | number
@@ -4265,6 +4276,75 @@ export type Database = {
         }
         Relationships: []
       }
+      b2b_voucher_audio_queue: {
+        Row: {
+          attempts: number
+          clinic_id: string
+          created_at: string
+          dispatched_at: string | null
+          error_message: string | null
+          id: string
+          last_attempt_at: string | null
+          max_attempts: number
+          payload: Json
+          processing_started_at: string | null
+          request_id: number | null
+          scheduled_at: string
+          status: string
+          updated_at: string
+          voucher_id: string
+        }
+        Insert: {
+          attempts?: number
+          clinic_id: string
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number
+          payload?: Json
+          processing_started_at?: string | null
+          request_id?: number | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+          voucher_id: string
+        }
+        Update: {
+          attempts?: number
+          clinic_id?: string
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number
+          payload?: Json
+          processing_started_at?: string | null
+          request_id?: number | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_voucher_audio_queue_voucher_fk"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "b2b_consolidated_view"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_audio_queue_voucher_fk"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "b2b_vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       b2b_voucher_combos: {
         Row: {
           clinic_id: string
@@ -4363,6 +4443,166 @@ export type Database = {
             columns: ["voucher_id"]
             isOneToOne: false
             referencedRelation: "b2b_vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_voucher_dispatch_events: {
+        Row: {
+          channel: string | null
+          clinic_id: string
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          error_message: string | null
+          event_type: string
+          id: string
+          partnership_id: string | null
+          provider_msg_id: string | null
+          raw: Json
+          recipient_name: string | null
+          recipient_phone: string | null
+          recipient_role: string
+          sender_instance: string | null
+          sent_at: string | null
+          status: string | null
+          token: string | null
+          voucher_id: string
+          wa_message_id: string | null
+          wa_message_pk: string | null
+          wa_number_id: string | null
+        }
+        Insert: {
+          channel?: string | null
+          clinic_id: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          partnership_id?: string | null
+          provider_msg_id?: string | null
+          raw?: Json
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          recipient_role: string
+          sender_instance?: string | null
+          sent_at?: string | null
+          status?: string | null
+          token?: string | null
+          voucher_id: string
+          wa_message_id?: string | null
+          wa_message_pk?: string | null
+          wa_number_id?: string | null
+        }
+        Update: {
+          channel?: string | null
+          clinic_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          partnership_id?: string | null
+          provider_msg_id?: string | null
+          raw?: Json
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          recipient_role?: string
+          sender_instance?: string | null
+          sent_at?: string | null
+          status?: string | null
+          token?: string | null
+          voucher_id?: string
+          wa_message_id?: string | null
+          wa_message_pk?: string | null
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_partnership_id_fkey"
+            columns: ["partnership_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_consolidated_view"
+            referencedColumns: ["partnership_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_partnership_id_fkey"
+            columns: ["partnership_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_partnerships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_consolidated_view"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_vouchers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_wa_message_pk_fkey"
+            columns: ["wa_message_pk"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "b2b_voucher_dispatch_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_numbers"
             referencedColumns: ["id"]
           },
         ]
@@ -4581,13 +4821,6 @@ export type Database = {
             columns: ["partnership_id"]
             isOneToOne: false
             referencedRelation: "b2b_partnerships"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_combo"
-            columns: ["combo"]
-            isOneToOne: false
-            referencedRelation: "b2b_voucher_combos"
             referencedColumns: ["id"]
           },
           {
@@ -5469,6 +5702,62 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_procedimentos_comercial: {
+        Row: {
+          created_at: string
+          nivel_risco_comunicacao: string
+          objecoes: Json
+          pitch_curto: string | null
+          pitch_premium: string | null
+          procedimento_id: string
+          promessa_permitida: string | null
+          promessa_proibida: string | null
+          quando_indicar: string | null
+          quando_nao_indicar: string | null
+          revisado_em: string | null
+          revisado_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          nivel_risco_comunicacao?: string
+          objecoes?: Json
+          pitch_curto?: string | null
+          pitch_premium?: string | null
+          procedimento_id: string
+          promessa_permitida?: string | null
+          promessa_proibida?: string | null
+          quando_indicar?: string | null
+          quando_nao_indicar?: string | null
+          revisado_em?: string | null
+          revisado_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          nivel_risco_comunicacao?: string
+          objecoes?: Json
+          pitch_curto?: string | null
+          pitch_premium?: string | null
+          procedimento_id?: string
+          promessa_permitida?: string | null
+          promessa_proibida?: string | null
+          quando_indicar?: string | null
+          quando_nao_indicar?: string | null
+          revisado_em?: string | null
+          revisado_por?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_proc_comercial_procedimento_fk"
+            columns: ["procedimento_id"]
+            isOneToOne: true
+            referencedRelation: "clinic_procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_rooms: {
         Row: {
           alexa_device_name: string | null
@@ -5725,6 +6014,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wa_conversations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_questions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_questions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
           },
           {
             foreignKeyName: "conversation_questions_lead_id_fkey"
@@ -9466,6 +9769,20 @@ export type Database = {
             foreignKeyName: "mira_channels_wa_number_id_fkey"
             columns: ["wa_number_id"]
             isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "mira_channels_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "mira_channels_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
             referencedRelation: "wa_numbers"
             referencedColumns: ["id"]
           },
@@ -12992,6 +13309,109 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_chat_mirror: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          display_name: string | null
+          group_id: string | null
+          group_subject: string | null
+          id: string
+          last_message_at: string
+          last_message_from_me: boolean | null
+          last_message_id: string | null
+          last_message_participant_jid: string | null
+          last_message_sender_pn: string | null
+          last_message_text: string | null
+          last_message_timestamp: number
+          last_message_type: string | null
+          last_synced_at: string
+          lid_id: string | null
+          phone_e164: string | null
+          push_name: string | null
+          raw_chat: Json
+          remote_jid: string
+          remote_kind: string
+          unread_count: number
+          updated_at: string
+          wa_number_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          display_name?: string | null
+          group_id?: string | null
+          group_subject?: string | null
+          id?: string
+          last_message_at: string
+          last_message_from_me?: boolean | null
+          last_message_id?: string | null
+          last_message_participant_jid?: string | null
+          last_message_sender_pn?: string | null
+          last_message_text?: string | null
+          last_message_timestamp: number
+          last_message_type?: string | null
+          last_synced_at?: string
+          lid_id?: string | null
+          phone_e164?: string | null
+          push_name?: string | null
+          raw_chat?: Json
+          remote_jid: string
+          remote_kind: string
+          unread_count?: number
+          updated_at?: string
+          wa_number_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          display_name?: string | null
+          group_id?: string | null
+          group_subject?: string | null
+          id?: string
+          last_message_at?: string
+          last_message_from_me?: boolean | null
+          last_message_id?: string | null
+          last_message_participant_jid?: string | null
+          last_message_sender_pn?: string | null
+          last_message_text?: string | null
+          last_message_timestamp?: number
+          last_message_type?: string | null
+          last_synced_at?: string
+          lid_id?: string | null
+          phone_e164?: string | null
+          push_name?: string | null
+          raw_chat?: Json
+          remote_jid?: string
+          remote_kind?: string
+          unread_count?: number
+          updated_at?: string
+          wa_number_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_chat_mirror_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_chat_mirror_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_chat_mirror_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_consent: {
         Row: {
           consent_type: string
@@ -13043,8 +13463,220 @@ export type Database = {
           },
         ]
       }
+      wa_contact_identities: {
+        Row: {
+          clinic_id: string
+          confidence_score: number
+          contact_id: string
+          conversation_id: string | null
+          created_at: string
+          deleted_at: string | null
+          first_seen_at: string
+          id: string
+          identity_type: string
+          identity_value: string
+          identity_value_norm: string | null
+          is_primary: boolean
+          is_verified: boolean
+          last_seen_at: string
+          lead_id: string | null
+          metadata: Json
+          source: string
+          updated_at: string
+          wa_number_id: string | null
+        }
+        Insert: {
+          clinic_id: string
+          confidence_score?: number
+          contact_id: string
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          first_seen_at?: string
+          id?: string
+          identity_type: string
+          identity_value: string
+          identity_value_norm?: string | null
+          is_primary?: boolean
+          is_verified?: boolean
+          last_seen_at?: string
+          lead_id?: string | null
+          metadata?: Json
+          source?: string
+          updated_at?: string
+          wa_number_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          confidence_score?: number
+          contact_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          first_seen_at?: string
+          id?: string
+          identity_type?: string
+          identity_value?: string
+          identity_value_norm?: string | null
+          is_primary?: boolean
+          is_verified?: boolean
+          last_seen_at?: string
+          lead_id?: string | null
+          metadata?: Json
+          source?: string
+          updated_at?: string
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contact_identities_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_operational_view"
+            referencedColumns: ["lead_id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_contact_identities_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contacts: {
+        Row: {
+          clinic_id: string
+          confidence_score: number
+          created_at: string
+          deleted_at: string | null
+          display_name: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          metadata: Json
+          phone_preferred: string | null
+          primary_lead_id: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          confidence_score?: number
+          created_at?: string
+          deleted_at?: string | null
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          phone_preferred?: string | null
+          primary_lead_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          confidence_score?: number
+          created_at?: string
+          deleted_at?: string | null
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          phone_preferred?: string | null
+          primary_lead_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_primary_lead_id_fkey"
+            columns: ["primary_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_operational_view"
+            referencedColumns: ["lead_id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_primary_lead_id_fkey"
+            columns: ["primary_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_conversations: {
         Row: {
+          ai_copilot: Json | null
+          ai_copilot_at: string | null
           ai_enabled: boolean | null
           ai_paused_until: string | null
           ai_persona: string | null
@@ -13086,6 +13718,8 @@ export type Database = {
           wa_number_id: string | null
         }
         Insert: {
+          ai_copilot?: Json | null
+          ai_copilot_at?: string | null
           ai_enabled?: boolean | null
           ai_paused_until?: string | null
           ai_persona?: string | null
@@ -13127,6 +13761,8 @@ export type Database = {
           wa_number_id?: string | null
         }
         Update: {
+          ai_copilot?: Json | null
+          ai_copilot_at?: string | null
           ai_enabled?: boolean | null
           ai_paused_until?: string | null
           ai_persona?: string | null
@@ -13174,6 +13810,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clinics"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_wa_conversations_wa_number"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "fk_wa_conversations_wa_number"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
           },
           {
             foreignKeyName: "fk_wa_conversations_wa_number"
@@ -13233,6 +13883,78 @@ export type Database = {
           source?: string
         }
         Relationships: []
+      }
+      wa_identity_conflicts: {
+        Row: {
+          candidate_contact_ids: string[]
+          candidate_conversation_ids: string[]
+          candidate_lead_ids: string[]
+          clinic_id: string
+          conflict_type: string
+          created_at: string
+          id: string
+          identity_type: string
+          identity_value: string
+          identity_value_norm: string | null
+          metadata: Json
+          resolution_notes: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_contact_id: string | null
+        }
+        Insert: {
+          candidate_contact_ids?: string[]
+          candidate_conversation_ids?: string[]
+          candidate_lead_ids?: string[]
+          clinic_id: string
+          conflict_type?: string
+          created_at?: string
+          id?: string
+          identity_type: string
+          identity_value: string
+          identity_value_norm?: string | null
+          metadata?: Json
+          resolution_notes?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_contact_id?: string | null
+        }
+        Update: {
+          candidate_contact_ids?: string[]
+          candidate_conversation_ids?: string[]
+          candidate_lead_ids?: string[]
+          clinic_id?: string
+          conflict_type?: string
+          created_at?: string
+          id?: string
+          identity_type?: string
+          identity_value?: string
+          identity_value_norm?: string | null
+          metadata?: Json
+          resolution_notes?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_contact_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_identity_conflicts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_identity_conflicts_resolved_contact_id_fkey"
+            columns: ["resolved_contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wa_inbound_queue: {
         Row: {
@@ -13413,13 +14135,17 @@ export type Database = {
           created_at: string | null
           deleted_at: string | null
           delivered_at: string | null
+          delivery_status: string | null
           direction: string
           error_message: string | null
           id: string
+          internal_note: boolean
           media_url: string | null
+          payload: Json | null
           phone: string | null
           provider_msg_id: string | null
           reaction: string | null
+          reply_to_provider_msg_id: string | null
           sender: string
           sent_at: string | null
           status: string | null
@@ -13438,13 +14164,17 @@ export type Database = {
           created_at?: string | null
           deleted_at?: string | null
           delivered_at?: string | null
+          delivery_status?: string | null
           direction: string
           error_message?: string | null
           id?: string
+          internal_note?: boolean
           media_url?: string | null
+          payload?: Json | null
           phone?: string | null
           provider_msg_id?: string | null
           reaction?: string | null
+          reply_to_provider_msg_id?: string | null
           sender: string
           sent_at?: string | null
           status?: string | null
@@ -13463,13 +14193,17 @@ export type Database = {
           created_at?: string | null
           deleted_at?: string | null
           delivered_at?: string | null
+          delivery_status?: string | null
           direction?: string
           error_message?: string | null
           id?: string
+          internal_note?: boolean
           media_url?: string | null
+          payload?: Json | null
           phone?: string | null
           provider_msg_id?: string | null
           reaction?: string | null
+          reply_to_provider_msg_id?: string | null
           sender?: string
           sent_at?: string | null
           status?: string | null
@@ -13492,11 +14226,32 @@ export type Database = {
             referencedColumns: ["id", "clinic_id"]
           },
           {
+            foreignKeyName: "fk_wa_messages_conversation_clinic"
+            columns: ["conversation_id", "clinic_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id", "clinic_id"]
+          },
+          {
             foreignKeyName: "wa_messages_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "wa_conversations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
           },
         ]
       }
@@ -13510,6 +14265,7 @@ export type Database = {
           business_account_id: string | null
           clinic_id: string
           created_at: string | null
+          default_context_type: string | null
           id: string
           inbox_role: string
           instance_id: string | null
@@ -13532,6 +14288,7 @@ export type Database = {
           business_account_id?: string | null
           clinic_id: string
           created_at?: string | null
+          default_context_type?: string | null
           id?: string
           inbox_role?: string
           instance_id?: string | null
@@ -13554,6 +14311,7 @@ export type Database = {
           business_account_id?: string | null
           clinic_id?: string
           created_at?: string | null
+          default_context_type?: string | null
           id?: string
           inbox_role?: string
           instance_id?: string | null
@@ -13684,10 +14442,156 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wa_outbox_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_outbox_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
+          },
+          {
             foreignKeyName: "wa_outbox_rule_id_fkey"
             columns: ["rule_id"]
             isOneToOne: false
             referencedRelation: "wa_agenda_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_pending_lid_events: {
+        Row: {
+          attempts: number
+          clinic_id: string
+          content_preview: string | null
+          created_at: string
+          from_me: boolean
+          id: string
+          last_attempt_at: string | null
+          message_timestamp: string | null
+          message_timestamp_epoch: number | null
+          message_type: string | null
+          phone_number_id: string | null
+          provider_msg_id: string
+          raw_body: Json
+          reason: string
+          remote_jid: string
+          resolved_at: string | null
+          resolved_conversation_id: string | null
+          resolved_message_id: string | null
+          sender_pn: string | null
+          status: string
+          updated_at: string
+          wa_number_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          clinic_id: string
+          content_preview?: string | null
+          created_at?: string
+          from_me: boolean
+          id?: string
+          last_attempt_at?: string | null
+          message_timestamp?: string | null
+          message_timestamp_epoch?: number | null
+          message_type?: string | null
+          phone_number_id?: string | null
+          provider_msg_id: string
+          raw_body: Json
+          reason: string
+          remote_jid: string
+          resolved_at?: string | null
+          resolved_conversation_id?: string | null
+          resolved_message_id?: string | null
+          sender_pn?: string | null
+          status?: string
+          updated_at?: string
+          wa_number_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          clinic_id?: string
+          content_preview?: string | null
+          created_at?: string
+          from_me?: boolean
+          id?: string
+          last_attempt_at?: string | null
+          message_timestamp?: string | null
+          message_timestamp_epoch?: number | null
+          message_type?: string | null
+          phone_number_id?: string | null
+          provider_msg_id?: string
+          raw_body?: Json
+          reason?: string
+          remote_jid?: string
+          resolved_at?: string | null
+          resolved_conversation_id?: string | null
+          resolved_message_id?: string | null
+          sender_pn?: string | null
+          status?: string
+          updated_at?: string
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_pending_lid_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_resolved_conversation_id_fkey"
+            columns: ["resolved_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_resolved_conversation_id_fkey"
+            columns: ["resolved_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations_operational_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_resolved_conversation_id_fkey"
+            columns: ["resolved_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["target_conversation_id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_resolved_message_id_fkey"
+            columns: ["resolved_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "wa_pending_lid_events_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_numbers"
             referencedColumns: ["id"]
           },
         ]
@@ -14385,13 +15289,6 @@ export type Database = {
             referencedColumns: ["id_uuid"]
           },
           {
-            foreignKeyName: "fk_combo"
-            columns: ["voucher_combo"]
-            isOneToOne: false
-            referencedRelation: "b2b_voucher_combos"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "fk_owner"
             columns: ["task_owner"]
             isOneToOne: false
@@ -14769,6 +15666,161 @@ export type Database = {
           },
         ]
       }
+      wa_conversation_assignment_events_view: {
+        Row: {
+          actor_role: string | null
+          actor_user_id: string | null
+          assignment_action: string | null
+          audit_at: string | null
+          audit_id: string | null
+          audit_reason: string | null
+          changed_fields: string[] | null
+          clinic_id: string | null
+          conversation_id: string | null
+          display_name: string | null
+          from_assigned_to: string | null
+          from_assigned_to_name: string | null
+          from_owner: string | null
+          new_assigned_at: string | null
+          old_assigned_at: string | null
+          operation: string | null
+          phone: string | null
+          status: string | null
+          to_assigned_to: string | null
+          to_assigned_to_name: string | null
+          to_owner: string | null
+        }
+        Relationships: []
+      }
+      wa_conversations_operational_view: {
+        Row: {
+          ai_enabled: boolean | null
+          ai_paused_until: string | null
+          assigned_at: string | null
+          assigned_to: string | null
+          assigned_to_is_active: boolean | null
+          assigned_to_name: string | null
+          assigned_to_role: string | null
+          clinic_id: string | null
+          created_at: string | null
+          deleted_at: string | null
+          display_name: string | null
+          has_legacy_operational_tag: boolean | null
+          id: string | null
+          inbox_role: string | null
+          is_aguardando: boolean | null
+          is_assigned: boolean | null
+          is_dra: boolean | null
+          is_lara: boolean | null
+          is_luciana: boolean | null
+          is_mira: boolean | null
+          is_secretaria: boolean | null
+          is_urgente: boolean | null
+          is_voce: boolean | null
+          last_ai_msg: string | null
+          last_human_msg: string | null
+          last_inbound_msg: string | null
+          last_inbound_time: string | null
+          last_lara_msg: string | null
+          last_lead_msg: string | null
+          last_message_at: string | null
+          last_message_text: string | null
+          last_outbound_msg: string | null
+          lead_id: string | null
+          metadata: Json | null
+          minutes_since_last_inbound: number | null
+          operational_owner: string | null
+          operational_owner_label: string | null
+          paused_by: string | null
+          phone: string | null
+          remote_jid: string | null
+          response_color: string | null
+          status: string | null
+          tags: string[] | null
+          unread_count: number | null
+          updated_at: string | null
+          wa_number_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_wa_conversations_clinic"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_wa_conversations_wa_number"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["sender_wa_number_id"]
+          },
+          {
+            foreignKeyName: "fk_wa_conversations_wa_number"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_cross_instance_bridge_candidates_view"
+            referencedColumns: ["source_wa_number_id"]
+          },
+          {
+            foreignKeyName: "fk_wa_conversations_wa_number"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "wa_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_conversations_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_cross_instance_bridge_candidates_view: {
+        Row: {
+          already_in_wa_messages: boolean | null
+          bridge_status: string | null
+          created_at: string | null
+          data_source: string | null
+          data_status: string | null
+          has_base64: boolean | null
+          has_context: boolean | null
+          is_group: boolean | null
+          message_timestamp: string | null
+          message_type: string | null
+          original_from_me: boolean | null
+          provider_msg_id: string | null
+          queue_id: string | null
+          queue_role: string | null
+          queue_status: string | null
+          recommended_content_type: string | null
+          recommended_direction: string | null
+          recommended_placeholder_content: string | null
+          remote_jid: string | null
+          safe_payload_metadata: Json | null
+          sender_digits: string | null
+          sender_inbox_role: string | null
+          sender_label: string | null
+          sender_phone: string | null
+          sender_pn: string | null
+          sender_wa_number_id: string | null
+          source_inbox_role: string | null
+          source_instance_id: string | null
+          source_label: string | null
+          source_phone: string | null
+          source_wa_number_id: string | null
+          target_conversation_display_name: string | null
+          target_conversation_id: string | null
+          target_conversation_inbox_role: string | null
+          target_conversation_phone: string | null
+          target_conversation_remote_jid: string | null
+          target_conversation_status: string | null
+        }
+        Relationships: []
+      }
       wa_pro_consolidated_view: {
         Row: {
           clinic_id: string | null
@@ -14798,6 +15850,63 @@ export type Database = {
           total_minutes: number | null
           total_seconds: number | null
           transcriptions: number | null
+        }
+        Relationships: []
+      }
+      wa_webhook_event_audit_view: {
+        Row: {
+          endpoint: string | null
+          error_rows: number | null
+          first_hit_at: string | null
+          from_me: boolean | null
+          from_phone_masked: string | null
+          has_after_saveinbound_ok: boolean | null
+          has_auth_ok: boolean | null
+          has_before_saveinbound: boolean | null
+          has_event_messages_upsert: boolean | null
+          has_lead_conv_resolved: boolean | null
+          has_phone_resolved: boolean | null
+          has_push_name: boolean | null
+          has_tenant_resolved: boolean | null
+          is_problem: boolean | null
+          last_hit_at: string | null
+          log_rows: number | null
+          max_raw_body_length: number | null
+          message_type: string | null
+          phone_number_id: string | null
+          problem_reason: string | null
+          provider_msg_id: string | null
+          push_name_source_field: string | null
+          result_summaries: string[] | null
+          signature_reasons: string[] | null
+          source: string | null
+        }
+        Relationships: []
+      }
+      wa_webhook_log_audit_view: {
+        Row: {
+          endpoint: string | null
+          from_me: boolean | null
+          from_me_text: string | null
+          from_phone: string | null
+          from_phone_masked: string | null
+          has_push_name: boolean | null
+          hit_at: string | null
+          log_id: string | null
+          message_type: string | null
+          method: string | null
+          phone_number_id: string | null
+          provider_msg_id: string | null
+          push_name_source_field: string | null
+          raw_body: string | null
+          raw_body_length: number | null
+          raw_remote_or_from: string | null
+          raw_shape: string | null
+          result_status: number | null
+          result_summary: string | null
+          signature_ok: boolean | null
+          signature_reason: string | null
+          source: string | null
         }
         Relationships: []
       }
@@ -15244,6 +16353,11 @@ export type Database = {
         Args: { p_partner_id: string }
         Returns: undefined
       }
+      _wa_chat_sync_tick: { Args: never; Returns: number }
+      _wa_identity_norm: {
+        Args: { p_identity_type: string; p_identity_value: string }
+        Returns: string
+      }
       _wa_outbox_content_hash: { Args: { content: string }; Returns: string }
       _wa_outbox_tick: { Args: never; Returns: number }
       _wa_pick_attachment_url: {
@@ -15680,6 +16794,7 @@ export type Database = {
         Args: { p_capability?: string; p_phone: string }
         Returns: boolean
       }
+      b2b_log_outbound_message: { Args: { p_payload: Json }; Returns: Json }
       b2b_mira_analytics: { Args: { p_days?: number }; Returns: Json }
       b2b_mira_invariants_check: {
         Args: never
@@ -16008,6 +17123,10 @@ export type Database = {
           p_partnership_id?: string
           p_periods?: number
         }
+        Returns: Json
+      }
+      b2b_voucher_audio_queue_dispatch_pending: {
+        Args: { p_limit?: number }
         Returns: Json
       }
       b2b_voucher_audio_resend: {
@@ -16455,6 +17574,10 @@ export type Database = {
       get_my_effective_permissions: { Args: never; Returns: Json }
       get_my_profile: { Args: never; Returns: Json }
       get_procedimentos: { Args: { p_apenas_ativos?: boolean }; Returns: Json }
+      get_procedimentos_comercial: {
+        Args: { p_only_revisado?: boolean }
+        Returns: Json
+      }
       get_professionals: { Args: never; Returns: Json }
       get_rooms: { Args: never; Returns: Json }
       get_technologies: { Args: never; Returns: Json }
@@ -18374,6 +19497,10 @@ export type Database = {
       wa_analytics_funnel: { Args: { p_days?: number }; Returns: Json }
       wa_analytics_overview: { Args: { p_days?: number }; Returns: Json }
       wa_analytics_top_tags: { Args: { p_days?: number }; Returns: Json }
+      wa_apply_cross_instance_bridge_candidate: {
+        Args: { p_queue_id: string }
+        Returns: Json
+      }
       wa_auto_reactivate: { Args: never; Returns: Json }
       wa_automation_try_mark_sent: {
         Args: { p_lead_id: string; p_rule_id: string }
@@ -18483,6 +19610,8 @@ export type Database = {
           p_lock_duration_min?: number
         }
         Returns: {
+          ai_copilot: Json | null
+          ai_copilot_at: string | null
           ai_enabled: boolean | null
           ai_paused_until: string | null
           ai_persona: string | null
@@ -18639,6 +19768,10 @@ export type Database = {
         Returns: Json
       }
       wa_is_phone_blacklisted: { Args: { p_phone: string }; Returns: boolean }
+      wa_lid_silent_loss_count: {
+        Args: { p_window_hours?: number }
+        Returns: number
+      }
       wa_log_error: {
         Args: {
           p_error_msg?: string
@@ -18768,6 +19901,54 @@ export type Database = {
           p_vars_snapshot?: Json
         }
         Returns: string
+      }
+      wa_preview_cross_instance_bridge_candidate: {
+        Args: { p_queue_id: string }
+        Returns: {
+          already_in_wa_messages: boolean | null
+          bridge_status: string | null
+          created_at: string | null
+          data_source: string | null
+          data_status: string | null
+          has_base64: boolean | null
+          has_context: boolean | null
+          is_group: boolean | null
+          message_timestamp: string | null
+          message_type: string | null
+          original_from_me: boolean | null
+          provider_msg_id: string | null
+          queue_id: string | null
+          queue_role: string | null
+          queue_status: string | null
+          recommended_content_type: string | null
+          recommended_direction: string | null
+          recommended_placeholder_content: string | null
+          remote_jid: string | null
+          safe_payload_metadata: Json | null
+          sender_digits: string | null
+          sender_inbox_role: string | null
+          sender_label: string | null
+          sender_phone: string | null
+          sender_pn: string | null
+          sender_wa_number_id: string | null
+          source_inbox_role: string | null
+          source_instance_id: string | null
+          source_label: string | null
+          source_phone: string | null
+          source_wa_number_id: string | null
+          target_conversation_display_name: string | null
+          target_conversation_id: string | null
+          target_conversation_inbox_role: string | null
+          target_conversation_phone: string | null
+          target_conversation_remote_jid: string | null
+          target_conversation_status: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "wa_cross_instance_bridge_candidates_view"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       wa_pro_active_digest_recipients: { Args: never; Returns: Json }
       wa_pro_agenda: {
