@@ -144,13 +144,13 @@ restaurar a versão desejada · NÃO há revert automático porque:
 
 ---
 
-## 9 · Riscos do apply (REVISADO pós-correção de drift)
+## 9 · Riscos do apply (REVISADO 2ª passada · 1:1 com banco real)
 
 | Risco | Probabilidade | Mitigação |
 |---|---|---|
-| Mig 151 introduz drift em paciente/orcamento/paciente_orcamento branches | Baixa | Branches preservados 1:1 com banco real: validações originais, ordem UPDATE→sub-RPC, NULL-lead handling (cannot_create_budget_without_lead). Revisar pré-apply com `pg_get_functiondef`. |
-| Sub-call ordering diferente entre branch perdido (sub-RPC ANTES) e os demais (UPDATE ANTES) | Por design | Branch perdido tem regra explícita: appt só finaliza se lead_lost ok=true (evita lead solto com appt finalizado). Demais branches mantêm semântica atual onde appt já está finalizado mesmo se sub-RPC falhar. |
-| `paciente_orcamento` stage atômico parcial (orçamento ok + paciente fail) | Baixa | Comportamento existente · retorna `stage='paciente'` + `orcamento_call`/`paciente_call` no payload para UI tratar caso a caso |
+| Mig 151 introduz drift em paciente/orcamento/paciente_orcamento branches | Baixa | Branches preservados 1:1 com banco real: validações (incluindo `payment_status='cortesia'`), ordem sub-RPC→UPDATE (sub-RPC primeiro · UPDATE só se ok=true), payloads `patient_call`/`budget_call`, erros tipados (`patient_conversion_failed`, `budget_creation_failed`, `patient_conversion_failed_after_budget`). |
+| Ordem sub-RPC primeiro garante invariante: appt nunca fica finalizado com sub-RPC falhada | Por design | `appointment_finalized=false` em todo erro de sub-RPC. UI usa essa flag para retry sem inconsistência. |
+| `paciente_orcamento` parcial · orçamento criado + paciente fail | Aceito | Orçamento fica como draft no banco (lead_to_orcamento criou) · appt **NÃO** finaliza · retorno `patient_conversion_failed_after_budget` informa ambos sub-calls · UI/operador pode retry só do passo paciente |
 | RPC `lead_lost` mudou desde a última inspeção | Muito baixa | Validação pós-apply chama lead_lost via smoke · `lifecycle_status='perdido'` confirma |
 | GRANT EXECUTE perdido após CREATE OR REPLACE | Baixa | `CREATE OR REPLACE FUNCTION` preserva grants existentes (não é DROP+CREATE) |
 

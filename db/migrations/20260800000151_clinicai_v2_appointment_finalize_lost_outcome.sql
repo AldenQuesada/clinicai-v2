@@ -7,7 +7,16 @@
 -- apenas paciente|orcamento|paciente_orcamento e responde 'invalid_outcome'
 -- quando recebe perdido.
 --
--- Diagnóstico revisado (banco real via pg_get_functiondef · não da mig 065):
+-- Contrato real do banco (via pg_get_functiondef · fonte da verdade):
+--   - Ordem: sub-RPC PRIMEIRO · valida ok=true · só então UPDATE appointment.
+--   - Se sub-RPC falhar: appointment NÃO finaliza · retorna erro tipado.
+--   - Payload de retorno usa chaves `patient_call`, `budget_call`, `lost_call`
+--     (não `sub_call` genérico).
+--   - Erros tipados: patient_conversion_failed, budget_creation_failed,
+--     patient_conversion_failed_after_budget, lead_lost_failed.
+--   - payment_status aceita: pendente | parcial | pago | cortesia | isento.
+--
+-- Diagnóstico revisado das demais RPCs (banco real · não mig 065):
 --   - lead_lost                       · OK · escreve lifecycle_status='perdido'
 --                                       (não phase), preenche lost_from_phase,
 --                                       lost_reason, lost_at, lost_by,
@@ -21,26 +30,11 @@
 --   - _lead_phase_transition_allowed  · suficiente · NÃO alterada nesta mig.
 --   - appointment_finalize            · ÚNICO ALVO DESTA MIG · falta branch perdido.
 --
--- Contrato preservado 1:1 vs banco real para outcomes existentes:
---   * paciente / orcamento / paciente_orcamento mantêm:
---     - validações originais (payment_status, orcamento_subtotal>=0,
---       orcamento_items jsonb array, orcamento_discount>=0)
---     - lock FOR UPDATE
---     - status válido: na_clinica, em_atendimento
---     - tratamento v_lead_id IS NULL:
---         orcamento|paciente_orcamento → cannot_create_budget_without_lead
---         paciente                     → finaliza appt de paciente recorrente
---     - ordem ATUAL: UPDATE appointment ANTES das sub-RPC (apontado pela
---       revisão · sub-RPC pode falhar mas appt já está finalizado)
---     - chamadas atuais para lead_to_paciente / lead_to_orcamento
---     - regra paciente_orcamento: orçamento primeiro, paciente depois
---
 -- Alteração ADITIVA EXCLUSIVA desta mig:
---   * p_outcome aceita 'perdido' (além dos 3 atuais)
---   * p_lost_reason obrigatório quando outcome='perdido'
---   * Branch 'perdido' chama public.lead_lost(v_lead_id, p_lost_reason)
---     ANTES do UPDATE de finalize. Se lead_lost retornar ok != true,
---     appointment NÃO finaliza. Se ok=true, UPDATE status='finalizado'.
+--   * p_outcome aceita 'perdido' (além dos 3 atuais).
+--   * p_lost_reason obrigatório quando outcome='perdido'.
+--   * Branch 'perdido' chama public.lead_lost ANTES do UPDATE (mesmo padrão
+--     que os outros branches no banco real).
 --   * v_lead_id IS NULL + outcome='perdido' → lost_requires_lead.
 --
 -- ESCOPO QUE NÃO ESTÁ NESTA MIG:
@@ -81,9 +75,8 @@ DECLARE
   v_appt         public.appointments%ROWTYPE;
   v_lead_id      uuid;
   v_now          timestamptz := now();
-  v_sub_call     jsonb;
-  v_orc_subcall  jsonb;
-  v_pac_subcall  jsonb;
+  v_patient_call jsonb;
+  v_budget_call  jsonb;
   v_lost_call    jsonb;
   v_orc_total    numeric(12,2);
 BEGIN
@@ -116,15 +109,15 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 4. Validate p_payment_status (preservado 1:1)
+  -- 4. Validate p_payment_status (preservado 1:1 · inclui 'cortesia')
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_payment_status IS NOT NULL
-     AND p_payment_status NOT IN ('pendente', 'parcial', 'pago', 'isento') THEN
+     AND p_payment_status NOT IN ('pendente', 'parcial', 'pago', 'cortesia', 'isento') THEN
     RETURN jsonb_build_object('ok', false, 'error', 'invalid_payment_status');
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 5. Validate orcamento payload (preservado 1:1 · só pra outcomes que criam orçamento)
+  -- 5. Validate orcamento payload (preservado 1:1)
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome IN ('orcamento', 'paciente_orcamento') THEN
     IF p_orcamento_subtotal IS NULL OR p_orcamento_subtotal < 0 THEN
@@ -179,9 +172,10 @@ BEGIN
   v_lead_id := v_appt.lead_id;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 8. Appointment de paciente recorrente (sem lead_id)
-  --    Comportamento preservado 1:1 para paciente · novo guard para perdido ·
-  --    erro existente para orcamento/paciente_orcamento.
+  -- 8. Appointment de paciente recorrente (sem lead_id) · preservado 1:1
+  --    - perdido (NOVO)            → lost_requires_lead
+  --    - orcamento/paciente_orc.   → cannot_create_budget_without_lead
+  --    - paciente                  → finaliza appt sem promoção
   -- ─────────────────────────────────────────────────────────────────────────
   IF v_lead_id IS NULL THEN
     IF p_outcome = 'perdido' THEN
@@ -218,11 +212,17 @@ BEGIN
   END IF;
 
   -- ═════════════════════════════════════════════════════════════════════════
-  -- 9. BRANCH 'perdido' (NOVO · única adição funcional desta mig)
-  --    Regra: sub-RPC ANTES do UPDATE · appointment só finaliza se ok=true.
-  --    NÃO altera leads.phase, leads.deleted_at, patient, orçamento,
-  --    phase_history (lead_lost cuida).
+  -- 9. Roteamento por outcome · sub-RPC PRIMEIRO · UPDATE só se ok=true
+  --    (preserva ordem ATUAL do banco real para os 3 branches existentes ·
+  --     branch perdido segue o mesmo padrão)
   -- ═════════════════════════════════════════════════════════════════════════
+
+  -- ─────────────────────────────────────────────────────────────────────────
+  -- 9.1 BRANCH 'perdido' (NOVO · única adição funcional desta mig)
+  --     Regra: chama lead_lost · se falhar appt NÃO finaliza · payload `lost_call`.
+  --     NÃO altera leads.phase, leads.deleted_at, patient, orçamento,
+  --     phase_history (lead_lost cuida).
+  -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome = 'perdido' THEN
     v_lost_call := public.lead_lost(
       p_lead_id := v_lead_id,
@@ -256,117 +256,157 @@ BEGIN
     );
   END IF;
 
-  -- ═════════════════════════════════════════════════════════════════════════
-  -- 10. Branches paciente / orcamento / paciente_orcamento (preservado 1:1)
-  --     Ordem ATUAL: UPDATE appointment ANTES das sub-RPC · sub-RPC pode
-  --     falhar mas appt já está finalizado (terminal). UI trata via
-  --     sub_call.ok / appointment_finalized=true.
-  -- ═════════════════════════════════════════════════════════════════════════
+  -- ─────────────────────────────────────────────────────────────────────────
+  -- 9.2 BRANCH 'paciente' (preservado 1:1 · payload `patient_call`)
+  -- ─────────────────────────────────────────────────────────────────────────
+  IF p_outcome = 'paciente' THEN
+    v_patient_call := public.lead_to_paciente(
+      p_lead_id       := v_lead_id,
+      p_total_revenue := COALESCE(p_value, v_appt.value),
+      p_first_at      := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
+      p_last_at       := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
+      p_notes         := p_notes
+    );
 
-  -- 10.1 Finaliza appointment
-  UPDATE public.appointments
-     SET status         = 'finalizado',
-         value          = COALESCE(p_value, value),
-         payment_status = COALESCE(p_payment_status, payment_status),
-         obs            = COALESCE(p_notes, obs),
-         updated_at     = v_now
-   WHERE id = v_appt.id;
-
-  -- 10.2 Roteamento por outcome → sub-RPC
-  CASE p_outcome
-    WHEN 'paciente' THEN
-      v_sub_call := public.lead_to_paciente(
-        p_lead_id       := v_lead_id,
-        p_total_revenue := COALESCE(p_value, v_appt.value),
-        p_first_at      := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
-        p_last_at       := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
-        p_notes         := p_notes
+    IF (v_patient_call->>'ok')::boolean IS NOT TRUE THEN
+      RETURN jsonb_build_object(
+        'ok', false,
+        'error', 'patient_conversion_failed',
+        'appointment_finalized', false,
+        'patient_call', v_patient_call
       );
+    END IF;
 
-    WHEN 'orcamento' THEN
-      v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
-      v_sub_call := public.lead_to_orcamento(
-        p_lead_id  := v_lead_id,
-        p_subtotal := p_orcamento_subtotal,
-        p_discount := COALESCE(p_orcamento_discount, 0),
-        p_items    := p_orcamento_items,
-        p_notes    := p_notes
-      );
+    UPDATE public.appointments
+       SET status         = 'finalizado',
+           value          = COALESCE(p_value, value),
+           payment_status = COALESCE(p_payment_status, payment_status),
+           obs            = COALESCE(p_notes, obs),
+           updated_at     = v_now
+     WHERE id = v_appt.id;
 
-    WHEN 'paciente_orcamento' THEN
-      -- Orçamento primeiro
-      v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
-      v_orc_subcall := public.lead_to_orcamento(
-        p_lead_id  := v_lead_id,
-        p_subtotal := p_orcamento_subtotal,
-        p_discount := COALESCE(p_orcamento_discount, 0),
-        p_items    := p_orcamento_items,
-        p_notes    := p_notes
-      );
-      -- Paciente depois
-      v_pac_subcall := public.lead_to_paciente(
-        p_lead_id       := v_lead_id,
-        p_total_revenue := COALESCE(p_value, v_appt.value),
-        p_first_at      := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
-        p_last_at       := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
-        p_notes         := p_notes
-      );
-  END CASE;
+    RETURN jsonb_build_object(
+      'ok', true,
+      'appointment_id', v_appt.id,
+      'lead_id', v_lead_id,
+      'outcome', 'paciente',
+      'appointment_finalized', true,
+      'patient_call', v_patient_call
+    );
+  END IF;
 
-  -- 10.3 Resposta · paciente_orcamento agrega 2 sub-calls
+  -- ─────────────────────────────────────────────────────────────────────────
+  -- 9.3 BRANCH 'orcamento' (preservado 1:1 · payload `budget_call`)
+  -- ─────────────────────────────────────────────────────────────────────────
+  IF p_outcome = 'orcamento' THEN
+    v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
+    v_budget_call := public.lead_to_orcamento(
+      p_lead_id  := v_lead_id,
+      p_subtotal := p_orcamento_subtotal,
+      p_discount := COALESCE(p_orcamento_discount, 0),
+      p_items    := p_orcamento_items,
+      p_notes    := p_notes
+    );
+
+    IF (v_budget_call->>'ok')::boolean IS NOT TRUE THEN
+      RETURN jsonb_build_object(
+        'ok', false,
+        'error', 'budget_creation_failed',
+        'appointment_finalized', false,
+        'budget_call', v_budget_call
+      );
+    END IF;
+
+    UPDATE public.appointments
+       SET status         = 'finalizado',
+           value          = COALESCE(p_value, value),
+           payment_status = COALESCE(p_payment_status, payment_status),
+           obs            = COALESCE(p_notes, obs),
+           updated_at     = v_now
+     WHERE id = v_appt.id;
+
+    RETURN jsonb_build_object(
+      'ok', true,
+      'appointment_id', v_appt.id,
+      'lead_id', v_lead_id,
+      'outcome', 'orcamento',
+      'appointment_finalized', true,
+      'budget_call', v_budget_call
+    );
+  END IF;
+
+  -- ─────────────────────────────────────────────────────────────────────────
+  -- 9.4 BRANCH 'paciente_orcamento' (preservado 1:1)
+  --     Sequência: orçamento PRIMEIRO · se falhar, appt NÃO finaliza.
+  --                paciente DEPOIS · se falhar (orçamento já criado), appt NÃO
+  --                finaliza · erro = patient_conversion_failed_after_budget.
+  --     Apt só finaliza se AMBOS sub-RPCs retornarem ok=true.
+  -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome = 'paciente_orcamento' THEN
-    IF (v_orc_subcall->>'ok')::boolean IS NOT TRUE THEN
+    -- 9.4.a Orçamento primeiro
+    v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
+    v_budget_call := public.lead_to_orcamento(
+      p_lead_id  := v_lead_id,
+      p_subtotal := p_orcamento_subtotal,
+      p_discount := COALESCE(p_orcamento_discount, 0),
+      p_items    := p_orcamento_items,
+      p_notes    := p_notes
+    );
+
+    IF (v_budget_call->>'ok')::boolean IS NOT TRUE THEN
       RETURN jsonb_build_object(
         'ok', false,
-        'error', 'sub_rpc_failed',
-        'stage', 'orcamento',
-        'appointment_finalized', true,
-        'orcamento_call', v_orc_subcall,
-        'paciente_call',  v_pac_subcall
+        'error', 'budget_creation_failed',
+        'appointment_finalized', false,
+        'budget_call', v_budget_call
       );
     END IF;
-    IF (v_pac_subcall->>'ok')::boolean IS NOT TRUE THEN
+
+    -- 9.4.b Paciente depois
+    v_patient_call := public.lead_to_paciente(
+      p_lead_id       := v_lead_id,
+      p_total_revenue := COALESCE(p_value, v_appt.value),
+      p_first_at      := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
+      p_last_at       := COALESCE(v_appt.chegada_em, v_appt.scheduled_date::timestamptz),
+      p_notes         := p_notes
+    );
+
+    IF (v_patient_call->>'ok')::boolean IS NOT TRUE THEN
       RETURN jsonb_build_object(
         'ok', false,
-        'error', 'sub_rpc_failed',
-        'stage', 'paciente',
-        'appointment_finalized', true,
-        'orcamento_call', v_orc_subcall,
-        'paciente_call',  v_pac_subcall
+        'error', 'patient_conversion_failed_after_budget',
+        'appointment_finalized', false,
+        'budget_call', v_budget_call,
+        'patient_call', v_patient_call
       );
     END IF;
+
+    -- 9.4.c Ambos OK · finaliza appointment
+    UPDATE public.appointments
+       SET status         = 'finalizado',
+           value          = COALESCE(p_value, value),
+           payment_status = COALESCE(p_payment_status, payment_status),
+           obs            = COALESCE(p_notes, obs),
+           updated_at     = v_now
+     WHERE id = v_appt.id;
+
     RETURN jsonb_build_object(
       'ok', true,
       'appointment_id', v_appt.id,
       'lead_id', v_lead_id,
       'outcome', 'paciente_orcamento',
-      'orcamento_call', v_orc_subcall,
-      'paciente_call',  v_pac_subcall
-    );
-  END IF;
-
-  -- 10.4 Resposta · paciente / orcamento (sub-call único)
-  IF v_sub_call IS NOT NULL AND (v_sub_call->>'ok')::boolean IS NOT TRUE THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'error', 'sub_rpc_failed',
       'appointment_finalized', true,
-      'sub_call', v_sub_call
+      'budget_call', v_budget_call,
+      'patient_call', v_patient_call
     );
   END IF;
 
-  RETURN jsonb_build_object(
-    'ok', true,
-    'appointment_id', v_appt.id,
-    'lead_id', v_lead_id,
-    'outcome', p_outcome,
-    'sub_call', v_sub_call
-  );
-
+  -- Fallback defensivo (CASE acima cobre todos outcomes validados)
+  RETURN jsonb_build_object('ok', false, 'error', 'unhandled_outcome', 'outcome', p_outcome);
 END $$;
 
 COMMENT ON FUNCTION public.appointment_finalize(uuid, text, numeric, text, text, text, jsonb, numeric, numeric) IS
-  'Finaliza appointment + roteia outcome (paciente|orcamento|paciente_orcamento|perdido). Branches existentes preservados 1:1 (UPDATE antes da sub-RPC). Branch perdido: chama lead_lost ANTES; appt só finaliza se lead_lost ok=true. lead_lost escreve lifecycle_status=perdido (não phase).';
+  'Finaliza appointment + roteia outcome (paciente|orcamento|paciente_orcamento|perdido). Sub-RPC PRIMEIRO · appointment só finaliza se sub-RPC ok=true. Payloads: patient_call, budget_call, lost_call. Erros tipados: patient_conversion_failed, budget_creation_failed, patient_conversion_failed_after_budget, lead_lost_failed. Perdido: chama lead_lost (lifecycle_status, não phase).';
 
 NOTIFY pgrst, 'reload schema';
 
