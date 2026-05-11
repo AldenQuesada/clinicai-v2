@@ -65,14 +65,9 @@ export function Badge({ className, variant, size, ...props }: BadgeProps) {
 
 // ── Helpers tipados pros enums CRM ─────────────────────────────────────────
 
-type LeadPhase =
-  | 'lead'
-  | 'agendado'
-  | 'reagendado'
-  | 'compareceu'
-  | 'paciente'
-  | 'orcamento'
-  | 'perdido'
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases. `perdido` virou
+// lifecycle_status (UI usar variant 'destructive' direto quando precisar).
+type LeadPhase = 'lead' | 'agendado' | 'paciente' | 'orcamento'
 
 const LEAD_PHASE_MAP: Record<
   LeadPhase,
@@ -80,11 +75,8 @@ const LEAD_PHASE_MAP: Record<
 > = {
   lead: { label: 'Lead', variant: 'primary' },
   agendado: { label: 'Agendado', variant: 'info' },
-  reagendado: { label: 'Reagendado', variant: 'info' },
-  compareceu: { label: 'Compareceu', variant: 'warning' },
   paciente: { label: 'Paciente', variant: 'success' },
   orcamento: { label: 'Orçamento', variant: 'info' },
-  perdido: { label: 'Perdido', variant: 'destructive' },
 }
 
 export function LeadPhaseBadge({

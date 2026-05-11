@@ -30,15 +30,8 @@ const ROUTE = '/leads'
 
 const VALID_FUNNELS: readonly Funnel[] = ['olheiras', 'fullface', 'procedimentos']
 const VALID_TEMPS: readonly LeadTemperature[] = ['cold', 'warm', 'hot']
-const VALID_PHASES: readonly LeadPhase[] = [
-  'lead',
-  'agendado',
-  'reagendado',
-  'compareceu',
-  'paciente',
-  'orcamento',
-  'perdido',
-]
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases.
+const VALID_PHASES: readonly LeadPhase[] = ['lead', 'agendado', 'paciente', 'orcamento']
 
 function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null

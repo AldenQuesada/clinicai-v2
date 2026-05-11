@@ -84,16 +84,22 @@ describe('LeadRepository', () => {
     })
   })
 
-  describe('isPhaseTransitionAllowed · matriz canonica (espelho mig 65)', () => {
+  describe('isPhaseTransitionAllowed · matriz canonica (Fase 1C · 4 phases)', () => {
     it('lead → agendado permitido; lead → paciente bloqueado', () => {
       expect(isPhaseTransitionAllowed('lead', 'agendado')).toBe(true)
-      // paciente exige passar por compareceu primeiro
+      // paciente exige passar por agendado primeiro (consulta gera paciente)
       expect(isPhaseTransitionAllowed('lead', 'paciente')).toBe(false)
     })
 
-    it('paciente → lead bloqueado; perdido → lead permitido (recovery)', () => {
+    it('agendado → paciente|orcamento permitido; agendado → agendado (reagendar) permitido', () => {
+      expect(isPhaseTransitionAllowed('agendado', 'paciente')).toBe(true)
+      expect(isPhaseTransitionAllowed('agendado', 'orcamento')).toBe(true)
+      expect(isPhaseTransitionAllowed('agendado', 'agendado')).toBe(true)
+    })
+
+    it('paciente → lead bloqueado; orcamento → paciente permitido (fechamento)', () => {
       expect(isPhaseTransitionAllowed('paciente', 'lead')).toBe(false)
-      expect(isPhaseTransitionAllowed('perdido', 'lead')).toBe(true)
+      expect(isPhaseTransitionAllowed('orcamento', 'paciente')).toBe(true)
     })
   })
 })

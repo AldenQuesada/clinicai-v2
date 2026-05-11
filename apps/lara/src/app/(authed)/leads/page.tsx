@@ -29,15 +29,9 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 const VALID_FUNNELS: readonly Funnel[] = ['olheiras', 'fullface', 'procedimentos']
-const VALID_PHASES: readonly LeadPhase[] = [
-  'lead',
-  'agendado',
-  'reagendado',
-  'compareceu',
-  'paciente',
-  'orcamento',
-  'perdido',
-]
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases. `perdido` virou
+// lifecycle_status (filtro de "arquivado" depende de coluna separada · TODO Fase 1E).
+const VALID_PHASES: readonly LeadPhase[] = ['lead', 'agendado', 'paciente', 'orcamento']
 const VALID_TEMPS: readonly LeadTemperature[] = ['cold', 'warm', 'hot']
 const VALID_SOURCE_TYPES: readonly LeadSourceType[] = [
   'manual',
@@ -105,13 +99,14 @@ function buildFilter(searchParams: Record<string, string | string[] | undefined>
     filter.noResponseSinceIso = cutoff
   }
 
-  // Status: por default exclui leads que ja viraram paciente/orcamento/perdido
-  // (igual o clinic-dashboard, view "leads ativos"). Param `?status=all` desliga.
+  // Status: por default exclui leads que ja viraram paciente/orcamento
+  // (view "leads ativos"). Param `?status=all` desliga.
+  //
+  // TODO Fase 1E · `status=archived` precisa de filtro por `lifecycle_status`
+  // (coluna existe no DB · falta mapear em LeadDTO + ListLeadsFilter).
   const status = get('status') || 'active'
   if (status === 'active') {
-    filter.excludePhases = ['paciente', 'orcamento', 'perdido']
-  } else if (status === 'archived') {
-    filter.phases = ['perdido']
+    filter.excludePhases = ['paciente', 'orcamento']
   } else if (status === 'patient') {
     filter.phases = ['paciente']
   }

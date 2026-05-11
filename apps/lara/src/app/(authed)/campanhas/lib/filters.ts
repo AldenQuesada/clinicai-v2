@@ -1,14 +1,18 @@
 /**
  * Filtros canonicos para target_filter (jsonb).
  *
- * Espelho 1:1 das opcoes do clinic-dashboard/js/broadcast.ui.js linhas 533–567:
- *  · phase: lead | agendado | compareceu | orcamento | paciente | perdido
+ * Contrato canonico (Fase 1C · 2026-05-11):
+ *  · phase: lead | agendado | orcamento | paciente
  *  · temperature: hot | warm | cold
  *  · funnel: fullface | procedimentos
  *  · source_type: quiz | manual | import
  *
+ * `perdido` derrogado como phase · TODO Fase 1E expor filtro por
+ * `lifecycle_status='perdido'` (campanhas de recuperacao). Reagendado/
+ * Compareceu derrogados (era no-op de phase no modelo antigo).
+ *
  * Helper aceita strings vazias / null e remove chaves vazias antes de mandar
- * pra RPC — mesma logica de _bcSaveFormFields + save (broadcast-events.ui.js).
+ * pra RPC.
  */
 
 import type { BroadcastTargetFilter } from '@clinicai/repositories'
@@ -16,10 +20,8 @@ import type { BroadcastTargetFilter } from '@clinicai/repositories'
 export const PHASE_OPTIONS = [
   { value: 'lead', label: 'Lead' },
   { value: 'agendado', label: 'Agendado' },
-  { value: 'compareceu', label: 'Compareceu' },
   { value: 'orcamento', label: 'Orcamento' },
   { value: 'paciente', label: 'Paciente' },
-  { value: 'perdido', label: 'Perdido' },
 ] as const
 
 export const TEMPERATURE_OPTIONS = [

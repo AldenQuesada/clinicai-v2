@@ -14,14 +14,22 @@ export type MessageDirection = 'inbound' | 'outbound'
 export type MessageSender = 'user' | 'lara' | 'humano' | 'system'
 
 // ── Lead state machine ─────────────────────────────────────────────────────
-export type LeadPhase =
-  | 'lead'
-  | 'agendado'
-  | 'reagendado'
-  | 'compareceu'
-  | 'paciente'
-  | 'orcamento'
-  | 'perdido'
+//
+// Contrato canônico (Fase 1C · TS↔DB sync · 2026-05-11):
+//   phase ∈ {lead, agendado, paciente, orcamento}
+//   lifecycle_status ∈ {ativo, perdido, recuperacao, arquivado}
+//
+// `perdido` deixou de ser phase · agora vive em `lifecycle_status` e é
+// disparado via RPC `lead_lost` (não via transição de phase). `compareceu`
+// e `reagendado` foram derrogados · transições agora vão direto:
+//   agendado → paciente  (consulta gerou paciente)
+//   agendado → orcamento (consulta gerou orcamento)
+//   agendado → agendado  (reagendar = no-op de phase, troca appointment)
+export const LEAD_PHASES = ['lead', 'agendado', 'paciente', 'orcamento'] as const
+export type LeadPhase = (typeof LEAD_PHASES)[number]
+
+export const LIFECYCLE_STATUSES = ['ativo', 'perdido', 'recuperacao', 'arquivado'] as const
+export type LifecycleStatus = (typeof LIFECYCLE_STATUSES)[number]
 
 export type LeadSource =
   | 'manual'

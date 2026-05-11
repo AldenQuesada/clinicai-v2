@@ -30,11 +30,13 @@ const FUNNELS: { id: Funnel; label: string }[] = [
   { id: 'fullface', label: 'Full Face' },
   { id: 'procedimentos', label: 'Procedimentos' },
 ]
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases. Reagendado/Compareceu
+// derrogados · ChipSelector continua expondo so transicoes "safe" via
+// sdr_change_phase. Para paciente/orcamento/perdido usar acoes especificas
+// (ver helper text abaixo).
 const PHASES_SAFE: { id: LeadPhase; label: string }[] = [
   { id: 'lead', label: 'Lead' },
   { id: 'agendado', label: 'Agendado' },
-  { id: 'reagendado', label: 'Reagendado' },
-  { id: 'compareceu', label: 'Compareceu' },
 ]
 const TEMPS: { id: LeadTemperature; label: string }[] = [
   { id: 'cold', label: 'Frio' },

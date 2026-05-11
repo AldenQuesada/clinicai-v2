@@ -42,15 +42,10 @@ const LeadSourceType = z.enum([
 const Funnel = z.enum(['olheiras', 'fullface', 'procedimentos'])
 const LeadTemperature = z.enum(['cold', 'warm', 'hot'])
 
-const LeadPhase = z.enum([
-  'lead',
-  'agendado',
-  'reagendado',
-  'compareceu',
-  'paciente',
-  'orcamento',
-  'perdido',
-])
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases. `perdido` virou
+// lifecycle_status · rota dedicada via `lead_lost`. `compareceu`/`reagendado`
+// derrogados · agendado → paciente|orcamento|agendado (no-op).
+const LeadPhase = z.enum(['lead', 'agendado', 'paciente', 'orcamento'])
 
 // ── Item shared entre Lead+Orcamento+AppointmentFinalize ────────────────────
 

@@ -32,12 +32,13 @@ const FUNNELS = [
   { id: 'procedimentos', label: 'Procedimentos' },
 ] as const
 
+// Contrato canonico (Fase 1C · 2026-05-11): 4 phases. Reagendado/Compareceu
+// derrogados · agendado → paciente|orcamento direto (compareceu/reagendou =
+// no-op de phase). Pacientes/Orcamentos saem do filtro "ativos" via Status.
 const PHASES = [
   { id: '', label: 'Todas' },
   { id: 'lead', label: 'Lead' },
   { id: 'agendado', label: 'Agendado' },
-  { id: 'reagendado', label: 'Reagendado' },
-  { id: 'compareceu', label: 'Compareceu' },
 ] as const
 
 const TEMPS = [
@@ -61,10 +62,11 @@ const SOURCES = [
   { id: 'import', label: 'Importado' },
 ] as const
 
+// TODO Fase 1E · re-adicionar 'archived' (Perdidos) quando ListLeadsFilter
+// suportar filtro por `lifecycle_status` (coluna ja existe no DB).
 const STATUS = [
   { id: 'active', label: 'Ativos' },
   { id: 'patient', label: 'Pacientes' },
-  { id: 'archived', label: 'Perdidos' },
   { id: 'all', label: 'Todos' },
 ] as const
 

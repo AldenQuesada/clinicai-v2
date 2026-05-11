@@ -1,31 +1,28 @@
 /**
  * Matriz canonica de transicao de phase + helper de pre-validacao.
  *
- * ESPELHO 1:1 da RPC `_lead_phase_transition_allowed` (mig 65). Mantida aqui
- * pra UI poder desabilitar fases invalidas no Kanban / dropdown sem precisar
- * de round-trip ao banco. SE A MATRIZ MUDAR NA MIG, atualizar AQUI tambem ·
+ * ESPELHO 1:1 da RPC `_lead_phase_transition_allowed`. Mantida aqui pra UI
+ * poder desabilitar fases invalidas no Kanban / dropdown sem precisar de
+ * round-trip ao banco. SE A MATRIZ MUDAR NA MIG, atualizar AQUI tambem ·
  * caso contrario UI permite drag que o RPC vai rejeitar.
  *
- * Verbatim do CASE no SQL:
- *   lead       → agendado, perdido
- *   agendado   → reagendado, compareceu, perdido, agendado (no-op)
- *   reagendado → agendado, compareceu, perdido, reagendado
- *   compareceu → paciente, orcamento, perdido, compareceu
- *   orcamento  → paciente, agendado, perdido, orcamento
- *   paciente   → perdido, paciente
- *   perdido    → lead, agendado, reagendado, perdido (recovery)
+ * Contrato canonico (Fase 1C · TS↔DB sync · 2026-05-11):
+ *   lead      → agendado
+ *   agendado  → paciente, orcamento, agendado (no-op = reagendar)
+ *   orcamento → paciente, agendado, orcamento (no-op)
+ *   paciente  → orcamento, paciente (no-op · retorno gera novo orcamento)
+ *
+ * Perda (perdido) NAO eh phase nessa matriz · vira `lifecycle_status` via RPC
+ * `lead_lost`. Recuperacao (perdido → ativo) tambem nao passa por aqui.
  */
 
 import type { LeadPhase } from '../types/enums'
 
 export const LEAD_PHASE_TRANSITIONS: Record<LeadPhase, readonly LeadPhase[]> = {
-  lead: ['agendado', 'perdido'],
-  agendado: ['reagendado', 'compareceu', 'perdido', 'agendado'],
-  reagendado: ['agendado', 'compareceu', 'perdido', 'reagendado'],
-  compareceu: ['paciente', 'orcamento', 'perdido', 'compareceu'],
-  orcamento: ['paciente', 'agendado', 'perdido', 'orcamento'],
-  paciente: ['perdido', 'paciente'],
-  perdido: ['lead', 'agendado', 'reagendado', 'perdido'],
+  lead: ['agendado'],
+  agendado: ['paciente', 'orcamento', 'agendado'],
+  orcamento: ['paciente', 'agendado', 'orcamento'],
+  paciente: ['orcamento', 'paciente'],
 } as const
 
 /**
