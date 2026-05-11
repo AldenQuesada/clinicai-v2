@@ -65,14 +65,30 @@ archived_reason = 'internal_wa_number_cleanup'
 
 ---
 
-## 4 · Escopo da migration 151
+## 4 · Escopo da migration 151 (REVISADO · 1:1 com banco real)
 
-### Faz
+### Faz (alteração ADITIVA EXCLUSIVA)
 
 - `CREATE OR REPLACE FUNCTION public.appointment_finalize(...)` com mesma assinatura atual
-- Adiciona branch `'perdido'` que chama `public.lead_lost(lead_id, reason)` antes do `UPDATE appointments`
-- Para todos os branches (paciente/orcamento/paciente_orcamento/perdido): sub-RPC roda **antes** do `UPDATE`; appointment só vira `'finalizado'` se sub-RPC retornar `ok=true`
+- **Adiciona `'perdido'` à lista de outcomes aceitos** (junto com paciente/orcamento/paciente_orcamento)
+- **Adiciona validação `p_lost_reason`** obrigatório quando `outcome='perdido'`
+- **Adiciona branch `'perdido'`** que chama `public.lead_lost(lead_id, reason)` **ANTES** do UPDATE de finalize · appointment só vira `'finalizado'` se `lead_lost` retornar `ok=true`
+- **Adiciona guard** para `v_lead_id IS NULL + outcome='perdido'` → erro `lost_requires_lead`
 - `NOTIFY pgrst, 'reload schema'`
+
+### Preserva 1:1 (banco real é fonte da verdade)
+
+Para outcomes existentes (`paciente`/`orcamento`/`paciente_orcamento`):
+
+- Validações originais: `payment_status` (pendente/parcial/pago/isento), `orcamento_subtotal >= 0`, `orcamento_items jsonb array`, `orcamento_discount >= 0`
+- Lock `FOR UPDATE` no appointment
+- Status válido: `na_clinica`, `em_atendimento`
+- `v_lead_id IS NULL` handling original:
+  - `outcome='paciente'` → finaliza appt de paciente recorrente sem promoção (`note='patient_appointment_no_lead_promotion'`)
+  - `outcome IN ('orcamento','paciente_orcamento')` → erro `cannot_create_budget_without_lead`
+- **Ordem original mantida:** `UPDATE appointments SET status='finalizado'` **ANTES** das sub-RPCs · sub-RPC pode falhar mas appt já está finalizado (terminal · UI trata via `sub_call.ok` + `appointment_finalized=true`)
+- Chamadas atuais para `lead_to_paciente` e `lead_to_orcamento`
+- Regra `paciente_orcamento`: orçamento primeiro, paciente depois
 
 ### NÃO faz
 
@@ -140,29 +156,31 @@ IF p_outcome='perdido' AND (p_lost_reason IS NULL OR trim(p_lost_reason)='') THE
   RETURN { ok:false, error:'lost_reason_required' };
 ```
 
-### Fluxo do branch `'perdido'`
+### Fluxo do branch `'perdido'` (único branch novo · ordem inversa intencional)
 
-1. Tenant guard via `app_clinic_id()`
-2. Lock `FOR UPDATE` no appointment
-3. Idempotência: se já finalizado, retorna `idempotent_skip=true`
-4. Status válido: `na_clinica` ou `em_atendimento` (outro retorna `invalid_status_for_finalize`)
-5. Se `lead_id IS NULL`: retorna `error='lost_requires_lead'` (paciente recorrente não pode ser marcado perdido por aqui)
-6. Chama `public.lead_lost(v_lead_id, p_lost_reason)` · captura jsonb retorno em `v_lost_call`
-7. Se `(v_lost_call->>'ok')::boolean IS NOT TRUE`:
-   - Retorna `error='lead_lost_failed'` + `appointment_finalized=false` + `lost_call`
+1. Tenant guard via `app_clinic_id()` (validação compartilhada)
+2. Validar outcome inclui `'perdido'`
+3. Validar `p_lost_reason` não-vazio
+4. Validar `p_payment_status` se passado
+5. Lock `FOR UPDATE` no appointment
+6. Status válido: `na_clinica` ou `em_atendimento`
+7. Se `v_lead_id IS NULL` + outcome='perdido': retorna `error='lost_requires_lead'`
+8. Chama `public.lead_lost(v_lead_id, p_lost_reason)` · captura retorno em `v_lost_call`
+9. Se `(v_lost_call->>'ok')::boolean IS NOT TRUE`:
+   - Retorna `{ ok:false, error:'lead_lost_failed', appointment_finalized:false, lost_call }`
    - **NÃO** finaliza appointment
-8. Se ok=true:
-   - `UPDATE appointments SET status='finalizado', value/payment_status/obs/updated_at`
-   - Retorna `ok=true` + `appointment_finalized=true` + `lost_call`
+10. Se ok=true:
+    - `UPDATE appointments SET status='finalizado', value/payment_status/obs/updated_at`
+    - Retorna `{ ok:true, appointment_finalized:true, lost_call }`
 
-### Garantias respeitadas
+### Garantias respeitadas (branch perdido)
 
-- ✅ Não escreve `leads.phase` (lead_lost cuida)
+- ✅ Não escreve `leads.phase` (lead_lost cuida via lifecycle_status)
 - ✅ Não escreve `leads.deleted_at`
 - ✅ Não cria patient
 - ✅ Não cria orçamento
 - ✅ Não mexe `phase_history` (lead_lost cuida)
-- ✅ Appointment só finaliza após sub-RPC `ok=true` (regra que vale também para paciente/orcamento/paciente_orcamento nessa versão · contrato endurecido vs versão atual)
+- ✅ Appointment só finaliza após `lead_lost.ok=true` (regra **específica** do branch perdido · paciente/orcamento/paciente_orcamento mantêm ordem original 1:1 com banco)
 
 ---
 
@@ -199,15 +217,22 @@ $ rg "perdido|lead_lost|appointment_finalize|phase|deleted_at|UPDATE public\.app
 
 ---
 
-## 10 · Riscos
+## 10 · Riscos (REVISADO · pós-correção de drift)
 
 | Risco | Probabilidade | Mitigação |
 |---|---|---|
-| SQL desta mig diverge da estrutura atual de `appointment_finalize` no banco | **Média** | **REVIEW OBRIGATÓRIO** pré-apply: rodar `SELECT pg_get_functiondef('public.appointment_finalize'::regproc)` e comparar contra mig 151. Se houver drift adicional, editar mig antes do apply. |
-| Contrato endurecido (sub-RPC antes do UPDATE) muda comportamento atual de paciente/orcamento | Baixa | Hoje banco já roda essa ordem (segundo a re-auditoria). Confirmar no review pré-apply. UI já trata `appointment_finalized=false`. |
-| `paciente_orcamento` parcial: orçamento ok + paciente fail | Baixa | Retorna `stage='paciente'` + ambos sub-calls no payload · UI trata caso a caso |
+| SQL desta mig (revisado) diverge da estrutura atual do banco em algum detalhe não capturado nas regras 1:1 | Baixa | **REVIEW OBRIGATÓRIO** pré-apply: rodar `SELECT pg_get_functiondef('public.appointment_finalize'::regproc)` e comparar branches paciente/orcamento/paciente_orcamento contra mig 151. Se houver drift residual, editar mig antes do apply. |
+| `paciente_orcamento` parcial: orçamento ok + paciente fail (comportamento existente) | Baixa | Retorna `stage='paciente'` + `orcamento_call`/`paciente_call` no payload · UI trata caso a caso · idêntico ao banco hoje |
+| Sub-RPC `lead_to_paciente`/`lead_to_orcamento` falhar com appt já finalizado (comportamento existente) | Baixa | UI já trata via `sub_call.ok` + `appointment_finalized=true` · status quo preservado |
 | GRANT EXECUTE perdido | Muito baixa | `CREATE OR REPLACE FUNCTION` preserva grants (não é DROP+CREATE) |
 | UI/TS quebrar pela mudança | Nenhuma | TS/UI já aceitam outcome=perdido desde Fase 1C · contrato TS↔DB agora alinha |
+
+### Diff vs versão anterior desta mig (interno · Fase 2B.1 pré-revisão)
+
+Versão anterior endurecia a ordem para TODOS os branches (sub-RPC antes do UPDATE). Revisão identificou drift funcional: o banco real para paciente/orcamento/paciente_orcamento faz `UPDATE → sub-RPC`. Versão atual:
+
+- Mantém `UPDATE → sub-RPC` para paciente/orcamento/paciente_orcamento (1:1 banco real)
+- Aplica `sub-RPC → UPDATE` **apenas** para o branch perdido (regra nova explícita)
 
 ---
 

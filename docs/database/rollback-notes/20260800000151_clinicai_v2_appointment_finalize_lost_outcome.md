@@ -144,13 +144,13 @@ restaurar a versão desejada · NÃO há revert automático porque:
 
 ---
 
-## 9 · Riscos do apply
+## 9 · Riscos do apply (REVISADO pós-correção de drift)
 
 | Risco | Probabilidade | Mitigação |
 |---|---|---|
-| Mig 151 introduz drift em paciente/orcamento branches | Baixa | Branches paciente/orcamento mantêm assinatura+chamadas idênticas · revisar pré-apply com `pg_get_functiondef` |
-| Sub-call ordering diferente do legacy (sub-RPC antes do UPDATE) | Média | Por design · contrato novo: appointment só finaliza se sub-RPC OK · evita estado órfão · UI já trata `appointment_finalized=false` |
-| `paciente_orcamento` stage atômico parcial (orçamento ok + paciente fail) | Baixa | Erro retorna `stage='paciente'` + `orcamento_call`/`paciente_call` para UI tratar |
+| Mig 151 introduz drift em paciente/orcamento/paciente_orcamento branches | Baixa | Branches preservados 1:1 com banco real: validações originais, ordem UPDATE→sub-RPC, NULL-lead handling (cannot_create_budget_without_lead). Revisar pré-apply com `pg_get_functiondef`. |
+| Sub-call ordering diferente entre branch perdido (sub-RPC ANTES) e os demais (UPDATE ANTES) | Por design | Branch perdido tem regra explícita: appt só finaliza se lead_lost ok=true (evita lead solto com appt finalizado). Demais branches mantêm semântica atual onde appt já está finalizado mesmo se sub-RPC falhar. |
+| `paciente_orcamento` stage atômico parcial (orçamento ok + paciente fail) | Baixa | Comportamento existente · retorna `stage='paciente'` + `orcamento_call`/`paciente_call` no payload para UI tratar caso a caso |
 | RPC `lead_lost` mudou desde a última inspeção | Muito baixa | Validação pós-apply chama lead_lost via smoke · `lifecycle_status='perdido'` confirma |
 | GRANT EXECUTE perdido após CREATE OR REPLACE | Baixa | `CREATE OR REPLACE FUNCTION` preserva grants existentes (não é DROP+CREATE) |
 
