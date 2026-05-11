@@ -27,6 +27,13 @@ export type BroadcastStatus = 'draft' | 'sending' | 'completed' | 'cancelled'
 /** Filtros server-side · jsonb gravado em wa_broadcasts.target_filter. */
 export interface BroadcastTargetFilter {
   phase?: string | null
+  /**
+   * Ciclo de vida do lead (Fase 1E · 2026-05-11) · ortogonal a `phase`.
+   * Permite campanhas alvo de perdidos/recuperação sem misturar com
+   * phase. RPC de broadcast respeita o campo no plano · UI ainda não
+   * expõe (TODO Fase 2 · campanha de recuperação).
+   */
+  lifecycle_status?: string | null
   temperature?: 'cold' | 'warm' | 'hot' | null
   funnel?: string | null
   source_type?: string | null

@@ -15,6 +15,7 @@ import type {
   LeadSource,
   LeadSourceType,
   LeadTemperature,
+  LifecycleStatus,
   OrcamentoStatus,
   PatientSex,
   PatientStatus,
@@ -64,6 +65,12 @@ export interface UpdateLeadInput {
 
 /**
  * Filtros pra LeadRepository.list · todos opcionais.
+ *
+ * Contrato canonico (Fase 1E · 2026-05-11): `lifecycleStatus` permite
+ * filtrar leads pelo ciclo de vida (ativo/perdido/recuperacao/arquivado)
+ * sem misturar com `phase`. Use `lifecycleStatuses` pra filtro multi e
+ * `excludeLifecycleStatuses` pra esconder (ex: lista operacional default
+ * exclui 'arquivado').
  */
 export interface ListLeadsFilter {
   search?: string
@@ -72,6 +79,9 @@ export interface ListLeadsFilter {
   phase?: LeadPhase
   phases?: LeadPhase[]
   excludePhases?: LeadPhase[]
+  lifecycleStatus?: LifecycleStatus
+  lifecycleStatuses?: LifecycleStatus[]
+  excludeLifecycleStatuses?: LifecycleStatus[]
   temperature?: LeadTemperature
   sourceType?: LeadSourceType
   tags?: string[]

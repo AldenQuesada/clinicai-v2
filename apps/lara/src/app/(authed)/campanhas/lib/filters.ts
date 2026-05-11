@@ -1,15 +1,16 @@
 /**
  * Filtros canonicos para target_filter (jsonb).
  *
- * Contrato canonico (Fase 1C · 2026-05-11):
+ * Contrato canonico (Fase 1C · 2026-05-11 + Fase 1E · 2026-05-11):
  *  · phase: lead | agendado | orcamento | paciente
+ *  · lifecycle_status: ativo | perdido | recuperacao | arquivado (ortogonal)
  *  · temperature: hot | warm | cold
  *  · funnel: fullface | procedimentos
  *  · source_type: quiz | manual | import
  *
- * `perdido` derrogado como phase · TODO Fase 1E expor filtro por
- * `lifecycle_status='perdido'` (campanhas de recuperacao). Reagendado/
- * Compareceu derrogados (era no-op de phase no modelo antigo).
+ * `lifecycle_status` aceita literal mas a UI de campanhas ainda não expõe
+ * opção dedicada (TODO Fase 2 · campanha de recuperação). `buildTargetFilter`
+ * já passa o campo se chegar do caller. Reagendado/Compareceu derrogados.
  *
  * Helper aceita strings vazias / null e remove chaves vazias antes de mandar
  * pra RPC.
@@ -54,6 +55,7 @@ export const BATCH_INTERVAL_OPTIONS = [
 /** Monta o filter limpo (sem chaves vazias) pra mandar pra RPC. */
 export function buildTargetFilter(input: {
   phase?: string | null
+  lifecycle_status?: string | null
   temperature?: string | null
   funnel?: string | null
   source_type?: string | null
@@ -61,6 +63,7 @@ export function buildTargetFilter(input: {
 }): BroadcastTargetFilter {
   const out: BroadcastTargetFilter = {}
   if (input.phase) out.phase = input.phase
+  if (input.lifecycle_status) out.lifecycle_status = input.lifecycle_status
   if (input.temperature) {
     out.temperature = input.temperature as 'cold' | 'warm' | 'hot'
   }
@@ -75,6 +78,7 @@ export function describeFilter(f: BroadcastTargetFilter | null | undefined): str
   if (!f) return []
   const out: string[] = []
   if (f.phase) out.push(`Fase: ${f.phase}`)
+  if (f.lifecycle_status) out.push(`Ciclo: ${f.lifecycle_status}`)
   if (f.temperature) out.push(`Temp: ${f.temperature}`)
   if (f.funnel) out.push(`Funil: ${f.funnel}`)
   if (f.source_type) out.push(`Origem: ${f.source_type}`)

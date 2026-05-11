@@ -17,6 +17,7 @@ import type {
   LeadSource,
   LeadSourceType,
   LeadTemperature,
+  LifecycleStatus,
   MessageDirection,
   OrcamentoStatus,
   PatientSex,
@@ -52,6 +53,17 @@ export interface LeadDTO {
   phaseUpdatedAt: string | null
   phaseUpdatedBy: string | null
   phaseOrigin: PhaseOrigin | null
+
+  /**
+   * Status do ciclo de vida do lead · ortogonal a `phase`.
+   * - ativo: lead operacional (default)
+   * - perdido: marcado via RPC lead_lost (não é phase desde Fase 1C)
+   * - recuperacao: candidato a campanha de recuperação
+   * - arquivado: removido da listagem operacional sem soft-delete
+   *
+   * Fase 1E (2026-05-11): mapeado no DTO + filtrável em ListLeadsFilter.
+   */
+  lifecycleStatus: LifecycleStatus
 
   // Funil + roteamento
   source: LeadSource

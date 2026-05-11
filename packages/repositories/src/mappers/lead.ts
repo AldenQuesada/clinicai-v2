@@ -11,6 +11,7 @@ import type {
   LeadSource,
   LeadSourceType,
   LeadTemperature,
+  LifecycleStatus,
   PhaseOrigin,
 } from '../types/enums'
 import type { LeadDTO } from '../types/dtos'
@@ -33,6 +34,8 @@ export function mapLeadRow(row: any): LeadDTO {
     phaseUpdatedAt: row.phase_updated_at ?? null,
     phaseUpdatedBy: row.phase_updated_by ?? null,
     phaseOrigin: (row.phase_origin ?? null) as PhaseOrigin | null,
+
+    lifecycleStatus: (row.lifecycle_status ?? 'ativo') as LifecycleStatus,
 
     source: (row.source ?? 'manual') as LeadSource,
     sourceType: (row.source_type ?? 'manual') as LeadSourceType,

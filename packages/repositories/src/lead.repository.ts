@@ -456,6 +456,19 @@ export class LeadRepository {
       if (filter.excludePhases?.length) {
         out = out.not('phase', 'in', `(${filter.excludePhases.join(',')})`)
       }
+      if (filter.lifecycleStatus) {
+        out = out.eq('lifecycle_status', filter.lifecycleStatus)
+      }
+      if (filter.lifecycleStatuses?.length) {
+        out = out.in('lifecycle_status', filter.lifecycleStatuses)
+      }
+      if (filter.excludeLifecycleStatuses?.length) {
+        out = out.not(
+          'lifecycle_status',
+          'in',
+          `(${filter.excludeLifecycleStatuses.join(',')})`,
+        )
+      }
       if (filter.temperature) out = out.eq('temperature', filter.temperature)
       if (filter.sourceType) out = out.eq('source_type', filter.sourceType)
       if (filter.tags?.length) out = out.contains('tags', filter.tags)

@@ -62,11 +62,13 @@ const SOURCES = [
   { id: 'import', label: 'Importado' },
 ] as const
 
-// TODO Fase 1E · re-adicionar 'archived' (Perdidos) quando ListLeadsFilter
-// suportar filtro por `lifecycle_status` (coluna ja existe no DB).
+// Status chip (Fase 1E · 2026-05-11): "Perdidos" filtra por
+// `lifecycleStatus='perdido'` · NÃO por `phase='perdido'` (derrogado na
+// Fase 1C). buildFilter() em page.tsx faz o mapeamento.
 const STATUS = [
   { id: 'active', label: 'Ativos' },
   { id: 'patient', label: 'Pacientes' },
+  { id: 'archived', label: 'Perdidos' },
   { id: 'all', label: 'Todos' },
 ] as const
 

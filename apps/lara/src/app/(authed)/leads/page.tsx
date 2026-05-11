@@ -99,16 +99,19 @@ function buildFilter(searchParams: Record<string, string | string[] | undefined>
     filter.noResponseSinceIso = cutoff
   }
 
-  // Status: por default exclui leads que ja viraram paciente/orcamento
-  // (view "leads ativos"). Param `?status=all` desliga.
-  //
-  // TODO Fase 1E · `status=archived` precisa de filtro por `lifecycle_status`
-  // (coluna existe no DB · falta mapear em LeadDTO + ListLeadsFilter).
+  // Status (Fase 1E · 2026-05-11): perda agora vive em `lifecycle_status`,
+  // não em `phase`. `status=archived` filtra `lifecycleStatus='perdido'` ·
+  // demais views excluem perdidos por default pra não poluir a operação.
+  // Param `?status=all` desliga todos os filtros derivados.
   const status = get('status') || 'active'
   if (status === 'active') {
     filter.excludePhases = ['paciente', 'orcamento']
+    filter.excludeLifecycleStatuses = ['perdido', 'arquivado']
   } else if (status === 'patient') {
     filter.phases = ['paciente']
+    filter.excludeLifecycleStatuses = ['perdido', 'arquivado']
+  } else if (status === 'archived') {
+    filter.lifecycleStatus = 'perdido'
   }
   return filter
 }
