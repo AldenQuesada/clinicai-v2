@@ -66,6 +66,13 @@
     try {
       const { data, error } = await _sb().rpc('appt_upsert', { p_data: apptData })
       if (error) return _err(error.message || String(error))
+      // Mig 153: RPC retorna { ok:false, error:'...' } para erros lógicos
+      // tipados (ex: subject_name_required, invalid_lead_or_patient_id).
+      // Sem essa checagem o service engole o erro e o operador acha que
+      // salvou no banco mas só o localStorage tem o registro.
+      if (data && data.ok === false) {
+        return _err(data.error || 'appt_upsert_failed')
+      }
       // ═ Patches complementares (RPC principal não conhece esses campos) ═
       if (apptData.id) {
         // 1. Agregados de cortesia (relatórios financeiros)
@@ -137,6 +144,12 @@
         p_appointments: appointments,
       })
       if (error) return _err(error.message || String(error))
+      // Mig 153: RPC retorna { ok:false, error:'...' } para erros estruturais
+      // (no_clinic_in_jwt, invalid_payload_expected_array). Erros por item
+      // viram counts agregados em data.error_count + data.errors[].
+      if (data && data.ok === false) {
+        return _err(data.error || 'appt_sync_batch_failed')
+      }
       return _ok(data)
     } catch (err) {
       return _err(err.message || String(err))
