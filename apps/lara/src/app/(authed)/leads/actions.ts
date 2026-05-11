@@ -177,10 +177,9 @@ export async function setLeadPhaseAction(
 
   if (!VALID_PHASES.includes(phase)) return fail('Phase invalida')
 
-  // Usa RPC sdr_change_phase pra preservar audit trail (phase_history).
-  // Phases simples (lead/agendado/reagendado/compareceu) viram UPDATE puro
-  // dentro da RPC; phases especiais (perdido/orcamento) sao bloqueadas pra
-  // forcar callers a usar markLost / lead_to_orcamento (ja temos actions).
+  // RPC sdr_change_phase · matriz canônica 4×4 (Fase 1C) + audit trail
+  // em phase_history. Perda (lifecycle_status='perdido') usa lead_lost
+  // dedicada · orcamento exige items+subtotal · usar lead_to_orcamento.
   const result = await repos.leads.changePhase(leadId, phase, reason ?? null)
   if (!result.ok) return fail(result.error || 'Nao foi possivel mudar a fase')
 

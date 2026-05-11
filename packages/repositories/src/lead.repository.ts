@@ -186,11 +186,16 @@ export class LeadRepository {
   }
 
   /**
-   * Atualiza phase direto · NAO registra phase_history. Use changePhase()
-   * (RPC sdr_change_phase) quando precisar do audit trail.
+   * @deprecated Use `changePhase()` direto · setPhase hoje delega para a
+   * RPC `sdr_change_phase` (Fase 1D · 2026-05-11), mas a assinatura
+   * antiga foi preservada apenas por compatibilidade. NÃO faz UPDATE
+   * direto mais · respeita matriz canônica + grava `phase_history`.
+   *
+   * Erros da RPC sao silenciados (compat com contrato `void` antigo) ·
+   * callers novos devem usar `changePhase()` para receber o result tipado.
    */
   async setPhase(leadId: string, phase: LeadPhase): Promise<void> {
-    await this.supabase.from('leads').update({ phase }).eq('id', leadId)
+    await this.changePhase(leadId, phase, 'repository_set_phase')
   }
 
   /**
@@ -700,11 +705,13 @@ export class LeadRepository {
   }
 
   /**
-   * Wrapper generico de mudanca de phase · roteia pra RPC especifica quando
-   * aplicavel (lead_lost / lead_to_paciente). Para fases simples
-   * (lead/agendado/reagendado/compareceu) faz UPDATE direto. orcamento
-   * exige RPC especifica (items+subtotal) · retorna erro
-   * `use_lead_to_orcamento_directly` se chamado com to_phase='orcamento'.
+   * Wrapper da RPC `sdr_change_phase` · gate canônico de mudança de phase.
+   * Respeita matriz `_lead_phase_transition_allowed` + grava
+   * `phase_history` (audit trail). Reason é livre · default null.
+   *
+   * Contrato canônico (Fase 1C · 2026-05-11): 4 phases (lead, agendado,
+   * paciente, orcamento). Perda (perdido) usa `lead_lost` RPC dedicada ·
+   * NÃO passa por aqui.
    */
   async changePhase(
     leadId: string,

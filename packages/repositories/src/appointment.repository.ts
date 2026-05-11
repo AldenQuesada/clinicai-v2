@@ -243,46 +243,34 @@ export class AppointmentRepository {
   }
 
   /**
-   * Cancela appointment · seta status + motivo + cancelado_em. Motivo
-   * obrigatorio (CHECK chk_appt_cancelled_consistency). NAO mexe na phase
-   * do lead · regra: cancelar 1 appt nao reverte phase (pode ter outro).
-   * Caller (Server Action) decide se reverte phase quando todos os appts
-   * estao cancelados.
+   * Cancela appointment via RPC `appointment_change_status` (Fase 1D ·
+   * 2026-05-11). Respeita matriz canônica + grava timestamps server-side
+   * (`cancelado_em`, `motivo_cancelamento`). Motivo obrigatório (RPC
+   * rejeita com `reason_required` se faltar · CHECK
+   * `chk_appt_cancelled_consistency` no DB).
+   *
+   * NÃO mexe na phase do lead · regra: cancelar 1 appt não reverte phase
+   * (pode ter outro). Caller decide se reverte phase quando todos os
+   * appts estão cancelados.
    */
   async cancel(id: string, motivo: string): Promise<AppointmentDTO | null> {
     if (!motivo || !motivo.trim()) return null
-    const { data, error } = await this.supabase
-      .from('appointments')
-      .update({
-        status: 'cancelado',
-        motivo_cancelamento: motivo.trim(),
-        cancelado_em: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select(APPT_COLUMNS)
-      .single()
-    if (error || !data) return null
-    return mapAppointmentRow(data)
+    const result = await this.changeStatus(id, 'cancelado', motivo.trim())
+    if (!result.ok) return null
+    return this.getById(id)
   }
 
   /**
-   * No-show · paciente nao apareceu. Motivo obrigatorio
-   * (chk_appt_noshow_consistency).
+   * No-show via RPC `appointment_change_status` (Fase 1D · 2026-05-11) ·
+   * paciente não apareceu. Respeita matriz + grava timestamps server-side
+   * (`no_show_em`, `motivo_no_show`). Motivo obrigatório
+   * (`chk_appt_noshow_consistency`).
    */
   async markNoShow(id: string, motivo: string): Promise<AppointmentDTO | null> {
     if (!motivo || !motivo.trim()) return null
-    const { data, error } = await this.supabase
-      .from('appointments')
-      .update({
-        status: 'no_show',
-        motivo_no_show: motivo.trim(),
-        no_show_em: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select(APPT_COLUMNS)
-      .single()
-    if (error || !data) return null
-    return mapAppointmentRow(data)
+    const result = await this.changeStatus(id, 'no_show', motivo.trim())
+    if (!result.ok) return null
+    return this.getById(id)
   }
 
   /**
