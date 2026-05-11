@@ -144,7 +144,22 @@ restaurar a versão desejada · NÃO há revert automático porque:
 
 ---
 
-## 9 · Riscos do apply (REVISADO 2ª passada · 1:1 com banco real)
+## 9 · Riscos do apply (REVISADO 3ª passada · v4 cirúrgica · 1:1 banco real)
+
+### Diff cirúrgico v4 vs v3 (esta sessão)
+
+| Ajuste | v3 (commit `37a145e`) | v4 (atual) |
+|---|---|---|
+| Idempotência appt `status='finalizado'` | ausente | reinserida · retorna `idempotent_skip=true` |
+| `invalid_payment_status` retorno | sem `got` | inclui `'got': p_payment_status` |
+| Erro orçamento subtotal | `invalid_orcamento_subtotal` + hint | `orcamento_subtotal_required` (sem hint) |
+| Erro orçamento items | `invalid_orcamento_items` + hint | `orcamento_items_array_required` (sem hint) |
+| Erro orçamento discount nome | `invalid_orcamento_discount` + hint | mesmo nome (sem hint) |
+| Regra discount | `IS NOT NULL AND < 0` (NULL passa) | `IS NULL OR < 0` (NULL rejeita) |
+| Ordem sub-RPC → UPDATE | ✅ preservada | ✅ preservada |
+| Payloads tipados (`patient_call`/`budget_call`/`lost_call`) | ✅ preservados | ✅ preservados |
+
+
 
 | Risco | Probabilidade | Mitigação |
 |---|---|---|

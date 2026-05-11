@@ -240,17 +240,24 @@ $ rg "perdido|lead_lost|appointment_finalize|phase|deleted_at|UPDATE public\.app
 
 ### Diff vs versões anteriores desta mig (revisões internas)
 
-| Versão | Ordem para paciente/orcamento/paciente_orcamento | Status |
+| Versão | Commit | Ajustes vs banco real |
 |---|---|---|
-| v1 (commit `9261617`) | sub-RPC → UPDATE em todos branches | ❌ drift detectado |
-| v2 (commit `88f659f`) | UPDATE → sub-RPC em todos branches (exceto perdido) | ❌ regressão · banco real faz sub-RPC primeiro |
-| **v3 (atual)** | **sub-RPC → UPDATE em TODOS branches** | ✅ 1:1 com banco real |
+| v1 | `9261617` | ❌ sub-RPC → UPDATE em todos branches (drift inicial) |
+| v2 | `88f659f` | ❌ UPDATE → sub-RPC em todos branches (regressão · banco faz sub-RPC primeiro) |
+| v3 | `37a145e` | ✅ sub-RPC → UPDATE em TODOS branches + payloads tipados + `cortesia` em payment_status |
+| **v4 (atual)** | esta sessão | ✅ Ajustes cirúrgicos por posição preservando v3: idempotência `status='finalizado'`, `invalid_payment_status` agora retorna `'got'`, nomes de erro reais de orçamento, regra `p_orcamento_discount IS NULL OR < 0` |
 
-Outras correções da v3 (alinhamento 1:1):
-- `payment_status` aceita **`cortesia`** (v1/v2 não tinham)
-- Payloads de retorno: `patient_call`/`budget_call`/`lost_call` (v1/v2 usavam `sub_call` genérico)
-- Erros tipados: `patient_conversion_failed`, `budget_creation_failed`, `patient_conversion_failed_after_budget`, `lead_lost_failed` (v1/v2 retornavam `sub_rpc_failed` genérico)
-- `paciente_orcamento` parcial: orçamento criado + paciente falhou → `appointment_finalized=false` + `patient_conversion_failed_after_budget` (v1/v2 retornavam `appointment_finalized=true`)
+Detalhes da v4:
+- **Reinserida idempotência** de appointment já finalizado (entre `appointment_not_found` e validação de status) · retorna `{ ok:true, idempotent_skip:true, status:'finalizado' }`
+- **`invalid_payment_status`** agora retorna chave `'got'` com o valor inválido recebido
+- **Erros de orçamento renomeados 1:1 com banco real:**
+  - `orcamento_subtotal_required` (era `invalid_orcamento_subtotal`)
+  - `orcamento_items_array_required` (era `invalid_orcamento_items`)
+  - `invalid_orcamento_discount` permanece, mas regra mudou: agora `p_orcamento_discount IS NULL OR < 0` (NULL também é rejeitado · v3 aceitava NULL via `IS NOT NULL AND < 0`)
+- Hints removidos das validações de orçamento (banco real não tem)
+- **Ordem sub-RPC → UPDATE PRESERVADA** em todos os 4 branches (v3 já estava correta)
+- **Payloads tipados PRESERVADOS** (`patient_call`/`budget_call`/`lost_call`)
+- **Erros tipados PRESERVADOS** (`patient_conversion_failed`/`budget_creation_failed`/`patient_conversion_failed_after_budget`/`lead_lost_failed`)
 
 ---
 

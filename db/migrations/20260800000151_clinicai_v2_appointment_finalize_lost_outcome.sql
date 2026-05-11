@@ -109,36 +109,42 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 4. Validate p_payment_status (preservado 1:1 · inclui 'cortesia')
+  -- 4. Validate p_payment_status (preservado 1:1 do banco real)
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_payment_status IS NOT NULL
-     AND p_payment_status NOT IN ('pendente', 'parcial', 'pago', 'cortesia', 'isento') THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'invalid_payment_status');
+     AND p_payment_status NOT IN ('pendente','parcial','pago','cortesia','isento')
+  THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'invalid_payment_status',
+      'got', p_payment_status
+    );
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 5. Validate orcamento payload (preservado 1:1)
+  -- 5. Validate orcamento payload (preservado 1:1 do banco real)
   -- ─────────────────────────────────────────────────────────────────────────
-  IF p_outcome IN ('orcamento', 'paciente_orcamento') THEN
+  IF p_outcome IN ('orcamento','paciente_orcamento') THEN
     IF p_orcamento_subtotal IS NULL OR p_orcamento_subtotal < 0 THEN
       RETURN jsonb_build_object(
         'ok', false,
-        'error', 'invalid_orcamento_subtotal',
-        'hint', 'orcamento_subtotal obrigatório e >= 0'
+        'error', 'orcamento_subtotal_required'
       );
     END IF;
-    IF p_orcamento_items IS NULL OR jsonb_typeof(p_orcamento_items) <> 'array' THEN
+
+    IF p_orcamento_items IS NULL
+       OR jsonb_typeof(p_orcamento_items) <> 'array'
+    THEN
       RETURN jsonb_build_object(
         'ok', false,
-        'error', 'invalid_orcamento_items',
-        'hint', 'Esperado jsonb array'
+        'error', 'orcamento_items_array_required'
       );
     END IF;
-    IF p_orcamento_discount IS NOT NULL AND p_orcamento_discount < 0 THEN
+
+    IF p_orcamento_discount IS NULL OR p_orcamento_discount < 0 THEN
       RETURN jsonb_build_object(
         'ok', false,
-        'error', 'invalid_orcamento_discount',
-        'hint', 'orcamento_discount >= 0'
+        'error', 'invalid_orcamento_discount'
       );
     END IF;
   END IF;
@@ -158,7 +164,19 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 7. Status válido para finalizar (preservado 1:1 · na_clinica, em_atendimento)
+  -- 7. Idempotência preservada do banco real: appointment já finalizado
+  -- ─────────────────────────────────────────────────────────────────────────
+  IF v_appt.status = 'finalizado' THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'appointment_id', v_appt.id,
+      'idempotent_skip', true,
+      'status', 'finalizado'
+    );
+  END IF;
+
+  -- ─────────────────────────────────────────────────────────────────────────
+  -- 8. Status válido para finalizar (preservado 1:1 · na_clinica, em_atendimento)
   -- ─────────────────────────────────────────────────────────────────────────
   IF v_appt.status NOT IN ('na_clinica', 'em_atendimento') THEN
     RETURN jsonb_build_object(
