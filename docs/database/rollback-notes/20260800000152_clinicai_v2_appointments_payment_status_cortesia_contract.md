@@ -57,26 +57,20 @@ Sem `cortesia` no contrato, o operador é forçado a:
 
 ---
 
-## 5 · Por que a migration é idempotente
+## 5 · Por que a migration é idempotente (v2 · governança estrita)
 
 ```sql
 DO $$
-DECLARE v_constraint_def text;
 BEGIN
   -- 1. Abort se valor fora do contrato existe (defensivo).
   IF EXISTS (...) THEN RAISE EXCEPTION ...;
 
-  -- 2. Lê constraint atual.
-  SELECT pg_get_constraintdef(...) INTO v_constraint_def ...;
-
-  -- 3. Se já inclui todos os valores finais, RETURN (no-op).
-  IF v_constraint_def ILIKE '%cortesia%' AND ... THEN
-    RAISE NOTICE 'already satisfied'; RETURN;
-  END IF;
-
-  -- 4. Caso contrário, DROP IF EXISTS + ADD CONSTRAINT.
-  ALTER TABLE ... DROP CONSTRAINT IF EXISTS ...;
-  ALTER TABLE ... ADD CONSTRAINT ...;
+  -- 2. Sempre substitui pela constraint oficial.
+  ALTER TABLE ... DROP CONSTRAINT IF EXISTS chk_appt_payment_status;
+  ALTER TABLE ... ADD CONSTRAINT chk_appt_payment_status CHECK (
+    payment_status = ANY (ARRAY['pendente','parcial','pago','cortesia','isento'])
+  );
+  RAISE NOTICE 'normalized to official contract: ...';
 END $$;
 ```
 
@@ -84,9 +78,22 @@ Resultados possíveis:
 
 | Ambiente | Constraint pré-apply | Comportamento |
 |---|---|---|
-| Prod CLINIIC AI v2 (atual) | já tem cortesia | NOTICE + no-op (RETURN no passo 3) |
-| Dev/preview sem ajuste manual | não tem cortesia | DROP + ADD recreate (passo 4) |
-| Ambiente com valor inválido em prod | qualquer | EXCEPTION (passo 1 · força revisão humana) |
+| Prod CLINIIC AI v2 (atual) | já contém os 5 valores oficiais | DROP IF EXISTS + ADD recreate · resultado idêntico |
+| Prod com constraint permissiva (e.g. inclui valores extras) | normalizada para o conjunto oficial | DROP + ADD recreate · agora restrita ao contrato |
+| Dev/preview sem ajuste manual | constraint antiga sem cortesia | DROP + ADD recreate (ganha cortesia) |
+| Ambiente com valor inválido nas linhas | qualquer | EXCEPTION (passo 1 · força revisão humana) |
+
+### Diff v1 → v2 (governança estrita)
+
+A v1 (commit `7cc3d46`) tinha guard textual via `ILIKE` que retornava no-op
+se a constraint contivesse os 5 valores. Isso era **frágil**: se a
+constraint atual fosse permissiva (incluísse, por hipótese, valores extras
+como `'parcial_voucher'`), a v1 deixaria passar.
+
+A v2 sempre executa `DROP IF EXISTS + ADD` após validar os dados.
+Resultado: o contrato é **exato**, não "compatível". Idempotência
+mantida porque `DROP IF EXISTS + ADD` produz o mesmo estado final em
+todas as execuções.
 
 ---
 

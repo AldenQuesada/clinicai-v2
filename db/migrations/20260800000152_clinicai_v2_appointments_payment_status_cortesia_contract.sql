@@ -20,11 +20,14 @@
 -- da verdade do contrato e que ambientes novos (dev/preview) terão a
 -- constraint correta.
 --
--- IDEMPOTÊNCIA:
---   - Se a constraint já inclui cortesia, retorna NOTICE e não recria.
+-- IDEMPOTÊNCIA + GOVERNANÇA ESTRITA (v2):
 --   - Se contém valor fora do contrato em prod, ABORTA com EXCEPTION
 --     (defensivo · força revisão humana antes de qualquer DROP CONSTRAINT).
---   - DROP CONSTRAINT IF EXISTS antes do ADD garante segurança em rerun.
+--   - DROP CONSTRAINT IF EXISTS + ADD CONSTRAINT sempre · garante contrato
+--     EXATO (não confia em guard textual que aceitaria constraint permissiva
+--     com valores extras).
+--   - DROP IF EXISTS + ADD em transação é repetível (mesmo resultado em
+--     ambientes que já têm a constraint ou não).
 --
 -- ESCOPO QUE NÃO ESTÁ NESTA MIG:
 --   - Alteração em appointment_finalize ou outras RPCs.
@@ -40,8 +43,6 @@
 BEGIN;
 
 DO $$
-DECLARE
-  v_constraint_def text;
 BEGIN
   -- 1. Abort defensivo se existir dado fora do contrato final.
   IF EXISTS (
@@ -60,27 +61,8 @@ BEGIN
       'appointments.payment_status contains values outside final contract';
   END IF;
 
-  -- 2. Ler constraint atual, se existir.
-  SELECT pg_get_constraintdef(c.oid)
-    INTO v_constraint_def
-  FROM pg_constraint c
-  WHERE c.conrelid = 'public.appointments'::regclass
-    AND c.conname = 'chk_appt_payment_status';
-
-  -- 3. Se a constraint já menciona todos os valores finais, não recriar.
-  IF v_constraint_def IS NOT NULL
-     AND v_constraint_def ILIKE '%pendente%'
-     AND v_constraint_def ILIKE '%parcial%'
-     AND v_constraint_def ILIKE '%pago%'
-     AND v_constraint_def ILIKE '%cortesia%'
-     AND v_constraint_def ILIKE '%isento%'
-  THEN
-    RAISE NOTICE
-      'chk_appt_payment_status already includes cortesia; contract already satisfied';
-    RETURN;
-  END IF;
-
-  -- 4. Caso contrário, substituir pela constraint oficial.
+  -- 2. Substituir sempre pela constraint oficial após validar os dados.
+  --    Isso garante contrato exato e evita constraints permissivas com valores extras.
   ALTER TABLE public.appointments
     DROP CONSTRAINT IF EXISTS chk_appt_payment_status;
 
@@ -99,7 +81,7 @@ BEGIN
     );
 
   RAISE NOTICE
-    'chk_appt_payment_status updated to include cortesia';
+    'chk_appt_payment_status normalized to official contract: pendente|parcial|pago|cortesia|isento';
 END $$;
 
 COMMENT ON CONSTRAINT chk_appt_payment_status ON public.appointments IS

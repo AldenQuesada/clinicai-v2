@@ -78,17 +78,26 @@ limpo (RETURN no passo 3 · idempotência).
 
 ---
 
-## 3 · Escopo da mig 152
+## 3 · Escopo da mig 152 (v2 · governança estrita)
 
 ### Faz
 
 - DO block que:
   1. Aborta com `EXCEPTION` se houver linha com `payment_status` fora do contrato final
-  2. Lê `pg_get_constraintdef` da `chk_appt_payment_status`
-  3. Se já contém `pendente|parcial|pago|cortesia|isento` → `RAISE NOTICE` + `RETURN` (no-op)
-  4. Caso contrário → `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` com os 5 valores
+  2. **Sempre** executa `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` com os 5 valores oficiais (após validação de dados)
 - `COMMENT ON CONSTRAINT` documentando o contrato
 - `NOTIFY pgrst, 'reload schema'`
+
+### Diff v1 → v2 (governança)
+
+| Aspecto | v1 (commit `7cc3d46`) | v2 (atual) |
+|---|---|---|
+| Guard textual `ILIKE %cortesia%` etc | ✅ presente · retornava no-op se constraint mencionasse os 5 valores | ❌ removido · aceitava constraint permissiva (com valores extras) |
+| `DECLARE v_constraint_def text` | presente | removido (não precisa) |
+| `RETURN;` por idempotência textual | presente | removido |
+| `DROP+ADD CONSTRAINT` | só se guard falhar | **sempre** após validação de dados |
+| Idempotência mantida? | sim (por guard) | sim (por `DROP IF EXISTS + ADD` ser repetível) |
+| Garantia de contrato exato | parcial · constraint permissiva passava | **total** · sempre normaliza para o array de 5 valores |
 
 ### Não faz
 
@@ -100,15 +109,14 @@ limpo (RETURN no passo 3 · idempotência).
 
 ---
 
-## 4 · SQL esperado (resumo · ver arquivo completo)
+## 4 · SQL esperado v2 (resumo · ver arquivo completo)
 
 ```sql
 BEGIN;
 
 DO $$
-DECLARE v_constraint_def text;
 BEGIN
-  -- 1. Abort defensivo
+  -- 1. Abort defensivo se existir dado fora do contrato final.
   IF EXISTS (
     SELECT 1 FROM public.appointments
     WHERE payment_status IS NOT NULL
@@ -117,31 +125,13 @@ BEGIN
     RAISE EXCEPTION 'appointments.payment_status contains values outside final contract';
   END IF;
 
-  -- 2. Ler constraint atual
-  SELECT pg_get_constraintdef(c.oid) INTO v_constraint_def
-    FROM pg_constraint c
-   WHERE c.conrelid='public.appointments'::regclass
-     AND c.conname='chk_appt_payment_status';
-
-  -- 3. Idempotência
-  IF v_constraint_def IS NOT NULL
-     AND v_constraint_def ILIKE '%pendente%'
-     AND v_constraint_def ILIKE '%parcial%'
-     AND v_constraint_def ILIKE '%pago%'
-     AND v_constraint_def ILIKE '%cortesia%'
-     AND v_constraint_def ILIKE '%isento%'
-  THEN
-    RAISE NOTICE 'chk_appt_payment_status already includes cortesia; contract already satisfied';
-    RETURN;
-  END IF;
-
-  -- 4. DROP + ADD recreate
+  -- 2. Substituir sempre pela constraint oficial após validar os dados.
   ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS chk_appt_payment_status;
   ALTER TABLE public.appointments
     ADD CONSTRAINT chk_appt_payment_status
     CHECK (payment_status = ANY (ARRAY['pendente'::text,'parcial'::text,'pago'::text,'cortesia'::text,'isento'::text]));
 
-  RAISE NOTICE 'chk_appt_payment_status updated to include cortesia';
+  RAISE NOTICE 'chk_appt_payment_status normalized to official contract: pendente|parcial|pago|cortesia|isento';
 END $$;
 
 COMMENT ON CONSTRAINT chk_appt_payment_status ON public.appointments IS
