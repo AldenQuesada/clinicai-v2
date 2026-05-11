@@ -190,7 +190,7 @@ BEGIN
   v_lead_id := v_appt.lead_id;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 8. Appointment de paciente recorrente (sem lead_id) · preservado 1:1
+  -- 9. Appointment de paciente recorrente (sem lead_id) · preservado 1:1
   --    - perdido (NOVO)            → lost_requires_lead
   --    - orcamento/paciente_orc.   → cannot_create_budget_without_lead
   --    - paciente                  → finaliza appt sem promoção
@@ -230,13 +230,13 @@ BEGIN
   END IF;
 
   -- ═════════════════════════════════════════════════════════════════════════
-  -- 9. Roteamento por outcome · sub-RPC PRIMEIRO · UPDATE só se ok=true
+  -- 10. Roteamento por outcome · sub-RPC PRIMEIRO · UPDATE só se ok=true
   --    (preserva ordem ATUAL do banco real para os 3 branches existentes ·
   --     branch perdido segue o mesmo padrão)
   -- ═════════════════════════════════════════════════════════════════════════
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 9.1 BRANCH 'perdido' (NOVO · única adição funcional desta mig)
+  -- 10.1 BRANCH 'perdido' (NOVO · única adição funcional desta mig)
   --     Regra: chama lead_lost · se falhar appt NÃO finaliza · payload `lost_call`.
   --     NÃO altera leads.phase, leads.deleted_at, patient, orçamento,
   --     phase_history (lead_lost cuida).
@@ -275,7 +275,7 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 9.2 BRANCH 'paciente' (preservado 1:1 · payload `patient_call`)
+  -- 10.2 BRANCH 'paciente' (preservado 1:1 · payload `patient_call`)
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome = 'paciente' THEN
     v_patient_call := public.lead_to_paciente(
@@ -314,7 +314,7 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 9.3 BRANCH 'orcamento' (preservado 1:1 · payload `budget_call`)
+  -- 10.3 BRANCH 'orcamento' (preservado 1:1 · payload `budget_call`)
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome = 'orcamento' THEN
     v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
@@ -354,14 +354,14 @@ BEGIN
   END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
-  -- 9.4 BRANCH 'paciente_orcamento' (preservado 1:1)
+  -- 10.4 BRANCH 'paciente_orcamento' (preservado 1:1)
   --     Sequência: orçamento PRIMEIRO · se falhar, appt NÃO finaliza.
   --                paciente DEPOIS · se falhar (orçamento já criado), appt NÃO
   --                finaliza · erro = patient_conversion_failed_after_budget.
   --     Apt só finaliza se AMBOS sub-RPCs retornarem ok=true.
   -- ─────────────────────────────────────────────────────────────────────────
   IF p_outcome = 'paciente_orcamento' THEN
-    -- 9.4.a Orçamento primeiro
+    -- 10.4.a Orçamento primeiro
     v_orc_total := GREATEST(0, p_orcamento_subtotal - COALESCE(p_orcamento_discount, 0));
     v_budget_call := public.lead_to_orcamento(
       p_lead_id  := v_lead_id,
@@ -380,7 +380,7 @@ BEGIN
       );
     END IF;
 
-    -- 9.4.b Paciente depois
+    -- 10.4.b Paciente depois
     v_patient_call := public.lead_to_paciente(
       p_lead_id       := v_lead_id,
       p_total_revenue := COALESCE(p_value, v_appt.value),
@@ -399,7 +399,7 @@ BEGIN
       );
     END IF;
 
-    -- 9.4.c Ambos OK · finaliza appointment
+    -- 10.4.c Ambos OK · finaliza appointment
     UPDATE public.appointments
        SET status         = 'finalizado',
            value          = COALESCE(p_value, value),
