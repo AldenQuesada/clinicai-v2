@@ -94,14 +94,13 @@ export function LeadPhaseBadge({
   )
 }
 
+// CRM_PHASE_2H.1: `pre_consulta` e `em_consulta` removidos (zumbis não-canônicos).
 type AppointmentStatus =
   | 'agendado'
   | 'aguardando_confirmacao'
   | 'confirmado'
-  | 'pre_consulta'
   | 'aguardando'
   | 'na_clinica'
-  | 'em_consulta'
   | 'em_atendimento'
   | 'finalizado'
   | 'remarcado'
@@ -116,15 +115,13 @@ const APPT_STATUS_MAP: Record<
   agendado: { label: 'Agendado', variant: 'info' },
   aguardando_confirmacao: { label: 'Aguardando confirmação', variant: 'warning' },
   confirmado: { label: 'Confirmado', variant: 'primary' },
-  pre_consulta: { label: 'Pré-consulta', variant: 'warning' },
   aguardando: { label: 'Aguardando', variant: 'warning' },
   na_clinica: { label: 'Na clínica', variant: 'primary' },
-  em_consulta: { label: 'Em consulta', variant: 'primary' },
   em_atendimento: { label: 'Em atendimento', variant: 'primary' },
   finalizado: { label: 'Finalizado', variant: 'success' },
   remarcado: { label: 'Remarcado', variant: 'warning' },
   cancelado: { label: 'Cancelado', variant: 'destructive' },
-  no_show: { label: 'Não compareceu', variant: 'destructive' },
+  no_show: { label: 'Não compareceu', variant: 'destructive' }, // label PT do enum no_show
   bloqueado: { label: 'Bloqueado', variant: 'neutral' },
 }
 

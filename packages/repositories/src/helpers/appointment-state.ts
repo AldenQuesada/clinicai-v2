@@ -40,19 +40,10 @@ export const APPOINTMENT_STATE_MACHINE: Record<
     'remarcado',
     'cancelado',
     'no_show',
-    'pre_consulta',
     'confirmado',
   ],
-  pre_consulta: [
-    'aguardando',
-    'na_clinica',
-    'cancelado',
-    'no_show',
-    'pre_consulta',
-  ],
   aguardando: ['na_clinica', 'no_show', 'cancelado', 'aguardando'],
-  na_clinica: ['em_consulta', 'em_atendimento', 'na_clinica'],
-  em_consulta: ['em_atendimento', 'finalizado', 'em_consulta'],
+  na_clinica: ['em_atendimento', 'na_clinica'],
   em_atendimento: ['finalizado', 'cancelado', 'na_clinica', 'em_atendimento'],
   finalizado: [], // terminal
   remarcado: ['agendado', 'cancelado', 'remarcado'],
@@ -96,8 +87,8 @@ export function isTerminalStatus(status: AppointmentStatus): boolean {
  *   status atual.
  * - canChangeLight: dropdown de status "leves" eh aplicavel.
  *
- * Substitui os hardcodes ['na_clinica','em_consulta','em_atendimento',...]
- * que existiam espalhados em apps/lara · UI agora consome esse helper.
+ * Substitui os hardcodes ['na_clinica','em_atendimento',...] que existiam
+ * espalhados em apps/lara · UI agora consome esse helper.
  */
 export interface AppointmentActionFlags {
   canMarkArrived: boolean
@@ -142,7 +133,6 @@ export function getAppointmentActionFlags(
 export const SAME_DAY_ONLY_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
   'aguardando',
   'na_clinica',
-  'em_consulta',
   'em_atendimento',
 ])
 
@@ -154,10 +144,8 @@ export const BLOCKS_CALENDAR: ReadonlySet<AppointmentStatus> = new Set([
   'agendado',
   'aguardando_confirmacao',
   'confirmado',
-  'pre_consulta',
   'aguardando',
   'na_clinica',
-  'em_consulta',
   'em_atendimento',
   'remarcado',
   'bloqueado',
@@ -169,10 +157,8 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   agendado: 'Agendado',
   aguardando_confirmacao: 'Aguard. Confirmação',
   confirmado: 'Confirmado',
-  pre_consulta: 'Pré-consulta',
   aguardando: 'Aguardando',
   na_clinica: 'Na Clínica',
-  em_consulta: 'Em Consulta',
   em_atendimento: 'Em Atendimento',
   finalizado: 'Finalizado',
   remarcado: 'Remarcado',
@@ -194,10 +180,8 @@ export const APPOINTMENT_STATUS_COLORS: Record<
   agendado: { color: '#3B82F6', bg: '#EFF6FF' },
   aguardando_confirmacao: { color: '#F59E0B', bg: '#FFFBEB' },
   confirmado: { color: '#10B981', bg: '#ECFDF5' },
-  pre_consulta: { color: '#F97316', bg: '#FFF7ED' },
   aguardando: { color: '#8B5CF6', bg: '#EDE9FE' },
   na_clinica: { color: '#06B6D4', bg: '#ECFEFF' },
-  em_consulta: { color: '#0EA5E9', bg: '#F0F9FF' },
   em_atendimento: { color: '#0284C7', bg: '#E0F2FE' },
   finalizado: { color: '#059669', bg: '#D1FAE5' },
   remarcado: { color: '#A855F7', bg: '#FAF5FF' },

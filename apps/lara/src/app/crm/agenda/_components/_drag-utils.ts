@@ -22,11 +22,11 @@ import {
  * cancelado, no_show) nao sao draggable · paciente ja foi atendido ou
  * fluxo encerrado.
  */
+// CRM_PHASE_2H.1: `pre_consulta` removido (zumbi não-canônico no DB).
 const DRAGGABLE_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
   'agendado',
   'aguardando_confirmacao',
   'confirmado',
-  'pre_consulta',
   'aguardando',
 ])
 

@@ -62,11 +62,11 @@ function addMinutes(time: string, mins: number): string {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
 }
 
+// CRM_PHASE_2H.1: `pre_consulta` removido (zumbi não-canônico no DB).
 const STATUS_OPTIONS = [
   { value: 'agendado', label: 'Agendado' },
   { value: 'aguardando_confirmacao', label: 'Aguard. Confirmação' },
   { value: 'confirmado', label: 'Confirmado' },
-  { value: 'pre_consulta', label: 'Pré-consulta' },
 ]
 
 const ORIGEM_OPTIONS = [
@@ -187,8 +187,7 @@ export function NewAppointmentForm({
         status: data.status as
           | 'agendado'
           | 'aguardando_confirmacao'
-          | 'confirmado'
-          | 'pre_consulta',
+          | 'confirmado',
         origem: data.origem || null,
         obs: data.obs || null,
       })

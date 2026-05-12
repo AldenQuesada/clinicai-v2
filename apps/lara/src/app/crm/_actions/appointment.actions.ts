@@ -220,7 +220,7 @@ export async function attendAppointmentAction(
     'appt.attend.ok',
   )
   updateTag(CRM_TAGS.appointments)
-  // Lead foi pra phase=compareceu se nao estava
+  // appointment_attend pode atualizar leads.phase em transação atômica · invalida tag
   if (!result.idempotentSkip) updateTag(CRM_TAGS.leads)
 
   // Mig 161 (CRM_PHASE_2G) · best-effort alerta interno de chegada.
@@ -393,13 +393,14 @@ export async function softDeleteAppointmentAction(
 
 // ── Camada 8a · State machine + drag-drop + recurrence + block time ────────
 
+// CRM_PHASE_2H.1 cleanup (2026-05-12): `pre_consulta` removido do enum
+// (zumbi não-canônico no DB).
 const ChangeStatusSchema = z.object({
   appointmentId: z.string().uuid(),
   newStatus: z.enum([
     'agendado',
     'aguardando_confirmacao',
     'confirmado',
-    'pre_consulta',
     'aguardando',
     'em_atendimento',
     'remarcado',

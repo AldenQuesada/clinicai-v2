@@ -72,14 +72,19 @@ export type PatientStatus = 'active' | 'inactive' | 'blocked' | 'deceased'
 export type PatientSex = 'F' | 'M' | 'O' | 'N'
 
 // ── Appointment ────────────────────────────────────────────────────────────
+//
+// CRM_PHASE_2H.1 cleanup (2026-05-12): `pre_consulta` e `em_consulta` foram
+// removidos. Não estavam no CHECK constraint do DB nem na RPC canônica de
+// transição (`_appointment_status_transition_allowed`). Eram zumbis que
+// nunca seriam aceitos em produção. Mantidos no histórico de migs antigas
+// como referência, mas removidos do runtime TS para evitar UI permitir
+// ação que o DB rejeitaria.
 export type AppointmentStatus =
   | 'agendado'
   | 'aguardando_confirmacao'
   | 'confirmado'
-  | 'pre_consulta'
   | 'aguardando'
   | 'na_clinica'
-  | 'em_consulta'
   | 'em_atendimento'
   | 'finalizado'
   | 'remarcado'

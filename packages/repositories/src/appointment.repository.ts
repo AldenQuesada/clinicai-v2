@@ -560,16 +560,15 @@ export class AppointmentRepository {
       revenueTotal += v
       if (r.payment_status === 'pago') revenuePaid += v
 
+      // CRM_PHASE_2H.1: `pre_consulta` e `em_consulta` removidos (zumbis não-canônicos).
       switch (r.status) {
         case 'agendado':
         case 'aguardando_confirmacao':
-        case 'pre_consulta':
           agendado++
           break
         case 'confirmado':
         case 'aguardando':
         case 'na_clinica':
-        case 'em_consulta':
         case 'em_atendimento':
           confirmado++
           break

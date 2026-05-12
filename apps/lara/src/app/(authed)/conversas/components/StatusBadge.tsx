@@ -12,29 +12,29 @@
 
 import { Calendar, AlertCircle, CheckCircle, Clock, Star } from 'lucide-react';
 
+// CRM_PHASE_2H.1 (2026-05-12) · phases canônicas pós-Fase 1C:
+//   lead, agendado, paciente, orcamento
+// Phases derrogadas removidas: reagendado/compareceu (no-op de phase pós-Fase 1C),
+// perdido (virou lifecycle_status via rota dedicada lead_lost).
 const PHASE_LABELS: Record<string, string> = {
   lead: 'Lead novo',
   agendado: 'Agendado',
-  reagendado: 'Reagendado',
-  compareceu: 'Compareceu',
   paciente: 'Paciente',
   orcamento: 'Orçamento aberto',
-  perdido: 'Perdido',
 };
 
+// CRM_PHASE_2H.1 · `pre_consulta`/`em_consulta` removidos (zumbis não-canônicos).
 const STATUS_LABELS: Record<string, string> = {
   agendado: 'Agendado',
   aguardando_confirmacao: 'Aguardando confirmação',
   confirmado: 'Confirmado',
-  pre_consulta: 'Pré-consulta',
   aguardando: 'Na sala de espera',
   na_clinica: 'Na clínica',
-  em_consulta: 'Em consulta',
   em_atendimento: 'Em atendimento',
   finalizado: 'Finalizado',
   remarcado: 'Remarcado',
   cancelado: 'Cancelado',
-  no_show: 'Não compareceu',
+  no_show: 'Não compareceu', // label PT do enum no_show
   bloqueado: 'Bloqueado',
 };
 
@@ -42,10 +42,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.Comp
   agendado: { bg: 'rgba(96,165,250,0.10)', text: '#93C5FD', icon: Calendar },
   aguardando_confirmacao: { bg: 'rgba(245,158,11,0.12)', text: '#FCD34D', icon: AlertCircle },
   confirmado: { bg: 'rgba(16,185,129,0.10)', text: '#6EE7B7', icon: CheckCircle },
-  pre_consulta: { bg: 'rgba(168,148,201,0.12)', text: '#A894C9', icon: Clock },
   aguardando: { bg: 'rgba(168,148,201,0.12)', text: '#A894C9', icon: Clock },
   na_clinica: { bg: 'rgba(168,148,201,0.12)', text: '#A894C9', icon: Clock },
-  em_consulta: { bg: 'rgba(168,148,201,0.12)', text: '#A894C9', icon: Clock },
   em_atendimento: { bg: 'rgba(168,148,201,0.12)', text: '#A894C9', icon: Clock },
   finalizado: { bg: 'rgba(201,169,110,0.12)', text: '#C9A96E', icon: Star },
   remarcado: { bg: 'rgba(245,158,11,0.10)', text: '#FCD34D', icon: Calendar },

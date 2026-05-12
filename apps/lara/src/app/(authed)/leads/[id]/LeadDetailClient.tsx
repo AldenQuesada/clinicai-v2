@@ -656,11 +656,10 @@ function Pill({ label, kind }: { label: string; kind: 'funnel' | 'phase' | 'temp
     procedimentos: { color: '#C9A96E', bg: 'rgba(201,169,110,0.15)' },
     lead: { color: '#818cf8', bg: 'rgba(129,140,248,0.15)' },
     agendado: { color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-    reagendado: { color: '#c084fc', bg: 'rgba(192,132,252,0.15)' },
-    compareceu: { color: '#22d3ee', bg: 'rgba(34,211,238,0.15)' },
+    // CRM_PHASE_2H.1: `reagendado` e `compareceu` removidos (não são phases canônicas).
     paciente: { color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
     orcamento: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-    perdido: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    perdido: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' }, // lifecycle (não phase)
     hot: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
     warm: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
     cold: { color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },

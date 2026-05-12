@@ -6,13 +6,17 @@
  * Confirmar só quando aguardando confirmação; Pré-consulta quando confirmado;
  * Pós-procedimento quando finalizado.
  *
- * Mapeamento (decidido com Alden):
+ * Mapeamento (decidido com Alden · CRM_PHASE_2H.1 sync com status canônicos):
  *   sem appointment / lead novo → Oferecer horários · Valores · Endereço · Pedir Dra
  *   aguardando_confirmacao      → Confirmar · Reagendar · Endereço · Pedir Dra
- *   confirmado / pre_consulta   → Pré-consulta · Endereço · Reagendar · Pedir Dra
+ *   confirmado / em_andamento   → Pré-consulta · Endereço · Reagendar · Pedir Dra
  *   cancelado / no_show         → Reagendar · Valores · Endereço · Pedir Dra
  *   finalizado                  → Pós-procedimento · Marcar retoque · Valores · Pedir Dra
  *   paciente recorrente         → Marcar retoque · Valores · Pré-consulta · Pedir Dra
+ *
+ * NB: `ACTIONS.pre_consulta` é o ID de um BOTÃO de UI (orientação pré-consulta),
+ *     NÃO um appointment status. O status `pre_consulta` foi removido na 2H.1
+ *     (zumbi não-canônico no DB).
  */
 
 'use client';
@@ -118,7 +122,8 @@ function pickActions(
   phase: string | null | undefined,
   appointmentStatus: string | null | undefined,
 ): QuickAction[] {
-  const inProgress = ['aguardando', 'na_clinica', 'em_consulta', 'em_atendimento', 'pre_consulta'].includes(
+  // CRM_PHASE_2H.1: `pre_consulta` e `em_consulta` removidos (zumbis · não-canônicos no DB).
+  const inProgress = ['aguardando', 'na_clinica', 'em_atendimento'].includes(
     appointmentStatus || '',
   );
   const aguardandoConf = appointmentStatus === 'aguardando_confirmacao';

@@ -8,14 +8,14 @@ import { OrcamentoItemSchema } from './lead.schemas'
 
 // ── Enums (espelham CHECK constraints mig 62) ───────────────────────────────
 
+// CRM_PHASE_2H.1 cleanup (2026-05-12): `pre_consulta` e `em_consulta` removidos
+// (nunca foram canônicos no DB · zumbis da iteração inicial).
 const AppointmentStatus = z.enum([
   'agendado',
   'aguardando_confirmacao',
   'confirmado',
-  'pre_consulta',
   'aguardando',
   'na_clinica',
-  'em_consulta',
   'em_atendimento',
   'finalizado',
   'remarcado',

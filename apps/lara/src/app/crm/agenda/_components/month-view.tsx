@@ -35,14 +35,13 @@ const WEEKDAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
  */
 type DotKind = 'agendado' | 'confirmado' | 'finalizado' | 'cancelado'
 
+// CRM_PHASE_2H.1: `pre_consulta` e `em_consulta` removidos (zumbis não-canônicos).
 const STATUS_TO_DOT: Record<AppointmentStatus, DotKind> = {
   agendado: 'agendado',
   aguardando_confirmacao: 'agendado',
-  pre_consulta: 'agendado',
   confirmado: 'confirmado',
   aguardando: 'confirmado',
   na_clinica: 'confirmado',
-  em_consulta: 'confirmado',
   em_atendimento: 'confirmado',
   finalizado: 'finalizado',
   remarcado: 'agendado',
