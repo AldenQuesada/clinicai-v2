@@ -22,7 +22,7 @@ import {
   useToast,
 } from '@clinicai/ui'
 import { APPOINTMENT_STATUS_LABELS } from '@clinicai/repositories'
-import { Play, Stethoscope, CheckCheck, Trash2 } from 'lucide-react'
+import { Play, Stethoscope, CheckCheck, Trash2, UserX } from 'lucide-react'
 import {
   changeAppointmentStatusAction,
   attendAppointmentAction,
@@ -31,11 +31,14 @@ import {
   markNoShowAction,
   softDeleteAppointmentAction,
 } from '@/app/crm/_actions/appointment.actions'
+import { markLeadLostAction } from '@/app/crm/_actions/lead.actions'
 
 interface AppointmentActionsProps {
   appointmentId: string
   currentStatus: string
   hasLead: boolean
+  /** CRM_PHASE_2J.1 · leadId pra fluxo Marcar como perdido */
+  leadId: string | null
   role: string | null | undefined
   /** Status pra dropdown change · ja filtrado no server (sem na_clinica/em_atendimento/finalizado) */
   lightTransitions: ReadonlyArray<string>
@@ -48,6 +51,8 @@ interface AppointmentActionsProps {
   clinicalGateStatus?: 'ok' | 'warning'
   anamnesisStatus?: 'none' | 'draft' | 'complete' | 'archived'
   consentSigned?: boolean
+  /** CRM_PHASE_2J.1 · lead ainda ativo comercialmente · libera Marcar como perdido */
+  canMarkLeadLost?: boolean
 }
 
 const OVERRIDE_ALLOWED_ROLES = new Set(['owner', 'admin'])
@@ -58,6 +63,7 @@ export function AppointmentActions({
   appointmentId,
   currentStatus,
   hasLead,
+  leadId,
   role,
   lightTransitions,
   canAttend,
@@ -67,6 +73,7 @@ export function AppointmentActions({
   clinicalGateStatus = 'warning',
   anamnesisStatus = 'none',
   consentSigned = false,
+  canMarkLeadLost = false,
 }: AppointmentActionsProps) {
   const router = useRouter()
   const { fromResult, success } = useToast()
@@ -75,6 +82,8 @@ export function AppointmentActions({
   const [openNoShow, setOpenNoShow] = React.useState(false)
   const [openFinalize, setOpenFinalize] = React.useState(false)
   const [openDelete, setOpenDelete] = React.useState(false)
+  // CRM_PHASE_2J.1 · Marcar como perdido (lead lost dedicated · fora do FinalizeWizard)
+  const [openLeadLost, setOpenLeadLost] = React.useState(false)
 
   async function handleChangeStatus(newStatus: string) {
     if (newStatus === 'cancelado') {
@@ -232,6 +241,20 @@ export function AppointmentActions({
         </>
       )}
 
+      {/* CRM_PHASE_2J.1 · Marcar como perdido (lead lost dedicado · fora do
+          FinalizeWizard · lifecycle comercial, NÃO phase clínica) */}
+      {canMarkLeadLost && leadId && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setOpenLeadLost(true)}
+          disabled={busy}
+        >
+          <UserX className="h-4 w-4" />
+          Marcar como perdido
+        </Button>
+      )}
+
       {/* Soft-delete admin only */}
       {role && ALLOWED_DELETE_ROLES.includes(role) && (
         <Button
@@ -274,6 +297,23 @@ export function AppointmentActions({
           router.refresh()
         }}
       />
+
+      {/* CRM_PHASE_2J.1 · Modal Marcar como perdido (lead lost) */}
+      {leadId && (
+        <LeadLostModal
+          open={openLeadLost}
+          onOpenChange={setOpenLeadLost}
+          onConfirm={async (reason) => {
+            const r = await markLeadLostAction({ leadId, reason })
+            if (!r.ok) {
+              fromResult(r)
+              return
+            }
+            success('Lead marcado como perdido · fora da fila ativa (histórico preservado)')
+            router.refresh()
+          }}
+        />
+      )}
 
       {/* Modal Finalizar · 3 outcomes · CRM_PHASE_2I.1 hard gate + override */}
       <FinalizeWizard
@@ -447,6 +487,134 @@ function NoShowModal({
         <Button variant="destructive" onClick={handle} disabled={busy}>
           {busy ? 'Salvando…' : 'Marcar no-show'}
         </Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── CRM_PHASE_2J.1 · Lead Lost modal · perda comercial dedicada ─────────────
+//
+// 'perdido' É lifecycle_status, NÃO phase clínica. Por isso é fluxo separado
+// do FinalizeWizard (que só emite paciente/orcamento/paciente_orcamento).
+//
+// Motivos predefinidos cobrem ~95% dos casos · "Outro" exige observação.
+// String final enviada ao RPC `lead_lost(p_lead_id, p_reason)` é composta
+// "{reason_label}: {notes}" quando há observação · senão só label.
+
+const LEAD_LOST_REASONS = [
+  { value: 'sem_resposta', label: 'Sem resposta' },
+  { value: 'preco', label: 'Preço acima do orçamento' },
+  { value: 'desistiu', label: 'Desistiu / não quer mais' },
+  { value: 'sem_interesse', label: 'Não tinha interesse real' },
+  { value: 'reagendara_futuro', label: 'Reagendará no futuro' },
+  { value: 'fora_perfil', label: 'Fora do perfil da clínica' },
+  { value: 'outro', label: 'Outro motivo (observação obrigatória)' },
+] as const
+
+function LeadLostModal({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  onConfirm: (reason: string) => Promise<void>
+}) {
+  const [reasonCode, setReasonCode] = React.useState<string>('sem_resposta')
+  const [notes, setNotes] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) {
+      setReasonCode('sem_resposta')
+      setNotes('')
+      setError(null)
+    }
+  }, [open])
+
+  const requiresNotes = reasonCode === 'outro'
+
+  async function handle() {
+    setError(null)
+    if (requiresNotes && notes.trim().length < 2) {
+      setError('Observação obrigatória quando motivo é "Outro"')
+      return
+    }
+    const label =
+      LEAD_LOST_REASONS.find((r) => r.value === reasonCode)?.label ?? reasonCode
+    const composed = notes.trim().length > 0 ? `${label}: ${notes.trim()}` : label
+
+    setBusy(true)
+    try {
+      await onConfirm(composed)
+      onOpenChange(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onOpenChange={(o) => !busy && onOpenChange(o)}
+      title="Marcar como perdido"
+      description="Tira o lead da fila ativa · histórico preservado · isto NÃO finaliza a consulta clinicamente."
+      dismissable={!busy}
+    >
+      <div className="space-y-3">
+        <div
+          role="note"
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+        >
+          <strong>Atenção:</strong> "perdido" é um status comercial
+          (lifecycle), não clínico. Isto move o lead para a aba de Recuperação
+          e remove da fila ativa do CRM. Histórico, anamnese e consentimento
+          permanecem intactos.
+        </div>
+
+        <FormField label="Motivo" htmlFor="lost-reason" required>
+          <Select
+            id="lost-reason"
+            value={reasonCode}
+            onChange={(e) => setReasonCode(e.target.value)}
+          >
+            {LEAD_LOST_REASONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField
+          label={requiresNotes ? 'Observação (obrigatória)' : 'Observação (opcional)'}
+          htmlFor="lost-notes"
+          required={requiresNotes}
+          error={error ?? undefined}
+        >
+          <Textarea
+            id="lost-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={
+              requiresNotes
+                ? 'Descreva o motivo específico…'
+                : 'Detalhes adicionais (opcional)'
+            }
+          />
+        </FormField>
+
+        <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button variant="outline" onClick={handle} disabled={busy}>
+            {busy ? 'Marcando…' : 'Confirmar perda'}
+          </Button>
+        </div>
       </div>
     </Modal>
   )

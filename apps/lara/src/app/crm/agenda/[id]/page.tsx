@@ -87,6 +87,16 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
   const allowedTransitions = APPOINTMENT_STATE_MACHINE[appt.status] ?? []
   const actionFlags = getAppointmentActionFlags(appt.status)
 
+  // CRM_PHASE_2J.1 · "Marcar como perdido" só faz sentido quando há lead
+  // comercialmente ativo (lifecycle=ativo) que ainda não virou paciente E o
+  // appointment não está em estado terminal clínico.
+  const canMarkLeadLost = Boolean(
+    lead &&
+      lead.lifecycleStatus === 'ativo' &&
+      lead.phase !== 'paciente' &&
+      !actionFlags.isTerminal,
+  )
+
   // CRM_PHASE_2I · estado clínico (anamnese + consent)
   const clinicalGate = await repos.appointments.getClinicalGateStatus(appt.id)
   const clinicalData: ClinicalGateData = clinicalGate.ok
@@ -157,6 +167,7 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
               appointmentId={appt.id}
               currentStatus={appt.status}
               hasLead={!!appt.leadId}
+              leadId={appt.leadId}
               role={ctx.role}
               lightTransitions={lightTransitions}
               canAttend={actionFlags.canMarkArrived}
@@ -166,6 +177,7 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
               clinicalGateStatus={clinicalData.gateStatus}
               anamnesisStatus={clinicalData.anamnesis.status}
               consentSigned={clinicalData.consent.signed}
+              canMarkLeadLost={canMarkLeadLost}
             />
           </CardContent>
         </Card>
