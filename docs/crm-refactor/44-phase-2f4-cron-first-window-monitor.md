@@ -205,5 +205,38 @@ Re-rodar este monitor após primeira execução de cada cron · validar:
 ## 16 · Histórico
 
 - 2026-05-12 ~08:40 BRT · Crons 89 + 90 criados (`PASS_CRM_PHASE_2F3_CRONS_D_BEFORE_D_ZERO_ACTIVE_WORKER_OFF`)
-- 2026-05-12 ~08:53 BRT · Esta observação · `NOT_YET_RUN` para ambos
-- Próxima fase 2F.4B esperada após primeira execução do cron 90 (~10:00 BRT hoje)
+- 2026-05-12 ~08:53 BRT · Primeira observação · `NOT_YET_RUN` para ambos
+- 2026-05-12 ~09:00 BRT · Segunda observação (CRM_PHASE_2F.4B) · ambos ainda `NOT_YET_RUN`
+  · job 90 d_before falta ~60 min para janela 10:00 BRT
+  · job 89 d_zero falta ~23h para janela 08:00 BRT (13/05)
+  · eligible_d_before_count = 0 · eligible_d_zero_count = 0
+  · wa_outbox total 123 (= baseline) · delta 2h = 0
+  · agenda_alerts_log total 0 (= baseline) · delta 2h = 0
+  · safety: empty_content/phone/missing_lead_id/pending_old_1h = 0/0/0/0
+  · worker 71 OFF preservado
+- 2026-05-12 ~09:02 BRT · Terceira observação (CRM_PHASE_2F.4B re-run) · estado idêntico
+  · `runs_90_24h` ainda null · `runs_89_24h` ainda null
+  · faltam ~58 min para janela 10:00 BRT do d_before
+  · counters e safety inalterados (delta 2h continua 0/0)
+  · worker 71 OFF
+  · `PARTIAL_CRM_PHASE_2F4B_D_BEFORE_STILL_NOT_RUN`
+- 2026-05-12 ~09:09 BRT · Quarta observação (CRM_SAFE_ROUND 2F.4C) · ainda NOT_YET_RUN
+  · `runs_90_24h` null · `runs_89_24h` null
+  · faltam ~51 min para primeira execução do cron 90 d_before (janela 10:00 BRT hoje)
+  · faltam ~23h para primeira execução do cron 89 d_zero (janela 08:00 BRT amanhã)
+  · `wa_outbox` total 123 · `last_2h` 0 · `last_24h_rule_d_before/d_zero` 0/0
+  · `wa_outbox` by_status: sent=66 · failed=8 · cancelled=49 · queued=0
+  · `wa_outbox` unsafe: empty_content/phone/missing_lead_id/pending_old_1h = 0/0/0/0
+  · `agenda_alerts_log` total 0 · day_minus_1=0 · day_zero=0
+  · `eligible_d_before_count` = 0 · `eligible_d_zero_count` = 0
+  · tracker mig 160 registrado
+  · worker 71 OFF preservado · gate inegociável
+- **NOVO BLOCKER OPERACIONAL · 2026-05-12**
+  · Número de WhatsApp da Secretaria/Mih (5544991622986) está banido pelo WhatsApp.
+  · Envio real continua bloqueado independentemente do que o cron enfileirar.
+  · Worker 71 deve permanecer OFF até que o canal de envio seja restaurado (ou Mih sair de ban OU migração Cloud Meta API · ver doc 45).
+  · Crons 89/90 continuam em dry-mode · não viram envio real.
+  · Doc canônico do gate: [45-phase-2l-whatsapp-real-send-ban-gate.md](45-phase-2l-whatsapp-real-send-ban-gate.md)
+- Próxima fase 2F.4D esperada após ~10:30 BRT (cron 90 d_before primeira execução natural) · ou amanhã 08:30 BRT para d_zero
+
+> Enquanto o número de WhatsApp da Secretaria/Mih estiver banido ou sem canal oficial aprovado, qualquer envio real fica bloqueado. O job 71 deve permanecer OFF. Os crons 89/90 podem continuar em dry-mode gerando fila, mas a fila não pode ser processada por worker real. A liberação de envio exige uma fase separada de WhatsApp Real Send Readiness, com canal aprovado, opt-in, templates, provider definido, teste interno controlado e rollback.
