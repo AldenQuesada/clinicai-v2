@@ -29,6 +29,7 @@ import {
   PatientRepository,
   OrcamentoRepository,
   PhaseHistoryRepository,
+  CommercialRecoveryRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -61,6 +62,8 @@ export interface Repos {
   patients: PatientRepository
   orcamentos: OrcamentoRepository
   phaseHistory: PhaseHistoryRepository
+  /** CRM_PHASE_2RC · queue unificada de recuperação comercial (mig 172+173) */
+  commercialRecovery: CommercialRecoveryRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -87,6 +90,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     patients: new PatientRepository(sb),
     orcamentos: new OrcamentoRepository(sb),
     phaseHistory: new PhaseHistoryRepository(sb),
+    commercialRecovery: new CommercialRecoveryRepository(sb),
   }
 }
 

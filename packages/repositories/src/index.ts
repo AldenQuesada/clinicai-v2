@@ -339,6 +339,16 @@ export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repos
 export { AppointmentRepository } from './appointment.repository'
 export { PatientRepository } from './patient.repository'
 export {
+  CommercialRecoveryRepository,
+  type CommercialRecoveryItemDTO,
+  type RecoverySourceType,
+  type RecoveryStatus,
+  type RecoveryPriority,
+  type ListRecoveryQueueFilter,
+  type RecoveryQueueCounts,
+  type RecoveryActionResult,
+} from './commercial-recovery.repository'
+export {
   OrcamentoRepository,
   type OrcamentoFollowupCandidateDTO,
 } from './orcamento.repository'
@@ -461,6 +471,8 @@ export type {
   LeadToOrcamentoResult,
   LeadLostOk,
   LeadLostResult,
+  LeadRecoverOk,
+  LeadRecoverResult,
   SdrChangePhaseOk,
   SdrChangePhaseResult,
 } from './types'

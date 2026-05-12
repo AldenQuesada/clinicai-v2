@@ -27,6 +27,7 @@ import type { LeadPhase, LeadTemperature } from './types/enums'
 import type {
   LeadCreateResult,
   LeadLostResult,
+  LeadRecoverResult,
   LeadToAppointmentResult,
   LeadToOrcamentoResult,
   LeadToPacienteResult,
@@ -663,6 +664,30 @@ export class LeadRepository {
       return { ok: false, error: 'rpc_error', detail: error.message } as LeadLostResult
     }
     return mapRpcResult<LeadLostResult>(data)
+  }
+
+  /**
+   * CRM_PHASE_2RC · Wrapper de `lead_recover(p_lead_id, p_to_phase, p_reason)`.
+   * Reativa lead perdido (wraps `perdido_to_lead`). p_to_phase ∈
+   * {lead, agendado, orcamento}. Atualiza perdidos.recovered_at +
+   * recovered_to_phase. Role gate: owner/admin/receptionist.
+   *
+   * NUNCA envia WhatsApp · ação puramente DB.
+   */
+  async recover(
+    leadId: string,
+    toPhase: 'lead' | 'agendado' | 'orcamento',
+    reason: string,
+  ): Promise<LeadRecoverResult> {
+    const { data, error } = await this.supabase.rpc('lead_recover', {
+      p_lead_id: leadId,
+      p_to_phase: toPhase,
+      p_reason: reason,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadRecoverResult
+    }
+    return mapRpcResult<LeadRecoverResult>(data)
   }
 
   /**

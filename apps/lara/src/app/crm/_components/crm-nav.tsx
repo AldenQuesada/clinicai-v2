@@ -19,6 +19,7 @@ import {
   Calendar,
   FileText,
   UserCircle,
+  RotateCcw,
 } from 'lucide-react'
 import { cn } from '@clinicai/ui'
 
@@ -45,6 +46,11 @@ const NAV: NavItem[] = [
     href: '/crm/orcamentos',
     label: 'Orçamentos',
     icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    href: '/crm/recuperacao',
+    label: 'Recuperação',
+    icon: <RotateCcw className="h-4 w-4" />,
   },
 ]
 

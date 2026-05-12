@@ -78,6 +78,17 @@ export interface LeadLostOk {
 }
 export type LeadLostResult = RpcResult<LeadLostOk>
 
+// ── lead_recover ───────────────────────────────────────────────────────────
+// CRM_PHASE_2RC · wrapper de perdido_to_lead. Reativa lead perdido pra fase
+// destino (lead | agendado | orcamento). Atualiza perdidos.recovered_at +
+// recovered_to_phase. Idempotente quando lead já está em lifecycle ativo.
+export interface LeadRecoverOk {
+  leadId: string
+  phaseAfter?: LeadPhase
+  idempotentSkip?: boolean
+}
+export type LeadRecoverResult = RpcResult<LeadRecoverOk>
+
 // ── sdr_change_phase ───────────────────────────────────────────────────────
 export interface SdrChangePhaseOk {
   leadId: string
