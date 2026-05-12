@@ -30,6 +30,7 @@ import {
   OrcamentoRepository,
   PhaseHistoryRepository,
   CommercialRecoveryRepository,
+  ProfessionalProfilesRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -64,6 +65,8 @@ export interface Repos {
   phaseHistory: PhaseHistoryRepository
   /** CRM_PHASE_2RC · queue unificada de recuperação comercial (mig 172+173) */
   commercialRecovery: CommercialRecoveryRepository
+  /** CRM_PHASE_2AUX.2 · fonte canônica de profissionais (FK first-class) */
+  professionalProfiles: ProfessionalProfilesRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -91,6 +94,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     orcamentos: new OrcamentoRepository(sb),
     phaseHistory: new PhaseHistoryRepository(sb),
     commercialRecovery: new CommercialRecoveryRepository(sb),
+    professionalProfiles: new ProfessionalProfilesRepository(sb),
   }
 }
 

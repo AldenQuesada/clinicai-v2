@@ -1,9 +1,15 @@
 /**
- * /crm/agenda/[id]/editar · CRM_PHASE_2AUX.3 · rota dedicada de edição.
+ * /crm/agenda/[id]/editar · CRM_PHASE_2AUX.3 + 2AUX.2 · rota dedicada de edição.
  *
  * Reusa NewAppointmentForm em modo `editing` (prop). Carrega appointment
  * por id via SSR, monta initial values, bloqueia se status terminal
  * (finalizado/cancelado/no_show/remarcado).
+ *
+ * CRM_PHASE_2AUX.2:
+ *   - Carrega profissionais ativos com agenda_enabled=true
+ *   - Carrega leads ativos pra dropdown (caso edit precise listar · raro)
+ *   - Preserva subject original (patient OU lead) sem permitir troca
+ *   - Preserva profissional original mas permite trocar
  *
  * Submit usa updateAppointmentAction com defesa em profundidade:
  *  - terminal block server-side (action retorna `appointment_terminal`)
@@ -23,9 +29,6 @@ import { NewAppointmentForm } from '../../novo/_form'
 
 export const dynamic = 'force-dynamic'
 
-// CRM_PHASE_2AUX.3 · status que bloqueiam edição.
-// Espelha TERMINAL_STATUSES_FOR_EDIT da action + acrescenta `remarcado`
-// (operacional · após drag-drop o slot original já tem nova reserva).
 const NOT_EDITABLE_STATUSES = new Set([
   'finalizado',
   'cancelado',
@@ -44,8 +47,6 @@ export default async function EditAppointmentPage({ params }: PageProps) {
   const appt = await repos.appointments.getById(id)
   if (!appt) notFound()
 
-  // Status terminal · bloqueia edit (defesa em profundidade · server action
-  // também rejeita com `appointment_terminal`)
   if (NOT_EDITABLE_STATUSES.has(appt.status)) {
     const statusLabel =
       APPOINTMENT_STATUS_LABELS[
@@ -96,7 +97,7 @@ export default async function EditAppointmentPage({ params }: PageProps) {
     )
   }
 
-  // Pre-load patients ativos para o select (igual a /novo)
+  // Pre-load patients ativos para o select
   const patients = await repos.patients
     .list(ctx.clinic_id, {
       status: 'active',
@@ -106,13 +107,38 @@ export default async function EditAppointmentPage({ params }: PageProps) {
     })
     .catch(() => [])
 
+  // CRM_PHASE_2AUX.2 · Pre-load profissionais com agenda habilitada
+  const professionals = await repos.professionalProfiles
+    .listActiveForAgenda(ctx.clinic_id)
+    .catch(() => [])
+
+  // CRM_PHASE_2AUX.2 · Pre-load leads ativos (mesma fonte que /novo)
+  const leadsList = await repos.leads
+    .list(
+      ctx.clinic_id,
+      { phases: ['lead', 'agendado'], lifecycleStatus: 'ativo' },
+      { limit: 50 },
+    )
+    .catch(() => ({ rows: [], total: 0 }))
+  const leadsForForm = (leadsList.rows ?? []).map((l) => ({
+    id: l.id,
+    name: l.name ?? 'Sem nome',
+    phone: l.phone ?? '',
+  }))
+
   // Resolve patient do appointment para pre-preencher (mesmo se select estará disabled)
   const currentPatient = appt.patientId
     ? patients.find((p) => p.id === appt.patientId) ??
       (await repos.patients.getById(appt.patientId).catch(() => null))
     : null
 
-  // Garante que o paciente atual aparece na lista do select (mesmo se inativo)
+  // Resolve lead do appointment (se edit é sobre lead-based appointment)
+  const currentLead = appt.leadId
+    ? leadsForForm.find((l) => l.id === appt.leadId) ??
+      (await repos.leads.getById(appt.leadId).catch(() => null))
+    : null
+
+  // Garante que paciente atual aparece na lista (mesmo se inativo)
   const patientsForForm = (() => {
     const list = patients.map((p) => ({ id: p.id, name: p.name, phone: p.phone }))
     if (currentPatient && !list.find((p) => p.id === currentPatient.id)) {
@@ -120,6 +146,38 @@ export default async function EditAppointmentPage({ params }: PageProps) {
         id: currentPatient.id,
         name: currentPatient.name,
         phone: currentPatient.phone,
+      })
+    }
+    return list
+  })()
+
+  // Garante que lead atual aparece na lista (mesmo se já promovido)
+  const leadsListForForm = (() => {
+    const list = [...leadsForForm]
+    if (currentLead && !list.find((l) => l.id === currentLead.id)) {
+      list.unshift({
+        id: currentLead.id,
+        name: currentLead.name ?? 'Sem nome',
+        phone: currentLead.phone ?? '',
+      })
+    }
+    return list
+  })()
+
+  // Garante que profissional atual aparece na lista (mesmo se desativado depois)
+  const professionalsForForm = (() => {
+    const list = professionals.map((p) => ({
+      id: p.id,
+      displayName: p.displayName,
+      specialty: p.specialty,
+      color: p.color,
+    }))
+    if (appt.professionalId && !list.find((p) => p.id === appt.professionalId)) {
+      list.unshift({
+        id: appt.professionalId,
+        displayName: appt.professionalName || 'Profissional',
+        specialty: null,
+        color: null,
       })
     }
     return list
@@ -147,6 +205,8 @@ export default async function EditAppointmentPage({ params }: PageProps) {
       />
       <NewAppointmentForm
         patients={patientsForForm}
+        leads={leadsListForForm}
+        professionals={professionalsForForm}
         prefillDate={appt.scheduledDate}
         prefillTime={appt.startTime.slice(0, 5)}
         prefillPatient={
@@ -158,9 +218,20 @@ export default async function EditAppointmentPage({ params }: PageProps) {
               }
             : null
         }
+        prefillLead={
+          currentLead
+            ? {
+                id: currentLead.id,
+                name: currentLead.name ?? 'Sem nome',
+                phone: currentLead.phone ?? '',
+              }
+            : null
+        }
         editing={{
           appointmentId: appt.id,
           patientId: appt.patientId,
+          leadId: appt.leadId,
+          professionalId: appt.professionalId,
           professionalName: appt.professionalName ?? '',
           procedureName: appt.procedureName ?? '',
           consultType: appt.consultType ?? null,

@@ -1,21 +1,28 @@
 'use client'
 
 /**
- * NewAppointmentForm · CRM_PHASE_2AUX · Wizard rich em 4 passos.
+ * NewAppointmentForm · CRM_PHASE_2AUX + 2AUX.2 · Wizard rich em 4 passos.
  *
- *   1. Paciente    · select de patient + lead-ready summary
- *   2. Tempo       · data + início/fim + profissional + LIVE conflict check
+ *   1. Subject     · toggle Paciente / Lead + select da fonte canônica
+ *   2. Tempo       · data + início/fim + profissional FK + LIVE conflict check
  *   3. Detalhes    · tipo, procedimento, valor, status, origem, observações
  *   4. Revisão     · resumo final + submit "Criar agendamento"
  *
+ * CRM_PHASE_2AUX.2:
+ *   - Profissional é FK first-class · Select de `professional_profiles`
+ *     (agenda_enabled=true) · NUNCA mais texto livre
+ *   - Lead support · permite agendar pra lead ativo (phase ∈ lead/agendado ·
+ *     lifecycle='ativo') sem virar paciente antes · XOR com patientId
+ *   - Conflict check passa professionalId real → bloqueia overlap por
+ *     profissional, libera profissionais diferentes no mesmo horário
+ *   - Edit mode preserva subject (lead OR patient) e profissional original
+ *
  * Validações operacionais:
  *   - Data >= hoje (refine no Zod + UI)
- *   - End > Start + duração 15..240min (refine no Zod + UI)
- *   - Status zumbi rejeitado (CHECK constraint DB · 2H.1 TS limpou)
- *   - Conflict check pré-submit via `checkAppointmentConflictAction`
- *
- * Edit mode: prop `editing?: { appointmentId, ...prefill }`. Quando presente,
- * usa `updateAppointmentAction` em vez de `createAppointmentAction`.
+ *   - End > Start + duração 15..240min
+ *   - Status zumbi rejeitado (CHECK constraint DB)
+ *   - Subject XOR (lead OU patient · nunca ambos)
+ *   - Conflict check pré-submit
  *
  * Zero WhatsApp · zero provider call · não toca cron.
  */
@@ -38,15 +45,26 @@ import {
   checkAppointmentConflictAction,
 } from '@/app/crm/_actions/appointment.actions'
 
-interface PatientOption {
+interface SubjectOption {
   id: string
   name: string
   phone: string
 }
 
+interface ProfessionalOption {
+  id: string
+  displayName: string
+  specialty: string | null
+  color: string | null
+}
+
+type SubjectKind = 'patient' | 'lead'
+
 interface EditingPrefill {
   appointmentId: string
   patientId: string | null
+  leadId: string | null
+  professionalId: string | null
   professionalName: string
   procedureName: string
   consultType: string | null
@@ -57,20 +75,26 @@ interface EditingPrefill {
 }
 
 export interface NewAppointmentFormProps {
-  patients: ReadonlyArray<PatientOption>
+  patients: ReadonlyArray<SubjectOption>
+  /** CRM_PHASE_2AUX.2 · leads ativos disponíveis pra agendar diretamente */
+  leads: ReadonlyArray<SubjectOption>
+  /** CRM_PHASE_2AUX.2 · profissionais ativos com agenda_enabled=true */
+  professionals: ReadonlyArray<ProfessionalOption>
   prefillDate: string | null
   prefillTime: string | null
-  prefillPatient: PatientOption | null
-  /** CRM_PHASE_2AUX · presença = modo edit. Form chama updateAppointmentAction. */
+  prefillPatient: SubjectOption | null
+  prefillLead: SubjectOption | null
   editing?: EditingPrefill | null
 }
 
 interface FormState {
+  subjectKind: SubjectKind
   patientId: string
+  leadId: string
   scheduledDate: string
   startTime: string
   endTime: string
-  professionalName: string
+  professionalId: string
   procedureName: string
   consultType: string
   value: string
@@ -100,7 +124,6 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-// CRM_PHASE_2H.1: `pre_consulta` removido (zumbi não-canônico no DB).
 const STATUS_OPTIONS = [
   { value: 'agendado', label: 'Agendado' },
   { value: 'aguardando_confirmacao', label: 'Aguard. Confirmação' },
@@ -124,7 +147,7 @@ const CONSULT_TYPE_OPTIONS = [
 ]
 
 const STEP_LABELS: Record<Step, string> = {
-  1: 'Paciente',
+  1: 'Paciente/Lead',
   2: 'Tempo',
   3: 'Detalhes',
   4: 'Revisão',
@@ -134,9 +157,12 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export function NewAppointmentForm({
   patients,
+  leads,
+  professionals,
   prefillDate,
   prefillTime,
   prefillPatient,
+  prefillLead,
   editing,
 }: NewAppointmentFormProps) {
   const router = useRouter()
@@ -145,13 +171,25 @@ export function NewAppointmentForm({
   const isEdit = !!editing
   const startTimeInit = prefillTime ?? '09:00'
 
+  // Decide initial subjectKind: edit→preserve original; create→prefill prefer lead if present
+  const initialKind: SubjectKind =
+    editing?.leadId
+      ? 'lead'
+      : editing?.patientId
+        ? 'patient'
+        : prefillLead
+          ? 'lead'
+          : 'patient'
+
   const [step, setStep] = React.useState<Step>(1)
   const [data, setData] = React.useState<FormState>({
+    subjectKind: initialKind,
     patientId: editing?.patientId ?? prefillPatient?.id ?? '',
+    leadId: editing?.leadId ?? prefillLead?.id ?? '',
     scheduledDate: prefillDate ?? todayIso(),
     startTime: startTimeInit,
     endTime: addMinutes(startTimeInit, 60),
-    professionalName: editing?.professionalName ?? '',
+    professionalId: editing?.professionalId ?? '',
     procedureName: editing?.procedureName ?? '',
     consultType: editing?.consultType ?? 'consulta',
     value: editing ? String(editing.value) : '',
@@ -164,7 +202,6 @@ export function NewAppointmentForm({
   >({})
   const [busy, setBusy] = React.useState(false)
 
-  // CRM_PHASE_2AUX · Live conflict state
   const [conflictState, setConflictState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'checking' }
@@ -176,10 +213,20 @@ export function NewAppointmentForm({
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setData((d) => ({ ...d, [key]: value }))
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
-    // Reset conflict state quando muda dados de tempo
-    if (key === 'scheduledDate' || key === 'startTime' || key === 'endTime' || key === 'professionalName') {
+    if (
+      key === 'scheduledDate' ||
+      key === 'startTime' ||
+      key === 'endTime' ||
+      key === 'professionalId'
+    ) {
       setConflictState({ kind: 'idle' })
     }
+  }
+
+  function changeSubjectKind(kind: SubjectKind) {
+    if (isEdit) return // edit preserves subject
+    setData((d) => ({ ...d, subjectKind: kind, patientId: '', leadId: '' }))
+    setErrors({})
   }
 
   function handleStartTimeChange(newStart: string) {
@@ -198,7 +245,11 @@ export function NewAppointmentForm({
   // ── Validation por step ───────────────────────────────────────────────────
   function validateStep1(): boolean {
     const errs: Partial<Record<keyof FormState, string>> = {}
-    if (!data.patientId) errs.patientId = 'Selecione um paciente'
+    if (data.subjectKind === 'patient') {
+      if (!data.patientId) errs.patientId = 'Selecione um paciente'
+    } else {
+      if (!data.leadId) errs.leadId = 'Selecione um lead'
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -215,6 +266,7 @@ export function NewAppointmentForm({
       else if (dur < 15) errs.endTime = 'Duração mínima: 15 minutos'
       else if (dur > 240) errs.endTime = 'Duração máxima: 4 horas'
     }
+    if (!data.professionalId) errs.professionalId = 'Selecione um profissional'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -228,8 +280,6 @@ export function NewAppointmentForm({
   }
 
   async function runConflictCheck(): Promise<boolean> {
-    // Sem profissional, não tem o que conflitar entre profissionais
-    // (verifica overlap por paciente mesmo assim)
     setConflictState({ kind: 'checking' })
     try {
       const r = await checkAppointmentConflictAction({
@@ -237,9 +287,9 @@ export function NewAppointmentForm({
         scheduledDate: data.scheduledDate,
         startTime: data.startTime,
         endTime: data.endTime,
-        professionalId: null, // form atual usa professionalName (text-free) · TODO: integrar professional FK
-        leadId: null,
-        patientId: data.patientId || null,
+        professionalId: data.professionalId || null,
+        leadId: data.subjectKind === 'lead' ? data.leadId || null : null,
+        patientId: data.subjectKind === 'patient' ? data.patientId || null : null,
       })
       if (!r.ok) {
         setConflictState({ kind: 'error' })
@@ -265,7 +315,6 @@ export function NewAppointmentForm({
     }
     if (step === 2) {
       if (!validateStep2()) return
-      // Live conflict check antes de avançar
       const ok = await runConflictCheck()
       if (!ok) return
       setStep(3)
@@ -288,9 +337,19 @@ export function NewAppointmentForm({
       return
     }
 
-    const patient = patients.find((p) => p.id === data.patientId)
-    if (!patient) {
-      toastError('Paciente não encontrado')
+    const subject =
+      data.subjectKind === 'patient'
+        ? patients.find((p) => p.id === data.patientId) ?? null
+        : leads.find((l) => l.id === data.leadId) ?? null
+
+    if (!subject) {
+      toastError(data.subjectKind === 'patient' ? 'Paciente não encontrado' : 'Lead não encontrado')
+      return
+    }
+
+    const professional = professionals.find((p) => p.id === data.professionalId) ?? null
+    if (!professional) {
+      toastError('Profissional inválido')
       return
     }
 
@@ -302,7 +361,8 @@ export function NewAppointmentForm({
             scheduledDate: data.scheduledDate,
             startTime: data.startTime,
             endTime: data.endTime,
-            professionalName: data.professionalName || '',
+            professionalId: data.professionalId,
+            professionalName: professional.displayName,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
             value: data.value ? parseFloat(data.value) || 0 : 0,
@@ -313,13 +373,15 @@ export function NewAppointmentForm({
             obs: data.obs || null,
           })
         : await createAppointmentAction({
-            patientId: data.patientId,
-            subjectName: patient.name,
-            subjectPhone: patient.phone,
+            patientId: data.subjectKind === 'patient' ? data.patientId : null,
+            leadId: data.subjectKind === 'lead' ? data.leadId : null,
+            subjectName: subject.name,
+            subjectPhone: subject.phone,
             scheduledDate: data.scheduledDate,
             startTime: data.startTime,
             endTime: data.endTime,
-            professionalName: data.professionalName || '',
+            professionalId: data.professionalId,
+            professionalName: professional.displayName,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
             value: data.value ? parseFloat(data.value) || 0 : 0,
@@ -363,9 +425,8 @@ export function NewAppointmentForm({
             setErrors(newErrs)
           }
           toastError('Revise os campos com erro')
-          // Volta para o passo mais relevante
-          if (errors.patientId) setStep(1)
-          else if (errors.scheduledDate || errors.startTime || errors.endTime) setStep(2)
+          if (errors.patientId || errors.leadId) setStep(1)
+          else if (errors.scheduledDate || errors.startTime || errors.endTime || errors.professionalId) setStep(2)
           else setStep(3)
           return
         }
@@ -382,7 +443,12 @@ export function NewAppointmentForm({
     }
   }
 
-  const selectedPatient = patients.find((p) => p.id === data.patientId) ?? null
+  const selectedSubject =
+    data.subjectKind === 'patient'
+      ? patients.find((p) => p.id === data.patientId) ?? null
+      : leads.find((l) => l.id === data.leadId) ?? null
+
+  const selectedProfessional = professionals.find((p) => p.id === data.professionalId) ?? null
   const duration = durationMinutes(data.startTime, data.endTime)
   const submitLabel = isEdit ? 'Atualizar agendamento' : 'Criar agendamento'
 
@@ -407,45 +473,106 @@ export function NewAppointmentForm({
         ))}
       </div>
 
-      {/* Step 1 · Paciente */}
+      {/* Step 1 · Subject (Paciente OU Lead) */}
       {step === 1 && (
         <div className="space-y-4">
-          <FormField
-            label="Paciente"
-            htmlFor="patientId"
-            required
-            error={errors.patientId}
-            hint={
-              patients.length === 0
-                ? 'Sem pacientes cadastrados · adicione em /crm/pacientes/novo'
-                : 'Pacientes ativos da clínica · busca por nome ou telefone'
-            }
-          >
-            <Select
-              id="patientId"
-              value={data.patientId}
-              onChange={(e) => set('patientId', e.target.value)}
-              invalid={!!errors.patientId}
-              disabled={isEdit}
+          {!isEdit && (
+            <div className="inline-flex rounded-md border border-[var(--border)] p-0.5">
+              <button
+                type="button"
+                onClick={() => changeSubjectKind('patient')}
+                className={`rounded px-3 py-1 text-xs font-display-uppercase tracking-widest transition-colors ${
+                  data.subjectKind === 'patient'
+                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--color-border-soft)]/40'
+                }`}
+              >
+                Paciente ({patients.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => changeSubjectKind('lead')}
+                className={`rounded px-3 py-1 text-xs font-display-uppercase tracking-widest transition-colors ${
+                  data.subjectKind === 'lead'
+                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--color-border-soft)]/40'
+                }`}
+              >
+                Lead ({leads.length})
+              </button>
+            </div>
+          )}
+
+          {data.subjectKind === 'patient' ? (
+            <FormField
+              label="Paciente"
+              htmlFor="patientId"
+              required
+              error={errors.patientId}
+              hint={
+                patients.length === 0
+                  ? 'Sem pacientes cadastrados · adicione em /crm/pacientes/novo'
+                  : 'Pacientes ativos da clínica'
+              }
             >
-              <option value="">Selecione…</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} {p.phone ? `· ${p.phone}` : ''}
-                </option>
-              ))}
-            </Select>
-            {isEdit && (
-              <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                Paciente do appointment não pode ser alterado em edição. Para
-                trocar paciente, cancele e crie um novo agendamento.
-              </p>
-            )}
-          </FormField>
+              <Select
+                id="patientId"
+                value={data.patientId}
+                onChange={(e) => set('patientId', e.target.value)}
+                invalid={!!errors.patientId}
+                disabled={isEdit}
+              >
+                <option value="">Selecione…</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.phone ? `· ${p.phone}` : ''}
+                  </option>
+                ))}
+              </Select>
+              {isEdit && (
+                <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                  Paciente do appointment não pode ser alterado em edição. Para
+                  trocar paciente, cancele e crie um novo agendamento.
+                </p>
+              )}
+            </FormField>
+          ) : (
+            <FormField
+              label="Lead ativo"
+              htmlFor="leadId"
+              required
+              error={errors.leadId}
+              hint={
+                leads.length === 0
+                  ? 'Sem leads ativos · cadastre em /crm/leads ou aguarde captação'
+                  : 'Leads com phase lead/agendado e lifecycle ativo'
+              }
+            >
+              <Select
+                id="leadId"
+                value={data.leadId}
+                onChange={(e) => set('leadId', e.target.value)}
+                invalid={!!errors.leadId}
+                disabled={isEdit}
+              >
+                <option value="">Selecione…</option>
+                {leads.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} {l.phone ? `· ${l.phone}` : ''}
+                  </option>
+                ))}
+              </Select>
+              {isEdit && (
+                <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                  Lead do appointment não pode ser alterado em edição.
+                </p>
+              )}
+            </FormField>
+          )}
         </div>
       )}
 
-      {/* Step 2 · Tempo + Conflict check */}
+      {/* Step 2 · Tempo + Profissional FK + Conflict check */}
       {step === 2 && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -484,17 +611,34 @@ export function NewAppointmentForm({
             </FormField>
           </div>
 
-          <FormField label="Profissional" htmlFor="professionalName">
-            <Input
-              id="professionalName"
-              value={data.professionalName}
-              onChange={(e) => set('professionalName', e.target.value)}
-              maxLength={120}
-              placeholder="Dra. Mirian de Paula"
-            />
+          <FormField
+            label="Profissional"
+            htmlFor="professionalId"
+            required
+            error={errors.professionalId}
+            hint={
+              professionals.length === 0
+                ? 'Nenhum profissional com agenda habilitada · habilite em /configuracoes/profissionais'
+                : 'Profissionais com agenda habilitada da clínica'
+            }
+          >
+            <Select
+              id="professionalId"
+              value={data.professionalId}
+              onChange={(e) => set('professionalId', e.target.value)}
+              invalid={!!errors.professionalId}
+              disabled={professionals.length === 0}
+            >
+              <option value="">Selecione…</option>
+              {professionals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName}
+                  {p.specialty ? ` · ${p.specialty}` : ''}
+                </option>
+              ))}
+            </Select>
           </FormField>
 
-          {/* Conflict state visual */}
           {conflictState.kind === 'checking' && (
             <p className="text-xs text-[var(--muted-foreground)]">
               Verificando conflitos…
@@ -519,7 +663,7 @@ export function NewAppointmentForm({
                     <li>{conflictState.counts.room} appointment(s) na mesma sala</li>
                   )}
                   {conflictState.counts.patient > 0 && (
-                    <li>{conflictState.counts.patient} appointment(s) do mesmo paciente</li>
+                    <li>{conflictState.counts.patient} appointment(s) do mesmo paciente/lead</li>
                   )}
                 </ul>
                 <p className="mt-1">Ajuste data, horário ou profissional.</p>
@@ -621,14 +765,24 @@ export function NewAppointmentForm({
           <p className="text-xs text-[var(--muted-foreground)]">
             Confira os dados antes de {isEdit ? 'atualizar' : 'criar'}:
           </p>
-          <SummaryRow label="Paciente" value={selectedPatient?.name ?? '—'} />
-          <SummaryRow label="Telefone" value={selectedPatient?.phone ?? '—'} />
+          <SummaryRow
+            label={data.subjectKind === 'patient' ? 'Paciente' : 'Lead'}
+            value={selectedSubject?.name ?? '—'}
+          />
+          <SummaryRow label="Telefone" value={selectedSubject?.phone ?? '—'} />
           <SummaryRow label="Data" value={data.scheduledDate} />
           <SummaryRow
             label="Horário"
             value={`${data.startTime} – ${data.endTime} (${duration}min)`}
           />
-          <SummaryRow label="Profissional" value={data.professionalName || '—'} />
+          <SummaryRow
+            label="Profissional"
+            value={
+              selectedProfessional
+                ? `${selectedProfessional.displayName}${selectedProfessional.specialty ? ` · ${selectedProfessional.specialty}` : ''}`
+                : '—'
+            }
+          />
           <SummaryRow label="Tipo" value={data.consultType || '—'} />
           <SummaryRow label="Procedimento" value={data.procedureName || '—'} />
           <SummaryRow label="Valor" value={data.value ? BRL.format(parseFloat(data.value) || 0) : '—'} />

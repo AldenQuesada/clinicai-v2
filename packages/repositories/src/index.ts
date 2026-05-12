@@ -334,6 +334,7 @@ export {
 export {
   ProfessionalProfilesRepository,
   type ProfessionalProfileDTO,
+  type AgendaProfessionalDTO,
 } from './professional-profiles.repository'
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
