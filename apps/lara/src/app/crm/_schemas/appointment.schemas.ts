@@ -103,6 +103,41 @@ export const CreateAppointmentSchema = z
       path: ['leadId'],
     },
   )
+  // CRM_PHASE_2AUX: validações operacionais reforçadas
+  .refine(
+    (v) => {
+      // Duração: end > start (mesmo dia)
+      return v.endTime > v.startTime
+    },
+    {
+      message: 'Horário final deve ser maior que o inicial',
+      path: ['endTime'],
+    },
+  )
+  .refine(
+    (v) => {
+      // Duração mínima 15min, máxima 4h (240min)
+      const [sh, sm] = v.startTime.split(':').map((s) => parseInt(s, 10))
+      const [eh, em] = v.endTime.split(':').map((s) => parseInt(s, 10))
+      const durMin = eh * 60 + em - (sh * 60 + sm)
+      return durMin >= 15 && durMin <= 240
+    },
+    {
+      message: 'Duração deve estar entre 15 minutos e 4 horas',
+      path: ['endTime'],
+    },
+  )
+  .refine(
+    (v) => {
+      // Data não pode ser passada (hoje OK · ontem ou antes não)
+      const todayIso = new Date().toISOString().slice(0, 10)
+      return v.scheduledDate >= todayIso
+    },
+    {
+      message: 'Data de agendamento não pode ser anterior a hoje',
+      path: ['scheduledDate'],
+    },
+  )
 
 // ── Update generico (data/horario/profissional/notas/status simples) ────────
 //
@@ -110,23 +145,77 @@ export const CreateAppointmentSchema = z
 // FinalizeAppointmentSchema), cancel (use CancelAppointmentSchema), no-show
 // (use MarkNoShowSchema). Essas tem invariantes de phase do lead.
 
-export const UpdateAppointmentSchema = z.object({
-  appointmentId: z.string().uuid(),
-  scheduledDate: DateStr.optional(),
-  startTime: TimeStr.optional(),
-  endTime: TimeStr.optional(),
-  professionalId: z.string().uuid().nullable().optional(),
-  professionalName: z.string().max(120).optional(),
-  procedureName: z.string().max(200).optional(),
-  consultType: z.string().max(50).nullable().optional(),
-  evalType: z.string().max(50).nullable().optional(),
-  value: z.number().nonnegative().optional(),
-  paymentMethod: z.string().max(50).nullable().optional(),
-  paymentStatus: AppointmentPaymentStatus.optional(),
-  status: AppointmentStatus.optional(),
-  consentimentoImg: AppointmentConsentImg.optional(),
-  obs: z.string().max(2000).nullable().optional(),
-})
+export const UpdateAppointmentSchema = z
+  .object({
+    appointmentId: z.string().uuid(),
+    scheduledDate: DateStr.optional(),
+    startTime: TimeStr.optional(),
+    endTime: TimeStr.optional(),
+    professionalId: z.string().uuid().nullable().optional(),
+    professionalName: z.string().max(120).optional(),
+    procedureName: z.string().max(200).optional(),
+    consultType: z.string().max(50).nullable().optional(),
+    evalType: z.string().max(50).nullable().optional(),
+    value: z.number().nonnegative().optional(),
+    paymentMethod: z.string().max(50).nullable().optional(),
+    paymentStatus: AppointmentPaymentStatus.optional(),
+    status: AppointmentStatus.optional(),
+    consentimentoImg: AppointmentConsentImg.optional(),
+    obs: z.string().max(2000).nullable().optional(),
+  })
+  // CRM_PHASE_2AUX: validações operacionais (só quando os campos estiverem presentes)
+  .refine(
+    (v) => {
+      if (v.startTime && v.endTime) return v.endTime > v.startTime
+      return true
+    },
+    { message: 'Horário final deve ser maior que o inicial', path: ['endTime'] },
+  )
+  .refine(
+    (v) => {
+      if (v.startTime && v.endTime) {
+        const [sh, sm] = v.startTime.split(':').map((s) => parseInt(s, 10))
+        const [eh, em] = v.endTime.split(':').map((s) => parseInt(s, 10))
+        const durMin = eh * 60 + em - (sh * 60 + sm)
+        return durMin >= 15 && durMin <= 240
+      }
+      return true
+    },
+    {
+      message: 'Duração deve estar entre 15 minutos e 4 horas',
+      path: ['endTime'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (v.scheduledDate) {
+        const todayIso = new Date().toISOString().slice(0, 10)
+        return v.scheduledDate >= todayIso
+      }
+      return true
+    },
+    {
+      message: 'Data não pode ser anterior a hoje',
+      path: ['scheduledDate'],
+    },
+  )
+
+// ── CRM_PHASE_2AUX · check de conflito pré-submit (UI wizard chama antes) ───
+
+export const CheckAppointmentConflictSchema = z
+  .object({
+    appointmentId: z.string().uuid().nullable().optional(), // ao editar · exclude self
+    scheduledDate: DateStr,
+    startTime: TimeStr,
+    endTime: TimeStr,
+    professionalId: z.string().uuid().nullable().optional(),
+    leadId: z.string().uuid().nullable().optional(),
+    patientId: z.string().uuid().nullable().optional(),
+  })
+  .refine((v) => v.endTime > v.startTime, {
+    message: 'Horário final deve ser maior que o inicial',
+    path: ['endTime'],
+  })
 
 // ── Cancel · motivo obrigatorio (chk_appt_cancelled_consistency) ────────────
 

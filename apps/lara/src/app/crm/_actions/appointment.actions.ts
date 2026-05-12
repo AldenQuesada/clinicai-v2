@@ -22,6 +22,7 @@ import { z } from 'zod'
 import {
   AttendAppointmentSchema,
   CancelAppointmentSchema,
+  CheckAppointmentConflictSchema,
   CreateAppointmentSchema,
   FinalizeAppointmentSchema,
   MarkNoShowSchema,
@@ -35,14 +36,65 @@ const SoftDeleteAppointmentSchema = z.object({
 const log = createLogger({ app: 'lara' })
 
 // ── 1. createAppointmentAction · paciente recorrente OU slot bloqueado ──────
+//
+// CRM_PHASE_2AUX: agora chama `checkConflicts` antes do INSERT como defesa
+// em profundidade. UI wizard também checa client-side via
+// `checkAppointmentConflictAction` para feedback imediato.
 
 export async function createAppointmentAction(
   input: unknown,
-): Promise<Result<{ appointmentId: string }>> {
+): Promise<
+  Result<{
+    appointmentId: string
+    conflictsBypass?: {
+      professional: number
+      room: number
+      patient: number
+    }
+  }>
+> {
   const parsed = CreateAppointmentSchema.safeParse(input)
   if (!parsed.success) return zodFail(parsed.error)
 
   const { ctx, repos } = await loadServerReposContext()
+
+  // Gate de conflito · só aplica se appointment tem subject + bloqueia
+  // calendário. Block-time (status='bloqueado' sem subject) pula check.
+  if (parsed.data.status !== 'bloqueado') {
+    const conflicts = await repos.appointments.checkConflicts(ctx.clinic_id, {
+      scheduledDate: parsed.data.scheduledDate,
+      startTime: parsed.data.startTime,
+      endTime: parsed.data.endTime,
+      professionalId: parsed.data.professionalId ?? null,
+      leadId: parsed.data.leadId ?? null,
+      patientId: parsed.data.patientId ?? null,
+    })
+    if (
+      conflicts.professional.length > 0 ||
+      conflicts.room.length > 0 ||
+      conflicts.patient.length > 0
+    ) {
+      log.warn(
+        {
+          action: 'crm.appt.create',
+          clinic_id: ctx.clinic_id,
+          scheduled_date: parsed.data.scheduledDate,
+          start_time: parsed.data.startTime,
+          end_time: parsed.data.endTime,
+          professional_count: conflicts.professional.length,
+          room_count: conflicts.room.length,
+          patient_count: conflicts.patient.length,
+        },
+        'appt.create.conflict',
+      )
+      return fail('schedule_conflict', {
+        professional: conflicts.professional.length,
+        room: conflicts.room.length,
+        patient: conflicts.patient.length,
+      })
+    }
+  }
+
   const created = await repos.appointments.create(ctx.clinic_id, parsed.data)
 
   if (!created) {
@@ -71,7 +123,52 @@ export async function createAppointmentAction(
   return ok({ appointmentId: created.id })
 }
 
+// ── 1b. checkAppointmentConflictAction · expõe checkConflicts para UI wizard
+
+export async function checkAppointmentConflictAction(input: unknown): Promise<
+  Result<{
+    hasConflict: boolean
+    counts: { professional: number; room: number; patient: number }
+  }>
+> {
+  const parsed = CheckAppointmentConflictSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+  const conflicts = await repos.appointments.checkConflicts(
+    ctx.clinic_id,
+    {
+      scheduledDate: parsed.data.scheduledDate,
+      startTime: parsed.data.startTime,
+      endTime: parsed.data.endTime,
+      professionalId: parsed.data.professionalId ?? null,
+      leadId: parsed.data.leadId ?? null,
+      patientId: parsed.data.patientId ?? null,
+    },
+    parsed.data.appointmentId ?? undefined,
+  )
+  const counts = {
+    professional: conflicts.professional.length,
+    room: conflicts.room.length,
+    patient: conflicts.patient.length,
+  }
+  return ok({
+    hasConflict: counts.professional + counts.room + counts.patient > 0,
+    counts,
+  })
+}
+
 // ── 2. updateAppointmentAction · campos editaveis simples ───────────────────
+
+// CRM_PHASE_2AUX: bloqueia edição quando appointment está em estado terminal
+// (finalizado/cancelado/no_show) e checa conflitos antes do UPDATE quando
+// scheduledDate/startTime/endTime/professionalId mudam.
+
+const TERMINAL_STATUSES_FOR_EDIT = new Set([
+  'finalizado',
+  'cancelado',
+  'no_show',
+])
 
 export async function updateAppointmentAction(
   input: unknown,
@@ -81,6 +178,68 @@ export async function updateAppointmentAction(
 
   const { appointmentId, ...patch } = parsed.data
   const { ctx, repos } = await loadServerReposContext()
+
+  // Bloqueia edição se o appointment atual está em terminal
+  const current = await repos.appointments.getById(appointmentId)
+  if (!current) {
+    return fail('not_found')
+  }
+  if (TERMINAL_STATUSES_FOR_EDIT.has(current.status)) {
+    log.warn(
+      {
+        action: 'crm.appt.update',
+        clinic_id: ctx.clinic_id,
+        appointment_id: appointmentId,
+        current_status: current.status,
+      },
+      'appt.update.blocked_terminal',
+    )
+    return fail('appointment_terminal', { current_status: current.status })
+  }
+
+  // Conflict check se algum campo de schedule mudou
+  const scheduleChanged =
+    patch.scheduledDate !== undefined ||
+    patch.startTime !== undefined ||
+    patch.endTime !== undefined ||
+    patch.professionalId !== undefined
+  if (scheduleChanged && current.status !== 'bloqueado') {
+    const conflicts = await repos.appointments.checkConflicts(
+      ctx.clinic_id,
+      {
+        scheduledDate: patch.scheduledDate ?? current.scheduledDate,
+        startTime: patch.startTime ?? current.startTime,
+        endTime: patch.endTime ?? current.endTime,
+        professionalId: patch.professionalId ?? current.professionalId,
+        leadId: current.leadId,
+        patientId: current.patientId,
+      },
+      appointmentId, // exclude self
+    )
+    if (
+      conflicts.professional.length > 0 ||
+      conflicts.room.length > 0 ||
+      conflicts.patient.length > 0
+    ) {
+      log.warn(
+        {
+          action: 'crm.appt.update',
+          clinic_id: ctx.clinic_id,
+          appointment_id: appointmentId,
+          professional_count: conflicts.professional.length,
+          room_count: conflicts.room.length,
+          patient_count: conflicts.patient.length,
+        },
+        'appt.update.conflict',
+      )
+      return fail('schedule_conflict', {
+        professional: conflicts.professional.length,
+        room: conflicts.room.length,
+        patient: conflicts.patient.length,
+      })
+    }
+  }
+
   const updated = await repos.appointments.update(appointmentId, patch)
 
   if (!updated) {
