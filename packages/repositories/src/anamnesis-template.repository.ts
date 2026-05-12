@@ -101,6 +101,24 @@ export interface AnamnesisTemplateWithStructureDTO extends AnamnesisTemplateDTO 
   >
 }
 
+/**
+ * Snapshot read-only do registro clínico de anamnese de um appointment.
+ * Mapeia 1:1 `appointment_anamneses` (fonte clínica · não a "structure" de
+ * `anamnesis_templates`). Hard gate clínico continua intacto · esta DTO
+ * só serve a `/crm/pacientes/[id]` em modo leitura.
+ */
+export interface PatientAnamnesisRecordDTO {
+  id: string
+  patientId: string | null
+  appointmentId: string | null
+  status: string | null
+  chiefComplaint: string | null
+  hasContent: boolean
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ListAnamnesisTemplatesFilter {
   search?: string | null
   status?: 'active' | 'inactive' | 'all'
@@ -492,5 +510,59 @@ export class AnamnesisTemplateRepository {
       .eq('id', id)
     if (error) return { ok: false, error: error.message }
     return { ok: true }
+  }
+
+  /**
+   * Lista snapshots clínicos de anamnese (`appointment_anamneses`) do
+   * paciente · read-only · sem alterar status/hard gate. Os campos clínicos
+   * sensíveis (medical_history, medications, ...) NÃO retornam aqui · só
+   * metadados e um flag `hasContent` para a UI mostrar "preenchida" ou não.
+   *
+   * UI clínica detalhada (mostrar respostas) vive em fase futura com
+   * contrato de role-gate explícito.
+   */
+  async listClinicalRecordsForPatient(
+    patientId: string,
+    opts: { limit?: number } = {},
+  ): Promise<PatientAnamnesisRecordDTO[]> {
+    const limit = Math.min(opts.limit ?? 50, 200)
+    const { data, error } = await this.supabase
+      .from('appointment_anamneses')
+      .select(
+        'id, patient_id, appointment_id, status, chief_complaint, ' +
+          'medical_history, medications, allergies, completed_at, created_at, updated_at',
+      )
+      .eq('patient_id', patientId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error || !data) return []
+    return (
+      data as unknown as Array<{
+        id: string
+        patient_id: string | null
+        appointment_id: string | null
+        status: string | null
+        chief_complaint: string | null
+        medical_history: string | null
+        medications: string | null
+        allergies: string | null
+        completed_at: string | null
+        created_at: string
+        updated_at: string
+      }>
+    ).map((r) => ({
+      id: r.id,
+      patientId: r.patient_id,
+      appointmentId: r.appointment_id,
+      status: r.status,
+      chiefComplaint: r.chief_complaint,
+      hasContent: Boolean(
+        r.chief_complaint || r.medical_history || r.medications || r.allergies,
+      ),
+      completedAt: r.completed_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }))
   }
 }

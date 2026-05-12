@@ -61,6 +61,7 @@ export {
   type AnamnesisTemplateCountsDTO,
   type CreateAnamnesisTemplateInput,
   type UpdateAnamnesisTemplateInput,
+  type PatientAnamnesisRecordDTO,
 } from './anamnesis-template.repository'
 export {
   BroadcastRepository,
