@@ -31,6 +31,7 @@ import {
   PhaseHistoryRepository,
   CommercialRecoveryRepository,
   ProfessionalProfilesRepository,
+  CrmDashboardRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -67,6 +68,8 @@ export interface Repos {
   commercialRecovery: CommercialRecoveryRepository
   /** CRM_PHASE_2AUX.2 · fonte canônica de profissionais (FK first-class) */
   professionalProfiles: ProfessionalProfilesRepository
+  /** CRM_PHASE_LEGACY.PORT.DASHBOARDS · aggregates read-only do dashboard CRM */
+  crmDashboard: CrmDashboardRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -95,6 +98,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     phaseHistory: new PhaseHistoryRepository(sb),
     commercialRecovery: new CommercialRecoveryRepository(sb),
     professionalProfiles: new ProfessionalProfilesRepository(sb),
+    crmDashboard: new CrmDashboardRepository(sb),
   }
 }
 

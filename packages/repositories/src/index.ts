@@ -356,6 +356,15 @@ export {
   type RecoveryWorkflowActionResult,
 } from './commercial-recovery.repository'
 export {
+  CrmDashboardRepository,
+  type CrmDashboardRange,
+  type CrmDashboardFilters,
+  type CrmDashboardSummary,
+  type CrmDashboardByProfessional,
+  type CrmDashboardFunnel,
+  type CrmDashboardOperationalLists,
+} from './crm-dashboard.repository'
+export {
   OrcamentoRepository,
   type OrcamentoFollowupCandidateDTO,
 } from './orcamento.repository'

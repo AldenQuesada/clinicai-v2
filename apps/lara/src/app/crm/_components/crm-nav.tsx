@@ -20,6 +20,7 @@ import {
   FileText,
   UserCircle,
   RotateCcw,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '@clinicai/ui'
 
@@ -30,7 +31,12 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: '/crm', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+  { href: '/crm', label: 'Home', icon: <LayoutDashboard className="h-4 w-4" /> },
+  {
+    href: '/crm/dashboard',
+    label: 'Dashboard',
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
   { href: '/crm/leads', label: 'Leads', icon: <UserCircle className="h-4 w-4" /> },
   {
     href: '/crm/pacientes',
