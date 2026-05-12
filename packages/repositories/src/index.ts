@@ -344,9 +344,15 @@ export {
   type RecoverySourceType,
   type RecoveryStatus,
   type RecoveryPriority,
+  type RecoveryStage,
+  type RecoveryNextActionType,
+  type RecoveryWorkflowItemDTO,
+  type RecoveryWorkflowCounts,
   type ListRecoveryQueueFilter,
+  type ListRecoveryWorkflowFilter,
   type RecoveryQueueCounts,
   type RecoveryActionResult,
+  type RecoveryWorkflowActionResult,
 } from './commercial-recovery.repository'
 export {
   OrcamentoRepository,

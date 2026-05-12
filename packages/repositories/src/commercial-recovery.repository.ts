@@ -1,9 +1,14 @@
 /**
- * CommercialRecoveryRepository · CRM_PHASE_2RC.
+ * CommercialRecoveryRepository · CRM_PHASE_2RC + 2RC.1.
  *
  * Read-model unificado da fila de recuperação comercial (mig 172).
  * Consome `public.commercial_recovery_queue_view` (UNION ALL de 4 fontes:
  * perdidos, appointments cancelado, appointments no_show, orcamentos draft).
+ *
+ * Workflow interno (mig 174) · CRM_PHASE_2RC.1:
+ *   - commercial_recovery_workflow_view · queue + workflow_items LEFT JOIN
+ *   - 8 RPCs SECURITY DEFINER (create_or_get, update_stage/priority,
+ *     set_next_action, add_note, mark_recovered, discard, suggest_message)
  *
  * Ações seguras sobre `perdidos` (mig 173):
  *   - markDiscarded(perdidoId, reason) · seta is_recoverable=false
@@ -22,9 +27,28 @@ export type RecoverySourceType =
   | 'appointment_no_show'
   | 'orcamento_frio'
 
-export type RecoveryStatus = 'aberto' | 'recuperado' | 'descartado'
+export type RecoveryStatus = 'aberto' | 'recuperado' | 'descartado' | 'arquivado'
 
-export type RecoveryPriority = 'alta' | 'media' | 'baixa'
+export type RecoveryPriority = 'alta' | 'media' | 'baixa' | 'urgente'
+
+export type RecoveryStage =
+  | 'novo'
+  | 'em_analise'
+  | 'primeira_tentativa'
+  | 'aguardando_resposta'
+  | 'retorno_agendado'
+  | 'recuperado'
+  | 'descartado'
+  | 'arquivado'
+
+export type RecoveryNextActionType =
+  | 'ligar'
+  | 'enviar_whatsapp_quando_liberado'
+  | 'agendar_retorno'
+  | 'revisar_orcamento'
+  | 'marcar_descartado'
+  | 'reativar_lead'
+  | 'observar'
 
 export interface CommercialRecoveryItemDTO {
   itemId: string
@@ -60,6 +84,69 @@ export interface RecoveryQueueCounts {
   byPriority: Record<RecoveryPriority, number>
   byStatus: Record<RecoveryStatus, number>
   bySource: Record<RecoverySourceType, number>
+}
+
+// ── Workflow types (2RC.1) ────────────────────────────────────────────────
+
+export interface RecoveryWorkflowItemDTO {
+  itemId: string
+  clinicId: string
+  sourceType: RecoverySourceType
+  sourceId: string
+  leadId: string | null
+  patientId: string | null
+  appointmentId: string | null
+  orcamentoId: string | null
+  displayName: string | null
+  phoneLast4: string | null
+  reason: string | null
+  sourceNotes: string | null
+  sourceEventAt: string | null
+  resolvedAt: string | null
+
+  workflowId: string | null
+  stage: RecoveryStage
+  priority: RecoveryPriority
+  status: RecoveryStatus
+  assignedTo: string | null
+  nextActionType: RecoveryNextActionType | null
+  nextActionAt: string | null
+  workflowNote: string | null
+  suggestedMessage: string | null
+  workflowUpdatedAt: string | null
+  nextActionOverdue: boolean
+}
+
+export interface RecoveryWorkflowCounts {
+  total: number
+  byStage: Record<RecoveryStage, number>
+  byPriority: Record<RecoveryPriority, number>
+  overdue: number
+  assignedToMe: number
+}
+
+export interface ListRecoveryWorkflowFilter {
+  sourceType?: RecoverySourceType | 'all'
+  stage?: RecoveryStage | 'all'
+  priority?: RecoveryPriority | 'all'
+  status?: RecoveryStatus | 'all'
+  assignedTo?: string | null
+  overdueOnly?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface RecoveryWorkflowActionResult {
+  ok: boolean
+  error?: string
+  id?: string
+  existed?: boolean
+  idempotentSkip?: boolean
+  stage?: RecoveryStage
+  priority?: RecoveryPriority
+  status?: RecoveryStatus
+  actionType?: RecoveryNextActionType | null
+  at?: string | null
 }
 
 export interface RecoveryActionResult {
@@ -159,8 +246,8 @@ export class CommercialRecoveryRepository {
   async getCounts(): Promise<RecoveryQueueCounts> {
     const empty: RecoveryQueueCounts = {
       total: 0,
-      byPriority: { alta: 0, media: 0, baixa: 0 },
-      byStatus: { aberto: 0, recuperado: 0, descartado: 0 },
+      byPriority: { urgente: 0, alta: 0, media: 0, baixa: 0 },
+      byStatus: { aberto: 0, recuperado: 0, descartado: 0, arquivado: 0 },
       bySource: {
         lead_lost: 0,
         appointment_cancelled: 0,
@@ -228,4 +315,311 @@ export class CommercialRecoveryRepository {
     }
     return { ok: false, error: 'unexpected_response' }
   }
+
+  // ── Workflow methods (CRM_PHASE_2RC.1 · mig 174) ─────────────────────────
+
+  /**
+   * Lista fila de recuperação com camada de workflow (mig 174).
+   * Usa `commercial_recovery_workflow_view` (queue_view LEFT JOIN workflow_items).
+   * Workflow overrides > queue computed values quando workflow row existe.
+   */
+  async listWorkflowQueue(
+    filter: ListRecoveryWorkflowFilter = {},
+  ): Promise<{ items: RecoveryWorkflowItemDTO[]; error?: string }> {
+    let q = this.supabase.from('commercial_recovery_workflow_view').select('*')
+
+    if (filter.sourceType && filter.sourceType !== 'all') {
+      q = q.eq('source_type', filter.sourceType)
+    }
+    if (filter.stage && filter.stage !== 'all') {
+      q = q.eq('stage', filter.stage)
+    }
+    if (filter.priority && filter.priority !== 'all') {
+      q = q.eq('priority', filter.priority)
+    }
+    if (filter.status && filter.status !== 'all') {
+      q = q.eq('status', filter.status)
+    }
+    if (filter.assignedTo !== undefined) {
+      if (filter.assignedTo === null) q = q.is('assigned_to', null)
+      else q = q.eq('assigned_to', filter.assignedTo)
+    }
+    if (filter.overdueOnly) {
+      q = q.eq('next_action_overdue', true)
+    }
+
+    q = q
+      .order('priority', { ascending: true })
+      .order('next_action_at', { ascending: true, nullsFirst: false })
+      .order('source_event_at', { ascending: false, nullsFirst: false })
+
+    if (filter.limit) {
+      q = q.range(filter.offset ?? 0, (filter.offset ?? 0) + filter.limit - 1)
+    }
+
+    const { data, error } = await q
+    if (error) return { items: [], error: error.message }
+
+    interface ViewRow {
+      item_id: string
+      clinic_id: string
+      source_type: RecoverySourceType
+      source_id: string
+      lead_id: string | null
+      patient_id: string | null
+      appointment_id: string | null
+      orcamento_id: string | null
+      display_name: string | null
+      phone_last4: string | null
+      reason: string | null
+      source_notes: string | null
+      source_event_at: string | null
+      resolved_at: string | null
+      workflow_id: string | null
+      stage: RecoveryStage
+      priority: RecoveryPriority
+      status: RecoveryStatus
+      assigned_to: string | null
+      next_action_type: RecoveryNextActionType | null
+      next_action_at: string | null
+      workflow_note: string | null
+      suggested_message: string | null
+      workflow_updated_at: string | null
+      next_action_overdue: boolean
+    }
+
+    const items: RecoveryWorkflowItemDTO[] = (data as ViewRow[] | null ?? []).map(
+      (r) => ({
+        itemId: r.item_id,
+        clinicId: r.clinic_id,
+        sourceType: r.source_type,
+        sourceId: r.source_id,
+        leadId: r.lead_id,
+        patientId: r.patient_id,
+        appointmentId: r.appointment_id,
+        orcamentoId: r.orcamento_id,
+        displayName: r.display_name,
+        phoneLast4: r.phone_last4,
+        reason: r.reason,
+        sourceNotes: r.source_notes,
+        sourceEventAt: r.source_event_at,
+        resolvedAt: r.resolved_at,
+        workflowId: r.workflow_id,
+        stage: r.stage,
+        priority: r.priority,
+        status: r.status,
+        assignedTo: r.assigned_to,
+        nextActionType: r.next_action_type,
+        nextActionAt: r.next_action_at,
+        workflowNote: r.workflow_note,
+        suggestedMessage: r.suggested_message,
+        workflowUpdatedAt: r.workflow_updated_at,
+        nextActionOverdue: r.next_action_overdue,
+      }),
+    )
+
+    return { items }
+  }
+
+  /**
+   * Conta workflow itens · totais + by stage + by priority + overdue + assigned.
+   */
+  async getWorkflowCounts(currentUserId?: string | null): Promise<RecoveryWorkflowCounts> {
+    const empty: RecoveryWorkflowCounts = {
+      total: 0,
+      byStage: {
+        novo: 0,
+        em_analise: 0,
+        primeira_tentativa: 0,
+        aguardando_resposta: 0,
+        retorno_agendado: 0,
+        recuperado: 0,
+        descartado: 0,
+        arquivado: 0,
+      },
+      byPriority: { baixa: 0, media: 0, alta: 0, urgente: 0 },
+      overdue: 0,
+      assignedToMe: 0,
+    }
+
+    const { data, error } = await this.supabase
+      .from('commercial_recovery_workflow_view')
+      .select('stage,priority,next_action_overdue,assigned_to')
+
+    if (error || !data) return empty
+
+    const rows = data as Array<{
+      stage: RecoveryStage
+      priority: RecoveryPriority
+      next_action_overdue: boolean
+      assigned_to: string | null
+    }>
+
+    const out: RecoveryWorkflowCounts = {
+      total: rows.length,
+      byStage: { ...empty.byStage },
+      byPriority: { ...empty.byPriority },
+      overdue: 0,
+      assignedToMe: 0,
+    }
+    for (const r of rows) {
+      out.byStage[r.stage] = (out.byStage[r.stage] ?? 0) + 1
+      out.byPriority[r.priority] = (out.byPriority[r.priority] ?? 0) + 1
+      if (r.next_action_overdue) out.overdue++
+      if (currentUserId && r.assigned_to === currentUserId) out.assignedToMe++
+    }
+    return out
+  }
+
+  /**
+   * Cria-ou-pega workflow item por (source_type, source_id). Idempotente.
+   * RPC `commercial_recovery_workflow_create_or_get`.
+   */
+  async createOrGetWorkflow(input: {
+    sourceType: RecoverySourceType
+    sourceId: string
+    leadId?: string | null
+    appointmentId?: string | null
+    orcamentoId?: string | null
+    priority?: RecoveryPriority
+  }): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_create_or_get',
+      {
+        p_source_type: input.sourceType,
+        p_source_id: input.sourceId,
+        p_lead_id: input.leadId ?? null,
+        p_appointment_id: input.appointmentId ?? null,
+        p_orcamento_id: input.orcamentoId ?? null,
+        p_priority: input.priority ?? 'media',
+      },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async updateWorkflowStage(
+    id: string,
+    stage: RecoveryStage,
+    note?: string | null,
+  ): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_update_stage',
+      { p_id: id, p_stage: stage, p_note: note ?? null },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async updateWorkflowPriority(
+    id: string,
+    priority: RecoveryPriority,
+  ): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_update_priority',
+      { p_id: id, p_priority: priority },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async setWorkflowNextAction(input: {
+    id: string
+    actionType: RecoveryNextActionType | null
+    at: string | null
+    assignedTo?: string | null
+  }): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_set_next_action',
+      {
+        p_id: input.id,
+        p_action_type: input.actionType,
+        p_at: input.at,
+        p_assigned_to: input.assignedTo ?? null,
+      },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async addWorkflowNote(id: string, note: string): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_add_note',
+      { p_id: id, p_note: note },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async markWorkflowRecovered(
+    id: string,
+    note?: string | null,
+  ): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_mark_recovered',
+      { p_id: id, p_note: note ?? null },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  async discardWorkflow(
+    id: string,
+    reason: string,
+  ): Promise<RecoveryWorkflowActionResult> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_discard',
+      { p_id: id, p_reason: reason },
+    )
+    return mapWorkflowRpc(data, error?.message)
+  }
+
+  /**
+   * Gera texto sugerido (dry-run · zero envio · regra SQL estática).
+   * RPC IMMUTABLE · pure read.
+   */
+  async suggestWorkflowMessage(
+    sourceType: RecoverySourceType,
+    displayName: string,
+    reason?: string | null,
+  ): Promise<{ ok: boolean; message?: string; error?: string }> {
+    const { data, error } = await this.supabase.rpc(
+      'commercial_recovery_workflow_suggest_message',
+      {
+        p_source_type: sourceType,
+        p_display_name: displayName,
+        p_reason: reason ?? null,
+      },
+    )
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, message: typeof data === 'string' ? data : String(data ?? '') }
+  }
+}
+
+function mapWorkflowRpc(
+  data: unknown,
+  errorMessage?: string,
+): RecoveryWorkflowActionResult {
+  if (errorMessage) return { ok: false, error: errorMessage }
+  if (data && typeof data === 'object' && 'ok' in data) {
+    const d = data as {
+      ok: boolean
+      error?: string
+      id?: string
+      existed?: boolean
+      idempotent_skip?: boolean
+      stage?: RecoveryStage
+      priority?: RecoveryPriority
+      status?: RecoveryStatus
+      action_type?: RecoveryNextActionType | null
+      at?: string | null
+    }
+    return {
+      ok: d.ok,
+      error: d.error,
+      id: d.id,
+      existed: d.existed,
+      idempotentSkip: d.idempotent_skip,
+      stage: d.stage,
+      priority: d.priority,
+      status: d.status,
+      actionType: d.action_type ?? null,
+      at: d.at ?? null,
+    }
+  }
+  return { ok: false, error: 'unexpected_response' }
 }
