@@ -58,6 +58,24 @@ interface ProfessionalOption {
   color: string | null
 }
 
+/**
+ * CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · Trilha B1.
+ *
+ * Procedimento canônico vindo de `clinic_procedimentos`. Sentinel `__manual__`
+ * libera o modo legado (texto livre). FK `procedure_id` em `appointments` AINDA
+ * NÃO existe · gravamos apenas snapshot em `procedure_name` por enquanto.
+ */
+export interface ProcedureOption {
+  id: string
+  nome: string
+  categoria: string | null
+  preco: number
+  precoPromo: number | null
+  duracaoMin: number | null
+}
+
+const MANUAL_PROCEDURE_SENTINEL = '__manual__'
+
 type SubjectKind = 'patient' | 'lead'
 
 interface EditingPrefill {
@@ -80,6 +98,8 @@ export interface NewAppointmentFormProps {
   leads: ReadonlyArray<SubjectOption>
   /** CRM_PHASE_2AUX.2 · profissionais ativos com agenda_enabled=true */
   professionals: ReadonlyArray<ProfessionalOption>
+  /** CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · catálogo ativo de clinic_procedimentos */
+  procedures: ReadonlyArray<ProcedureOption>
   prefillDate: string | null
   prefillTime: string | null
   prefillPatient: SubjectOption | null
@@ -95,6 +115,14 @@ interface FormState {
   startTime: string
   endTime: string
   professionalId: string
+  /**
+   * Canonical procedure id (vindo de clinic_procedimentos). Vazio = sem
+   * vínculo canônico (modo manual/legado · ver `procedureMode`).
+   */
+  procedureId: string
+  /** Modo do campo procedimento · `canonical` lista oficial · `manual` texto livre. */
+  procedureMode: 'canonical' | 'manual'
+  /** Snapshot texto · sempre escrito no DB para compat até FK existir. */
   procedureName: string
   consultType: string
   value: string
@@ -155,10 +183,19 @@ const STEP_LABELS: Record<Step, string> = {
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
+function formatProcedurePrice(p: ProcedureOption): string {
+  if (!p.preco || p.preco <= 0) return 'A definir'
+  if (p.precoPromo != null && p.precoPromo > 0 && p.precoPromo < p.preco) {
+    return `${BRL.format(p.precoPromo)} (de ${BRL.format(p.preco)})`
+  }
+  return BRL.format(p.preco)
+}
+
 export function NewAppointmentForm({
   patients,
   leads,
   professionals,
+  procedures,
   prefillDate,
   prefillTime,
   prefillPatient,
@@ -170,6 +207,28 @@ export function NewAppointmentForm({
 
   const isEdit = !!editing
   const startTimeInit = prefillTime ?? '09:00'
+
+  // CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · em edit, se procedureName legado
+  // bate com algum procedimento canônico ativo, recupera o id; senão, modo manual.
+  const editingProcedureMatch =
+    editing?.procedureName
+      ? procedures.find(
+          (p) => p.nome.trim().toLowerCase() === editing.procedureName.trim().toLowerCase(),
+        ) ?? null
+      : null
+  const initialProcedureMode: 'canonical' | 'manual' =
+    !editing
+      ? procedures.length > 0
+        ? 'canonical'
+        : 'manual'
+      : editingProcedureMatch
+        ? 'canonical'
+        : editing.procedureName
+          ? 'manual'
+          : procedures.length > 0
+            ? 'canonical'
+            : 'manual'
+  const initialProcedureId = editingProcedureMatch?.id ?? ''
 
   // Decide initial subjectKind: edit→preserve original; create→prefill prefer lead if present
   const initialKind: SubjectKind =
@@ -190,6 +249,8 @@ export function NewAppointmentForm({
     startTime: startTimeInit,
     endTime: addMinutes(startTimeInit, 60),
     professionalId: editing?.professionalId ?? '',
+    procedureId: initialProcedureId,
+    procedureMode: initialProcedureMode,
     procedureName: editing?.procedureName ?? '',
     consultType: editing?.consultType ?? 'consulta',
     value: editing ? String(editing.value) : '',
@@ -240,6 +301,57 @@ export function NewAppointmentForm({
       endTime: addMinutes(newStart, oldDuration),
     }))
     setConflictState({ kind: 'idle' })
+  }
+
+  function handleProcedureSelect(rawValue: string) {
+    if (rawValue === MANUAL_PROCEDURE_SENTINEL) {
+      setData((d) => ({
+        ...d,
+        procedureMode: 'manual',
+        procedureId: '',
+      }))
+      if (errors.procedureName) setErrors((e) => ({ ...e, procedureName: undefined }))
+      return
+    }
+    if (!rawValue) {
+      setData((d) => ({ ...d, procedureId: '', procedureName: '' }))
+      return
+    }
+    const picked = procedures.find((p) => p.id === rawValue)
+    if (!picked) return
+    setData((d) => {
+      const nextDuration =
+        picked.duracaoMin && picked.duracaoMin > 0
+          ? picked.duracaoMin
+          : Math.max(15, durationMinutes(d.startTime, d.endTime) || 60)
+      const nextValue =
+        picked.precoPromo != null && picked.precoPromo > 0
+          ? String(picked.precoPromo)
+          : picked.preco > 0
+            ? String(picked.preco)
+            : d.value
+      return {
+        ...d,
+        procedureId: picked.id,
+        procedureMode: 'canonical',
+        procedureName: picked.nome,
+        endTime: addMinutes(d.startTime, nextDuration),
+        value: nextValue,
+      }
+    })
+    if (errors.procedureName) setErrors((e) => ({ ...e, procedureName: undefined }))
+    setConflictState({ kind: 'idle' })
+  }
+
+  function switchProcedureToCanonical() {
+    if (procedures.length === 0) return
+    setData((d) => ({
+      ...d,
+      procedureMode: 'canonical',
+      procedureId: '',
+      procedureName: '',
+    }))
+    if (errors.procedureName) setErrors((e) => ({ ...e, procedureName: undefined }))
   }
 
   // ── Validation por step ───────────────────────────────────────────────────
@@ -696,14 +808,80 @@ export function NewAppointmentForm({
             </Select>
           </FormField>
 
-          <FormField label="Procedimento" htmlFor="procedureName">
-            <Input
-              id="procedureName"
-              value={data.procedureName}
-              onChange={(e) => set('procedureName', e.target.value)}
-              maxLength={200}
-            />
-          </FormField>
+          {procedures.length > 0 && data.procedureMode === 'canonical' ? (
+            <FormField
+              label="Procedimento"
+              htmlFor="procedureId"
+              error={errors.procedureName}
+              hint={
+                isEdit && editing?.procedureName && !editingProcedureMatch
+                  ? 'Agendamento legado · selecione um procedimento oficial ou volte ao texto livre.'
+                  : `${procedures.length} procedimento(s) ativos · preço/duração sugeridos automaticamente.`
+              }
+            >
+              <Select
+                id="procedureId"
+                value={data.procedureId}
+                onChange={(e) => handleProcedureSelect(e.target.value)}
+                invalid={!!errors.procedureName}
+              >
+                <option value="">Selecione o procedimento</option>
+                {(() => {
+                  const byCategory = new Map<string, ProcedureOption[]>()
+                  for (const p of procedures) {
+                    const key = p.categoria ?? 'Sem categoria'
+                    if (!byCategory.has(key)) byCategory.set(key, [])
+                    byCategory.get(key)!.push(p)
+                  }
+                  return Array.from(byCategory.entries())
+                    .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+                    .map(([cat, list]) => (
+                      <optgroup key={cat} label={cat}>
+                        {list.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nome}
+                            {p.duracaoMin ? ` · ${p.duracaoMin}min` : ''}
+                            {` · ${formatProcedurePrice(p)}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                })()}
+                <option value={MANUAL_PROCEDURE_SENTINEL}>
+                  Outro · procedimento manual (legado)
+                </option>
+              </Select>
+            </FormField>
+          ) : (
+            <FormField
+              label="Procedimento (texto livre)"
+              htmlFor="procedureName"
+              error={errors.procedureName}
+              hint={
+                procedures.length === 0
+                  ? 'Nenhum procedimento ativo · cadastre em /configuracoes/procedimentos para usar o Select canônico.'
+                  : isEdit && editing?.procedureName && !editingProcedureMatch
+                    ? 'Agendamento legado · valor original preservado. Mudar para Select oficial trocaria o snapshot.'
+                    : 'Modo manual · sem vínculo com clinic_procedimentos. Use o Select sempre que possível.'
+              }
+            >
+              <Input
+                id="procedureName"
+                value={data.procedureName}
+                onChange={(e) => set('procedureName', e.target.value)}
+                maxLength={200}
+              />
+              {procedures.length > 0 && (
+                <button
+                  type="button"
+                  onClick={switchProcedureToCanonical}
+                  className="mt-2 text-[10px] uppercase tracking-widest text-[var(--primary)] hover:underline"
+                >
+                  Voltar ao Select oficial
+                </button>
+              )}
+            </FormField>
+          )}
 
           <FormField label="Valor" htmlFor="value" hint="R$ · 0 se cortesia">
             <Input
@@ -784,7 +962,16 @@ export function NewAppointmentForm({
             }
           />
           <SummaryRow label="Tipo" value={data.consultType || '—'} />
-          <SummaryRow label="Procedimento" value={data.procedureName || '—'} />
+          <SummaryRow
+            label="Procedimento"
+            value={
+              data.procedureName
+                ? data.procedureMode === 'canonical' && data.procedureId
+                  ? `${data.procedureName} · catálogo oficial`
+                  : `${data.procedureName} · texto livre`
+                : '—'
+            }
+          />
           <SummaryRow label="Valor" value={data.value ? BRL.format(parseFloat(data.value) || 0) : '—'} />
           <SummaryRow
             label="Status inicial"

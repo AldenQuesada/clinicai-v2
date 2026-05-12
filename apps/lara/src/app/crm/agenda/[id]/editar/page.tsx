@@ -107,6 +107,11 @@ export default async function EditAppointmentPage({ params }: PageProps) {
     })
     .catch(() => [])
 
+  // CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · catálogo ativo (B1)
+  const procedures = await repos.procedureAdmin
+    .list({ status: 'active' })
+    .catch(() => [])
+
   // CRM_PHASE_2AUX.2 · Pre-load profissionais com agenda habilitada
   const professionals = await repos.professionalProfiles
     .listActiveForAgenda(ctx.clinic_id)
@@ -207,6 +212,14 @@ export default async function EditAppointmentPage({ params }: PageProps) {
         patients={patientsForForm}
         leads={leadsListForForm}
         professionals={professionalsForForm}
+        procedures={procedures.map((p) => ({
+          id: p.id,
+          nome: p.nome,
+          categoria: p.categoria,
+          preco: p.preco,
+          precoPromo: p.precoPromo,
+          duracaoMin: p.duracaoMin,
+        }))}
         prefillDate={appt.scheduledDate}
         prefillTime={appt.startTime.slice(0, 5)}
         prefillPatient={

@@ -55,6 +55,11 @@ export default async function NewAppointmentPage({
     .catch(() => ({ rows: [], total: 0 }))
   const leads = leadsList.rows ?? []
 
+  // CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · catálogo ativo (B1 · snapshot legado)
+  const procedures = await repos.procedureAdmin
+    .list({ status: 'active' })
+    .catch(() => [])
+
   // Pre-fill patient OU lead (XOR)
   const preFilledPatient = sp.patientId
     ? patients.find((p) => p.id === sp.patientId) ?? null
@@ -90,6 +95,14 @@ export default async function NewAppointmentPage({
           displayName: p.displayName,
           specialty: p.specialty,
           color: p.color,
+        }))}
+        procedures={procedures.map((p) => ({
+          id: p.id,
+          nome: p.nome,
+          categoria: p.categoria,
+          preco: p.preco,
+          precoPromo: p.precoPromo,
+          duracaoMin: p.duracaoMin,
         }))}
         prefillDate={sp.date ?? null}
         prefillTime={sp.time ?? null}
