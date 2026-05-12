@@ -17,6 +17,7 @@ import { usePathname } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
 import { detectActiveSection } from './nav/sections'
 import { NotificationToggle } from '@/components/NotificationToggle'
+import { AlertBell } from '@/components/AlertBell'
 import { UserMenu, type UserMenuProfile } from './UserMenu'
 
 const PAINEL_URL =
@@ -75,6 +76,9 @@ export function AppHeaderThin({ user }: { user: UserMenuProfile }) {
       {/* Actions (direita) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <NotificationToggle />
+
+        {/* Mig 161 / CRM_PHASE_2G.2 · alertas internos agenda · zero WhatsApp */}
+        <AlertBell />
 
         <Link
           href={PAINEL_URL}
