@@ -15,9 +15,11 @@ export {
   PAYMENT_METHODS,
   isAppointmentTransitionAllowed,
   isTerminalStatus,
+  getAppointmentActionFlags,
   timeToMinutes,
   rangesOverlap,
   appointmentsOverlap,
   type BlockReason,
   type PaymentMethod,
+  type AppointmentActionFlags,
 } from './appointment-state'

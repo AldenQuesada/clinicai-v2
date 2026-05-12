@@ -367,11 +367,13 @@ export {
   PAYMENT_METHODS,
   isAppointmentTransitionAllowed,
   isTerminalStatus,
+  getAppointmentActionFlags,
   timeToMinutes,
   rangesOverlap,
   appointmentsOverlap,
   type BlockReason,
   type PaymentMethod,
+  type AppointmentActionFlags,
 } from './helpers/appointment-state'
 
 // ── Legal Documents (Onda 4 Mira · 2026-04-26) ────────────────────────────

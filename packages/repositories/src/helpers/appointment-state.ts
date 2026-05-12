@@ -81,6 +81,60 @@ export function isTerminalStatus(status: AppointmentStatus): boolean {
   return status === 'finalizado' || status === 'cancelado' || status === 'no_show'
 }
 
+// ── Action gates (CRM_PHASE_2H) ─────────────────────────────────────────────
+
+/**
+ * Flags canonicas pra UI decidir quais botoes mostrar no detalhe do
+ * appointment. Espelho 1:1 do contrato real do banco (RPCs + state machine).
+ *
+ * - canMarkArrived: pode chamar `appointment_attend()` → status=na_clinica
+ *   + alerta interno arrival + leads.phase=compareceu.
+ * - canStartAttendance: pode chamar `appointment_change_status(em_atendimento)`
+ *   · indica que a consulta comecou de fato (so a partir de na_clinica).
+ * - canFinalize: pode chamar `appointment_finalize()` (3 outcomes).
+ * - canCancel / canNoShow: transicoes de saida disponiveis a partir do
+ *   status atual.
+ * - canChangeLight: dropdown de status "leves" eh aplicavel.
+ *
+ * Substitui os hardcodes ['na_clinica','em_consulta','em_atendimento',...]
+ * que existiam espalhados em apps/lara · UI agora consome esse helper.
+ */
+export interface AppointmentActionFlags {
+  canMarkArrived: boolean
+  canStartAttendance: boolean
+  canFinalize: boolean
+  canCancel: boolean
+  canNoShow: boolean
+  canChangeLight: boolean
+  isTerminal: boolean
+}
+
+/**
+ * Calcula flags de UI a partir do status atual. Mantida em sync com a
+ * matriz canonica `APPOINTMENT_STATE_MACHINE` + RPC mig 72.
+ */
+export function getAppointmentActionFlags(
+  status: AppointmentStatus,
+): AppointmentActionFlags {
+  const isTerminal = isTerminalStatus(status)
+  const transitions = APPOINTMENT_STATE_MACHINE[status] ?? []
+  return {
+    canMarkArrived:
+      !isTerminal &&
+      status !== 'na_clinica' &&
+      status !== 'em_atendimento' &&
+      transitions.includes('na_clinica' as AppointmentStatus),
+    canStartAttendance:
+      status === 'na_clinica' &&
+      transitions.includes('em_atendimento' as AppointmentStatus),
+    canFinalize: status === 'na_clinica' || status === 'em_atendimento',
+    canCancel: !isTerminal && transitions.includes('cancelado' as AppointmentStatus),
+    canNoShow: !isTerminal && transitions.includes('no_show' as AppointmentStatus),
+    canChangeLight: !isTerminal && transitions.length > 0,
+    isTerminal,
+  }
+}
+
 /**
  * Status que SOMENTE valem no dia atual · UI bloqueia escolher esses
  * em criacao/edit pra data futura. Espelha SAME_DAY_ONLY_STATUSES legacy.

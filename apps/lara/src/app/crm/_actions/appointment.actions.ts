@@ -392,6 +392,7 @@ const ChangeStatusSchema = z.object({
     'confirmado',
     'pre_consulta',
     'aguardando',
+    'em_atendimento',
     'remarcado',
     'cancelado',
     'no_show',
@@ -402,9 +403,9 @@ const ChangeStatusSchema = z.object({
 
 /**
  * Wrapper de RPC `appointment_change_status` (mig 72) · transicoes leves
- * (agendado → confirmado, etc). NAO usar pra na_clinica/finalizado · use
- * attendAppointmentAction / finalizeAppointmentAction (RPCs dedicadas com
- * side-effects de phase do lead).
+ * (agendado → confirmado, etc) E `em_atendimento` (CRM_PHASE_2H ·
+ * iniciar atendimento a partir de na_clinica). NAO usar pra na_clinica
+ * (use attendAppointmentAction) ou finalizado (use finalizeAppointmentAction).
  */
 export async function changeAppointmentStatusAction(
   input: unknown,

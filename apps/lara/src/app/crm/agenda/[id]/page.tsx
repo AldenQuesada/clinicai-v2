@@ -22,7 +22,7 @@ import { ArrowLeft, Pencil } from 'lucide-react'
 import {
   APPOINTMENT_STATE_MACHINE,
   APPOINTMENT_STATUS_LABELS,
-  isTerminalStatus,
+  getAppointmentActionFlags,
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { AppointmentActions } from './_actions-bar'
@@ -84,21 +84,18 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
       : null
 
   const allowedTransitions = APPOINTMENT_STATE_MACHINE[appt.status] ?? []
-  const canAttend =
-    !isTerminalStatus(appt.status) &&
-    allowedTransitions.length > 0 &&
-    !['na_clinica', 'em_consulta', 'em_atendimento', 'finalizado'].includes(
-      appt.status,
-    )
-  const canFinalize = ['na_clinica', 'em_consulta', 'em_atendimento'].includes(
-    appt.status,
-  )
+  const actionFlags = getAppointmentActionFlags(appt.status)
 
   // Status candidates pra dropdown · apenas transicoes "leves"
-  // (na_clinica + finalizado tem RPC dedicada · attend/finalize)
+  // (na_clinica/em_atendimento/finalizado tem RPC dedicada ·
+  // attend/startAttendance/finalize). em_atendimento eh disparado pelo
+  // botao "Iniciar atendimento" especifico, nao pelo dropdown.
   const lightTransitions = allowedTransitions.filter(
     (s: string) =>
-      s !== appt.status && s !== 'na_clinica' && s !== 'finalizado',
+      s !== appt.status &&
+      s !== 'na_clinica' &&
+      s !== 'em_atendimento' &&
+      s !== 'finalizado',
   )
 
   return (
@@ -135,9 +132,10 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
               hasLead={!!appt.leadId}
               role={ctx.role}
               lightTransitions={lightTransitions}
-              canAttend={canAttend}
-              canFinalize={canFinalize}
-              isTerminal={isTerminalStatus(appt.status)}
+              canAttend={actionFlags.canMarkArrived}
+              canStartAttendance={actionFlags.canStartAttendance}
+              canFinalize={actionFlags.canFinalize}
+              isTerminal={actionFlags.isTerminal}
             />
           </CardContent>
         </Card>

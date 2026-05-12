@@ -22,7 +22,7 @@ import {
   useToast,
 } from '@clinicai/ui'
 import { APPOINTMENT_STATUS_LABELS } from '@clinicai/repositories'
-import { Check, Play, CheckCheck, Trash2 } from 'lucide-react'
+import { Play, Stethoscope, CheckCheck, Trash2 } from 'lucide-react'
 import {
   changeAppointmentStatusAction,
   attendAppointmentAction,
@@ -37,9 +37,11 @@ interface AppointmentActionsProps {
   currentStatus: string
   hasLead: boolean
   role: string | null | undefined
-  /** Status pra dropdown change · ja filtrado no server (sem na_clinica/finalizado) */
+  /** Status pra dropdown change · ja filtrado no server (sem na_clinica/em_atendimento/finalizado) */
   lightTransitions: ReadonlyArray<string>
   canAttend: boolean
+  /** CRM_PHASE_2H · paciente esta na_clinica, libera iniciar atendimento */
+  canStartAttendance: boolean
   canFinalize: boolean
   isTerminal: boolean
 }
@@ -53,6 +55,7 @@ export function AppointmentActions({
   role,
   lightTransitions,
   canAttend,
+  canStartAttendance,
   canFinalize,
   isTerminal,
 }: AppointmentActionsProps) {
@@ -109,6 +112,26 @@ export function AppointmentActions({
     }
   }
 
+  // CRM_PHASE_2H · iniciar atendimento (na_clinica → em_atendimento).
+  // Reusa changeAppointmentStatusAction · zero WhatsApp · zero envio.
+  async function handleStartAttendance() {
+    setBusy(true)
+    try {
+      const r = await changeAppointmentStatusAction({
+        appointmentId,
+        newStatus: 'em_atendimento',
+      })
+      if (!r.ok) {
+        fromResult(r)
+        return
+      }
+      success('Atendimento iniciado · paciente em consulta')
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleSoftDelete() {
     const r = await softDeleteAppointmentAction({ appointmentId })
     if (!r.ok) {
@@ -127,6 +150,19 @@ export function AppointmentActions({
         <Button onClick={handleAttend} disabled={busy} size="sm">
           <Play className="h-4 w-4" />
           Marcar chegada
+        </Button>
+      )}
+
+      {/* CRM_PHASE_2H · Quick action: iniciar atendimento */}
+      {canStartAttendance && (
+        <Button
+          onClick={handleStartAttendance}
+          disabled={busy}
+          size="sm"
+          variant="default"
+        >
+          <Stethoscope className="h-4 w-4" />
+          Iniciar atendimento
         </Button>
       )}
 
