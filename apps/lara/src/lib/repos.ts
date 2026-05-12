@@ -33,6 +33,7 @@ import {
   ProfessionalProfilesRepository,
   CrmDashboardRepository,
   ProcedureAdminRepository,
+  PatientProfileRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -73,6 +74,8 @@ export interface Repos {
   crmDashboard: CrmDashboardRepository
   /** CRM_PHASE_LEGACY.PORT.PROCEDURES_ADMIN · CRUD admin de procedimentos */
   procedureAdmin: ProcedureAdminRepository
+  /** CRM_PHASE_LEGACY.PORT.PACIENTE_PRONTUARIO_BASE · foto + consent + welcome (mig 180) */
+  patientProfile: PatientProfileRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -103,6 +106,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     professionalProfiles: new ProfessionalProfilesRepository(sb),
     crmDashboard: new CrmDashboardRepository(sb),
     procedureAdmin: new ProcedureAdminRepository(sb),
+    patientProfile: new PatientProfileRepository(sb),
   }
 }
 

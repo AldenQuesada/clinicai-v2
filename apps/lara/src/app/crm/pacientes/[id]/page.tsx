@@ -22,7 +22,9 @@ import {
 import { Pencil, Phone, Mail, CalendarClock } from 'lucide-react'
 import { sexLabel, formatPhoneBR } from '@clinicai/utils'
 import { loadServerReposContext } from '@/lib/repos'
+import { createServiceRoleClient } from '@clinicai/supabase'
 import { SoftDeleteButton } from '../_components/soft-delete-button'
+import { PatientReceptionPanel } from './_reception-panel'
 import type { AppointmentDTO, AppointmentStatus } from '@clinicai/repositories'
 
 export const dynamic = 'force-dynamic'
@@ -148,6 +150,25 @@ export default async function PatientDetailPage({ params }: PageProps) {
     .catch(() => [] as AppointmentDTO[])
 
   const apptStats = summarizeAppointments(appointments)
+
+  // CRM_PHASE_LEGACY.PORT.PACIENTE_PRONTUARIO_BASE (mig 180)
+  const profileExtended = await repos.patientProfile.getByPatientId(patient.id).catch(() => null)
+  const canEditReception =
+    ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'receptionist'
+
+  // Signed URL para foto · APENAS server-side · expira em 5 min
+  let photoSignedUrl: string | null = null
+  if (profileExtended?.profilePhotoPath) {
+    try {
+      const service = createServiceRoleClient()
+      const { data } = await service.storage
+        .from('media')
+        .createSignedUrl(profileExtended.profilePhotoPath, 60 * 5)
+      photoSignedUrl = data?.signedUrl ?? null
+    } catch {
+      photoSignedUrl = null
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -446,6 +467,17 @@ export default async function PatientDetailPage({ params }: PageProps) {
             />
           </CardContent>
         </Card>
+      </div>
+
+      {/* CRM_PHASE_LEGACY.PORT.PACIENTE_PRONTUARIO_BASE · foto + consent + welcome */}
+      <div className="mt-6">
+        <PatientReceptionPanel
+          patientId={patient.id}
+          patientName={patient.name}
+          profile={profileExtended}
+          photoSignedUrl={photoSignedUrl}
+          canEdit={canEditReception}
+        />
       </div>
 
       <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">

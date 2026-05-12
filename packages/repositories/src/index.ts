@@ -40,6 +40,15 @@ export {
   type UpdateProcedureInput,
 } from './procedure-admin.repository'
 export {
+  PatientProfileRepository,
+  type PatientProfileExtendedDTO,
+  type ReceptionConsentStatus,
+  type ReceptionAnimationStyle,
+  type UpsertPatientProfileInput,
+  type GrantConsentInput,
+  type ReceptionDisplayProfile,
+} from './patient-profile.repository'
+export {
   BroadcastRepository,
   type BroadcastDTO,
   type BroadcastStatsDTO,
