@@ -373,7 +373,8 @@ export class AppointmentRepository {
     const itemsForDb = input.orcamentoItems
       ? orcamentoItemsToDbShape(input.orcamentoItems)
       : null
-    const { data, error } = await this.supabase.rpc('appointment_finalize', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc('appointment_finalize', {
       p_appointment_id: input.appointmentId,
       p_outcome: input.outcome,
       p_value: input.value ?? null,
@@ -383,6 +384,9 @@ export class AppointmentRepository {
       p_orcamento_items: itemsForDb,
       p_orcamento_subtotal: input.orcamentoSubtotal ?? null,
       p_orcamento_discount: input.orcamentoDiscount ?? 0,
+      // CRM_PHASE_2I.1 · hard gate override
+      p_clinical_override: input.clinicalOverride ?? false,
+      p_clinical_override_reason: input.clinicalOverrideReason ?? null,
     })
     if (error) {
       return {

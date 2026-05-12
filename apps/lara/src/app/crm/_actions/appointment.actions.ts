@@ -292,6 +292,9 @@ export async function finalizeAppointmentAction(
     orcamentoItems: parsed.data.orcamentoItems ?? null,
     orcamentoSubtotal: parsed.data.orcamentoSubtotal ?? null,
     orcamentoDiscount: parsed.data.orcamentoDiscount ?? 0,
+    // CRM_PHASE_2I.1 · hard gate override
+    clinicalOverride: parsed.data.clinicalOverride ?? false,
+    clinicalOverrideReason: parsed.data.clinicalOverrideReason ?? null,
   })
 
   if (!result.ok) {

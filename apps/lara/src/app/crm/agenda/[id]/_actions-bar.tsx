@@ -44,11 +44,13 @@ interface AppointmentActionsProps {
   canStartAttendance: boolean
   canFinalize: boolean
   isTerminal: boolean
-  /** CRM_PHASE_2I · gate clinico (warning · nao bloqueia) */
+  /** CRM_PHASE_2I.1 · hard gate clinico (warning bloqueia · override admin liberado) */
   clinicalGateStatus?: 'ok' | 'warning'
   anamnesisStatus?: 'none' | 'draft' | 'complete' | 'archived'
   consentSigned?: boolean
 }
+
+const OVERRIDE_ALLOWED_ROLES = new Set(['owner', 'admin'])
 
 const ALLOWED_DELETE_ROLES = ['owner', 'admin']
 
@@ -273,7 +275,7 @@ export function AppointmentActions({
         }}
       />
 
-      {/* Modal Finalizar · 3 outcomes · CRM_PHASE_2I warning clinico */}
+      {/* Modal Finalizar · 3 outcomes · CRM_PHASE_2I.1 hard gate + override */}
       <FinalizeWizard
         open={openFinalize}
         onOpenChange={setOpenFinalize}
@@ -282,6 +284,9 @@ export function AppointmentActions({
         clinicalGateStatus={clinicalGateStatus}
         anamnesisStatus={anamnesisStatus}
         consentSigned={consentSigned}
+        canOverrideGate={
+          typeof role === 'string' && OVERRIDE_ALLOWED_ROLES.has(role)
+        }
         onSuccess={() => {
           router.refresh()
         }}
@@ -454,10 +459,12 @@ interface FinalizeWizardProps {
   onOpenChange: (o: boolean) => void
   appointmentId: string
   hasLead: boolean
-  /** CRM_PHASE_2I · gate warning (nao bloqueia) */
+  /** CRM_PHASE_2I.1 · gate clinico · warning BLOQUEIA submit (exceto override admin) */
   clinicalGateStatus: 'ok' | 'warning'
   anamnesisStatus: 'none' | 'draft' | 'complete' | 'archived'
   consentSigned: boolean
+  /** Apenas owner/admin pode usar override do hard gate */
+  canOverrideGate: boolean
   onSuccess: () => void
 }
 
@@ -480,6 +487,7 @@ function FinalizeWizard({
   clinicalGateStatus,
   anamnesisStatus,
   consentSigned,
+  canOverrideGate,
   onSuccess,
 }: FinalizeWizardProps) {
   const { fromResult, success, warning } = useToast()
@@ -493,13 +501,24 @@ function FinalizeWizard({
   const [orcDiscount, setOrcDiscount] = React.useState('0')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // CRM_PHASE_2I.1 · override admin
+  const [overrideRequested, setOverrideRequested] = React.useState(false)
+  const [overrideReason, setOverrideReason] = React.useState('')
 
   const needsOrcamento =
     outcome === 'orcamento' || outcome === 'paciente_orcamento'
 
+  // Hard gate: warning bloqueia submit a menos que override valido seja preenchido
+  const gateBlocking = clinicalGateStatus === 'warning'
+  const overrideValid =
+    overrideRequested && overrideReason.trim().length >= 5
+  const submitBlocked = gateBlocking && !overrideValid
+
   React.useEffect(() => {
     if (!open) {
       setError(null)
+      setOverrideRequested(false)
+      setOverrideReason('')
     }
   }, [open])
 
@@ -508,6 +527,21 @@ function FinalizeWizard({
       const sub = parseFloat(orcSubtotal)
       if (isNaN(sub) || sub <= 0) {
         setError('Subtotal do orçamento obrigatório (>0)')
+        return
+      }
+    }
+
+    if (gateBlocking) {
+      if (!canOverrideGate) {
+        setError('Gate clínico bloqueia · sem permissão para override (só owner/admin)')
+        return
+      }
+      if (!overrideRequested) {
+        setError('Marque "Finalizar com override" e preencha o motivo')
+        return
+      }
+      if (overrideReason.trim().length < 5) {
+        setError('Motivo do override obrigatório (mínimo 5 caracteres)')
         return
       }
     }
@@ -535,6 +569,10 @@ function FinalizeWizard({
         orcamentoDiscount: needsOrcamento
           ? parseFloat(orcDiscount) || 0
           : 0,
+        // CRM_PHASE_2I.1 · override (server revalida is_admin())
+        clinicalOverride: gateBlocking && overrideRequested,
+        clinicalOverrideReason:
+          gateBlocking && overrideRequested ? overrideReason.trim() : null,
       })
       if (!r.ok) {
         fromResult(r)
@@ -562,8 +600,7 @@ function FinalizeWizard({
     }
   }
 
-  // CRM_PHASE_2I · warning clinico (nao bloqueia)
-  const showClinicalWarning = clinicalGateStatus === 'warning'
+  // CRM_PHASE_2I.1 · hard gate clinico (warning BLOQUEIA · override admin libera)
   const anamnesisLabel =
     anamnesisStatus === 'complete'
       ? 'completa'
@@ -581,16 +618,59 @@ function FinalizeWizard({
       className="max-w-xl"
     >
       <div className="space-y-4">
-        {showClinicalWarning && (
+        {gateBlocking && (
           <div
             role="alert"
-            className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+            className="rounded-md border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-900 dark:text-red-200"
           >
-            <strong>Gate clínico · atenção:</strong> anamnese {anamnesisLabel}
-            {!consentSigned ? ' · consentimento informado não registrado' : ''}.
-            A finalização ainda é permitida (warning · 2I), mas recomenda-se
-            preencher antes de fechar.
+            <strong>Finalização bloqueada · gate clínico:</strong>
+            <ul className="mt-1 list-disc pl-5">
+              {anamnesisStatus !== 'complete' && (
+                <li>Anamnese {anamnesisLabel} (precisa estar completa)</li>
+              )}
+              {!consentSigned && <li>Consentimento informado não registrado</li>}
+            </ul>
+            <p className="mt-1">
+              Preencha pelo painel clínico acima OU use override admin abaixo
+              (somente owner/admin).
+            </p>
           </div>
+        )}
+
+        {gateBlocking && canOverrideGate && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 space-y-2">
+            <label className="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+              <input
+                type="checkbox"
+                checked={overrideRequested}
+                onChange={(e) => setOverrideRequested(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <strong>Finalizar mesmo assim (override admin):</strong> ciente
+                que anamnese e/ou consentimento estão pendentes · justificativa
+                obrigatória abaixo (mín. 5 caracteres) · ficará registrada no
+                audit trail.
+              </span>
+            </label>
+            {overrideRequested && (
+              <Textarea
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                rows={2}
+                maxLength={1000}
+                placeholder="Motivo do override (ex: paciente recorrente · consentimento já assinado fisicamente · etc)"
+                className="w-full"
+              />
+            )}
+          </div>
+        )}
+
+        {gateBlocking && !canOverrideGate && (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Você não tem permissão para override (somente owner/admin). Preencha
+            anamnese + consentimento pelo painel clínico para liberar a finalização.
+          </p>
         )}
 
         <FormField label="Desfecho" htmlFor="fin-outcome" required>
@@ -702,8 +782,12 @@ function FinalizeWizard({
           >
             Voltar
           </Button>
-          <Button onClick={handle} disabled={busy}>
-            {busy ? 'Finalizando…' : 'Finalizar consulta'}
+          <Button onClick={handle} disabled={busy || submitBlocked}>
+            {busy
+              ? 'Finalizando…'
+              : gateBlocking && overrideRequested
+                ? 'Finalizar com override'
+                : 'Finalizar consulta'}
           </Button>
         </div>
       </div>

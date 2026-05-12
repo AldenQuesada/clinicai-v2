@@ -198,6 +198,9 @@ export const FinalizeAppointmentSchema = z
     orcamentoItems: z.array(OrcamentoItemSchema).nullable().optional(),
     orcamentoSubtotal: z.number().nonnegative().nullable().optional(),
     orcamentoDiscount: z.number().nonnegative().optional(),
+    // CRM_PHASE_2I.1 · hard gate clinico · override admin
+    clinicalOverride: z.boolean().optional(),
+    clinicalOverrideReason: z.string().max(1000).nullable().optional(),
   })
   .refine(
     (v) => {
@@ -226,5 +229,21 @@ export const FinalizeAppointmentSchema = z
       message:
         'orcamentoItems (>=1) + orcamentoSubtotal obrigatorios quando outcome=orcamento ou paciente_orcamento',
       path: ['orcamentoItems'],
+    },
+  )
+  .refine(
+    (v) => {
+      // CRM_PHASE_2I.1 · override exige reason >= 5 chars
+      if (v.clinicalOverride === true) {
+        return (
+          !!v.clinicalOverrideReason &&
+          v.clinicalOverrideReason.trim().length >= 5
+        )
+      }
+      return true
+    },
+    {
+      message: 'clinicalOverrideReason obrigatorio (min 5 chars) quando clinicalOverride=true',
+      path: ['clinicalOverrideReason'],
     },
   )

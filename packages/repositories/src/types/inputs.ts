@@ -248,6 +248,10 @@ export interface AppointmentFinalizeRpcInput {
   orcamentoItems?: OrcamentoItem[] | null
   orcamentoSubtotal?: number | null
   orcamentoDiscount?: number
+  /** CRM_PHASE_2I.1 · override do hard gate clinico (somente admin/owner) */
+  clinicalOverride?: boolean
+  /** Obrigatorio se clinicalOverride=true · min 5 chars */
+  clinicalOverrideReason?: string | null
 }
 
 /**
