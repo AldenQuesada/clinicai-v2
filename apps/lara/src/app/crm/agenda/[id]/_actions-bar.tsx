@@ -447,6 +447,17 @@ interface FinalizeWizardProps {
   onSuccess: () => void
 }
 
+/**
+ * CRM_PHASE_2J · 3 outcomes oficiais expostos pela UI:
+ *  - 'paciente'            · lead vira paciente (lead_to_paciente)
+ *  - 'orcamento'           · lead vira orcamento (lead_to_orcamento)
+ *  - 'paciente_orcamento'  · paciente E orcamento (sequencial atomico no RPC)
+ *
+ * 'perdido' NAO nasce da finalizacao · path dedicado via lead_lost
+ * (acao separada · futuro botao "Marcar como perdido" no card do lead).
+ */
+type FinalizeUiOutcome = 'paciente' | 'orcamento' | 'paciente_orcamento'
+
 function FinalizeWizard({
   open,
   onOpenChange,
@@ -455,19 +466,19 @@ function FinalizeWizard({
   onSuccess,
 }: FinalizeWizardProps) {
   const { fromResult, success, warning } = useToast()
-  const [outcome, setOutcome] = React.useState<
-    'paciente' | 'orcamento' | 'perdido'
-  >('paciente')
+  const [outcome, setOutcome] = React.useState<FinalizeUiOutcome>('paciente')
   const [value, setValue] = React.useState('')
   const [paymentStatus, setPaymentStatus] = React.useState<
     'pendente' | 'parcial' | 'pago' | 'isento'
   >('pago')
   const [notes, setNotes] = React.useState('')
-  const [lostReason, setLostReason] = React.useState('')
   const [orcSubtotal, setOrcSubtotal] = React.useState('')
   const [orcDiscount, setOrcDiscount] = React.useState('0')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  const needsOrcamento =
+    outcome === 'orcamento' || outcome === 'paciente_orcamento'
 
   React.useEffect(() => {
     if (!open) {
@@ -476,11 +487,7 @@ function FinalizeWizard({
   }, [open])
 
   async function handle() {
-    if (outcome === 'perdido' && (!lostReason.trim() || lostReason.trim().length < 2)) {
-      setError('Motivo obrigatório quando outcome=perdido')
-      return
-    }
-    if (outcome === 'orcamento') {
+    if (needsOrcamento) {
       const sub = parseFloat(orcSubtotal)
       if (isNaN(sub) || sub <= 0) {
         setError('Subtotal do orçamento obrigatório (>0)')
@@ -496,22 +503,21 @@ function FinalizeWizard({
         value: value ? parseFloat(value) : null,
         paymentStatus,
         notes: notes || null,
-        lostReason: outcome === 'perdido' ? lostReason : null,
-        orcamentoItems:
-          outcome === 'orcamento'
-            ? [
-                {
-                  name: notes || 'Procedimento finalizado',
-                  qty: 1,
-                  unitPrice: parseFloat(orcSubtotal),
-                  subtotal: parseFloat(orcSubtotal),
-                },
-              ]
-            : null,
-        orcamentoSubtotal:
-          outcome === 'orcamento' ? parseFloat(orcSubtotal) : null,
-        orcamentoDiscount:
-          outcome === 'orcamento' ? parseFloat(orcDiscount) || 0 : 0,
+        lostReason: null,
+        orcamentoItems: needsOrcamento
+          ? [
+              {
+                name: notes || 'Procedimento finalizado',
+                qty: 1,
+                unitPrice: parseFloat(orcSubtotal),
+                subtotal: parseFloat(orcSubtotal),
+              },
+            ]
+          : null,
+        orcamentoSubtotal: needsOrcamento ? parseFloat(orcSubtotal) : null,
+        orcamentoDiscount: needsOrcamento
+          ? parseFloat(orcDiscount) || 0
+          : 0,
       })
       if (!r.ok) {
         fromResult(r)
@@ -522,13 +528,15 @@ function FinalizeWizard({
           `Consulta finalizada · mas conversão "${r.data.outcome}" falhou. Verifique manualmente.`,
         )
       } else {
-        success(
+        const msg =
           r.data.outcome === 'paciente'
             ? 'Lead promovido a paciente!'
             : r.data.outcome === 'orcamento'
               ? 'Orçamento criado!'
-              : 'Lead marcado como perdido',
-        )
+              : r.data.outcome === 'paciente_orcamento'
+                ? 'Lead virou paciente E orçamento criado!'
+                : 'Consulta finalizada'
+        success(msg)
       }
       onOpenChange(false)
       onSuccess()
@@ -547,26 +555,32 @@ function FinalizeWizard({
       className="max-w-xl"
     >
       <div className="space-y-4">
-        <FormField label="Outcome" htmlFor="fin-outcome" required>
+        <FormField label="Desfecho" htmlFor="fin-outcome" required>
           <Select
             id="fin-outcome"
             value={outcome}
-            onChange={(e) =>
-              setOutcome(
-                e.target.value as 'paciente' | 'orcamento' | 'perdido',
-              )
-            }
+            onChange={(e) => setOutcome(e.target.value as FinalizeUiOutcome)}
             disabled={!hasLead}
           >
-            <option value="paciente">Virou paciente · promove lead</option>
-            <option value="orcamento">Gerou orçamento · cria proposta</option>
-            <option value="perdido">Lead perdido · marca lost</option>
+            <option value="paciente">
+              Virou paciente · promove lead
+            </option>
+            <option value="orcamento">
+              Gerou orçamento · cria proposta
+            </option>
+            <option value="paciente_orcamento">
+              Paciente + orçamento · vira paciente E gera proposta
+            </option>
           </Select>
           {!hasLead && (
             <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
               Sem lead vinculado · finalizar só fecha o appointment.
             </p>
           )}
+          <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+            Lead perdido? Use a ação dedicada no card do lead · não nasce
+            de finalização de consulta.
+          </p>
         </FormField>
 
         <div className="grid grid-cols-2 gap-4">
@@ -599,7 +613,7 @@ function FinalizeWizard({
           </FormField>
         </div>
 
-        {outcome === 'orcamento' && (
+        {needsOrcamento && (
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Subtotal orçamento" htmlFor="orc-subtotal" required>
               <Input
@@ -626,23 +640,6 @@ function FinalizeWizard({
           </div>
         )}
 
-        {outcome === 'perdido' && (
-          <FormField
-            label="Motivo da perda"
-            htmlFor="lost-reason"
-            required
-            error={error ?? undefined}
-          >
-            <Textarea
-              id="lost-reason"
-              value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
-              rows={2}
-              maxLength={500}
-            />
-          </FormField>
-        )}
-
         <FormField label="Notas (opcional)" htmlFor="fin-notes">
           <Textarea
             id="fin-notes"
@@ -653,7 +650,7 @@ function FinalizeWizard({
           />
         </FormField>
 
-        {error && outcome !== 'perdido' && (
+        {error && (
           <p className="text-xs text-[var(--destructive)]" role="alert">
             {error}
           </p>

@@ -274,7 +274,7 @@ export async function finalizeAppointmentAction(
   Result<{
     appointmentId: string
     leadId: string | null
-    outcome: 'paciente' | 'orcamento' | 'perdido'
+    outcome: 'paciente' | 'orcamento' | 'paciente_orcamento' | 'perdido'
     subCallOk: boolean
   }>
 > {
@@ -328,10 +328,16 @@ export async function finalizeAppointmentAction(
   // Sempre invalida appointments. Outras tags dependem do outcome.
   updateTag(CRM_TAGS.appointments)
   updateTag(CRM_TAGS.leads)
-  if (subCallOk && result.outcome === 'paciente') {
+  if (
+    subCallOk &&
+    (result.outcome === 'paciente' || result.outcome === 'paciente_orcamento')
+  ) {
     updateTag(CRM_TAGS.patients)
   }
-  if (subCallOk && result.outcome === 'orcamento') {
+  if (
+    subCallOk &&
+    (result.outcome === 'orcamento' || result.outcome === 'paciente_orcamento')
+  ) {
     updateTag(CRM_TAGS.orcamentos)
   }
   updateTag(CRM_TAGS.phaseHistory)

@@ -38,7 +38,15 @@ const AppointmentConsentImg = z.enum([
   'nao_aplica',
 ])
 
-const AppointmentFinalizeOutcome = z.enum(['paciente', 'orcamento', 'perdido'])
+// CRM_PHASE_2J: alinhado 1:1 com RPC banco (4 outcomes).
+// UI oficial expoe 3 · 'perdido' permanece valido aqui para path dedicado
+// (lead_lost) reaproveitar o mesmo Zod, mas FinalizeWizard nao oferece.
+const AppointmentFinalizeOutcome = z.enum([
+  'paciente',
+  'orcamento',
+  'paciente_orcamento',
+  'perdido',
+])
 
 const TimeStr = z
   .string()
@@ -169,7 +177,7 @@ export const FinalizeAppointmentSchema = z
   )
   .refine(
     (v) => {
-      if (v.outcome === 'orcamento') {
+      if (v.outcome === 'orcamento' || v.outcome === 'paciente_orcamento') {
         return (
           Array.isArray(v.orcamentoItems) &&
           v.orcamentoItems.length > 0 &&
@@ -180,7 +188,7 @@ export const FinalizeAppointmentSchema = z
     },
     {
       message:
-        'orcamentoItems (>=1) + orcamentoSubtotal obrigatorios quando outcome=orcamento',
+        'orcamentoItems (>=1) + orcamentoSubtotal obrigatorios quando outcome=orcamento ou paciente_orcamento',
       path: ['orcamentoItems'],
     },
   )

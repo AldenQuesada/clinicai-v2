@@ -101,7 +101,16 @@ export type OrcamentoStatus =
   | 'lost'
 
 // ── Cross-flow (appointment_finalize outcome) ──────────────────────────────
-export type AppointmentFinalizeOutcome = 'paciente' | 'orcamento' | 'perdido'
+//
+// CRM_PHASE_2J: RPC banco aceita 4 outcomes (paciente, orcamento,
+// paciente_orcamento, perdido). UI oficial expoe 3 (paciente, orcamento,
+// paciente_orcamento) · perdido fica reservado para path dedicado via
+// lead_lost (nao nasce da finalizacao de consulta).
+export type AppointmentFinalizeOutcome =
+  | 'paciente'
+  | 'orcamento'
+  | 'paciente_orcamento'
+  | 'perdido'
 
 // ── Dedup cross-tabela (LeadRepository.findInAnySystem) ────────────────────
 export type DedupHitKind = 'patient' | 'lead' | 'voucher_recipient' | 'partner_referral'
