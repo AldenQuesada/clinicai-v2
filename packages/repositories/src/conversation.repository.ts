@@ -109,11 +109,22 @@ export class ConversationRepository {
   /**
    * Lista conversas por filtro de status (usado pelo /api/conversations + dashboard).
    * Multi-tenant: clinic_id obrigatorio · escopa por clinica do JWT.
+   *
+   * Patch 2D · isolation 2986 (2026-05-11): `waNumberId` opcional permite
+   * escopar por canal especifico. /secretaria DEVE passar o id do canal Mih
+   * pra nao misturar com Mira/Marci/Auxiliar (4 canais carregam
+   * inbox_role='secretaria' · sem waNumberId a lista cruza canais e diverge
+   * dos KPIs · que ja sao hardcoded no view operational).
    */
   async listByStatus(
     clinicId: string,
     filter: StatusFilter = 'active',
-    opts?: { limit?: number; beforeIso?: string; inboxRole?: 'sdr' | 'secretaria' },
+    opts?: {
+      limit?: number
+      beforeIso?: string
+      inboxRole?: 'sdr' | 'secretaria'
+      waNumberId?: string
+    },
   ): Promise<ConversationDTO[]> {
     let statuses: ConversationStatus[] = ['active', 'paused']
     if (filter === 'archived') statuses = ['archived']
@@ -142,6 +153,14 @@ export class ConversationRepository {
     // Default 'sdr' quando omitido (compat com callers existentes).
     if (opts?.inboxRole) {
       q = q.eq('inbox_role', opts.inboxRole)
+    }
+
+    // Patch 2D · isolation 2986 (2026-05-11): escopo por canal explicito.
+    // Mais especifico que inbox_role (que mistura Mih + Mira + Marci + Aux).
+    // Quando ambos sao passados, viram filtros AND · waNumberId sozinho ja
+    // implica inbox_role do canal (denorm via mig 91 trigger).
+    if (opts?.waNumberId) {
+      q = q.eq('wa_number_id', opts.waNumberId)
     }
 
     const { data } = await q

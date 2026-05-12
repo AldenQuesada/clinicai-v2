@@ -22,6 +22,7 @@ import { loadServerContext } from '@clinicai/supabase';
 import { makeRepos } from '@/lib/repos';
 import type { StatusFilter } from '@clinicai/repositories';
 import { loadSecretariaInbox } from '@/lib/wa-chat-sync/secretaria-inbox';
+import { resolveSecretariaWaNumberId } from '@/lib/secretaria-channel';
 
 export const dynamic = 'force-dynamic';
 
@@ -146,11 +147,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items, nextCursor });
     }
 
+    // Patch 2D · isolation 2986 (2026-05-11): /secretaria DEVE escopar por
+    // wa_number_id do canal Mih (5544991622986 · label "Secretaria B&H").
+    // Sem isso, listByStatus retorna conversas de 4 canais que carregam
+    // inbox_role='secretaria' (Mih + Mira + Mira Marci + Canal auxiliar),
+    // diverge dos KPIs (view wa_conversations_operational_view ja eh
+    // hardcoded em Mih) e a tela parece "vazia/inconsistente".
+    // /conversas (sdr) nao precisa · canal Lara nao compartilha role.
+    let waNumberIdForList: string | undefined
+    if (inboxRole === 'secretaria') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resolved = await resolveSecretariaWaNumberId(supabase as any, ctx.clinic_id)
+      waNumberIdForList = resolved ?? undefined
+      if (!resolved) {
+        console.warn(
+          '[API] /secretaria · wa_number_id da Mih nao resolvido · ' +
+            'caindo no fallback inbox_role=secretaria (pode misturar canais). ' +
+            'Verifique wa_numbers com phone=5544991622986 ou label="Secretaria B&H".',
+        )
+      }
+    }
+
     // Default flow (sdr e secretaria sem flag) · listByStatus + view operacional
     const conversations = await repos.conversations.listByStatus(ctx.clinic_id, statusParam, {
       limit,
       beforeIso,
       inboxRole,
+      waNumberId: waNumberIdForList,
     });
 
     // Resolve leads em batch (1 query) · evita N+1 e mantem inbox rapido
