@@ -21,8 +21,9 @@ import {
   Textarea,
   useToast,
 } from '@clinicai/ui'
+import Link from 'next/link'
 import { APPOINTMENT_STATUS_LABELS } from '@clinicai/repositories'
-import { Play, Stethoscope, CheckCheck, Trash2, UserX } from 'lucide-react'
+import { Play, Stethoscope, CheckCheck, Trash2, UserX, CalendarClock } from 'lucide-react'
 import {
   changeAppointmentStatusAction,
   attendAppointmentAction,
@@ -218,8 +219,8 @@ export function AppointmentActions({
         </select>
       )}
 
-      {/* Cancel + no-show direto (mesmo se nao na lightTransitions, pra UX
-          consistente) · abrem modal */}
+      {/* Cancel + no-show + remarcar (CRM_PHASE_2R.2 · UX dedicada) ·
+          mesmo se nao na lightTransitions, pra UX consistente · abrem modal/link */}
       {!isTerminal && (
         <>
           <Button
@@ -238,6 +239,15 @@ export function AppointmentActions({
           >
             Não compareceu
           </Button>
+          {/* CRM_PHASE_2R.2 · Remarcar = editar horário (mesmo appointment ·
+              path canônico atual). Lineage cross-appointments fica em fase
+              dedicada futura (2R.3). */}
+          <Link href={`/crm/agenda/${appointmentId}/editar`}>
+            <Button size="sm" variant="outline" disabled={busy}>
+              <CalendarClock className="h-4 w-4" />
+              Remarcar
+            </Button>
+          </Link>
         </>
       )}
 
@@ -357,25 +367,37 @@ function CancelModal({
   onOpenChange: (o: boolean) => void
   onConfirm: (motivo: string) => Promise<void>
 }) {
-  const [motivo, setMotivo] = React.useState('')
+  // CRM_PHASE_2R.2 · motivos predefinidos para cancelamento.
+  // "outro" exige observação. Motivo final composto: "{label}: {notes}" ou label.
+  const [reasonCode, setReasonCode] = React.useState<string>('paciente_desistiu')
+  const [notes, setNotes] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open) {
-      setMotivo('')
+      setReasonCode('paciente_desistiu')
+      setNotes('')
       setError(null)
     }
   }, [open])
 
+  const requiresNotes = reasonCode === 'outro'
+
   async function handle() {
-    if (!motivo.trim() || motivo.trim().length < 2) {
-      setError('Motivo obrigatório (mín. 2 caracteres)')
+    setError(null)
+    if (requiresNotes && notes.trim().length < 2) {
+      setError('Observação obrigatória quando motivo é "Outro"')
       return
     }
+    const label =
+      CANCEL_REASONS.find((r) => r.value === reasonCode)?.label ?? reasonCode
+    const composed =
+      notes.trim().length > 0 ? `${label}: ${notes.trim()}` : label
+
     setBusy(true)
     try {
-      await onConfirm(motivo.trim())
+      await onConfirm(composed)
       onOpenChange(false)
     } finally {
       setBusy(false)
@@ -387,31 +409,46 @@ function CancelModal({
       open={open}
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title="Cancelar agendamento"
-      description="Por favor, informe o motivo do cancelamento."
+      description="Selecione o motivo do cancelamento · observação opcional."
       dismissable={!busy}
     >
-      <FormField
-        label="Motivo"
-        htmlFor="cancel-motivo"
-        required
-        error={error ?? undefined}
-      >
-        <Textarea
-          id="cancel-motivo"
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-          rows={3}
-          maxLength={500}
-          placeholder="Ex: Paciente solicitou remarcar"
-          autoFocus
-        />
-      </FormField>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="ghost"
-          onClick={() => onOpenChange(false)}
-          disabled={busy}
+      <div className="space-y-3">
+        <FormField label="Motivo" htmlFor="cancel-reason" required>
+          <Select
+            id="cancel-reason"
+            value={reasonCode}
+            onChange={(e) => setReasonCode(e.target.value)}
+          >
+            {CANCEL_REASONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField
+          label={requiresNotes ? 'Observação (obrigatória)' : 'Observação (opcional)'}
+          htmlFor="cancel-notes"
+          required={requiresNotes}
+          error={error ?? undefined}
         >
+          <Textarea
+            id="cancel-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={
+              requiresNotes
+                ? 'Descreva o motivo específico…'
+                : 'Detalhes adicionais (opcional)'
+            }
+          />
+        </FormField>
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
           Voltar
         </Button>
         <Button variant="destructive" onClick={handle} disabled={busy}>
@@ -422,6 +459,24 @@ function CancelModal({
   )
 }
 
+// CRM_PHASE_2R.2 · catálogos de motivos
+const CANCEL_REASONS = [
+  { value: 'paciente_desistiu', label: 'Paciente desistiu' },
+  { value: 'conflito_horario', label: 'Conflito de horário do paciente' },
+  { value: 'problema_saude', label: 'Problema de saúde' },
+  { value: 'sem_resposta', label: 'Sem resposta após tentativas' },
+  { value: 'erro_agendamento', label: 'Erro de agendamento (recriar correto)' },
+  { value: 'profissional_indisponivel', label: 'Profissional indisponível' },
+  { value: 'outro', label: 'Outro motivo (observação obrigatória)' },
+] as const
+
+const NO_SHOW_REASONS = [
+  { value: 'nao_compareceu', label: 'Não compareceu (sem aviso)' },
+  { value: 'nao_respondeu', label: 'Não respondeu confirmação · não veio' },
+  { value: 'chegou_muito_atrasada', label: 'Chegou muito atrasado(a) · perdeu slot' },
+  { value: 'outro', label: 'Outro motivo (observação obrigatória)' },
+] as const
+
 function NoShowModal({
   open,
   onOpenChange,
@@ -431,22 +486,36 @@ function NoShowModal({
   onOpenChange: (o: boolean) => void
   onConfirm: (motivo: string) => Promise<void>
 }) {
-  const [motivo, setMotivo] = React.useState('Paciente não compareceu')
+  // CRM_PHASE_2R.2 · motivos predefinidos. "outro" exige observação.
+  const [reasonCode, setReasonCode] = React.useState<string>('nao_compareceu')
+  const [notes, setNotes] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    if (!open) setError(null)
+    if (!open) {
+      setReasonCode('nao_compareceu')
+      setNotes('')
+      setError(null)
+    }
   }, [open])
 
+  const requiresNotes = reasonCode === 'outro'
+
   async function handle() {
-    if (!motivo.trim() || motivo.trim().length < 2) {
-      setError('Motivo obrigatório')
+    setError(null)
+    if (requiresNotes && notes.trim().length < 2) {
+      setError('Observação obrigatória quando motivo é "Outro"')
       return
     }
+    const label =
+      NO_SHOW_REASONS.find((r) => r.value === reasonCode)?.label ?? reasonCode
+    const composed =
+      notes.trim().length > 0 ? `${label}: ${notes.trim()}` : label
+
     setBusy(true)
     try {
-      await onConfirm(motivo.trim())
+      await onConfirm(composed)
       onOpenChange(false)
     } finally {
       setBusy(false)
@@ -458,30 +527,46 @@ function NoShowModal({
       open={open}
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title="Marcar como não compareceu"
-      description="O paciente não veio · registre o motivo."
+      description="Selecione o motivo do no-show · observação opcional."
       dismissable={!busy}
     >
-      <FormField
-        label="Motivo / observação"
-        htmlFor="noshow-motivo"
-        required
-        error={error ?? undefined}
-      >
-        <Textarea
-          id="noshow-motivo"
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-          rows={3}
-          maxLength={500}
-          autoFocus
-        />
-      </FormField>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="ghost"
-          onClick={() => onOpenChange(false)}
-          disabled={busy}
+      <div className="space-y-3">
+        <FormField label="Motivo" htmlFor="noshow-reason" required>
+          <Select
+            id="noshow-reason"
+            value={reasonCode}
+            onChange={(e) => setReasonCode(e.target.value)}
+          >
+            {NO_SHOW_REASONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField
+          label={requiresNotes ? 'Observação (obrigatória)' : 'Observação (opcional)'}
+          htmlFor="noshow-notes"
+          required={requiresNotes}
+          error={error ?? undefined}
         >
+          <Textarea
+            id="noshow-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={
+              requiresNotes
+                ? 'Descreva o motivo específico…'
+                : 'Detalhes adicionais (opcional)'
+            }
+          />
+        </FormField>
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
           Voltar
         </Button>
         <Button variant="destructive" onClick={handle} disabled={busy}>
