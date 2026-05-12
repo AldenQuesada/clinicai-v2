@@ -223,7 +223,7 @@ export default async function ConfiguracoesPage({
       {tab === 'technologies' && <ComingSoonPanel title="Tecnologias" desc="Equipamentos e tratamentos disponíveis na clínica." />}
       {tab === 'rooms' && <ComingSoonPanel title="Salas" desc="Cadastro de salas/cabines de atendimento + agenda por sala." />}
       {tab === 'injectables' && <ComingSoonPanel title="Injetáveis" desc="Estoque e controle de injetáveis (toxina, ácido, biorremodelador)." />}
-      {tab === 'procedures' && <ComingSoonPanel title="Procedimentos" desc="Catálogo de procedimentos com preços, duração e protocolos." />}
+      {tab === 'procedures' && <ProceduresLinkPanel />}
       {tab === 'users' && <UsersTabPanel data={data} role={role} />}
       {tab === 'permissions' && <PermissionsTabPanel data={data} role={role} />}
       {tab === 'lara' && <LaraConfigTab role={role} />}
@@ -278,6 +278,63 @@ function PermissionsTabPanel({ data, role }: { data: PageData; role: StaffRole |
       initialOverrides={data.matrixOverrides}
       editableMembers={data.staff.filter((m) => m.role !== 'owner')}
     />
+  )
+}
+
+function ProceduresLinkPanel() {
+  return (
+    <div
+      className="luxury-card"
+      style={{
+        padding: '40px 32px',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 14,
+      }}
+    >
+      <List size={28} style={{ color: 'var(--b2b-champagne)' }} />
+      <h2
+        className="font-display"
+        style={{ fontSize: 22, color: 'var(--b2b-ivory)', lineHeight: 1.1 }}
+      >
+        Procedimentos · <em style={{ color: 'var(--b2b-champagne)' }}>CRUD admin</em>
+      </h2>
+      <p
+        className="font-display"
+        style={{
+          fontSize: 13,
+          fontStyle: 'italic',
+          color: 'var(--b2b-text-dim)',
+          maxWidth: 480,
+          lineHeight: 1.6,
+        }}
+      >
+        Catálogo da clínica (nome, categoria, duração, preço, promoção). Usado pelo
+        wizard de agendamento, orçamentos e dashboards.
+      </p>
+      <a
+        href="/configuracoes/procedimentos"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 20px',
+          background: 'var(--b2b-champagne)',
+          color: 'var(--b2b-bg-1)',
+          textDecoration: 'none',
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          borderRadius: 4,
+          transition: 'opacity var(--lara-transition)',
+        }}
+      >
+        Abrir gestão de procedimentos →
+      </a>
+    </div>
   )
 }
 

@@ -32,6 +32,14 @@ export {
   type GetCommercialContentOptions,
 } from './procedure.repository'
 export {
+  ProcedureAdminRepository,
+  type AdminProcedureDTO,
+  type ListProceduresFilter,
+  type ProcedureCountsDTO,
+  type CreateProcedureInput,
+  type UpdateProcedureInput,
+} from './procedure-admin.repository'
+export {
   BroadcastRepository,
   type BroadcastDTO,
   type BroadcastStatsDTO,
