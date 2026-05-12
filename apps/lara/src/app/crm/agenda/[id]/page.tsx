@@ -87,6 +87,15 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
   const allowedTransitions = APPOINTMENT_STATE_MACHINE[appt.status] ?? []
   const actionFlags = getAppointmentActionFlags(appt.status)
 
+  // CRM_PHASE_2AUX.3 · botão "Editar agendamento" só aparece se status
+  // editável. Espelho de NOT_EDITABLE_STATUSES da rota /editar.
+  const canEditAppointment = !(
+    appt.status === 'finalizado' ||
+    appt.status === 'cancelado' ||
+    appt.status === 'no_show' ||
+    appt.status === 'remarcado'
+  )
+
   // CRM_PHASE_2J.1 · "Marcar como perdido" só faz sentido quando há lead
   // comercialmente ativo (lifecycle=ativo) que ainda não virou paciente E o
   // appointment não está em estado terminal clínico.
@@ -146,12 +155,22 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
           { label: `${appt.scheduledDate} ${appt.startTime.slice(0, 5)}` },
         ]}
         actions={
-          <Link href="/crm/agenda">
-            <Button size="sm" variant="ghost">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            {canEditAppointment && (
+              <Link href={`/crm/agenda/${appt.id}/editar`}>
+                <Button size="sm" variant="outline">
+                  <Pencil className="h-4 w-4" />
+                  Editar agendamento
+                </Button>
+              </Link>
+            )}
+            <Link href="/crm/agenda">
+              <Button size="sm" variant="ghost">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+            </Link>
+          </div>
         }
       />
 
