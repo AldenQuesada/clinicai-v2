@@ -330,6 +330,36 @@ export class AppointmentRepository {
   }
 
   /**
+   * Mig 161 (CRM_PHASE_2G) · cria alertas internos quando paciente chega.
+   * Cria 2 rows em appointment_internal_alerts (professional + secretaria)
+   * via RPC SECURITY DEFINER. Idempotente · ON CONFLICT skip silencioso.
+   * NÃO envia WhatsApp. NÃO depende de inbox_notifications. Worker 71 OFF.
+   *
+   * Chamado por attendAppointmentAction após RPC appointment_attend()
+   * retornar ok=true. Falha do alerta NÃO bloqueia o fluxo de chegada
+   * (best-effort · logamos warning).
+   */
+  async createArrivalInternalAlert(
+    appointmentId: string,
+  ): Promise<{ ok: boolean; createdCount?: number; error?: string }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_arrival_internal_alert',
+      { p_appointment_id: appointmentId },
+    )
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = (data as any) ?? {}
+    return {
+      ok: result.ok === true,
+      createdCount: result.created_count ?? 0,
+      error: result.reason ?? undefined,
+    }
+  }
+
+  /**
    * Wrapper de `appointment_finalize()` RPC · finaliza consulta + roteia
    * outcome:
    *   - paciente: chama lead_to_paciente (promove)

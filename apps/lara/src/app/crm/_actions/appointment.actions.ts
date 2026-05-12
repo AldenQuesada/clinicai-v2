@@ -222,6 +222,37 @@ export async function attendAppointmentAction(
   updateTag(CRM_TAGS.appointments)
   // Lead foi pra phase=compareceu se nao estava
   if (!result.idempotentSkip) updateTag(CRM_TAGS.leads)
+
+  // Mig 161 (CRM_PHASE_2G) · best-effort alerta interno de chegada.
+  // Cria 2 rows em appointment_internal_alerts (professional + secretaria).
+  // NÃO envia WhatsApp. NÃO bloqueia o fluxo se falhar (só log).
+  // Worker 71 OFF · ban gate 2L preservado.
+  if (!result.idempotentSkip) {
+    try {
+      const alertResult = await repos.appointments.createArrivalInternalAlert(
+        result.appointmentId,
+      )
+      log.info(
+        {
+          action: 'crm.appt.arrival_alert',
+          appointment_id: result.appointmentId,
+          alert_ok: alertResult.ok,
+          created_count: alertResult.createdCount,
+        },
+        'appt.arrival_alert.dispatched',
+      )
+    } catch (err) {
+      log.warn(
+        {
+          action: 'crm.appt.arrival_alert',
+          appointment_id: result.appointmentId,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        'appt.arrival_alert.skipped',
+      )
+    }
+  }
+
   return ok({
     appointmentId: result.appointmentId,
     idempotentSkip: result.idempotentSkip,
