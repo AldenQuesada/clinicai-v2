@@ -740,4 +740,169 @@ export class AppointmentRepository {
       obs: input.obs ?? input.reason,
     })
   }
+
+  // ── CRM_PHASE_2I · Clinical (anamnese + consent intra-consulta) ─────────────
+
+  /**
+   * RPC `appointment_anamnesis_upsert` (mig 166) · cria ou atualiza ficha
+   * clínica do appointment. Idempotente · 1 ativa por appointment.
+   *
+   * Distinto de `anamnesis_responses` (sistema pré-consulta · paciente
+   * preenche via link público). Este fluxo é INTRA-consulta · profissional
+   * preenche durante atendimento.
+   */
+  async upsertAnamnesis(
+    appointmentId: string,
+    payload: Record<string, unknown>,
+  ): Promise<{
+    ok: boolean
+    appointmentId?: string
+    anamnesisId?: string
+    status?: 'draft' | 'complete' | 'archived'
+    action?: 'created' | 'updated'
+    error?: string
+  }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_anamnesis_upsert',
+      { p_appointment_id: appointmentId, p_payload: payload },
+    )
+    if (error) return { ok: false, error: error.message }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    return {
+      ok: r.ok === true,
+      appointmentId: r.appointment_id,
+      anamnesisId: r.anamnesis_id,
+      status: r.status,
+      action: r.action,
+      error: r.error,
+    }
+  }
+
+  /**
+   * RPC `appointment_anamnesis_mark_complete` (mig 166) · marca ficha como
+   * complete. Idempotente · retornar `idempotent_skip=true` se já estava.
+   */
+  async markAnamnesisComplete(appointmentId: string): Promise<{
+    ok: boolean
+    anamnesisId?: string
+    status?: string
+    completedAt?: string
+    idempotentSkip?: boolean
+    error?: string
+  }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_anamnesis_mark_complete',
+      { p_appointment_id: appointmentId },
+    )
+    if (error) return { ok: false, error: error.message }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    return {
+      ok: r.ok === true,
+      anamnesisId: r.anamnesis_id,
+      status: r.status,
+      completedAt: r.completed_at,
+      idempotentSkip: r.idempotent_skip,
+      error: r.error,
+    }
+  }
+
+  /**
+   * RPC `appointment_consent_accept` (mig 166) · registra aceite de
+   * consentimento informado intra-consulta. Idempotente por
+   * (appointment, term_key, term_version).
+   */
+  async acceptConsent(input: {
+    appointmentId: string
+    termKey: string
+    termVersion: string
+    termTitle: string
+    signerName: string
+    payload?: Record<string, unknown>
+  }): Promise<{
+    ok: boolean
+    consentId?: string
+    accepted?: boolean
+    acceptedAt?: string
+    signerName?: string
+    idempotentSkip?: boolean
+    error?: string
+  }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_consent_accept',
+      {
+        p_appointment_id: input.appointmentId,
+        p_term_key: input.termKey,
+        p_term_version: input.termVersion,
+        p_term_title: input.termTitle,
+        p_signer_name: input.signerName,
+        p_payload: input.payload ?? {},
+      },
+    )
+    if (error) return { ok: false, error: error.message }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    return {
+      ok: r.ok === true,
+      consentId: r.consent_id,
+      accepted: r.accepted,
+      acceptedAt: r.accepted_at,
+      signerName: r.signer_name,
+      idempotentSkip: r.idempotent_skip,
+      error: r.error,
+    }
+  }
+
+  /**
+   * RPC `appointment_clinical_gate_status` (mig 166) · consolida estado
+   * clínico do appointment (anamnese + consent). Retorna `gate_status`
+   * ∈ {ok, warning}. Decisão 2I: warning-only · hard gate fica para 2I.1.
+   */
+  async getClinicalGateStatus(appointmentId: string): Promise<{
+    ok: boolean
+    appointmentId?: string
+    anamnesis?: {
+      id: string | null
+      status: 'none' | 'draft' | 'complete' | 'archived'
+      completedAt: string | null
+    }
+    consent?: {
+      signed: boolean
+      rows: number
+      legacyConsentimentoImg: string | null
+    }
+    gateStatus?: 'ok' | 'warning'
+    appointmentStatus?: string
+    error?: string
+  }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_clinical_gate_status',
+      { p_appointment_id: appointmentId },
+    )
+    if (error) return { ok: false, error: error.message }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    if (r.ok !== true) return { ok: false, error: r.error }
+    return {
+      ok: true,
+      appointmentId: r.appointment_id,
+      anamnesis: {
+        id: r.anamnesis?.id ?? null,
+        status: r.anamnesis?.status ?? 'none',
+        completedAt: r.anamnesis?.completed_at ?? null,
+      },
+      consent: {
+        signed: r.consent?.signed === true,
+        rows: r.consent?.rows ?? 0,
+        legacyConsentimentoImg: r.consent?.legacy_consentimento_img ?? null,
+      },
+      gateStatus: r.gate_status,
+      appointmentStatus: r.appointment_status,
+    }
+  }
 }

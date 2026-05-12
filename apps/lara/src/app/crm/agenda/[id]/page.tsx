@@ -26,6 +26,7 @@ import {
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { AppointmentActions } from './_actions-bar'
+import { ClinicalPanel, type ClinicalGateData } from './_clinical-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,32 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
   const allowedTransitions = APPOINTMENT_STATE_MACHINE[appt.status] ?? []
   const actionFlags = getAppointmentActionFlags(appt.status)
 
+  // CRM_PHASE_2I · estado clínico (anamnese + consent)
+  const clinicalGate = await repos.appointments.getClinicalGateStatus(appt.id)
+  const clinicalData: ClinicalGateData = clinicalGate.ok
+    ? {
+        anamnesis: {
+          id: clinicalGate.anamnesis?.id ?? null,
+          status: (clinicalGate.anamnesis?.status ?? 'none') as
+            | 'none'
+            | 'draft'
+            | 'complete'
+            | 'archived',
+          completedAt: clinicalGate.anamnesis?.completedAt ?? null,
+        },
+        consent: {
+          signed: clinicalGate.consent?.signed ?? false,
+          rows: clinicalGate.consent?.rows ?? 0,
+          legacyConsentimentoImg: clinicalGate.consent?.legacyConsentimentoImg ?? null,
+        },
+        gateStatus: clinicalGate.gateStatus ?? 'warning',
+      }
+    : {
+        anamnesis: { id: null, status: 'none', completedAt: null },
+        consent: { signed: false, rows: 0, legacyConsentimentoImg: null },
+        gateStatus: 'warning',
+      }
+
   // Status candidates pra dropdown · apenas transicoes "leves"
   // (na_clinica/em_atendimento/finalizado tem RPC dedicada ·
   // attend/startAttendance/finalize). em_atendimento eh disparado pelo
@@ -136,9 +163,19 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
               canStartAttendance={actionFlags.canStartAttendance}
               canFinalize={actionFlags.canFinalize}
               isTerminal={actionFlags.isTerminal}
+              clinicalGateStatus={clinicalData.gateStatus}
+              anamnesisStatus={clinicalData.anamnesis.status}
+              consentSigned={clinicalData.consent.signed}
             />
           </CardContent>
         </Card>
+
+        {/* CRM_PHASE_2I · Clinical (anamnese + consent intra-consulta) */}
+        <ClinicalPanel
+          appointmentId={appt.id}
+          initialData={clinicalData}
+          defaultSignerName={appt.subjectName}
+        />
 
         {/* Subject */}
         <Card className="md:col-span-2">

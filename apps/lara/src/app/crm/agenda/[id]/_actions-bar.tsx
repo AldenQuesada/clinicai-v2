@@ -44,6 +44,10 @@ interface AppointmentActionsProps {
   canStartAttendance: boolean
   canFinalize: boolean
   isTerminal: boolean
+  /** CRM_PHASE_2I · gate clinico (warning · nao bloqueia) */
+  clinicalGateStatus?: 'ok' | 'warning'
+  anamnesisStatus?: 'none' | 'draft' | 'complete' | 'archived'
+  consentSigned?: boolean
 }
 
 const ALLOWED_DELETE_ROLES = ['owner', 'admin']
@@ -58,6 +62,9 @@ export function AppointmentActions({
   canStartAttendance,
   canFinalize,
   isTerminal,
+  clinicalGateStatus = 'warning',
+  anamnesisStatus = 'none',
+  consentSigned = false,
 }: AppointmentActionsProps) {
   const router = useRouter()
   const { fromResult, success } = useToast()
@@ -266,12 +273,15 @@ export function AppointmentActions({
         }}
       />
 
-      {/* Modal Finalizar · 3 outcomes */}
+      {/* Modal Finalizar · 3 outcomes · CRM_PHASE_2I warning clinico */}
       <FinalizeWizard
         open={openFinalize}
         onOpenChange={setOpenFinalize}
         appointmentId={appointmentId}
         hasLead={hasLead}
+        clinicalGateStatus={clinicalGateStatus}
+        anamnesisStatus={anamnesisStatus}
+        consentSigned={consentSigned}
         onSuccess={() => {
           router.refresh()
         }}
@@ -444,6 +454,10 @@ interface FinalizeWizardProps {
   onOpenChange: (o: boolean) => void
   appointmentId: string
   hasLead: boolean
+  /** CRM_PHASE_2I · gate warning (nao bloqueia) */
+  clinicalGateStatus: 'ok' | 'warning'
+  anamnesisStatus: 'none' | 'draft' | 'complete' | 'archived'
+  consentSigned: boolean
   onSuccess: () => void
 }
 
@@ -463,6 +477,9 @@ function FinalizeWizard({
   onOpenChange,
   appointmentId,
   hasLead,
+  clinicalGateStatus,
+  anamnesisStatus,
+  consentSigned,
   onSuccess,
 }: FinalizeWizardProps) {
   const { fromResult, success, warning } = useToast()
@@ -545,16 +562,37 @@ function FinalizeWizard({
     }
   }
 
+  // CRM_PHASE_2I · warning clinico (nao bloqueia)
+  const showClinicalWarning = clinicalGateStatus === 'warning'
+  const anamnesisLabel =
+    anamnesisStatus === 'complete'
+      ? 'completa'
+      : anamnesisStatus === 'draft'
+        ? 'em rascunho'
+        : 'não preenchida'
+
   return (
     <Modal
       open={open}
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title="Finalizar consulta"
-      description="Escolha o outcome · vai gerar paciente, orçamento ou marcar perdido."
+      description="Escolha o desfecho · paciente, orçamento ou paciente + orçamento."
       dismissable={!busy}
       className="max-w-xl"
     >
       <div className="space-y-4">
+        {showClinicalWarning && (
+          <div
+            role="alert"
+            className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+          >
+            <strong>Gate clínico · atenção:</strong> anamnese {anamnesisLabel}
+            {!consentSigned ? ' · consentimento informado não registrado' : ''}.
+            A finalização ainda é permitida (warning · 2I), mas recomenda-se
+            preencher antes de fechar.
+          </div>
+        )}
+
         <FormField label="Desfecho" htmlFor="fin-outcome" required>
           <Select
             id="fin-outcome"

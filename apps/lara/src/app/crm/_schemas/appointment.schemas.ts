@@ -149,6 +149,42 @@ export const AttendAppointmentSchema = z.object({
   chegadaEm: z.string().datetime().optional(),
 })
 
+// ── CRM_PHASE_2I · Anamnese intra-consulta ──────────────────────────────────
+
+export const AppointmentAnamnesisUpsertSchema = z.object({
+  appointmentId: z.string().uuid(),
+  chiefComplaint: z.string().max(2000).nullable().optional(),
+  medicalHistory: z.string().max(4000).nullable().optional(),
+  medications: z.string().max(2000).nullable().optional(),
+  allergies: z.string().max(2000).nullable().optional(),
+  previousProcedures: z.string().max(2000).nullable().optional(),
+  contraindications: z.string().max(2000).nullable().optional(),
+  pregnancyLactation: z.string().max(500).nullable().optional(),
+  autoimmuneDisease: z.string().max(500).nullable().optional(),
+  anticoagulants: z.string().max(500).nullable().optional(),
+  expectations: z.string().max(2000).nullable().optional(),
+  professionalNotes: z.string().max(4000).nullable().optional(),
+})
+
+export const AppointmentAnamnesisCompleteSchema = z.object({
+  appointmentId: z.string().uuid(),
+})
+
+// ── CRM_PHASE_2I · Consentimento informado intra-consulta ───────────────────
+
+export const AppointmentConsentAcceptSchema = z.object({
+  appointmentId: z.string().uuid(),
+  termKey: z.string().min(2).max(100),
+  termVersion: z.string().min(1).max(50),
+  termTitle: z.string().min(2).max(300),
+  signerName: z.string().min(2, 'Nome do assinante obrigatório (mín. 2)').max(200),
+  payload: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const AppointmentClinicalGateStatusSchema = z.object({
+  appointmentId: z.string().uuid(),
+})
+
 // ── finalize · roteia outcome (paciente|orcamento|perdido) ──────────────────
 
 export const FinalizeAppointmentSchema = z
