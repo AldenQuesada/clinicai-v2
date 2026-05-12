@@ -1,29 +1,32 @@
 /**
- * /recepcao/painel · CRM_PHASE_2ALEXA.2 · painel-TV recepção.
+ * /recepcao/painel · CRM_PHASE_2ALEXA.2 + 2ALEXA.2.1 · painel-TV recepção.
  *
- * Modo kiosk visual · read-only · sem provider externo. Mostra:
- *   1. "Chegaram agora" (status=na_clinica)
- *   2. "Em atendimento" (status=em_atendimento)
- *   3. "Próximos horários" (agendado/aguardando_confirmacao/confirmado/aguardando)
- *   4. "Atenção" (overdue · agendado/confirmado com start_time já passado)
+ * 2ALEXA.2.1: consome foto consentida do prontuário via
+ * `getReceptionDisplayProfile()`. Server gera signed URL (TTL 5 min) e entrega
+ * pronta · path bruto NUNCA viaja pro client.
+ *
+ * Pacientes em `na_clinica` com profile reception-ready ganham:
+ *   - hero premium · foto + nome de exibição + animação consentida
+ *   - mensagem de boas-vindas
+ *
+ * Fallback elegante: avatar com iniciais quando não houver consentimento/foto.
  *
  * Auto-refresh: server-side `revalidate=15` (Next.js · simples · zero polling
- * cliente). Componente client `ReceptionTicker` re-renderiza "tempo decorrido"
- * a cada 30s sem refetch.
+ * cliente). Signed URLs sempre frescas porque o server refaz a cada refresh.
  *
- * PRIVACIDADE:
+ * PRIVACIDADE (contrato 2ALEXA.2.1):
  * - Telefone: mostra apenas últimos 4 dígitos (mascarado)
- * - SEM anamnese/consentimento/valores/observações
+ * - SEM anamnese/consentimento clínico/valores/observações
  * - SEM dados clínicos sensíveis
- * - Subject name OK (já é mostrado pra recepção física)
- * - Profissional name OK
- * - Procedimento name OK (nome do serviço · não detalhes clínicos)
+ * - Foto só aparece quando consent=granted AND welcome=true AND photo NOT NULL
+ * - Path bruto de storage NUNCA chega no client (só signed URL)
  *
  * Sem provider · sem WhatsApp · sem Alexa · sem wa_outbox · sem mutação.
  */
 
 import { loadServerReposContext } from '@/lib/repos'
 import type { AppointmentDTO } from '@clinicai/repositories'
+import { createServiceRoleClient } from '@clinicai/supabase'
 import { ReceptionPanelClient } from './_client'
 
 export const dynamic = 'force-dynamic'
@@ -36,6 +39,8 @@ const ACTIVE_STATUSES = new Set([
   'aguardando',
 ])
 
+type AnimationStyle = 'premium_soft' | 'premium_glow' | 'premium_clean'
+
 interface PanelRow {
   id: string
   status: string
@@ -47,6 +52,13 @@ interface PanelRow {
   professionalName: string
   procedureName: string
   chegadaEm: string | null
+  patientId: string | null
+  /** Signed URL (TTL 5 min) · só presente quando consent+welcome+photo. */
+  photoSignedUrl: string | null
+  /** Nome de exibição vindo do prontuário (preferred_name ou display_name). */
+  receptionDisplayName: string | null
+  /** Animation style consentida · só presente quando reception-ready. */
+  animationStyle: AnimationStyle | null
 }
 
 function maskPhone(phone: string | null | undefined): string | null {
@@ -68,6 +80,10 @@ function toRow(a: AppointmentDTO): PanelRow {
     professionalName: a.professionalName || '',
     procedureName: a.procedureName || a.consultType || '',
     chegadaEm: a.chegadaEm,
+    patientId: a.patientId ?? null,
+    photoSignedUrl: null,
+    receptionDisplayName: null,
+    animationStyle: null,
   }
 }
 
@@ -117,6 +133,56 @@ export default async function ReceptionPanelPage() {
   upcoming.sort((a, b) => a.startTime.localeCompare(b.startTime))
   overdue.sort((a, b) => a.startTime.localeCompare(b.startTime))
 
+  // ── 2ALEXA.2.1 · resolve foto consentida apenas para arrived/inService ────
+  // (upcoming não recebe foto · paciente ainda não chegou)
+  // Service role só pra signed URL · UI rows continuam scoped por RLS.
+  const rowsNeedingPhoto = [...arrived, ...inService].filter((r) => r.patientId)
+  if (rowsNeedingPhoto.length > 0) {
+    // 1 query agrupada por patient_id pra evitar N requests
+    const patientIds = [...new Set(rowsNeedingPhoto.map((r) => r.patientId!))]
+    const profiles = await Promise.all(
+      patientIds.map((pid) =>
+        repos.patientProfile.getReceptionDisplayProfile(pid).catch(() => null),
+      ),
+    )
+    const profileByPatient = new Map(
+      profiles
+        .filter((p): p is NonNullable<typeof p> => Boolean(p))
+        .map((p) => [p.patientId, p]),
+    )
+
+    if (profileByPatient.size > 0) {
+      const service = createServiceRoleClient()
+      // Signed URLs em paralelo · TTL 5 min · NUNCA expor path bruto
+      const signedEntries = await Promise.all(
+        Array.from(profileByPatient.values()).map(async (p) => {
+          try {
+            const { data } = await service.storage
+              .from('media')
+              .createSignedUrl(p.profilePhotoPath, 60 * 5)
+            return [p.patientId, data?.signedUrl ?? null] as const
+          } catch {
+            return [p.patientId, null] as const
+          }
+        }),
+      )
+      const urlByPatient = new Map(signedEntries)
+
+      const applyPhoto = (row: PanelRow) => {
+        if (!row.patientId) return
+        const profile = profileByPatient.get(row.patientId)
+        if (!profile) return
+        const signedUrl = urlByPatient.get(row.patientId) ?? null
+        row.photoSignedUrl = signedUrl
+        row.receptionDisplayName =
+          profile.preferredName ?? profile.displayName ?? null
+        row.animationStyle = profile.animationStyle
+      }
+      arrived.forEach(applyPhoto)
+      inService.forEach(applyPhoto)
+    }
+  }
+
   return (
     <ReceptionPanelClient
       arrived={arrived}
@@ -128,4 +194,4 @@ export default async function ReceptionPanelPage() {
   )
 }
 
-export type { PanelRow }
+export type { PanelRow, AnimationStyle }

@@ -8,15 +8,19 @@
  *  - Relógio do header (1s tick)
  *  - Refresh automático server-side via revalidate=15 (Next.js)
  *  - Botão manual "Atualizar agora" (router.refresh) opcional
+ *  - Hero premium de boas-vindas (2ALEXA.2.1) · foto consentida + animação
+ *  - Avatar consentido em ArrivalRow/InServiceRow · fallback iniciais
  *  - Modo kiosk · sem mutação · sem provider
  *
  * Privacidade: dados clínicos sensíveis NÃO chegam aqui (filtrados na page).
+ * Foto só renderiza quando `row.photoSignedUrl` existe (server já validou
+ * consent+welcome+photo no `getReceptionDisplayProfile`).
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, UserCheck, Activity, AlertTriangle, CalendarClock, RefreshCw } from 'lucide-react'
-import type { PanelRow } from './page'
+import { Clock, UserCheck, Activity, AlertTriangle, CalendarClock, RefreshCw, Heart } from 'lucide-react'
+import type { PanelRow, AnimationStyle } from './page'
 
 interface Props {
   arrived: PanelRow[]
@@ -83,6 +87,23 @@ function useTicker(intervalMs: number = 30_000): number {
     return () => clearInterval(id)
   }, [intervalMs])
   return now
+}
+
+function initialsFrom(name: string | null | undefined): string {
+  if (!name) return '·'
+  const clean = name.trim()
+  if (!clean) return '·'
+  const parts = clean.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '·'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+}
+
+function firstName(name: string | null | undefined): string {
+  if (!name) return ''
+  const clean = name.trim()
+  if (!clean) return ''
+  return clean.split(/\s+/)[0]!
 }
 
 function useClock(): string {
@@ -227,6 +248,17 @@ export function ReceptionPanelClient({
         </div>
       </header>
 
+      {/* 2ALEXA.2.1 · Hero premium · primeira paciente reception-ready */}
+      {(() => {
+        const featured = arrived.find(
+          (r) => r.photoSignedUrl && r.animationStyle,
+        )
+        if (!featured) return null
+        return (
+          <WelcomeHero key={featured.id} row={featured} now={now} />
+        )
+      })()}
+
       {/* Body */}
       <main
         style={{
@@ -294,6 +326,39 @@ export function ReceptionPanelClient({
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        /* 2ALEXA.2.1 · animações premium browser-only · sem asset externo */
+        @keyframes ra-fade-in {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ra-photo-zoom {
+          from { transform: scale(1.02); }
+          to { transform: scale(1); }
+        }
+        @keyframes ra-glow-pulse {
+          0%, 100% { box-shadow: 0 0 28px 4px rgba(16,185,129,0.22), 0 0 0 1px rgba(16,185,129,0.45); }
+          50%      { box-shadow: 0 0 40px 8px rgba(16,185,129,0.34), 0 0 0 1px rgba(16,185,129,0.65); }
+        }
+        @keyframes ra-shimmer {
+          0%   { transform: translateX(-110%) skewX(-12deg); }
+          100% { transform: translateX(220%)  skewX(-12deg); }
+        }
+        .ra-soft { animation: ra-fade-in 700ms ease-out both; }
+        .ra-soft .ra-hero-photo img { animation: ra-photo-zoom 4500ms ease-out both; }
+        .ra-glow { animation: ra-fade-in 700ms ease-out both; }
+        .ra-glow .ra-hero-photo { animation: ra-glow-pulse 3200ms ease-in-out infinite; }
+        .ra-glow .ra-shimmer {
+          position: absolute; inset: 0; pointer-events: none;
+          background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.10) 50%, transparent 100%);
+          animation: ra-shimmer 4200ms ease-in-out infinite;
+        }
+        .ra-clean { animation: ra-fade-in 500ms ease-out both; }
+        @media (prefers-reduced-motion: reduce) {
+          .ra-soft, .ra-glow, .ra-clean,
+          .ra-soft .ra-hero-photo img,
+          .ra-glow .ra-hero-photo,
+          .ra-glow .ra-shimmer { animation: none !important; }
+        }
       `}</style>
     </div>
   )
@@ -432,6 +497,12 @@ function ArrivalRow({ row, now }: { row: PanelRow; now: number }) {
   const elapsed = elapsedLabel(row.chegadaEm, now)
   return (
     <RowContainer tone="ok">
+      <Avatar
+        name={row.receptionDisplayName ?? row.subjectName}
+        photoUrl={row.photoSignedUrl}
+        size={44}
+        tone="ok"
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -499,6 +570,12 @@ function InServiceRow({ row, now }: { row: PanelRow; now: number }) {
       })()
   return (
     <RowContainer tone="info">
+      <Avatar
+        name={row.receptionDisplayName ?? row.subjectName}
+        photoUrl={row.photoSignedUrl}
+        size={36}
+        tone="info"
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -660,5 +737,235 @@ function OverdueRow({ row, now }: { row: PanelRow; now: number }) {
         </div>
       </div>
     </RowContainer>
+  )
+}
+
+// ── 2ALEXA.2.1 · Avatar (foto consentida ou iniciais) ────────────────────
+
+function Avatar({
+  name,
+  photoUrl,
+  size,
+  tone,
+}: {
+  name: string
+  photoUrl: string | null
+  size: number
+  tone?: 'ok' | 'info' | 'alert'
+}) {
+  const ring =
+    tone === 'ok'
+      ? 'rgba(16,185,129,0.55)'
+      : tone === 'alert'
+        ? 'rgba(220,38,38,0.55)'
+        : 'rgba(255,255,255,0.18)'
+  const initials = initialsFrom(name)
+  const fontSize = Math.round(size * 0.42)
+
+  if (photoUrl) {
+    return (
+      <span
+        aria-label={name}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          background: 'rgba(255,255,255,0.04)',
+          border: `2px solid ${ring}`,
+          display: 'inline-block',
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photoUrl}
+          alt=""
+          width={size}
+          height={size}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </span>
+    )
+  }
+
+  return (
+    <span
+      aria-label={name}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        flexShrink: 0,
+        background:
+          'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))',
+        border: `1px solid ${ring}`,
+        color: 'rgba(255,255,255,0.78)',
+        fontSize,
+        fontWeight: 700,
+        letterSpacing: 1,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {initials}
+    </span>
+  )
+}
+
+// ── 2ALEXA.2.1 · Welcome hero · só renderiza quando reception-ready ──────
+
+function WelcomeHero({ row, now }: { row: PanelRow; now: number }) {
+  const elapsed = elapsedLabel(row.chegadaEm, now)
+  const style: AnimationStyle = row.animationStyle ?? 'premium_soft'
+  const display =
+    row.receptionDisplayName ?? firstName(row.subjectName) ?? row.subjectName
+
+  // Tokens por estilo
+  const styleClass =
+    style === 'premium_glow'
+      ? 'ra-glow'
+      : style === 'premium_clean'
+        ? 'ra-clean'
+        : 'ra-soft'
+
+  const cardBg =
+    style === 'premium_glow'
+      ? 'linear-gradient(140deg, rgba(16,185,129,0.10), rgba(16,185,129,0.02) 45%, rgba(255,255,255,0.02))'
+      : style === 'premium_clean'
+        ? 'rgba(255,255,255,0.03)'
+        : 'linear-gradient(140deg, rgba(255,255,255,0.04), rgba(16,185,129,0.05))'
+
+  const showShimmer = style === 'premium_glow'
+
+  return (
+    <section
+      className={styleClass}
+      aria-label="Boas-vindas à paciente"
+      style={{
+        margin: '20px 28px 0',
+        padding: 24,
+        background: cardBg,
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 12,
+        overflow: 'hidden',
+        display: 'grid',
+        gridTemplateColumns: '180px minmax(0, 1fr)',
+        gap: 24,
+        alignItems: 'center',
+        position: 'relative',
+      }}
+    >
+      <div
+        className="ra-hero-photo"
+        style={{
+          position: 'relative',
+          width: 160,
+          height: 160,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: '2px solid rgba(16,185,129,0.55)',
+          background: 'rgba(255,255,255,0.04)',
+          justifySelf: 'center',
+        }}
+      >
+        {showShimmer && <div className="ra-shimmer" />}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={row.photoSignedUrl ?? ''}
+          alt=""
+          width={160}
+          height={160}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: 2,
+            textTransform: 'uppercase',
+            color: 'rgba(16,185,129,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Heart size={14} /> Bem-vinda
+        </div>
+        <h2
+          style={{
+            margin: '6px 0 8px',
+            fontSize: 44,
+            fontWeight: 700,
+            lineHeight: 1.05,
+            color: '#f5f5f7',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {display}
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 16,
+            color: 'rgba(255,255,255,0.72)',
+            maxWidth: 640,
+            lineHeight: 1.45,
+          }}
+        >
+          Estamos felizes em receber você na Clínica Mirian de Paula.
+        </p>
+        <div
+          style={{
+            marginTop: 14,
+            display: 'flex',
+            gap: 18,
+            flexWrap: 'wrap',
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: 13,
+          }}
+        >
+          {row.professionalName && (
+            <span>
+              <strong style={{ color: 'rgba(255,255,255,0.85)' }}>
+                Profissional ·{' '}
+              </strong>
+              {row.professionalName}
+            </span>
+          )}
+          {row.startTime && (
+            <span>
+              <strong style={{ color: 'rgba(255,255,255,0.85)' }}>
+                Horário ·{' '}
+              </strong>
+              {fmtTime(row.startTime)}
+            </span>
+          )}
+          {elapsed && (
+            <span>
+              <strong style={{ color: 'rgba(16,185,129,0.95)' }}>
+                Chegou{' '}
+              </strong>
+              {elapsed}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
