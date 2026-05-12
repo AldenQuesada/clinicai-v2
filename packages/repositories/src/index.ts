@@ -49,6 +49,20 @@ export {
   type ReceptionDisplayProfile,
 } from './patient-profile.repository'
 export {
+  AnamnesisTemplateRepository,
+  type AnamnesisTemplateDTO,
+  type AnamnesisTemplateSessionDTO,
+  type AnamnesisFieldDTO,
+  type AnamnesisFieldOptionDTO,
+  type AnamnesisTemplateWithStructureDTO,
+  type AnamnesisTemplateCategory,
+  type AnamnesisFieldType,
+  type ListAnamnesisTemplatesFilter,
+  type AnamnesisTemplateCountsDTO,
+  type CreateAnamnesisTemplateInput,
+  type UpdateAnamnesisTemplateInput,
+} from './anamnesis-template.repository'
+export {
   BroadcastRepository,
   type BroadcastDTO,
   type BroadcastStatsDTO,

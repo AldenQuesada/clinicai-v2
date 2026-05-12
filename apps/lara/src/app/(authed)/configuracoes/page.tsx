@@ -26,6 +26,7 @@ import {
   Lock,
   Sparkles,
   Construction,
+  ClipboardList,
 } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 import { can, type StaffRole } from '@/lib/permissions'
@@ -52,6 +53,7 @@ const TABS = [
   { key: 'rooms', label: 'Salas', icon: Grid },
   { key: 'injectables', label: 'Injetáveis', icon: Droplet },
   { key: 'procedures', label: 'Procedimentos', icon: List },
+  { key: 'anamneses', label: 'Anamneses', icon: ClipboardList },
   { key: 'users', label: 'Usuários', icon: Shield },
   { key: 'permissions', label: 'Permissões', icon: Lock },
   { key: 'lara', label: 'Lara IA', icon: Sparkles },
@@ -224,6 +226,7 @@ export default async function ConfiguracoesPage({
       {tab === 'rooms' && <ComingSoonPanel title="Salas" desc="Cadastro de salas/cabines de atendimento + agenda por sala." />}
       {tab === 'injectables' && <ComingSoonPanel title="Injetáveis" desc="Estoque e controle de injetáveis (toxina, ácido, biorremodelador)." />}
       {tab === 'procedures' && <ProceduresLinkPanel />}
+      {tab === 'anamneses' && <AnamnesesLinkPanel />}
       {tab === 'users' && <UsersTabPanel data={data} role={role} />}
       {tab === 'permissions' && <PermissionsTabPanel data={data} role={role} />}
       {tab === 'lara' && <LaraConfigTab role={role} />}
@@ -333,6 +336,64 @@ function ProceduresLinkPanel() {
         }}
       >
         Abrir gestão de procedimentos →
+      </a>
+    </div>
+  )
+}
+
+function AnamnesesLinkPanel() {
+  return (
+    <div
+      className="luxury-card"
+      style={{
+        padding: '40px 32px',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 14,
+      }}
+    >
+      <List size={28} style={{ color: 'var(--b2b-champagne)' }} />
+      <h2
+        className="font-display"
+        style={{ fontSize: 22, color: 'var(--b2b-ivory)', lineHeight: 1.1 }}
+      >
+        Anamneses · <em style={{ color: 'var(--b2b-champagne)' }}>builder admin</em>
+      </h2>
+      <p
+        className="font-display"
+        style={{
+          fontSize: 13,
+          fontStyle: 'italic',
+          color: 'var(--b2b-text-dim)',
+          maxWidth: 480,
+          lineHeight: 1.6,
+        }}
+      >
+        Modelos de anamnese da clínica (geral, facial, corporal, capilar, depilação,
+        customizado). Usado no prontuário e fluxos clínicos. Hard gate clínico
+        permanece intacto.
+      </p>
+      <a
+        href="/configuracoes/anamneses"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 20px',
+          background: 'var(--b2b-champagne)',
+          color: 'var(--b2b-bg-1)',
+          textDecoration: 'none',
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          borderRadius: 4,
+          transition: 'opacity var(--lara-transition)',
+        }}
+      >
+        Abrir builder de anamneses →
       </a>
     </div>
   )
