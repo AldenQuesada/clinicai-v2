@@ -38,11 +38,10 @@ import { createServiceRoleClient } from '@clinicai/supabase'
 
 const log = createLogger({ app: 'lara' })
 
-// NOTA · mig 183 escreveu policies com role literal 'professional', mas o
-// projeto usa `therapist` como role canônico para clinical staff (vide
-// `apps/lara/src/lib/permissions.ts`). Alinhamos o TS com o role real ·
-// gap deve ser corrigido em mig 184 (policy update). Owner/admin operam
-// hoje sem bloqueio · therapist depende da mig corretiva.
+// NOTA · mig 184 alinhou as RLS policies de `medical_record_attachments` ao
+// role canônico `therapist` (vide `apps/lara/src/lib/permissions.ts`). Manter
+// `WRITE_ROLES` em sincronia com as policies · qualquer mudança aqui exige
+// migration corretiva paralela.
 const WRITE_ROLES = ['owner', 'admin', 'therapist'] as const
 
 const ALLOWED_MIME = new Set([
