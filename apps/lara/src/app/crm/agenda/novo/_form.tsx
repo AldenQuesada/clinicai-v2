@@ -84,6 +84,11 @@ interface EditingPrefill {
   leadId: string | null
   professionalId: string | null
   professionalName: string
+  /**
+   * FK canônica (mig 182) · `null` quando appointment é legado/manual.
+   * Em edit, prioriza este vínculo · senão tenta match por nome.
+   */
+  procedureId: string | null
   procedureName: string
   consultType: string | null
   value: number
@@ -208,14 +213,21 @@ export function NewAppointmentForm({
   const isEdit = !!editing
   const startTimeInit = prefillTime ?? '09:00'
 
-  // CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · em edit, se procedureName legado
-  // bate com algum procedimento canônico ativo, recupera o id; senão, modo manual.
-  const editingProcedureMatch =
-    editing?.procedureName
+  // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE (mig 182):
+  //   1. Em edit, se já existe FK (editing.procedureId), prefere ela.
+  //   2. Senão, tenta match por procedureName legado para sugerir vínculo.
+  //   3. Senão, modo manual (legacy snapshot puro).
+  const editingProcedureByFk =
+    editing?.procedureId
+      ? procedures.find((p) => p.id === editing.procedureId) ?? null
+      : null
+  const editingProcedureByName =
+    !editingProcedureByFk && editing?.procedureName
       ? procedures.find(
           (p) => p.nome.trim().toLowerCase() === editing.procedureName.trim().toLowerCase(),
         ) ?? null
       : null
+  const editingProcedureMatch = editingProcedureByFk ?? editingProcedureByName
   const initialProcedureMode: 'canonical' | 'manual' =
     !editing
       ? procedures.length > 0
@@ -465,6 +477,11 @@ export function NewAppointmentForm({
       return
     }
 
+    // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE: persiste procedureId quando
+    // user selecionou do catálogo · null em modo manual ou sem seleção.
+    const procedureIdPayload =
+      data.procedureMode === 'canonical' && data.procedureId ? data.procedureId : null
+
     setBusy(true)
     try {
       const r = isEdit
@@ -475,6 +492,7 @@ export function NewAppointmentForm({
             endTime: data.endTime,
             professionalId: data.professionalId,
             professionalName: professional.displayName,
+            procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
             value: data.value ? parseFloat(data.value) || 0 : 0,
@@ -494,6 +512,7 @@ export function NewAppointmentForm({
             endTime: data.endTime,
             professionalId: data.professionalId,
             professionalName: professional.displayName,
+            procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
             value: data.value ? parseFloat(data.value) || 0 : 0,

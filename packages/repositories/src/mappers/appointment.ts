@@ -24,6 +24,7 @@ export function mapAppointmentRow(row: any): AppointmentDTO {
     scheduledDate: String(row.scheduled_date ?? ''),
     startTime: String(row.start_time ?? ''),
     endTime: String(row.end_time ?? ''),
+    procedureId: row.procedure_id ?? null,
     procedureName: String(row.procedure_name ?? ''),
     consultType: row.consult_type ?? null,
     evalType: row.eval_type ?? null,

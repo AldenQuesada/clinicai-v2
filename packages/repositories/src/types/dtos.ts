@@ -242,6 +242,17 @@ export interface AppointmentDTO {
   /** HH:MM:SS */
   startTime: string
   endTime: string
+  /**
+   * FK canônica → `clinic_procedimentos.id` (mig 182).
+   * `null` = appointment legado/manual sem vínculo · UI usa `procedureName`
+   * como snapshot textual.
+   */
+  procedureId: string | null
+  /**
+   * Snapshot textual do nome do procedimento no momento da gravação.
+   * Mantido em paralelo a `procedureId` para compat com appointments legados
+   * (criados antes da mig 182 ou em modo "Outro/manual").
+   */
   procedureName: string
   consultType: string | null
   evalType: string | null

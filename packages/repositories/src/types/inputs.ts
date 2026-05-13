@@ -281,6 +281,12 @@ export interface CreateAppointmentInput {
   scheduledDate: string
   startTime: string
   endTime: string
+  /**
+   * FK canônica → `clinic_procedimentos.id` (mig 182).
+   * Persiste em `appointments.procedure_id`. `null` = sem vínculo (modo manual
+   * ou seed). `procedureName` continua sendo gravado como snapshot textual.
+   */
+  procedureId?: string | null
   procedureName?: string
   consultType?: string | null
   evalType?: string | null
@@ -303,6 +309,11 @@ export interface UpdateAppointmentInput {
   endTime?: string
   professionalId?: string | null
   professionalName?: string
+  /**
+   * FK canônica → `clinic_procedimentos.id` (mig 182). Aceitar `null` permite
+   * mover appointment de "catálogo" para "manual" sem apagar o snapshot.
+   */
+  procedureId?: string | null
   procedureName?: string
   consultType?: string | null
   evalType?: string | null

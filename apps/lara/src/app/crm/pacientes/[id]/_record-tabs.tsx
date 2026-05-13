@@ -590,24 +590,58 @@ function ProceduresTab({
   appointments: AppointmentDTO[]
   catalog: ProcedureCatalogEntry[]
 }) {
-  const catalogMap = new Map(catalog.map((c) => [c.key, c]))
-  // Agrega por nome snapshot
+  const catalogByName = new Map(catalog.map((c) => [c.key, c]))
+  const catalogById = new Map(catalog.map((c) => [c.id, c]))
+  // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE (mig 182): preferir agrupamento
+  // por FK canônica (`procedureId`) · fallback por `procedureName` snapshot.
+  // Origem:
+  //   - 'canonical': appointment.procedureId não-null e bate com catálogo ativo
+  //   - 'snapshot_compat': sem FK, mas nome bate com catálogo
+  //   - 'legacy': nem FK nem match · só snapshot textual
+  type Origin = 'canonical' | 'snapshot_compat' | 'legacy'
   const groups = new Map<
     string,
-    { name: string; count: number; lastDate: string; match: ProcedureCatalogEntry | null }
+    {
+      key: string
+      name: string
+      count: number
+      lastDate: string
+      match: ProcedureCatalogEntry | null
+      origin: Origin
+    }
   >()
   for (const a of appointments) {
-    const name = (a.procedureName || '').trim()
-    if (!name) continue
-    const lower = name.toLowerCase()
-    const existing = groups.get(lower)
-    const match = catalogMap.get(lower) ?? null
+    const fkMatch = a.procedureId ? catalogById.get(a.procedureId) ?? null : null
+    const name = (a.procedureName || fkMatch?.nome || '').trim()
+    if (!name && !fkMatch) continue
+    let key: string
+    let match: ProcedureCatalogEntry | null
+    let origin: Origin
+    if (fkMatch) {
+      key = `id:${fkMatch.id}`
+      match = fkMatch
+      origin = 'canonical'
+    } else {
+      const lower = name.toLowerCase()
+      const nameMatch = catalogByName.get(lower) ?? null
+      key = `name:${lower}`
+      match = nameMatch
+      origin = nameMatch ? 'snapshot_compat' : 'legacy'
+    }
+    const displayName = fkMatch?.nome ?? name
+    const existing = groups.get(key)
     if (existing) {
       existing.count++
-      if (a.scheduledDate > existing.lastDate)
-        existing.lastDate = a.scheduledDate
+      if (a.scheduledDate > existing.lastDate) existing.lastDate = a.scheduledDate
     } else {
-      groups.set(lower, { name, count: 1, lastDate: a.scheduledDate, match })
+      groups.set(key, {
+        key,
+        name: displayName,
+        count: 1,
+        lastDate: a.scheduledDate,
+        match,
+        origin,
+      })
     }
   }
   const items = Array.from(groups.values()).sort(
@@ -632,9 +666,9 @@ function ProceduresTab({
         </CardHeader>
         <CardContent>
           <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">
-            Snapshot por <code>procedure_name</code>. Match com{' '}
-            <code>clinic_procedimentos</code> exibe categoria/preço de referência ·
-            FK final ainda não existe (WIZARD_PROCEDURES Trilha B1).
+            Vínculo canônico via <code>procedure_id</code> (FK · mig 182) ·
+            fallback para snapshot <code>procedure_name</code> em appointments
+            legados/manuais.
           </p>
           <table className="w-full text-sm">
             <thead className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
@@ -649,7 +683,7 @@ function ProceduresTab({
             </thead>
             <tbody>
               {items.map((g) => (
-                <tr key={g.name} className="border-b border-[var(--border)]/60">
+                <tr key={g.key} className="border-b border-[var(--border)]/60">
                   <td className="py-2 font-medium">{g.name}</td>
                   <td className="py-2 text-[12px]">
                     {g.match?.categoria || '—'}
@@ -664,9 +698,13 @@ function ProceduresTab({
                         : 'A definir'}
                   </td>
                   <td className="py-2 text-[11px]">
-                    {g.match ? (
+                    {g.origin === 'canonical' ? (
                       <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300">
-                        catálogo
+                        FK canônica
+                      </span>
+                    ) : g.origin === 'snapshot_compat' ? (
+                      <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">
+                        snapshot compatível
                       </span>
                     ) : (
                       <span className="rounded bg-zinc-500/10 px-1.5 py-0.5 text-zinc-600 dark:text-zinc-300">

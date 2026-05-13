@@ -35,7 +35,7 @@ import {
 const APPT_COLUMNS =
   'id, clinic_id, lead_id, patient_id, subject_name, subject_phone, ' +
   'professional_id, professional_name, room_idx, scheduled_date, start_time, ' +
-  'end_time, procedure_name, consult_type, eval_type, value, payment_method, ' +
+  'end_time, procedure_id, procedure_name, consult_type, eval_type, value, payment_method, ' +
   'payment_status, status, origem, chegada_em, cancelado_em, motivo_cancelamento, ' +
   'no_show_em, motivo_no_show, consentimento_img, obs, recurrence_group_id, ' +
   'recurrence_index, recurrence_total, recurrence_procedure, recurrence_interval_days, ' +
@@ -177,6 +177,7 @@ export class AppointmentRepository {
       scheduled_date: input.scheduledDate,
       start_time: input.startTime,
       end_time: input.endTime,
+      procedure_id: input.procedureId ?? null,
       procedure_name: input.procedureName ?? '',
       consult_type: input.consultType ?? null,
       eval_type: input.evalType ?? null,
@@ -218,6 +219,7 @@ export class AppointmentRepository {
     if (input.endTime !== undefined) row.end_time = input.endTime
     if (input.professionalId !== undefined) row.professional_id = input.professionalId
     if (input.professionalName !== undefined) row.professional_name = input.professionalName
+    if (input.procedureId !== undefined) row.procedure_id = input.procedureId
     if (input.procedureName !== undefined) row.procedure_name = input.procedureName
     if (input.consultType !== undefined) row.consult_type = input.consultType
     if (input.evalType !== undefined) row.eval_type = input.evalType

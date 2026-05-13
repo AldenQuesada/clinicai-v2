@@ -246,6 +246,7 @@ export default async function EditAppointmentPage({ params }: PageProps) {
           leadId: appt.leadId,
           professionalId: appt.professionalId,
           professionalName: appt.professionalName ?? '',
+          procedureId: appt.procedureId ?? null,
           procedureName: appt.procedureName ?? '',
           consultType: appt.consultType ?? null,
           value: appt.value,

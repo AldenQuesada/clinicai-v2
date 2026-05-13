@@ -72,6 +72,10 @@ export const CreateAppointmentSchema = z
     scheduledDate: DateStr,
     startTime: TimeStr,
     endTime: TimeStr,
+    // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE (mig 182): vínculo canônico
+    // opcional. UI nova envia procedureId quando user selecionar do catálogo.
+    // procedureName continua sendo gravado como snapshot.
+    procedureId: z.string().uuid().nullable().optional(),
     procedureName: z.string().max(200).optional(),
     consultType: z.string().max(50).nullable().optional(),
     evalType: z.string().max(50).nullable().optional(),
@@ -153,6 +157,9 @@ export const UpdateAppointmentSchema = z
     endTime: TimeStr.optional(),
     professionalId: z.string().uuid().nullable().optional(),
     professionalName: z.string().max(120).optional(),
+    // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE: aceita null pra mover row de
+    // catálogo→manual sem destruir snapshot.
+    procedureId: z.string().uuid().nullable().optional(),
     procedureName: z.string().max(200).optional(),
     consultType: z.string().max(50).nullable().optional(),
     evalType: z.string().max(50).nullable().optional(),
