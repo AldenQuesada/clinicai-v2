@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createBrowserClient } from '@clinicai/supabase'
+import { createBrowserClient } from '@clinicai/supabase/browser'
 
 export interface AppointmentInternalAlertItem {
   id: string
