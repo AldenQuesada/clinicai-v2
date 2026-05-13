@@ -64,6 +64,13 @@ export {
   type PatientAnamnesisRecordDTO,
 } from './anamnesis-template.repository'
 export {
+  MedicalRecordAttachmentRepository,
+  type MedicalRecordAttachmentDTO,
+  type MedicalRecordAttachmentInternalDTO,
+  type CreateAttachmentInput,
+  type ListAttachmentsOptions,
+} from './medical-record-attachment.repository'
+export {
   BroadcastRepository,
   type BroadcastDTO,
   type BroadcastStatsDTO,

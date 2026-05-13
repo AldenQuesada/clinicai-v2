@@ -19,11 +19,13 @@
  */
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  Button,
 } from '@clinicai/ui'
 import {
   Phone,
@@ -45,8 +47,13 @@ import type {
   PatientAnamnesisRecordDTO,
   PatientDTO,
   PatientProfileExtendedDTO,
+  MedicalRecordAttachmentDTO,
 } from '@clinicai/repositories'
 import { PatientReceptionPanel } from './_reception-panel'
+import {
+  uploadMedicalRecordAttachmentAction,
+  softDeleteMedicalRecordAttachmentAction,
+} from './_documents-actions'
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -63,6 +70,15 @@ interface ProcedureCatalogEntry {
   precoPromo: number | null
 }
 
+/**
+ * DTO público + signed URL (TTL 5min server-side).
+ * NUNCA inclui `storagePath`/`bucket` — esses ficam no server.
+ */
+export type AttachmentForClient = MedicalRecordAttachmentDTO & {
+  signedUrl: string | null
+  signedUrlExpiresAt: string | null
+}
+
 interface Props {
   patient: PatientDTO
   appointments: AppointmentDTO[]
@@ -71,6 +87,8 @@ interface Props {
   profileExtended: PatientProfileExtendedDTO | null
   photoSignedUrl: string | null
   canEditReception: boolean
+  canWriteDocuments: boolean
+  attachments: AttachmentForClient[]
   procedureCatalog: ProcedureCatalogEntry[]
   initialTab: string
 }
@@ -164,6 +182,8 @@ export function PatientRecordTabs({
   profileExtended,
   photoSignedUrl,
   canEditReception,
+  canWriteDocuments,
+  attachments,
   procedureCatalog,
   initialTab,
 }: Props) {
@@ -233,7 +253,13 @@ export function PatientRecordTabs({
           anamnesisRecords={anamnesisRecords}
         />
       )}
-      {tab === 'documentos' && <DocumentsTab />}
+      {tab === 'documentos' && (
+        <DocumentsTab
+          patientId={patient.id}
+          attachments={attachments}
+          canWrite={canWriteDocuments}
+        />
+      )}
       {tab === 'notas' && (
         <NotesTab
           patient={patient}
@@ -999,23 +1025,304 @@ function TimelineTab({
   )
 }
 
-// ── Documentos · placeholder ───────────────────────────────────────────────
+// ── Documentos · MEDIA_VAULT_WIRE (mig 183) ─────────────────────────────────
 
-function DocumentsTab() {
+const CATEGORY_LABEL: Record<string, string> = {
+  clinical_photo: 'Foto clínica',
+  exam: 'Exame',
+  document: 'Documento',
+  consent: 'Consentimento',
+  budget: 'Orçamento',
+  other: 'Outro',
+}
+
+const CATEGORY_OPTIONS = [
+  { value: 'document', label: 'Documento' },
+  { value: 'clinical_photo', label: 'Foto clínica' },
+  { value: 'exam', label: 'Exame' },
+  { value: 'consent', label: 'Consentimento' },
+  { value: 'budget', label: 'Orçamento' },
+  { value: 'other', label: 'Outro' },
+] as const
+
+function fmtBytes(n: number | null): string {
+  if (n == null) return '—'
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function DocumentsTab({
+  patientId,
+  attachments,
+  canWrite,
+}: {
+  patientId: string
+  attachments: AttachmentForClient[]
+  canWrite: boolean
+}) {
+  const router = useRouter()
+  const [showUpload, setShowUpload] = React.useState(false)
+  const [pending, startTransition] = React.useTransition()
+
+  function refresh() {
+    router.refresh()
+  }
+
+  async function handleSoftDelete(att: AttachmentForClient) {
+    if (!canWrite) return
+    const ok = confirm(
+      `Remover "${att.fileName}"? O arquivo é mantido para auditoria (soft-delete) e não aparece mais na lista.`,
+    )
+    if (!ok) return
+    startTransition(async () => {
+      const r = await softDeleteMedicalRecordAttachmentAction({
+        attachmentId: att.id,
+        patientId,
+      })
+      if (!r.ok) alert('Falha ao remover documento')
+      refresh()
+    })
+  }
+
   return (
-    <Card>
-      <CardContent className="space-y-3 py-10 text-center text-sm">
-        <FolderLock className="mx-auto h-8 w-8 text-[var(--muted-foreground)]" />
-        <p className="font-semibold">Módulo de documentos clínicos</p>
-        <p className="max-w-xl mx-auto text-[12px] text-[var(--muted-foreground)]">
-          A tabela <code>medical_record_attachments</code> existe mas ainda não
-          tem políticas RLS configuradas. Para preservar privacidade, a UI de
-          upload/listagem só será habilitada em fase dedicada
-          (<code>CRM_PHASE_PATIENT_RECORD.MEDIA_VAULT</code>) com bucket privado,
-          signed URLs server-side e role gate explícito.
-        </p>
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2">
+                <FolderLock className="h-4 w-4 text-[var(--primary)]" />
+                Documentos clínicos · {attachments.length}
+              </span>
+              {canWrite && (
+                <Button size="sm" onClick={() => setShowUpload(true)}>
+                  Anexar documento
+                </Button>
+              )}
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">
+            Bucket privado · signed URLs server-side (TTL 5 min) · soft-delete
+            preserva audit trail. {canWrite ? '' : 'Você está em modo leitura.'}
+          </p>
+          {attachments.length === 0 ? (
+            <p className="rounded-md border border-dashed border-[var(--border)] px-4 py-12 text-center text-sm text-[var(--muted-foreground)]">
+              Nenhum documento clínico anexado ainda.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                <tr className="border-b border-[var(--border)]">
+                  <th className="py-2 text-left">Arquivo</th>
+                  <th className="py-2 text-left">Categoria</th>
+                  <th className="py-2 text-left">Tipo</th>
+                  <th className="py-2 text-right">Tamanho</th>
+                  <th className="py-2 text-left">Criado em</th>
+                  <th className="py-2 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attachments.map((a) => (
+                  <tr key={a.id} className="border-b border-[var(--border)]/60">
+                    <td className="py-2.5">
+                      <div className="font-medium">{a.fileName}</div>
+                      {a.description && (
+                        <div className="text-[11px] text-[var(--muted-foreground)] line-clamp-1">
+                          {a.description}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-[12px]">
+                      {CATEGORY_LABEL[a.category ?? ''] ?? a.category ?? '—'}
+                    </td>
+                    <td className="py-2.5 text-[11px] text-[var(--muted-foreground)]">
+                      {a.mimeType}
+                    </td>
+                    <td className="py-2.5 text-right text-[12px] tabular-nums">
+                      {fmtBytes(a.sizeBytes)}
+                    </td>
+                    <td className="py-2.5 text-[11px]">
+                      {fmtDateTime(a.createdAt)}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        {a.signedUrl ? (
+                          // eslint-disable-next-line react/jsx-no-target-blank
+                          <a
+                            href={a.signedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] uppercase tracking-widest text-[var(--primary)] hover:underline"
+                          >
+                            Abrir
+                          </a>
+                        ) : (
+                          <span
+                            className="text-[11px] uppercase tracking-widest text-[var(--muted-foreground)]"
+                            title="Link temporário indisponível"
+                          >
+                            —
+                          </span>
+                        )}
+                        {canWrite && (
+                          <button
+                            type="button"
+                            onClick={() => handleSoftDelete(a)}
+                            disabled={pending}
+                            className="text-[11px] uppercase tracking-widest text-rose-600 hover:underline dark:text-rose-300 disabled:opacity-50"
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      {showUpload && canWrite && (
+        <DocumentsUploadDialog
+          patientId={patientId}
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => {
+            setShowUpload(false)
+            refresh()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function DocumentsUploadDialog({
+  patientId,
+  onClose,
+  onUploaded,
+}: {
+  patientId: string
+  onClose: () => void
+  onUploaded: () => void
+}) {
+  const [busy, setBusy] = React.useState(false)
+  const [err, setErr] = React.useState<string | null>(null)
+  const [category, setCategory] = React.useState<string>('document')
+  const [description, setDescription] = React.useState<string>('')
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (busy) return
+    const file = fileInputRef.current?.files?.[0]
+    if (!file) {
+      setErr('Selecione um arquivo')
+      return
+    }
+    setErr(null)
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.set('patientId', patientId)
+      fd.set('file', file)
+      fd.set('category', category)
+      if (description.trim()) fd.set('description', description.trim())
+      const r = await uploadMedicalRecordAttachmentAction(fd)
+      if (!r.ok) {
+        setErr(r.error ?? 'upload_failed')
+        return
+      }
+      onUploaded()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md space-y-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-6 shadow-xl"
+      >
+        <div>
+          <h2 className="text-base font-semibold">Anexar documento clínico</h2>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            Bucket privado · signed URL TTL 5 min · soft-delete preserva
+            audit trail. Sem URL pública. Sem provider externo.
+          </p>
+        </div>
+
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+            Arquivo (até 20 MB · JPG/PNG/WEBP/PDF)
+          </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+            className="block w-full text-sm"
+            disabled={busy}
+          />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+            Categoria
+          </span>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="block w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
+            disabled={busy}
+          >
+            {CATEGORY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+            Descrição (opcional)
+          </span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={2000}
+            rows={3}
+            className="block w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
+            placeholder="Contexto clínico do documento (visível para staff)"
+            disabled={busy}
+          />
+        </label>
+
+        {err && (
+          <p className="text-xs text-rose-600 dark:text-rose-400">
+            Erro: {err}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-3">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? 'Enviando…' : 'Anexar'}
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }
 

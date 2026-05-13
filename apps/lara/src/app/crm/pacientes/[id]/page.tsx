@@ -40,6 +40,7 @@ import type {
   OrcamentoDTO,
   PatientAnamnesisRecordDTO,
   AdminProcedureDTO,
+  MedicalRecordAttachmentDTO,
 } from '@clinicai/repositories'
 import { PatientRecordTabs } from './_record-tabs'
 
@@ -61,7 +62,7 @@ export default async function PatientDetailPage({
   const patient = await repos.patients.getById(id)
   if (!patient) notFound()
 
-  const [appointments, orcamentos, anamnesisRecords, profileExtended, procedures] =
+  const [appointments, orcamentos, anamnesisRecords, profileExtended, procedures, attachments] =
     await Promise.all([
       repos.appointments
         .listBySubject(ctx.clinic_id, { patientId: patient.id }, { limit: 100 })
@@ -76,10 +77,17 @@ export default async function PatientDetailPage({
       repos.procedureAdmin
         .list({ status: 'active', limit: 500 })
         .catch(() => [] as AdminProcedureDTO[]),
+      repos.medicalRecordAttachments
+        .listByPatient(patient.id, { limit: 200 })
+        .catch(() => [] as MedicalRecordAttachmentDTO[]),
     ])
 
   const canEditReception =
     ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'receptionist'
+  // Alinhado ao role canônico do projeto (`therapist`) · vide note em
+  // _documents-actions.ts sobre mig 184 corretiva.
+  const canWriteDocuments =
+    ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'therapist'
 
   // Signed URL para foto · APENAS server-side · expira em 5 min
   let photoSignedUrl: string | null = null
@@ -93,6 +101,49 @@ export default async function PatientDetailPage({
     } catch {
       photoSignedUrl = null
     }
+  }
+
+  // MEDIA_VAULT_WIRE · gera signed URLs server-side para cada attachment
+  // (TTL 5min). DTO enviado ao client adiciona `signedUrl` mas NÃO inclui
+  // `storagePath` (esse campo nem está no DTO público do repo).
+  type AttachmentForClient = MedicalRecordAttachmentDTO & {
+    signedUrl: string | null
+    signedUrlExpiresAt: string | null
+  }
+  let attachmentsForClient: AttachmentForClient[] = attachments.map((a) => ({
+    ...a,
+    signedUrl: null,
+    signedUrlExpiresAt: null,
+  }))
+  if (attachments.length > 0) {
+    const ttlSec = 60 * 5
+    const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString()
+    const service = createServiceRoleClient()
+    // Busca paths internos · CHANNEL OF TRUST: server only · zero path no client
+    const paths = await Promise.all(
+      attachments.map(async (a) => {
+        const internal = await repos.medicalRecordAttachments
+          .getInternalById(a.id)
+          .catch(() => null)
+        if (!internal) return null
+        try {
+          const { data } = await service.storage
+            .from(internal.bucket)
+            .createSignedUrl(internal.storagePath, ttlSec)
+          return { id: a.id, signedUrl: data?.signedUrl ?? null }
+        } catch {
+          return { id: a.id, signedUrl: null }
+        }
+      }),
+    )
+    const urlById = new Map(
+      paths.filter((p): p is { id: string; signedUrl: string | null } => Boolean(p)).map((p) => [p.id, p.signedUrl]),
+    )
+    attachmentsForClient = attachments.map((a) => ({
+      ...a,
+      signedUrl: urlById.get(a.id) ?? null,
+      signedUrlExpiresAt: expiresAt,
+    }))
   }
 
   // Procedimentos: agrupa snapshot `procedure_name` dos appointments e
@@ -139,6 +190,8 @@ export default async function PatientDetailPage({
         profileExtended={profileExtended}
         photoSignedUrl={photoSignedUrl}
         canEditReception={canEditReception}
+        canWriteDocuments={canWriteDocuments}
+        attachments={attachmentsForClient}
         procedureCatalog={Array.from(procedureCatalogByLowerName.entries()).map(
           ([key, p]) => ({
             key,

@@ -35,6 +35,7 @@ import {
   ProcedureAdminRepository,
   PatientProfileRepository,
   AnamnesisTemplateRepository,
+  MedicalRecordAttachmentRepository,
 } from '@clinicai/repositories'
 import { loadServerContext, type ClinicContext } from '@clinicai/supabase'
 
@@ -79,6 +80,8 @@ export interface Repos {
   patientProfile: PatientProfileRepository
   /** CRM_PHASE_LEGACY.PORT.ANAMNESIS_BUILDER · templates + sessions + fields admin */
   anamnesisTemplates: AnamnesisTemplateRepository
+  /** CRM_PHASE_PATIENT_RECORD.MEDIA_VAULT · vault clínico tenant-aware (mig 183) */
+  medicalRecordAttachments: MedicalRecordAttachmentRepository
 }
 
 export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
@@ -111,6 +114,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     procedureAdmin: new ProcedureAdminRepository(sb),
     patientProfile: new PatientProfileRepository(sb),
     anamnesisTemplates: new AnamnesisTemplateRepository(sb),
+    medicalRecordAttachments: new MedicalRecordAttachmentRepository(sb),
   }
 }
 

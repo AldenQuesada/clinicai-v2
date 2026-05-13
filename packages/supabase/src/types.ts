@@ -5,7 +5,7 @@
  *
  *   SUPABASE_ACCESS_TOKEN=sbp_... pnpm db:types
  *
- * Ultima geracao: 2026-05-13T00:00:48.554Z
+ * Ultima geracao: 2026-05-13T01:00:32.102Z
  * Project ref: oqboitkpcvuaudouwvkl
  */
 
@@ -9999,24 +9999,106 @@ export type Database = {
       }
       medical_record_attachments: {
         Row: {
+          appointment_id: string | null
+          bucket: string
+          category: string | null
+          clinic_id: string
           created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          file_name: string
           file_path: string | null
           id: string
-          patient_id: string | null
+          mime_type: string
+          patient_id: string
+          size_bytes: number | null
+          storage_path: string
+          updated_at: string
+          uploaded_by: string | null
+          visibility: string
         }
         Insert: {
+          appointment_id?: string | null
+          bucket?: string
+          category?: string | null
+          clinic_id: string
           created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          file_name: string
           file_path?: string | null
           id?: string
-          patient_id?: string | null
+          mime_type: string
+          patient_id: string
+          size_bytes?: number | null
+          storage_path: string
+          updated_at?: string
+          uploaded_by?: string | null
+          visibility?: string
         }
         Update: {
+          appointment_id?: string | null
+          bucket?: string
+          category?: string | null
+          clinic_id?: string
           created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          file_name?: string
           file_path?: string | null
           id?: string
-          patient_id?: string | null
+          mime_type?: string
+          patient_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          visibility?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mra_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mra_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "crm_operational_view"
+            referencedColumns: ["appointment_id"]
+          },
+          {
+            foreignKeyName: "mra_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mra_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "anamnesis_consolidated_view"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "mra_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "crm_operational_view"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "mra_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       medical_records: {
         Row: {
