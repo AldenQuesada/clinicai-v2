@@ -263,7 +263,15 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
         {/* Procedimento + Financeiro */}
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Procedimento</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <span>Procedimento</span>
+              {/* BLOCO 2.4 · badge cortesia · destaque visual pra secretária */}
+              {appt.paymentStatus === 'cortesia' && (
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Cortesia
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <Field label="Nome" value={appt.procedureName || '—'} />

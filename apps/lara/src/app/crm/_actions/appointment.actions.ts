@@ -442,12 +442,23 @@ export async function finalizeAppointmentAction(
   if (!parsed.success) return zodFail(parsed.error)
 
   const { ctx, repos } = await loadServerReposContext()
+
+  // BLOCO 2.4 · cortesia · prepende motivo em notes pra preservar contexto
+  // operacional sem schema novo. Marker server-side é paymentStatus='cortesia'
+  // + value=0 (refines do Zod garantem coerência).
+  const isCortesia = parsed.data.paymentStatus === 'cortesia'
+  const courtesyValue = isCortesia ? 0 : (parsed.data.value ?? null)
+  const courtesyNotes =
+    isCortesia && parsed.data.motivoCortesia
+      ? `[Cortesia] ${parsed.data.motivoCortesia.trim()}${parsed.data.notes ? `\n\n${parsed.data.notes}` : ''}`
+      : (parsed.data.notes ?? null)
+
   const result = await repos.appointments.finalize({
     appointmentId: parsed.data.appointmentId,
     outcome: parsed.data.outcome,
-    value: parsed.data.value ?? null,
+    value: courtesyValue,
     paymentStatus: parsed.data.paymentStatus ?? null,
-    notes: parsed.data.notes ?? null,
+    notes: courtesyNotes,
     lostReason: parsed.data.lostReason ?? null,
     orcamentoItems: parsed.data.orcamentoItems ?? null,
     orcamentoSubtotal: parsed.data.orcamentoSubtotal ?? null,

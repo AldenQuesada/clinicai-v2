@@ -92,7 +92,16 @@ export type AppointmentStatus =
   | 'no_show'
   | 'bloqueado'
 
-export type AppointmentPaymentStatus = 'pendente' | 'parcial' | 'pago' | 'isento'
+// BLOCO 2.4 · alinhado com contrato real do banco (mig 152 ·
+// chk_appt_payment_status). `cortesia` é distinta de `isento`:
+//   - cortesia: atendimento gratuito intencional · exige motivo
+//   - isento: paciente fora de cobrança (convênio, parceria fechada)
+export type AppointmentPaymentStatus =
+  | 'pendente'
+  | 'parcial'
+  | 'pago'
+  | 'cortesia'
+  | 'isento'
 export type AppointmentConsentImg = 'pendente' | 'assinado' | 'recusado' | 'nao_aplica'
 
 // ── Orcamento ──────────────────────────────────────────────────────────────

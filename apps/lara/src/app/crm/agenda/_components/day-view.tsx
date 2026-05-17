@@ -39,6 +39,7 @@ import {
   normalizeHms,
   parseSlotId,
 } from './_drag-utils'
+import { TimeTrackerBadge } from './time-tracker-badge'
 
 interface DayViewProps {
   /** Dia (YYYY-MM-DD) */
@@ -304,6 +305,14 @@ function DayAppointmentBlock({
           {a.professionalName}
         </div>
       )}
+      {/* BLOCO 2.4 · time-tracker · paridade V1 agenda-day-panel.js */}
+      <TimeTrackerBadge
+        status={a.status}
+        chegadaEm={a.chegadaEm}
+        updatedAt={a.updatedAt}
+        scheduledDate={a.scheduledDate}
+        startTime={a.startTime}
+      />
     </div>
   )
 }

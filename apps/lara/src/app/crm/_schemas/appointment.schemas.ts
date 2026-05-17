@@ -24,10 +24,15 @@ const AppointmentStatus = z.enum([
   'bloqueado',
 ])
 
+// BLOCO 2.4 · alinhado com contrato real do banco (mig 152 ·
+// chk_appt_payment_status). `cortesia` é distinta de `isento`:
+//   - cortesia: atendimento gratuito intencional · exige motivo
+//   - isento: paciente fora de cobrança (convênio, parceria fechada)
 const AppointmentPaymentStatus = z.enum([
   'pendente',
   'parcial',
   'pago',
+  'cortesia',
   'isento',
 ])
 
@@ -297,6 +302,10 @@ export const FinalizeAppointmentSchema = z
     // CRM_PHASE_2I.1 · hard gate clinico · override admin
     clinicalOverride: z.boolean().optional(),
     clinicalOverrideReason: z.string().max(1000).nullable().optional(),
+    // BLOCO 2.4 · cortesia · motivo prepende em notes pelo action.
+    // Marker server-side é `paymentStatus='cortesia'`. UI gate exige motivo
+    // quando paymentStatus='cortesia'.
+    motivoCortesia: z.string().max(500).nullable().optional(),
   })
   .refine(
     (v) => {
@@ -341,6 +350,33 @@ export const FinalizeAppointmentSchema = z
     {
       message: 'clinicalOverrideReason obrigatorio (min 5 chars) quando clinicalOverride=true',
       path: ['clinicalOverrideReason'],
+    },
+  )
+  .refine(
+    (v) => {
+      // BLOCO 2.4 · motivo obrigatório (min 3 chars) quando paymentStatus=cortesia
+      if (v.paymentStatus === 'cortesia') {
+        return !!v.motivoCortesia && v.motivoCortesia.trim().length >= 3
+      }
+      return true
+    },
+    {
+      message: 'motivoCortesia obrigatorio (min 3 chars) quando paymentStatus=cortesia',
+      path: ['motivoCortesia'],
+    },
+  )
+  .refine(
+    (v) => {
+      // BLOCO 2.4 · cortesia exige value 0 ou null (atendimento gratuito).
+      // Validação defensiva · UI deve forçar value=0 quando cortesia.
+      if (v.paymentStatus === 'cortesia') {
+        return v.value == null || v.value === 0
+      }
+      return true
+    },
+    {
+      message: 'value deve ser 0 (ou null) quando paymentStatus=cortesia',
+      path: ['value'],
     },
   )
 

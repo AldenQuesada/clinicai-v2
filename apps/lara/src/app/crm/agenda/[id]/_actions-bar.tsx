@@ -746,9 +746,11 @@ function FinalizeWizard({
   const { fromResult, success, warning } = useToast()
   const [outcome, setOutcome] = React.useState<FinalizeUiOutcome>('paciente')
   const [value, setValue] = React.useState('')
+  // BLOCO 2.4 · 5 valores · alinhado com chk_appt_payment_status (mig 152)
   const [paymentStatus, setPaymentStatus] = React.useState<
-    'pendente' | 'parcial' | 'pago' | 'isento'
+    'pendente' | 'parcial' | 'pago' | 'cortesia' | 'isento'
   >('pago')
+  const [motivoCortesia, setMotivoCortesia] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [orcSubtotal, setOrcSubtotal] = React.useState('')
   const [orcDiscount, setOrcDiscount] = React.useState('0')
@@ -757,6 +759,8 @@ function FinalizeWizard({
   // CRM_PHASE_2I.1 · override admin
   const [overrideRequested, setOverrideRequested] = React.useState(false)
   const [overrideReason, setOverrideReason] = React.useState('')
+
+  const isCortesia = paymentStatus === 'cortesia'
 
   const needsOrcamento =
     outcome === 'orcamento' || outcome === 'paciente_orcamento'
@@ -784,6 +788,12 @@ function FinalizeWizard({
       }
     }
 
+    // BLOCO 2.4 · cortesia exige motivo (min 3 chars)
+    if (isCortesia && motivoCortesia.trim().length < 3) {
+      setError('Motivo da cortesia obrigatório (mínimo 3 caracteres)')
+      return
+    }
+
     if (gateBlocking) {
       if (!canOverrideGate) {
         setError('Gate clínico bloqueia · sem permissão para override (só owner/admin)')
@@ -804,8 +814,10 @@ function FinalizeWizard({
       const r = await finalizeAppointmentAction({
         appointmentId,
         outcome,
-        value: value ? parseFloat(value) : null,
+        // BLOCO 2.4 · cortesia força value 0 (refine Zod enforça também)
+        value: isCortesia ? 0 : value ? parseFloat(value) : null,
         paymentStatus,
+        motivoCortesia: isCortesia ? motivoCortesia.trim() : null,
         notes: notes || null,
         lostReason: null,
         orcamentoItems: needsOrcamento
@@ -961,8 +973,9 @@ function FinalizeWizard({
               type="number"
               min="0"
               step="0.01"
-              value={value}
+              value={isCortesia ? '0,00' : value}
               onChange={(e) => setValue(e.target.value)}
+              disabled={isCortesia}
               placeholder="0,00"
             />
           </FormField>
@@ -972,17 +985,47 @@ function FinalizeWizard({
               value={paymentStatus}
               onChange={(e) =>
                 setPaymentStatus(
-                  e.target.value as 'pendente' | 'parcial' | 'pago' | 'isento',
+                  e.target.value as
+                    | 'pendente'
+                    | 'parcial'
+                    | 'pago'
+                    | 'cortesia'
+                    | 'isento',
                 )
               }
             >
               <option value="pago">Pago</option>
               <option value="parcial">Parcial</option>
               <option value="pendente">Pendente</option>
-              <option value="isento">Isento (cortesia)</option>
+              <option value="cortesia">Cortesia (atendimento gratuito)</option>
+              <option value="isento">Isento (convênio/parceria)</option>
             </Select>
           </FormField>
         </div>
+
+        {/* BLOCO 2.4 · campo motivo aparece só quando paymentStatus=cortesia */}
+        {isCortesia && (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-3 space-y-2">
+            <FormField
+              label="Motivo da cortesia"
+              htmlFor="fin-motivo-cortesia"
+              required
+              hint="Ex: primeira consulta · parceria fechada · cortesia institucional · indicação direta da Dra."
+            >
+              <Input
+                id="fin-motivo-cortesia"
+                value={motivoCortesia}
+                onChange={(e) => setMotivoCortesia(e.target.value)}
+                maxLength={500}
+                placeholder="Motivo da cortesia (obrigatório · mínimo 3 caracteres)"
+              />
+            </FormField>
+            <p className="text-[10px] text-[var(--muted-foreground)]">
+              Valor cobrado fixado em R$ 0,00. O motivo será registrado em
+              notas (prefixo <code>[Cortesia]</code>) para auditoria.
+            </p>
+          </div>
+        )}
 
         {needsOrcamento && (
           <div className="grid grid-cols-2 gap-4">
