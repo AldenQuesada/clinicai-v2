@@ -96,7 +96,7 @@ export function CrmSidebarNav() {
   const pathname = usePathname()
   return (
     <nav
-      className="flex flex-1 flex-col items-stretch gap-0.5 py-2"
+      className="flex flex-1 flex-col items-center gap-1 py-3"
       aria-label="Menu CRM"
     >
       {NAV.map((item) => {
@@ -107,19 +107,8 @@ export function CrmSidebarNav() {
             href={item.href}
             aria-current={active ? 'page' : undefined}
             title={item.label}
-            className="relative flex h-11 items-center justify-center transition-colors"
-            style={{
-              color: active ? '#C9A96E' : 'rgba(245,240,232,0.55)',
-              background: active ? 'rgba(201,169,110,0.10)' : 'transparent',
-            }}
+            className={cn('crm-sidebar-item', active && 'crm-sidebar-item-active')}
           >
-            {active && (
-              <span
-                aria-hidden
-                className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r"
-                style={{ background: '#C9A96E' }}
-              />
-            )}
             {item.icon}
           </Link>
         )

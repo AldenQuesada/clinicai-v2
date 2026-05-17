@@ -39,23 +39,16 @@ export function StatusLegend() {
     <div
       role="list"
       aria-label="Legenda de status da agenda"
-      className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2"
+      className="crm-status-row"
     >
-      <span className="text-[9px] font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
-        Status:
-      </span>
       {STATUS_ORDER.map((status) => {
         const color = APPOINTMENT_STATUS_COLORS[status].color
         const label = APPOINTMENT_STATUS_LABELS[status]
         return (
-          <span
-            key={status}
-            role="listitem"
-            className="inline-flex items-center gap-1.5 text-[10px] text-[var(--foreground)]"
-          >
+          <span key={status} role="listitem" className="crm-status-chip">
             <span
               aria-hidden
-              className="inline-block h-2 w-2 rounded-full"
+              className="crm-status-dot"
               style={{ background: color }}
             />
             {label}

@@ -87,18 +87,14 @@ export function AgendaFilters({
     router.push(`${pathname}?${next.toString()}`)
   }
 
-  const selectClass =
-    'h-9 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--foreground)] focus:border-[var(--primary)] focus:outline-none'
-
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-[10px] font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
-        Filtros:
-      </span>
+    <div className="crm-filter-bar mb-4">
+      <span className="crm-filter-bar-label">Filtros:</span>
 
       <select
         aria-label="Filtrar por status"
-        className={selectClass}
+        className="crm-filter-select"
+        style={{ width: 190 }}
         value={current.status ?? ''}
         onChange={(e) => updateParam('status', e.target.value)}
       >
@@ -112,7 +108,8 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por tipo de consulta"
-        className={selectClass}
+        className="crm-filter-select"
+        style={{ width: 190 }}
         value={current.consultType ?? ''}
         onChange={(e) => updateParam('ct', e.target.value)}
         disabled={consultTypeOptions.length === 0}
@@ -132,7 +129,8 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por status financeiro"
-        className={selectClass}
+        className="crm-filter-select"
+        style={{ width: 120 }}
         value={current.paymentStatus ?? ''}
         onChange={(e) => updateParam('ptm', e.target.value)}
       >
@@ -146,7 +144,8 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por origem"
-        className={selectClass}
+        className="crm-filter-select"
+        style={{ width: 120 }}
         value={current.origem ?? ''}
         onChange={(e) => updateParam('og', e.target.value)}
         disabled={origemOptions.length === 0}

@@ -203,31 +203,54 @@ export function WeekCalendar({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="overflow-x-auto rounded-md border border-[var(--border)]">
-        <div className="grid min-w-[800px] grid-cols-[60px_repeat(7,1fr)]">
-          {/* Header · vazio + 7 dias */}
-          <div className="border-b border-r border-[var(--border)] bg-[var(--color-border-soft)]/30" />
+      <div className="crm-week-calendar overflow-x-auto">
+        <div className="grid min-w-[800px] grid-cols-[92px_repeat(7,1fr)]">
+          {/* Header · vazio + 7 dias · 64px */}
+          <div
+            className="border-b border-r"
+            style={{
+              background: 'var(--crm-surface)',
+              borderBottomColor: 'var(--crm-border)',
+              borderRightColor: 'var(--crm-border)',
+              height: 64,
+            }}
+          />
           {days.map((date, i) => {
             const isToday = date === new Date().toISOString().slice(0, 10)
+            const isSunday = i === 0
             const dayNum = parseInt(date.slice(8, 10), 10)
             return (
               <div
                 key={date}
-                className={`border-b border-r border-[var(--border)] px-2 py-2 text-center ${
-                  isToday
-                    ? 'bg-[var(--primary)]/15'
-                    : 'bg-[var(--color-border-soft)]/30'
-                }`}
+                className="border-b border-r flex flex-col items-center justify-center text-center"
+                style={{
+                  borderBottomColor: 'var(--crm-border)',
+                  borderRightColor: 'var(--crm-border)',
+                  background: isToday
+                    ? 'rgba(124, 58, 237, 0.08)'
+                    : isSunday
+                      ? '#F4F0FF'
+                      : 'var(--crm-surface)',
+                  height: 64,
+                }}
               >
-                <div className="text-[10px] font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
+                <div
+                  className="text-[10px] font-bold uppercase tracking-widest"
+                  style={{
+                    color: isSunday ? 'var(--crm-purple)' : 'var(--crm-muted)',
+                  }}
+                >
                   {WEEKDAYS_PT[i]}
                 </div>
                 <div
-                  className={`text-sm font-medium ${
-                    isToday
-                      ? 'text-[var(--primary)]'
-                      : 'text-[var(--foreground)]'
-                  }`}
+                  className="text-base font-bold"
+                  style={{
+                    color: isToday
+                      ? 'var(--crm-purple)'
+                      : isSunday
+                        ? 'var(--crm-purple)'
+                        : 'var(--crm-text)',
+                  }}
                 >
                   {dayNum}
                 </div>
@@ -235,10 +258,19 @@ export function WeekCalendar({
             )
           })}
 
-          {/* Linhas de slots */}
+          {/* Linhas de slots · time column 92px + 7 dias · 42px height each */}
           {slots.map((slot) => (
             <React.Fragment key={slot.label}>
-              <div className="border-b border-r border-[var(--border)] px-2 py-3 text-center text-[10px] text-[var(--muted-foreground)]">
+              <div
+                className="border-b border-r px-2 flex items-center justify-center text-xs font-semibold"
+                style={{
+                  background: 'var(--crm-surface)',
+                  borderBottomColor: 'var(--crm-border)',
+                  borderRightColor: 'var(--crm-border)',
+                  color: 'var(--crm-muted)',
+                  height: 42,
+                }}
+              >
                 {slot.label}
               </div>
               {days.map((date) => {
@@ -304,14 +336,30 @@ function DroppableSlot({
   children,
 }: DroppableSlotProps) {
   const { isOver, setNodeRef } = useDroppable({ id: slotId })
+  // Detecta domingo via slotId formato `${date}|${time}` · primeiro dia da semana
+  const datePart = slotId.split('|')[0] ?? ''
+  const isSunday =
+    datePart.length === 10
+      ? new Date(`${datePart}T00:00:00.000Z`).getUTCDay() === 0
+      : false
+
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-h-[40px] border-b border-r border-[var(--border)] transition-colors ${
-        isOver
-          ? 'bg-[var(--primary)]/20 ring-1 ring-inset ring-[var(--primary)]/60'
-          : 'hover:bg-[var(--color-border-soft)]/20'
+      className={`relative border-b border-r transition-colors ${
+        isEmpty ? 'agenda-empty-slot cursor-pointer' : ''
       } ${busy ? 'cursor-wait' : ''}`}
+      style={{
+        height: 42,
+        borderBottomColor: 'var(--crm-border)',
+        borderRightColor: 'var(--crm-border)',
+        background: isOver
+          ? 'rgba(124, 58, 237, 0.10)'
+          : isSunday
+            ? '#F4F0FF'
+            : 'var(--crm-surface)',
+        boxShadow: isOver ? 'inset 0 0 0 1px var(--crm-purple)' : undefined,
+      }}
       onClick={() => {
         if (isEmpty && !busy) onClickEmpty()
       }}

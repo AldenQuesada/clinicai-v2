@@ -81,46 +81,43 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
   }, [pathname])
 
   return (
-    <header
-      className="hidden md:flex h-14 items-center gap-3 border-b px-6"
-      style={{
-        background: 'hsl(var(--card))',
-        borderBottomColor: 'hsl(var(--border))',
-      }}
-    >
+    <header className="crm-topbar hidden md:flex">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-sm">
         <Link
           href="/crm"
-          className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          className="text-[color:var(--crm-muted)] hover:text-[color:var(--crm-text)]"
         >
           CRM
         </Link>
-        <span className="text-[hsl(var(--muted-foreground))]">/</span>
-        <span className="font-medium text-[hsl(var(--foreground))]">
+        <span className="text-[color:var(--crm-muted-2)]">/</span>
+        <span className="font-semibold text-[color:var(--crm-text)]">
           {breadcrumb}
         </span>
       </div>
 
-      {/* Busca global · placeholder · disabled */}
+      {/* Busca global · placeholder · disabled · 350x44 */}
       <div
         className="relative ml-6 flex items-center"
         title="Busca global · em validação"
       >
-        <Search className="absolute left-2.5 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+        <Search className="absolute left-3 h-4 w-4 text-[color:var(--crm-muted-2)]" />
         <input
           type="text"
           disabled
-          placeholder="Buscar leads, pacientes…"
+          placeholder="Buscar leads, pacientes..."
           aria-label="Busca global (em validação)"
-          className="w-72 cursor-not-allowed rounded-md border bg-transparent py-1.5 pl-8 pr-12 text-xs text-[hsl(var(--muted-foreground))] placeholder:text-[hsl(var(--muted-foreground))]"
-          style={{ borderColor: 'hsl(var(--border))' }}
+          className="h-11 w-[350px] cursor-not-allowed rounded-xl border bg-white pl-10 pr-14 text-sm text-[color:var(--crm-muted)] placeholder:text-[color:var(--crm-muted-2)]"
+          style={{
+            borderColor: 'var(--crm-border)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+          }}
         />
         <kbd
-          className="absolute right-2 rounded px-1.5 py-0.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))]"
+          className="absolute right-3 rounded px-2 py-0.5 text-[10px] font-semibold text-[color:var(--crm-muted)]"
           style={{
-            background: 'hsl(var(--muted))',
-            border: '1px solid hsl(var(--border))',
+            background: '#F3F4F6',
+            border: '1px solid var(--crm-border)',
           }}
         >
           ⌘K
@@ -135,13 +132,13 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         disabled
         title="Finalização do dia será ativada após validação do fluxo operacional."
         aria-label="Fechar o Dia (em validação)"
-        className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white opacity-90"
+        className="inline-flex h-11 cursor-not-allowed items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white opacity-95"
         style={{
-          background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
-          boxShadow: '0 2px 8px rgba(220,38,38,0.20)',
+          background: 'var(--crm-red)',
+          boxShadow: '0 8px 18px rgba(220, 38, 38, 0.18)',
         }}
       >
-        <Moon className="h-3.5 w-3.5" />
+        <Moon className="h-4 w-4" />
         Fechar o Dia
       </button>
 
@@ -151,7 +148,11 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         disabled
         title="Notificações · em validação"
         aria-label="Notificações"
-        className="relative inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-md text-[hsl(var(--muted-foreground))]"
+        className="relative inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-[10px] text-[color:var(--crm-muted)]"
+        style={{
+          background: 'var(--crm-surface)',
+          border: '1px solid var(--crm-border)',
+        }}
       >
         <Bell className="h-4 w-4" />
       </button>
@@ -162,29 +163,33 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         disabled
         title="Tarefas · em validação"
         aria-label="Tarefas"
-        className="relative inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-md text-[hsl(var(--muted-foreground))]"
+        className="relative inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-[10px] text-[color:var(--crm-muted)]"
+        style={{
+          background: 'var(--crm-surface)',
+          border: '1px solid var(--crm-border)',
+        }}
       >
         <CheckSquare className="h-4 w-4" />
       </button>
 
-      {/* + Novo dropdown · só rotas existentes */}
+      {/* + Novo dropdown · só rotas existentes (R3_CRM_LIGHT_1 audit) */}
       <details ref={newDropdownRef} className="relative">
         <summary
-          className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white"
+          className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white"
           style={{
-            background: 'linear-gradient(135deg, #C9A96E, #A8895E)',
+            background: 'var(--crm-gold)',
             listStyle: 'none',
-            boxShadow: '0 2px 8px rgba(201,169,110,0.20)',
+            boxShadow: '0 8px 18px rgba(200, 169, 126, 0.18)',
           }}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
           Novo
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </summary>
         <nav
-          className="absolute right-0 top-11 z-40 flex w-52 flex-col gap-0.5 rounded-md border bg-[hsl(var(--card))] p-1.5"
+          className="absolute right-0 top-14 z-40 flex w-56 flex-col gap-0.5 rounded-xl border bg-white p-1.5"
           style={{
-            borderColor: 'hsl(var(--border))',
+            borderColor: 'var(--crm-border)',
             boxShadow: 'var(--lara-shadow-md)',
           }}
         >
@@ -192,7 +197,7 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded px-2.5 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]"
+              className="rounded-lg px-3 py-2 text-sm text-[color:var(--crm-text)] hover:bg-[color:var(--crm-soft)]"
             >
               {item.label}
             </Link>
@@ -201,23 +206,23 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
       </details>
 
       {/* Avatar + nome + role */}
-      <div className="flex items-center gap-2.5 border-l pl-4" style={{ borderLeftColor: 'hsl(var(--border))' }}>
+      <div
+        className="flex items-center gap-3 pl-4 ml-2 border-l"
+        style={{ borderLeftColor: 'var(--crm-border)' }}
+      >
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
-          style={{
-            background: 'hsl(var(--primary))',
-            color: 'hsl(var(--primary-foreground))',
-          }}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
+          style={{ background: 'var(--crm-purple)' }}
           title={displayName}
         >
           {initials}
         </div>
-        <div className="hidden lg:flex flex-col leading-none">
-          <span className="text-xs font-medium text-[hsl(var(--foreground))]">
+        <div className="hidden lg:flex flex-col leading-tight">
+          <span className="text-sm font-semibold text-[color:var(--crm-text)]">
             {displayName}
           </span>
           {role && (
-            <span className="text-[9px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            <span className="text-xs text-[color:var(--crm-muted)] capitalize">
               {role}
             </span>
           )}

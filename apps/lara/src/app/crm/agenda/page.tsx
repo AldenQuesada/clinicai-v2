@@ -337,9 +337,9 @@ export default async function AgendaPage({
         />
       </Suspense>
 
-      {/* R3_CRM_LIGHT_1D · KPIs · 4 pills compactos espelhando legacy (Agendados,
-          Sem Confirm., No-show%, Prev.|Fat.). Métricas combinadas das 7 antigas. */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* R3_CRM_LIGHT_2 · KPIs · 4 pills compactos espelhando legacy (Agendados,
+          Sem Confirm., No-show%, Prev.|Fat.). Largura mínima 210px · row flex */}
+      <div className="crm-kpi-row mb-6">
         <KpiPill
           label="Agendados"
           value={aggregates.agendado.toString()}
@@ -411,15 +411,15 @@ export default async function AgendaPage({
 interface KpiPillProps {
   label: string
   value: string
-  /** Sub-line abaixo do valor · ex: "X conf." ou "X%" */
+  /** Sub-line abaixo/ao lado do valor · ex: "X conf." ou "X%" */
   sub?: string
   accent?: 'info' | 'primary' | 'success' | 'warning' | 'destructive' | 'muted'
 }
 
 /**
- * KpiPill · pill compacto light · R3_CRM_LIGHT_1D.
- * Espelha estilo legacy (imagem B): card claro com border sutil, label
- * em uppercase pequeno, valor grande, sub opcional em cinza.
+ * KpiPill · pill compacto 48px · R3_CRM_LIGHT_2.
+ * Espelha contrato visual da imagem legacy clara · label uppercase pequeno
+ * à esquerda, valor grande à direita, sub opcional.
  */
 function KpiPill({ label, value, sub, accent }: KpiPillProps) {
   const valueColor =
@@ -432,24 +432,20 @@ function KpiPill({ label, value, sub, accent }: KpiPillProps) {
           : accent === 'info'
             ? 'text-sky-600'
             : accent === 'primary'
-              ? 'text-[hsl(var(--primary))]'
+              ? 'text-[color:var(--crm-gold)]'
               : accent === 'muted'
-                ? 'text-[hsl(var(--muted-foreground))]'
-                : 'text-[hsl(var(--foreground))]'
+                ? 'text-[color:var(--crm-muted)]'
+                : 'text-[color:var(--crm-text)]'
 
   return (
-    <Card className="p-3" style={{ background: 'hsl(var(--card))' }}>
-      <div className="text-[9px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-        {label}
+    <div className="crm-kpi-pill">
+      <div className="flex flex-1 flex-col leading-tight">
+        <span className="crm-kpi-label">{label}</span>
+        <div className="flex items-baseline gap-2">
+          <span className={`crm-kpi-value ${valueColor}`}>{value}</span>
+          {sub && <span className="crm-kpi-sub">{sub}</span>}
+        </div>
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className={`text-2xl font-semibold ${valueColor}`}>{value}</span>
-        {sub && (
-          <span className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            {sub}
-          </span>
-        )}
-      </div>
-    </Card>
+    </div>
   )
 }

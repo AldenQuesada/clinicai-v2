@@ -1,133 +1,484 @@
 /**
- * crm-light-scope.css · R3_CRM_LIGHT_1A.
+ * crm-light-scope.css · R3_CRM_LIGHT_2 (refinement 2026-05-17).
  *
- * Override scoped das CSS vars do V2 para light theme · APENAS dentro do
- * shell CRM. Importado por `apps/lara/src/app/crm/layout.tsx` e ativado
- * via classe `.crm-light-scope` no wrapper raiz.
+ * Override scoped das CSS vars do V2 para light theme + classes utility
+ * canônicas `.crm-*` espelhando contratos visuais da imagem legacy clara.
  *
- * IMPORTANTE:
- *   - Lara/Secretaria/Conversas/etc continuam dark (não tocamos `:root`).
- *   - Componentes do CRM que consomem `var(--background)`, `var(--card)`,
- *     `var(--b2b-bg-0)` etc. agora resolvem light por causa do override.
- *   - Componentes UI shared (@clinicai/ui) funcionam sem mudança · só
- *     leem CSS vars cuja resolução muda no scope.
+ * Apenas dentro do shell CRM via `.crm-light-scope` no wrapper raiz.
+ * Lara/Secretaria/Conversas continuam dark.
  *
- * Contrato visual: imagem legacy clara (clinic-dashboard) · 2026-05-17.
+ * Estratégia:
+ *   1. Define paleta `--crm-*` (tokens semânticos legíveis)
+ *   2. Sobrescreve HSL Tailwind/shadcn vars derivadas
+ *   3. Sobrescreve `--b2b-*` vars do tema premium
+ *   4. Expõe classes utility `.crm-topbar`, `.crm-kpi-pill`, etc · contratos
+ *      do prompt R3_CRM_LIGHT_2
  */
 
 .crm-light-scope {
   /* ═══════════════════════════════════════════════════════════════════
-   * Tailwind 4 / shadcn HSL tokens · sobrescritos pra light
+   * Paleta CRM · tokens semânticos legíveis (fonte da verdade)
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --background: 36 24% 97%;          /* off-white ivory legacy */
-  --foreground: 30 10% 18%;          /* graphite */
-  --card: 0 0% 100%;                 /* white puro */
-  --card-foreground: 30 10% 18%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 30 10% 18%;
+  --crm-bg: #F5F6F8;                  /* fundo geral off-white neutro */
+  --crm-surface: #FFFFFF;             /* cards, topbar, calendar */
+  --crm-soft: #F8FAFC;                /* hover, columns muted */
+  --crm-grid-bg: #F9FAFB;             /* grid background */
+  --crm-border: #E5E7EB;              /* gray-200 */
+  --crm-border-soft: #EEF0F4;         /* gray-100 light */
+  --crm-text: #111827;                /* gray-900 */
+  --crm-muted: #6B7280;               /* gray-500 */
+  --crm-muted-2: #9CA3AF;             /* gray-400 */
 
-  --primary: 35 36% 50%;             /* champagne mais saturado pra contraste em light */
-  --primary-foreground: 0 0% 100%;
+  --crm-red: #DC2626;                 /* "Fechar o Dia" */
+  --crm-green: #10B981;               /* finalizado */
+  --crm-gold: #C8A97E;                /* champagne · primary CRM */
+  --crm-purple: #7C3AED;              /* active view-switcher */
+  --crm-blue: #3B82F6;                /* agendado */
+  --crm-orange: #F59E0B;              /* aguard. confirmação */
+  --crm-cyan: #06B6D4;                /* na clínica */
 
-  --secondary: 36 24% 94%;
-  --secondary-foreground: 30 10% 18%;
-
-  --muted: 220 14% 96%;              /* gray-50 */
-  --muted-foreground: 220 9% 46%;    /* gray-500 */
-
-  --accent: 36 24% 92%;              /* ivory soft */
-  --accent-foreground: 30 10% 18%;
-
-  --destructive: 0 72% 51%;          /* red-600 (pra "Fechar o Dia") */
-  --destructive-foreground: 0 0% 100%;
-
-  --border: 220 13% 91%;             /* gray-200 */
-  --input: 220 13% 91%;
-  --ring: 35 36% 50%;                /* match primary */
-
-  --success: 145 35% 38%;            /* emerald escuro pra contraste light */
-  --warning: 35 75% 45%;             /* amber escuro */
-  --danger: 0 72% 51%;
+  --crm-graphite: #101014;            /* sidebar rail dark */
 
   /* ═══════════════════════════════════════════════════════════════════
-   * b2b-* tokens · invertidos pra light · mantém estética champagne
+   * HSL · sobrescritos para Tailwind/shadcn shared components
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --b2b-bg-0: #FAFAFA;               /* fundo geral */
-  --b2b-bg-1: #FFFFFF;               /* cards */
-  --b2b-bg-2: #F5F0E8;               /* ivory soft (hover, inputs) */
-  --b2b-bg-3: #EAE3D5;               /* champagne tint */
+  --background: 220 14% 97%;          /* #F5F6F8 em HSL */
+  --foreground: 222 47% 11%;          /* #111827 */
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
 
-  --b2b-champagne: #B8945A;          /* champagne mais escuro pra contraste em light */
+  --primary: 36 39% 64%;              /* #C8A97E champagne */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;     /* #6B7280 */
+
+  --accent: 220 14% 94%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 13% 91%;              /* #E5E7EB */
+  --input: 220 13% 91%;
+  --ring: 36 39% 64%;
+
+  --success: 160 84% 39%;
+  --warning: 35 92% 50%;
+  --danger: 0 72% 51%;
+
+  /* `--color-border-soft` usado por components (week-calendar etc) */
+  --color-border-soft: 220 16% 95%;
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * b2b-* · invertidos pra light (mantém estética champagne)
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  --b2b-bg-0: #F5F6F8;
+  --b2b-bg-1: #FFFFFF;
+  --b2b-bg-2: #F8FAFC;
+  --b2b-bg-3: #EEF0F4;
+
+  --b2b-champagne: #B8945A;
   --b2b-champagne-light: #C9A96E;
   --b2b-champagne-dark: #8E6F3E;
 
   --b2b-ivory: #FFFFFF;
-  --b2b-text: #2C2C2C;               /* graphite */
+  --b2b-text: #111827;
   --b2b-text-muted: #6B7280;
   --b2b-text-dim: #4A4A4A;
 
-  --b2b-border: rgba(0, 0, 0, 0.08);
+  --b2b-border: #E5E7EB;
   --b2b-border-strong: rgba(184, 148, 90, 0.45);
 
   --b2b-sage: #5C7A5A;
   --b2b-amber: #B45309;
-  --b2b-red: #DC2626;                /* "Fechar o Dia" destacado */
+  --b2b-red: #DC2626;
 
   /* ═══════════════════════════════════════════════════════════════════
-   * Sombras suaves light (ao invés das pretas do dark theme)
+   * Sombras suaves light
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --lara-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --lara-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --lara-shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --lara-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --lara-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --lara-shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.06);
 
   /* ═══════════════════════════════════════════════════════════════════
-   * Comportamento nativo do browser · light scheme dentro do scope
-   * (inputs, scrollbars, autofill devem renderizar em light)
+   * Comportamento nativo do browser · light scheme
    * ═══════════════════════════════════════════════════════════════════ */
 
   color-scheme: light;
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background-color: var(--crm-bg);
+  color: var(--crm-text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* Inputs nativos dentro do scope · force light color-scheme override.
-   Resolve caso em que `.b2b-input` herdou `color-scheme: dark` de globals. */
 .crm-light-scope input,
 .crm-light-scope select,
 .crm-light-scope textarea {
   color-scheme: light;
+  font-family: inherit;
 }
 
-/* Override pontual de `.b2b-input` que tem `color-scheme: dark` hardcoded.
-   Mantemos o resto do utility (border, padding) intactos · só corrige a cor. */
+/* Override `.b2b-input` (color-scheme dark hardcoded em globals.css) */
 .crm-light-scope .b2b-input {
   color-scheme: light;
-  background: var(--b2b-bg-1);
-  color: var(--b2b-text);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+  border-color: var(--crm-border);
 }
 
 .crm-light-scope .b2b-input:focus {
-  border-color: var(--b2b-champagne);
-  box-shadow: 0 0 0 3px rgba(184, 148, 90, 0.15);
+  border-color: var(--crm-gold);
+  box-shadow: 0 0 0 3px rgba(200, 169, 126, 0.15);
 }
 
-/* Calendar week-view · hatching diagonal nos slots vazios (legacy) */
+/* Reduzir display italic dentro do CRM (legacy usa Inter regular/bold) */
+.crm-light-scope .font-display-italic {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.crm-light-scope .font-display-uppercase {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Classes utility · contratos R3_CRM_LIGHT_2
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Topbar · 80px */
+.crm-light-scope .crm-topbar {
+  height: 80px;
+  background: var(--crm-surface);
+  border-bottom: 1px solid var(--crm-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+}
+
+/* Sidebar rail · 56px dark */
+.crm-light-scope .crm-sidebar {
+  width: 56px;
+  min-width: 56px;
+  background: var(--crm-graphite);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.crm-light-scope .crm-sidebar-item {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #9CA3AF;
+  margin: 2px 0;
+  transition: background 150ms ease, color 150ms ease;
+  position: relative;
+}
+
+.crm-light-scope .crm-sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #F5F0E8;
+}
+
+.crm-light-scope .crm-sidebar-item-active {
+  background: var(--crm-gold);
+  color: #FFFFFF;
+  box-shadow: 0 10px 20px rgba(200, 169, 126, 0.22);
+}
+
+/* Conteúdo principal · padding consistente */
+.crm-light-scope .crm-page {
+  background: var(--crm-bg);
+  min-height: calc(100vh - 80px);
+}
+
+.crm-light-scope .crm-content {
+  padding: 36px 26px 32px;
+}
+
+/* Título Agenda · 28px/34px Inter 700 */
+.crm-light-scope .crm-page-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--crm-text);
+}
+
+.crm-light-scope .crm-page-subtitle {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: var(--crm-muted);
+}
+
+/* KPI pills · 48px height */
+.crm-light-scope .crm-kpi-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.crm-light-scope .crm-kpi-pill {
+  height: 48px;
+  min-width: 210px;
+  border-radius: 12px;
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border-soft);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+}
+
+.crm-light-scope .crm-kpi-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #F3F4F6;
+  display: grid;
+  place-items: center;
+  color: var(--crm-muted);
+  flex-shrink: 0;
+}
+
+.crm-light-scope .crm-kpi-label {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--crm-muted-2);
+}
+
+.crm-light-scope .crm-kpi-value {
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 800;
+  color: var(--crm-text);
+}
+
+.crm-light-scope .crm-kpi-sub {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--crm-muted);
+}
+
+/* Period nav · botões ‹ › 44x38 */
+.crm-light-scope .crm-period-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.crm-light-scope .crm-period-button {
+  width: 44px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  display: grid;
+  place-items: center;
+  color: var(--crm-text);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.crm-light-scope .crm-period-button:hover {
+  background: var(--crm-soft);
+  border-color: var(--crm-muted-2);
+}
+
+.crm-light-scope .crm-period-label {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--crm-text);
+  letter-spacing: -0.01em;
+}
+
+/* View switcher Mês/Semana/Hoje · pills */
+.crm-light-scope .crm-view-switcher {
+  display: flex;
+  gap: 6px;
+}
+
+.crm-light-scope .crm-view-button {
+  height: 36px;
+  min-width: 72px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.crm-light-scope .crm-view-button:hover {
+  background: var(--crm-soft);
+}
+
+.crm-light-scope .crm-view-button-active,
+.crm-light-scope .crm-view-button[aria-pressed="true"] {
+  background: var(--crm-purple);
+  color: #FFFFFF;
+  border-color: var(--crm-purple);
+}
+
+/* Linha de filtros · barra 54px */
+.crm-light-scope .crm-filter-bar {
+  min-height: 54px;
+  border-radius: 12px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.crm-light-scope .crm-filter-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--crm-muted-2);
+  margin-right: 6px;
+}
+
+.crm-light-scope .crm-filter-select {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #D1D5DB;
+  background: var(--crm-surface);
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--crm-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.crm-light-scope .crm-filter-select:focus {
+  border-color: var(--crm-gold);
+  box-shadow: 0 0 0 3px rgba(200, 169, 126, 0.12);
+}
+
+.crm-light-scope .crm-filter-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Status chips · 24px height */
+.crm-light-scope .crm-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 0;
+  margin-bottom: 8px;
+}
+
+.crm-light-scope .crm-status-chip {
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--crm-text);
+  background: transparent;
+}
+
+.crm-light-scope .crm-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* Calendar semanal · light */
+.crm-light-scope .crm-week-calendar {
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: 14px 14px 0 0;
+  overflow: hidden;
+}
+
+.crm-light-scope .crm-week-header {
+  height: 64px;
+  background: var(--crm-surface);
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-light-scope .crm-time-column {
+  background: var(--crm-surface);
+  border-right: 1px solid var(--crm-border);
+}
+
+.crm-light-scope .crm-day-column {
+  border-right: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+}
+
+.crm-light-scope .crm-day-column-muted {
+  background: var(--crm-soft);
+}
+
+.crm-light-scope .crm-day-column-sunday {
+  background: #F4F0FF;
+}
+
+.crm-light-scope .crm-time-slot {
+  border-bottom: 1px solid var(--crm-border);
+}
+
+/* Hatching diagonal nos slots vazios (espelha legacy) */
+.crm-light-scope .crm-slot-disabled,
 .crm-light-scope .agenda-empty-slot {
   background-image: repeating-linear-gradient(
     45deg,
-    transparent,
-    transparent 6px,
-    rgba(0, 0, 0, 0.025) 6px,
-    rgba(0, 0, 0, 0.025) 7px
+    rgba(148, 163, 184, 0.10) 0,
+    rgba(148, 163, 184, 0.10) 4px,
+    transparent 4px,
+    transparent 8px
   );
 }
 
-/* Tipografia · reduzir display italic dentro do CRM (legacy usa Inter regular) */
-.crm-light-scope .font-display-italic {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-style: normal;
-  font-weight: 600;
+/* Sunday column header destacado */
+.crm-light-scope .crm-sunday-header {
+  background: #F4F0FF;
+  color: var(--crm-purple);
+}
+
+/* Hint drag-drop pequeno cinza */
+.crm-light-scope .crm-hint {
+  font-size: 13px;
+  color: var(--crm-muted);
+  margin: 6px 0 16px;
 }
