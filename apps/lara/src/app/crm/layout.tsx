@@ -2,10 +2,11 @@
  * CRM layout · R3_CRM_LIGHT_5 (2026-05-17).
  *
  * Sidebar e Topbar transcritos LITERAL do clinic-dashboard:
- *   - Sidebar 260px com logo "ClinicAI/Premium" + nav-labels 13.5px + footer rico
- *   - Topbar 64px com breadcrumb + search 280x36 + actions 36x36 + theme toggle + avatar
+ *   - Sidebar 260px (colapsado=64px default · localStorage 'crm_sidebar_collapsed')
+ *   - Topbar 64px com breadcrumb + search + actions + theme toggle + avatar
  *
- * Auth via loadServerContext · redirect /login se sem JWT.
+ * Server layout · auth + profile · passa hidratado pro CrmShell (client).
+ * Sidebar default collapsed espelha legacy clinic-dashboard/js/sidebar.js L526.
  */
 
 import Link from 'next/link'
@@ -16,6 +17,7 @@ import { createServerClient, loadServerContext } from '@clinicai/supabase'
 import { ProfileRepository } from '@clinicai/repositories'
 import { CrmSidebarNav, CrmMobileNav } from './_components/crm-nav'
 import { CrmTopbar } from './_components/crm-topbar'
+import { CrmShell } from './_components/crm-shell'
 import './_components/crm-light-scope.css'
 
 interface CrmLayoutProps {
@@ -55,32 +57,19 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
 
   return (
     <ToastProvider>
-      <div className="crm-light-scope flex h-screen overflow-hidden">
-        {/* Sidebar 260px LITERAL legacy · L1955 wrapper */}
-        <aside className="sidebar hidden md:flex">
-          {/* sidebar-logo (style.css L193-244) */}
-          <Link
-            href="/crm"
-            className="sidebar-logo"
-            style={{ textDecoration: 'none' }}
-          >
-            <div className="sidebar-logo-icon">C</div>
-            <div className="sidebar-logo-text">
-              <span className="sidebar-logo-name">ClinicAI</span>
-              <span className="sidebar-logo-badge">Premium</span>
-            </div>
-          </Link>
-
-          <CrmSidebarNav />
-
-          {/* sidebar-footer (style.css L409-460) */}
+      <CrmShell
+        logoText={
+          <>
+            <span className="sidebar-logo-name">ClinicAI</span>
+            <span className="sidebar-logo-badge">Premium</span>
+          </>
+        }
+        sidebarNav={<CrmSidebarNav />}
+        sidebarFooter={
           <div className="sidebar-footer">
             <div className="sidebar-footer-avatar">MP</div>
             <div className="sidebar-footer-info">
-              <span
-                className="sidebar-footer-name"
-                title={ctx.clinic_id}
-              >
+              <span className="sidebar-footer-name" title={ctx.clinic_id}>
                 Clínica Mirian de Paula
               </span>
               <span className="sidebar-footer-plan">
@@ -88,10 +77,15 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
               </span>
             </div>
           </div>
-        </aside>
-
-        {/* Mobile compact header · drawer com labels */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        }
+        topbar={
+          <CrmTopbar
+            displayName={displayName}
+            initials={initials}
+            role={ctx.role ?? null}
+          />
+        }
+        mobileHeader={
           <header
             className="flex h-14 items-center gap-3 border-b px-4 md:hidden"
             style={{
@@ -116,25 +110,10 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
             </Link>
             <CrmMobileNav />
           </header>
-
-          {/* Topbar 64px LITERAL legacy · desktop only */}
-          <CrmTopbar
-            displayName={displayName}
-            initials={initials}
-            role={ctx.role ?? null}
-          />
-
-          <main
-            className="flex-1 overflow-y-auto"
-            style={{
-              background: 'var(--bg)',
-              padding: '28px',
-            }}
-          >
-            {children}
-          </main>
-        </div>
-      </div>
+        }
+      >
+        {children}
+      </CrmShell>
     </ToastProvider>
   )
 }

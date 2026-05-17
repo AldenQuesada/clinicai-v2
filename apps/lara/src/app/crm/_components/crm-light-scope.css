@@ -272,6 +272,128 @@
   font-weight: 500;
 }
 
+/* sidebar-toggle-btn · LITERAL · style.css L5034-5057 */
+.crm-light-scope .sidebar-toggle-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(201, 169, 110, 0.18);
+  border: 1.5px solid rgba(201, 169, 110, 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #C9A96E;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.crm-light-scope .sidebar-toggle-btn:hover {
+  background: rgba(201, 169, 110, 0.32);
+  border-color: #C9A96E;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.15);
+}
+
+.crm-light-scope .sidebar-toggle-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * COLLAPSED STATE · LITERAL · style.css L5055-5115
+ * Toggle aplicado em .crm-light-scope.sidebar-collapsed (não em body)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope.sidebar-collapsed {
+  --sidebar-width: 64px;
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar {
+  width: 64px;
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar-logo {
+  justify-content: center;
+  gap: 0;
+  padding: 18px 0 14px;
+  position: relative;
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar-logo-text {
+  display: none;
+}
+
+/* Toggle pill pra borda direita quando collapsed */
+.crm-light-scope.sidebar-collapsed .sidebar-toggle-btn {
+  position: fixed;
+  left: 52px;
+  top: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+  background: rgba(201, 169, 110, 0.22);
+  border-color: rgba(201, 169, 110, 0.5);
+  color: #C9A96E;
+  z-index: 102;
+  margin-left: 0;
+  box-shadow: 3px 0 10px rgba(0, 0, 0, 0.25);
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar-toggle-btn:hover {
+  background: rgba(201, 169, 110, 0.4);
+  color: #fff;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-section {
+  padding: 2px 6px;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-item-main {
+  justify-content: center;
+  padding: 11px 0;
+  gap: 0;
+  border-radius: 10px;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-item-main:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.crm-light-scope.sidebar-collapsed .nav-label {
+  display: none;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-arrow {
+  display: none;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-icon {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.crm-light-scope.sidebar-collapsed .nav-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.crm-light-scope.sidebar-collapsed .nav-item.has-active .nav-icon {
+  color: #C9A96E;
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar-footer {
+  justify-content: center;
+  padding: 14px 0;
+}
+
+.crm-light-scope.sidebar-collapsed .sidebar-footer-info {
+  display: none;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * HEADER (TOPBAR) · LITERAL · style.css L502-700
  * ═══════════════════════════════════════════════════════════════════ */
