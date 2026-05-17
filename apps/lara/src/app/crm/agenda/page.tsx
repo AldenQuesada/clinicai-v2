@@ -272,58 +272,103 @@ export default async function AgendaPage({
         : `Mês ${month}`
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <PageHeader
-        title="Agenda"
-        description={`${periodLabel} · clínica ${ctx.clinic_id.slice(0, 8)}…`}
-        breadcrumb={[
-          { label: 'CRM', href: '/crm' },
-          { label: 'Agenda' },
-        ]}
-        actions={
-          <>
-            <Suspense fallback={null}>
-              <ViewSwitcher
-                current={view}
-                todayDate={todayDate}
-                todaySunday={todaySunday}
-                todayMonth={todayMonth}
-              />
-            </Suspense>
-            <Suspense fallback={null}>
-              <PeriodNav
-                view={view}
-                anchor={anchor}
-                todayAnchor={todayAnchor}
-              />
-            </Suspense>
-            <Suspense fallback={null}>
-              <ProfessionalFilter
-                professionals={professionals}
-                current={profFilter}
-              />
-            </Suspense>
-            <Link href="/crm/agenda/novo">
-              <Button size="sm">
-                <Plus className="h-4 w-4" />
-                Novo agendamento
-              </Button>
-            </Link>
-            {/* "Fechar o Dia" agora vive na topbar global do CRM (R3_CRM_LIGHT_1C) */}
-          </>
-        }
-      />
+    <div>
+      {/* R3_CRM_LIGHT_3 · page-title-row legacy · KPIs na mesma linha do título.
+          Espelha clinic-dashboard/css/style.css `.page-title-row` literal. */}
+      <div className="page-title-row">
+        <div>
+          <h1 className="page-title">Agenda</h1>
+          <p className="page-subtitle">Drag &amp; drop para reagendar</p>
+        </div>
+      </div>
 
-      {/* R3_CRM_3B.2 · hint drag-drop · espelha legacy "Drag & drop para reagendar" */}
-      <p className="mb-3 text-[11px] text-[hsl(var(--muted-foreground))]">
-        Drag &amp; drop para reagendar.
-      </p>
+      {/* KPIs · 4 cards · `.kpi-grid` + `.kpi-card` LITERAL legacy */}
+      <div className="kpi-grid">
+        <KpiPill
+          label="Agendados"
+          value={aggregates.agendado.toString()}
+          sub={`${aggregates.confirmado} conf.`}
+          iconColor="blue"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          }
+        />
+        <KpiPill
+          label="Sem Confirm."
+          value={awaitingConfirmation.toString()}
+          iconColor="warning"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          }
+        />
+        <KpiPill
+          label="No-show"
+          value={aggregates.noShow.toString()}
+          sub={
+            aggregates.total > 0
+              ? `${Math.round((aggregates.noShow / aggregates.total) * 100)}%`
+              : '0%'
+          }
+          iconColor="danger"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          }
+        />
+        <KpiPill
+          label="Prev. | Fat."
+          value={BRL.format(aggregates.revenueTotal)}
+          sub={BRL.format(aggregates.revenuePaid)}
+          iconColor="emerald"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          }
+        />
+      </div>
 
-      {/* R3_CRM_3B.1 · legenda de status (11 chips canônicos) */}
-      <StatusLegend />
+      {/* Toolbar legacy · ‹ período › + Horários + Finalizar Dia + Mês/Semana/Hoje + Novo */}
+      <div className="agenda-toolbar">
+        <Suspense fallback={null}>
+          <PeriodNav view={view} anchor={anchor} todayAnchor={todayAnchor} />
+        </Suspense>
+        <div style={{ flex: 1 }} />
+        <Suspense fallback={null}>
+          <ProfessionalFilter professionals={professionals} current={profFilter} />
+        </Suspense>
+        <button
+          type="button"
+          disabled
+          title="Horários · em validação"
+          className="btn-outline"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Horários
+        </button>
+        <button
+          type="button"
+          disabled
+          title="Finalização do dia será ativada após validação do fluxo operacional."
+          className="btn-outline btn-emerald"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Finalizar Dia
+        </button>
+        <Suspense fallback={null}>
+          <ViewSwitcher
+            current={view}
+            todayDate={todayDate}
+            todaySunday={todaySunday}
+            todayMonth={todayMonth}
+          />
+        </Suspense>
+        <Link href="/crm/agenda/novo">
+          <button type="button" className="btn-new">
+            <Plus className="h-4 w-4" />
+            Novo
+          </button>
+        </Link>
+      </div>
 
-      {/* R3_CRM_3B.3 · filtros adicionais · Status + Tipo + Financeiro + Origem.
-          Avaliação (eval_type) omitida · sem enum canônico claro. */}
+      {/* Filtros (status, tipo, financeiro, origem) */}
       <Suspense fallback={null}>
         <AgendaFilters
           consultTypeOptions={distinctConsultTypes}
@@ -337,36 +382,8 @@ export default async function AgendaPage({
         />
       </Suspense>
 
-      {/* R3_CRM_LIGHT_2 · KPIs · 4 pills compactos espelhando legacy (Agendados,
-          Sem Confirm., No-show%, Prev.|Fat.). Largura mínima 210px · row flex */}
-      <div className="crm-kpi-row mb-6">
-        <KpiPill
-          label="Agendados"
-          value={aggregates.agendado.toString()}
-          sub={`${aggregates.confirmado} conf.`}
-          accent="info"
-        />
-        <KpiPill
-          label="Sem Confirm."
-          value={awaitingConfirmation.toString()}
-          accent={awaitingConfirmation > 0 ? 'warning' : 'muted'}
-        />
-        <KpiPill
-          label="No-show"
-          value={aggregates.noShow.toString()}
-          sub={
-            aggregates.total > 0
-              ? `${Math.round((aggregates.noShow / aggregates.total) * 100)}%`
-              : '0%'
-          }
-          accent={aggregates.noShow > 0 ? 'destructive' : 'muted'}
-        />
-        <KpiPill
-          label="Prev. | Fat."
-          value={BRL.format(aggregates.revenueTotal)}
-          sub={BRL.format(aggregates.revenuePaid)}
-        />
-      </div>
+      {/* Legenda · 11 chips coloridos · LITERAL api.js L431-435 */}
+      <StatusLegend />
 
       {/* Calendario · view switcher · usa filteredAppointments (R3_CRM_3B.3) */}
       {view === 'week' && (
@@ -408,44 +425,31 @@ export default async function AgendaPage({
   )
 }
 
+type KpiIconColor = 'blue' | 'emerald' | 'purple' | 'gold' | 'warning' | 'danger'
+
 interface KpiPillProps {
   label: string
   value: string
-  /** Sub-line abaixo/ao lado do valor · ex: "X conf." ou "X%" */
   sub?: string
-  accent?: 'info' | 'primary' | 'success' | 'warning' | 'destructive' | 'muted'
+  icon?: React.ReactNode
+  iconColor?: KpiIconColor
 }
 
 /**
- * KpiPill · pill compacto 48px · R3_CRM_LIGHT_2.
- * Espelha contrato visual da imagem legacy clara · label uppercase pequeno
- * à esquerda, valor grande à direita, sub opcional.
+ * KpiPill · `.kpi-card` LITERAL · clinic-dashboard/css/style.css L1387-1495.
+ * Hierarquia: kpi-card > kpi-card-top (icon + trend) > kpi-value > kpi-label > kpi-sub.
  */
-function KpiPill({ label, value, sub, accent }: KpiPillProps) {
-  const valueColor =
-    accent === 'success'
-      ? 'text-emerald-600'
-      : accent === 'destructive'
-        ? 'text-rose-600'
-        : accent === 'warning'
-          ? 'text-amber-600'
-          : accent === 'info'
-            ? 'text-sky-600'
-            : accent === 'primary'
-              ? 'text-[color:var(--crm-gold)]'
-              : accent === 'muted'
-                ? 'text-[color:var(--crm-muted)]'
-                : 'text-[color:var(--crm-text)]'
-
+function KpiPill({ label, value, sub, icon, iconColor = 'gold' }: KpiPillProps) {
   return (
-    <div className="crm-kpi-pill">
-      <div className="flex flex-1 flex-col leading-tight">
-        <span className="crm-kpi-label">{label}</span>
-        <div className="flex items-baseline gap-2">
-          <span className={`crm-kpi-value ${valueColor}`}>{value}</span>
-          {sub && <span className="crm-kpi-sub">{sub}</span>}
-        </div>
+    <div className="kpi-card">
+      <div className="kpi-card-top">
+        {icon && (
+          <div className={`kpi-icon kpi-icon-${iconColor}`}>{icon}</div>
+        )}
       </div>
+      <div className="kpi-value">{value}</div>
+      <div className="kpi-label">{label}</div>
+      {sub && <div className="kpi-sub">{sub}</div>}
     </div>
   )
 }

@@ -1,123 +1,111 @@
 /**
- * crm-light-scope.css · R3_CRM_LIGHT_2 (refinement 2026-05-17).
+ * crm-light-scope.css · R3_CRM_LIGHT_3 TRANSCRIBE_CSS_LITERAL (2026-05-17).
  *
- * Override scoped das CSS vars do V2 para light theme + classes utility
- * canônicas `.crm-*` espelhando contratos visuais da imagem legacy clara.
+ * Override scoped + transcrição LITERAL do CSS legacy clinic-dashboard
+ * (style.css :root + .kpi-* + .sidebar-* + .breadcrumb-* + .btn-new +
+ * .page-title-*). Apenas dentro do shell CRM via `.crm-light-scope`.
  *
- * Apenas dentro do shell CRM via `.crm-light-scope` no wrapper raiz.
- * Lara/Secretaria/Conversas continuam dark.
+ * Lara/Secretaria/Conversas continuam dark · não tocamos `:root` global.
  *
- * Estratégia:
- *   1. Define paleta `--crm-*` (tokens semânticos legíveis)
- *   2. Sobrescreve HSL Tailwind/shadcn vars derivadas
- *   3. Sobrescreve `--b2b-*` vars do tema premium
- *   4. Expõe classes utility `.crm-topbar`, `.crm-kpi-pill`, etc · contratos
- *      do prompt R3_CRM_LIGHT_2
+ * Regra: zero interpretação. Valores e nomes de classes vêm direto de
+ * clinic-dashboard/css/style.css.
  */
 
 .crm-light-scope {
   /* ═══════════════════════════════════════════════════════════════════
-   * Paleta CRM · tokens semânticos legíveis (fonte da verdade)
+   * :root LITERAL legacy · clinic-dashboard/css/style.css L8-30
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --crm-bg: #F5F6F8;                  /* fundo geral off-white neutro */
-  --crm-surface: #FFFFFF;             /* cards, topbar, calendar */
-  --crm-soft: #F8FAFC;                /* hover, columns muted */
-  --crm-grid-bg: #F9FAFB;             /* grid background */
-  --crm-border: #E5E7EB;              /* gray-200 */
-  --crm-border-soft: #EEF0F4;         /* gray-100 light */
-  --crm-text: #111827;                /* gray-900 */
-  --crm-muted: #6B7280;               /* gray-500 */
-  --crm-muted-2: #9CA3AF;             /* gray-400 */
+  --bg: #F7F8FC;
+  --sidebar-bg: #0D0E14;
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg: rgba(201, 169, 110, 0.12);
+  --sidebar-active-border: #C9A96E;
+  --accent-gold: #C9A96E;
+  --accent-gold-dark: #B8935A;
+  --accent-purple: #7C3AED;
+  --accent-blue: #3B82F6;
+  --accent-emerald: #10B981;
+  --text-primary: #1A1B2E;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --border: #E8EAF0;
+  --card: #FFFFFF;
+  --danger: #EF4444;
+  --warning: #F59E0B;
 
-  --crm-red: #DC2626;                 /* "Fechar o Dia" */
-  --crm-green: #10B981;               /* finalizado */
-  --crm-gold: #C8A97E;                /* champagne · primary CRM */
-  --crm-purple: #7C3AED;              /* active view-switcher */
-  --crm-blue: #3B82F6;                /* agendado */
-  --crm-orange: #F59E0B;              /* aguard. confirmação */
-  --crm-cyan: #06B6D4;                /* na clínica */
+  --sidebar-width: 56px;        /* V2 mantém sidebar estreita (ícone-only) */
+  --header-height: 64px;
+  --content-padding: 28px;
 
-  --crm-graphite: #101014;            /* sidebar rail dark */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 32px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-dropdown: 0 8px 28px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ═══════════════════════════════════════════════════════════════════
-   * HSL · sobrescritos para Tailwind/shadcn shared components
+   * Tailwind/shadcn HSL · derivado da paleta legacy
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --background: 220 14% 97%;          /* #F5F6F8 em HSL */
-  --foreground: 222 47% 11%;          /* #111827 */
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --background: 225 31% 97%;          /* #F7F8FC */
+  --foreground: 232 27% 14%;          /* #1A1B2E */
+  --card-foreground: 232 27% 14%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-
-  --primary: 36 39% 64%;              /* #C8A97E champagne */
+  --popover-foreground: 232 27% 14%;
+  --primary: 36 39% 60%;              /* #C9A96E */
   --primary-foreground: 0 0% 100%;
-
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 222 47% 11%;
-
-  --muted: 220 14% 96%;
+  --secondary: 225 21% 95%;
+  --secondary-foreground: 232 27% 14%;
+  --muted: 225 21% 95%;
   --muted-foreground: 220 9% 46%;     /* #6B7280 */
-
-  --accent: 220 14% 94%;
-  --accent-foreground: 222 47% 11%;
-
-  --destructive: 0 72% 51%;
+  --accent: 225 21% 92%;
+  --accent-foreground: 232 27% 14%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-
-  --border: 220 13% 91%;              /* #E5E7EB */
-  --input: 220 13% 91%;
-  --ring: 36 39% 64%;
-
+  --input: 225 21% 91%;
+  --ring: 36 39% 60%;
   --success: 160 84% 39%;
-  --warning: 35 92% 50%;
-  --danger: 0 72% 51%;
-
-  /* `--color-border-soft` usado por components (week-calendar etc) */
-  --color-border-soft: 220 16% 95%;
+  --color-border-soft: 225 25% 95%;
 
   /* ═══════════════════════════════════════════════════════════════════
-   * b2b-* · invertidos pra light (mantém estética champagne)
+   * b2b-* · adaptado pra light (mantém compat com components Lara)
    * ═══════════════════════════════════════════════════════════════════ */
 
-  --b2b-bg-0: #F5F6F8;
+  --b2b-bg-0: #F7F8FC;
   --b2b-bg-1: #FFFFFF;
-  --b2b-bg-2: #F8FAFC;
-  --b2b-bg-3: #EEF0F4;
-
-  --b2b-champagne: #B8945A;
-  --b2b-champagne-light: #C9A96E;
-  --b2b-champagne-dark: #8E6F3E;
-
+  --b2b-bg-2: #F3F4F6;
+  --b2b-bg-3: #E8EAF0;
+  --b2b-champagne: #C9A96E;
+  --b2b-champagne-light: #DFC5A0;
+  --b2b-champagne-dark: #B8935A;
   --b2b-ivory: #FFFFFF;
-  --b2b-text: #111827;
+  --b2b-text: #1A1B2E;
   --b2b-text-muted: #6B7280;
   --b2b-text-dim: #4A4A4A;
-
-  --b2b-border: #E5E7EB;
-  --b2b-border-strong: rgba(184, 148, 90, 0.45);
-
+  --b2b-border: #E8EAF0;
+  --b2b-border-strong: rgba(201, 169, 110, 0.45);
   --b2b-sage: #5C7A5A;
   --b2b-amber: #B45309;
-  --b2b-red: #DC2626;
+  --b2b-red: #EF4444;
 
-  /* ═══════════════════════════════════════════════════════════════════
-   * Sombras suaves light
-   * ═══════════════════════════════════════════════════════════════════ */
-
-  --lara-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --lara-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
-  --lara-shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.06);
-
-  /* ═══════════════════════════════════════════════════════════════════
-   * Comportamento nativo do browser · light scheme
-   * ═══════════════════════════════════════════════════════════════════ */
+  --lara-shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --lara-shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --lara-shadow-lg: 0 10px 32px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
 
   color-scheme: light;
-  background-color: var(--crm-bg);
-  color: var(--crm-text);
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
 }
 
 .crm-light-scope input,
@@ -127,25 +115,18 @@
   font-family: inherit;
 }
 
-/* Override `.b2b-input` (color-scheme dark hardcoded em globals.css) */
 .crm-light-scope .b2b-input {
   color-scheme: light;
-  background: var(--crm-surface);
-  color: var(--crm-text);
-  border-color: var(--crm-border);
+  background: var(--card);
+  color: var(--text-primary);
+  border-color: var(--border);
 }
 
-.crm-light-scope .b2b-input:focus {
-  border-color: var(--crm-gold);
-  box-shadow: 0 0 0 3px rgba(200, 169, 126, 0.15);
-}
-
-/* Reduzir display italic dentro do CRM (legacy usa Inter regular/bold) */
 .crm-light-scope .font-display-italic {
   font-family: 'Inter', system-ui, sans-serif;
   font-style: normal;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  letter-spacing: -0.5px;
 }
 
 .crm-light-scope .font-display-uppercase {
@@ -153,301 +134,331 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * Classes utility · contratos R3_CRM_LIGHT_2
+ * page-title-row · LITERAL · style.css L1122-1148
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Topbar · 80px */
-.crm-light-scope .crm-topbar {
-  height: 80px;
-  background: var(--crm-surface);
-  border-bottom: 1px solid var(--crm-border);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+.crm-light-scope .page-title-row {
   display: flex;
-  align-items: center;
-  padding: 0 24px;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
+  margin-bottom: 24px;
 }
 
-/* Sidebar rail · 56px dark */
-.crm-light-scope .crm-sidebar {
-  width: 56px;
-  min-width: 56px;
-  background: var(--crm-graphite);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.crm-light-scope .page-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
 }
 
-.crm-light-scope .crm-sidebar-item {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: #9CA3AF;
-  margin: 2px 0;
-  transition: background 150ms ease, color 150ms ease;
-  position: relative;
-}
-
-.crm-light-scope .crm-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #F5F0E8;
-}
-
-.crm-light-scope .crm-sidebar-item-active {
-  background: var(--crm-gold);
-  color: #FFFFFF;
-  box-shadow: 0 10px 20px rgba(200, 169, 126, 0.22);
-}
-
-/* Conteúdo principal · padding consistente */
-.crm-light-scope .crm-page {
-  background: var(--crm-bg);
-  min-height: calc(100vh - 80px);
-}
-
-.crm-light-scope .crm-content {
-  padding: 36px 26px 32px;
-}
-
-/* Título Agenda · 28px/34px Inter 700 */
-.crm-light-scope .crm-page-title {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 28px;
-  line-height: 34px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--crm-text);
-}
-
-.crm-light-scope .crm-page-subtitle {
-  font-size: 16px;
-  line-height: 24px;
+.crm-light-scope .page-subtitle {
+  font-size: 13.5px;
+  color: var(--text-secondary);
   font-weight: 400;
-  color: var(--crm-muted);
 }
 
-/* KPI pills · 48px height */
-.crm-light-scope .crm-kpi-row {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.crm-light-scope .crm-kpi-pill {
-  height: 48px;
-  min-width: 210px;
-  border-radius: 12px;
-  background: var(--crm-surface);
-  border: 1px solid var(--crm-border-soft);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+.crm-light-scope .page-title-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 18px;
-}
-
-.crm-light-scope .crm-kpi-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: #F3F4F6;
-  display: grid;
-  place-items: center;
-  color: var(--crm-muted);
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.crm-light-scope .crm-kpi-label {
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--crm-muted-2);
+/* ═══════════════════════════════════════════════════════════════════
+ * kpi-* · LITERAL · style.css L1380-1495
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.crm-light-scope .crm-kpi-value {
-  font-size: 22px;
-  line-height: 26px;
-  font-weight: 800;
-  color: var(--crm-text);
+.crm-light-scope .kpi-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 18px 18px 14px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition), box-shadow var(--transition);
+  cursor: default;
 }
 
-.crm-light-scope .crm-kpi-sub {
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 500;
-  color: var(--crm-muted);
+.crm-light-scope .kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 
-/* Period nav · botões ‹ › 44x38 */
-.crm-light-scope .crm-period-row {
+.crm-light-scope .kpi-card-top {
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 14px;
 }
 
-.crm-light-scope .crm-period-button {
-  width: 44px;
+.crm-light-scope .kpi-icon {
+  width: 38px;
   height: 38px;
-  border-radius: 10px;
-  border: 1px solid var(--crm-border);
-  background: var(--crm-surface);
-  display: grid;
-  place-items: center;
-  color: var(--crm-text);
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
-}
-
-.crm-light-scope .crm-period-button:hover {
-  background: var(--crm-soft);
-  border-color: var(--crm-muted-2);
-}
-
-.crm-light-scope .crm-period-label {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--crm-text);
-  letter-spacing: -0.01em;
-}
-
-/* View switcher Mês/Semana/Hoje · pills */
-.crm-light-scope .crm-view-switcher {
+  border-radius: var(--radius-md);
   display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-light-scope .kpi-icon svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.crm-light-scope .kpi-icon-blue    { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
+.crm-light-scope .kpi-icon-emerald { background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); }
+.crm-light-scope .kpi-icon-purple  { background: rgba(124, 58, 237, 0.12); color: var(--accent-purple); }
+.crm-light-scope .kpi-icon-gold    { background: rgba(201, 169, 110, 0.15); color: var(--accent-gold); }
+.crm-light-scope .kpi-icon-warning { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+.crm-light-scope .kpi-icon-danger  { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+
+.crm-light-scope .kpi-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.crm-light-scope .kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.crm-light-scope .kpi-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * btn-* · LITERAL · style.css L717-756
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .btn-new {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-}
-
-.crm-light-scope .crm-view-button {
-  height: 36px;
-  min-width: 72px;
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark));
+  color: #fff;
+  border-radius: var(--radius-md);
   padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid var(--crm-border);
-  background: var(--crm-surface);
-  color: var(--crm-text);
-  font-weight: 700;
-  font-size: 13px;
+  height: 36px;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: all var(--transition);
+  box-shadow: 0 2px 8px rgba(201, 169, 110, 0.35);
+  white-space: nowrap;
+  border: none;
   cursor: pointer;
-  transition: all 150ms ease;
 }
 
-.crm-light-scope .crm-view-button:hover {
-  background: var(--crm-soft);
+.crm-light-scope .btn-new:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(201, 169, 110, 0.45);
+  filter: brightness(1.05);
 }
 
-.crm-light-scope .crm-view-button-active,
-.crm-light-scope .crm-view-button[aria-pressed="true"] {
-  background: var(--crm-purple);
-  color: #FFFFFF;
-  border-color: var(--crm-purple);
+.crm-light-scope .btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 36px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  cursor: pointer;
 }
 
-/* Linha de filtros · barra 54px */
-.crm-light-scope .crm-filter-bar {
+.crm-light-scope .btn-outline:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: rgba(201, 169, 110, 0.04);
+}
+
+.crm-light-scope .btn-outline.btn-emerald {
+  border-color: var(--accent-emerald);
+  color: #047857;
+  font-weight: 700;
+}
+
+.crm-light-scope .btn-outline.btn-emerald:hover {
+  background: rgba(16, 185, 129, 0.06);
+  color: var(--accent-emerald);
+}
+
+.crm-light-scope .btn-outline.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.crm-light-scope .btn-outline.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * view-switcher · 3 pills em container cinza · LITERAL api.js L424
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .view-switcher {
+  display: inline-flex;
+  gap: 4px;
+  background: #F3F4F6;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.crm-light-scope .view-btn {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid #E5E7EB;
+  background: #fff;
+  color: #374151;
+  transition: all var(--transition);
+}
+
+.crm-light-scope .view-btn-active {
+  border-color: var(--accent-purple);
+  background: var(--accent-purple);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * filter-bar + filter-select · ajustado paleta legacy
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .agenda-filter-bar {
   min-height: 54px;
-  border-radius: 12px;
-  border: 1px solid var(--crm-border);
-  background: var(--crm-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--card);
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
   flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-.crm-light-scope .crm-filter-bar-label {
+.crm-light-scope .agenda-filter-bar-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--crm-muted-2);
+  color: var(--text-muted);
   margin-right: 6px;
 }
 
-.crm-light-scope .crm-filter-select {
+.crm-light-scope .agenda-filter-select {
   height: 32px;
   border-radius: 8px;
   border: 1px solid #D1D5DB;
-  background: var(--crm-surface);
+  background: var(--card);
   padding: 0 12px;
-  font-size: 14px;
-  color: var(--crm-text);
+  font-size: 13px;
+  color: var(--text-primary);
   cursor: pointer;
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: border-color var(--transition);
 }
 
-.crm-light-scope .crm-filter-select:focus {
-  border-color: var(--crm-gold);
-  box-shadow: 0 0 0 3px rgba(200, 169, 126, 0.12);
+.crm-light-scope .agenda-filter-select:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.12);
 }
 
-.crm-light-scope .crm-filter-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* ═══════════════════════════════════════════════════════════════════
+ * status-chips · LITERAL · api.js L431-435
+ * background colorido + dot + label · não só dot transparent
+ * ═══════════════════════════════════════════════════════════════════ */
 
-/* Status chips · 24px height */
-.crm-light-scope .crm-status-row {
+.crm-light-scope .agenda-status-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 14px 0;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
-.crm-light-scope .crm-status-chip {
-  height: 24px;
-  border-radius: 999px;
+.crm-light-scope .agenda-status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--crm-text);
-  background: transparent;
+  gap: 4px;
+  white-space: nowrap;
 }
 
-.crm-light-scope .crm-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  flex-shrink: 0;
+/* ═══════════════════════════════════════════════════════════════════
+ * Toolbar agenda (period nav + Horários + Finalizar Dia + view switcher)
+ * LITERAL · api.js L408-426
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .agenda-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
-/* Calendar semanal · light */
+.crm-light-scope .agenda-period-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  min-width: 200px;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Calendar week view · paleta legacy
+ * ═══════════════════════════════════════════════════════════════════ */
+
 .crm-light-scope .crm-week-calendar {
-  background: var(--crm-surface);
-  border: 1px solid var(--crm-border);
-  border-radius: 14px 14px 0 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .crm-light-scope .crm-week-header {
-  height: 64px;
-  background: var(--crm-surface);
-  border-bottom: 1px solid var(--crm-border);
+  height: 56px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
 }
 
 .crm-light-scope .crm-time-column {
-  background: var(--crm-surface);
-  border-right: 1px solid var(--crm-border);
+  background: var(--card);
+  border-right: 1px solid var(--border);
 }
 
 .crm-light-scope .crm-day-column {
-  border-right: 1px solid var(--crm-border);
-  background: var(--crm-surface);
-}
-
-.crm-light-scope .crm-day-column-muted {
-  background: var(--crm-soft);
+  border-right: 1px solid var(--border);
+  background: var(--card);
 }
 
 .crm-light-scope .crm-day-column-sunday {
@@ -455,30 +466,16 @@
 }
 
 .crm-light-scope .crm-time-slot {
-  border-bottom: 1px solid var(--crm-border);
+  border-bottom: 1px solid var(--border);
 }
 
-/* Hatching diagonal nos slots vazios (espelha legacy) */
-.crm-light-scope .crm-slot-disabled,
+/* Hatching diagonal nos slots vazios */
 .crm-light-scope .agenda-empty-slot {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(148, 163, 184, 0.10) 0,
-    rgba(148, 163, 184, 0.10) 4px,
+    rgba(148, 163, 184, 0.08) 0,
+    rgba(148, 163, 184, 0.08) 4px,
     transparent 4px,
     transparent 8px
   );
-}
-
-/* Sunday column header destacado */
-.crm-light-scope .crm-sunday-header {
-  background: #F4F0FF;
-  color: var(--crm-purple);
-}
-
-/* Hint drag-drop pequeno cinza */
-.crm-light-scope .crm-hint {
-  font-size: 13px;
-  color: var(--crm-muted);
-  margin: 6px 0 16px;
 }

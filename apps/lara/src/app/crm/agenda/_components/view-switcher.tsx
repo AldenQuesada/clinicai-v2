@@ -13,7 +13,6 @@
 
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@clinicai/ui'
 
 type View = 'week' | 'day' | 'month'
 
@@ -55,31 +54,29 @@ export function ViewSwitcher({
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }
 
+  // Ordem LITERAL legacy (api.js L425): Mês · Semana · Hoje
   const items: ReadonlyArray<{ key: View; label: string }> = [
-    { key: 'week', label: 'Semana' },
-    { key: 'day', label: 'Dia' },
     { key: 'month', label: 'Mês' },
+    { key: 'week', label: 'Semana' },
+    { key: 'day', label: 'Hoje' },
   ]
 
   return (
-    <div
-      role="tablist"
-      aria-label="Modo de visualização"
-      className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--background)] p-0.5"
-    >
-      {items.map((it) => (
-        <Button
-          key={it.key}
-          type="button"
-          size="sm"
-          variant={current === it.key ? 'default' : 'ghost'}
-          aria-pressed={current === it.key}
-          onClick={() => handleSwitch(it.key)}
-          className="h-7 px-2 text-xs"
-        >
-          {it.label}
-        </Button>
-      ))}
+    <div role="tablist" aria-label="Modo de visualização" className="view-switcher">
+      {items.map((it) => {
+        const active = current === it.key
+        return (
+          <button
+            key={it.key}
+            type="button"
+            aria-pressed={active}
+            onClick={() => handleSwitch(it.key)}
+            className={active ? 'view-btn view-btn-active' : 'view-btn'}
+          >
+            {it.label}
+          </button>
+        )
+      })}
     </div>
   )
 }

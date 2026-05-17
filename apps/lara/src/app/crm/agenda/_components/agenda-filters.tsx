@@ -88,12 +88,12 @@ export function AgendaFilters({
   }
 
   return (
-    <div className="crm-filter-bar mb-4">
-      <span className="crm-filter-bar-label">Filtros:</span>
+    <div className="agenda-filter-bar mb-4">
+      <span className="agenda-filter-bar-label">Filtros:</span>
 
       <select
         aria-label="Filtrar por status"
-        className="crm-filter-select"
+        className="agenda-filter-select"
         style={{ width: 190 }}
         value={current.status ?? ''}
         onChange={(e) => updateParam('status', e.target.value)}
@@ -108,7 +108,7 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por tipo de consulta"
-        className="crm-filter-select"
+        className="agenda-filter-select"
         style={{ width: 190 }}
         value={current.consultType ?? ''}
         onChange={(e) => updateParam('ct', e.target.value)}
@@ -129,7 +129,7 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por status financeiro"
-        className="crm-filter-select"
+        className="agenda-filter-select"
         style={{ width: 120 }}
         value={current.paymentStatus ?? ''}
         onChange={(e) => updateParam('ptm', e.target.value)}
@@ -144,7 +144,7 @@ export function AgendaFilters({
 
       <select
         aria-label="Filtrar por origem"
-        className="crm-filter-select"
+        className="agenda-filter-select"
         style={{ width: 120 }}
         value={current.origem ?? ''}
         onChange={(e) => updateParam('og', e.target.value)}
