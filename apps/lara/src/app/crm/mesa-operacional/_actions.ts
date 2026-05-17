@@ -21,10 +21,14 @@
  *   - cancelAppointmentFromMesaAction  → repos.appointments.cancel (UPDATE direto)
  *
  * Fora de escopo (vide spec 3.2D):
- *   - lead_archive / lead_unarchive (RPCs não existem ainda)
  *   - Criar orçamento (payload complexo · fica como link p/ /crm/orcamentos/novo)
  *   - Bulk actions
  *   - Provider WhatsApp · wa_outbox · Job 71
+ *
+ * CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · Agente C:
+ *   - archiveLeadFromMesaAction   → repos.leads.archive (lead_archive RPC · mig 875)
+ *   - unarchiveLeadFromMesaAction → repos.leads.unarchive (lead_unarchive RPC · mig 875)
+ *   - Bucket `arquivado` deixa de ser read-only.
  */
 
 import { revalidatePath } from 'next/cache'
@@ -245,4 +249,107 @@ export async function cancelAppointmentFromMesaAction(
   revalidateMesaScope()
   revalidatePath('/crm/agenda')
   return ok({ appointmentId: parsed.data.appointmentId })
+}
+
+// ── 5. archiveLeadFromMesaAction · CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 ────
+//
+// Wrapper de repos.leads.archive (mig 875). lifecycle_status: <atual> →
+// 'arquivado' · phase preservado · idempotente (idempotent_skip=true se já
+// estava arquivado). Reason ≥3 chars (espelha CHECK da RPC).
+
+const MesaArchiveSchema = z.object({
+  leadId: z.string().uuid(),
+  reason: z.string().trim().min(3, 'reason_too_short').max(500, 'reason_too_long'),
+})
+
+export async function archiveLeadFromMesaAction(
+  input: unknown,
+): Promise<Result<{ leadId: string; idempotentSkip: boolean }>> {
+  const parsed = MesaArchiveSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+  const result = await repos.leads.archive(parsed.data.leadId, parsed.data.reason)
+
+  if (!result.ok) {
+    log.warn(
+      {
+        action: 'crm.mesa.lead_archive',
+        clinic_id: ctx.clinic_id,
+        lead_id: parsed.data.leadId,
+        error: result.error,
+      },
+      'mesa.lead_archive.failed',
+    )
+    return fail(result.error || 'rpc_error', {
+      detail: 'detail' in result ? result.detail : undefined,
+    })
+  }
+
+  log.info(
+    {
+      action: 'crm.mesa.lead_archive',
+      clinic_id: ctx.clinic_id,
+      lead_id: result.leadId,
+      idempotent_skip: !!result.idempotentSkip,
+    },
+    'mesa.lead_archive.ok',
+  )
+
+  updateTag(CRM_TAGS.leads)
+  updateTag(CRM_TAGS.phaseHistory)
+  revalidateMesaScope()
+  revalidatePath('/crm/recuperacao')
+  return ok({ leadId: result.leadId, idempotentSkip: !!result.idempotentSkip })
+}
+
+// ── 6. unarchiveLeadFromMesaAction · CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 ──
+//
+// Wrapper de repos.leads.unarchive (mig 875). lifecycle_status: 'arquivado' →
+// 'ativo' · phase preservado · NÃO idempotente (falha not_archived se
+// lifecycle não era arquivado).
+
+const MesaUnarchiveSchema = z.object({
+  leadId: z.string().uuid(),
+  reason: z.string().trim().min(3, 'reason_too_short').max(500, 'reason_too_long'),
+})
+
+export async function unarchiveLeadFromMesaAction(
+  input: unknown,
+): Promise<Result<{ leadId: string }>> {
+  const parsed = MesaUnarchiveSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+  const result = await repos.leads.unarchive(parsed.data.leadId, parsed.data.reason)
+
+  if (!result.ok) {
+    log.warn(
+      {
+        action: 'crm.mesa.lead_unarchive',
+        clinic_id: ctx.clinic_id,
+        lead_id: parsed.data.leadId,
+        error: result.error,
+      },
+      'mesa.lead_unarchive.failed',
+    )
+    return fail(result.error || 'rpc_error', {
+      detail: 'detail' in result ? result.detail : undefined,
+    })
+  }
+
+  log.info(
+    {
+      action: 'crm.mesa.lead_unarchive',
+      clinic_id: ctx.clinic_id,
+      lead_id: result.leadId,
+    },
+    'mesa.lead_unarchive.ok',
+  )
+
+  updateTag(CRM_TAGS.leads)
+  updateTag(CRM_TAGS.phaseHistory)
+  revalidateMesaScope()
+  revalidatePath('/crm/recuperacao')
+  return ok({ leadId: result.leadId })
 }

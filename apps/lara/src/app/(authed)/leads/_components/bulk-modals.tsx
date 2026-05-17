@@ -11,7 +11,8 @@
  *   - escape/backdrop fecham apenas quando !busy
  *
  * `bulkAddLeadTagsAction` deliberadamente FORA · `leads.tags` removida em
- * prod durante REFACTOR_LEAD_MODEL · `repos.leads.addTags` é @deprecated.
+ * prod durante REFACTOR_LEAD_MODEL · `repos.leads.addTags` LANÇA erro
+ * desde Lote 2 P0.2 (2026-05-17). Ver `apps/lara/docs/OUT_P0_TAGS.md`.
  */
 
 import { useState } from 'react'

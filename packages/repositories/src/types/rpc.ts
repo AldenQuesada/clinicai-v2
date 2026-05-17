@@ -97,3 +97,26 @@ export interface SdrChangePhaseOk {
   idempotentSkip?: boolean
 }
 export type SdrChangePhaseResult = RpcResult<SdrChangePhaseOk>
+
+// ── lead_archive ───────────────────────────────────────────────────────────
+// CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · arquiva lead (lifecycle_status=arquivado).
+// Phase preservado. Idempotente (idempotentSkip=true se já estava arquivado).
+export interface LeadArchiveOk {
+  leadId: string
+  lifecycleStatusAfter?: 'arquivado'
+  phasePreserved?: LeadPhase
+  idempotentSkip?: boolean
+  message?: string
+}
+export type LeadArchiveResult = RpcResult<LeadArchiveOk>
+
+// ── lead_unarchive ─────────────────────────────────────────────────────────
+// CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · desarquiva lead (lifecycle_status=ativo).
+// Phase preservado. Falha com error='not_archived' se lifecycle não era arquivado.
+export interface LeadUnarchiveOk {
+  leadId: string
+  lifecycleStatusAfter?: 'ativo'
+  phasePreserved?: LeadPhase
+  message?: string
+}
+export type LeadUnarchiveResult = RpcResult<LeadUnarchiveOk>

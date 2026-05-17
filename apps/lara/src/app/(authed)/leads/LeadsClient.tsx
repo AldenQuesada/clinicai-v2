@@ -30,9 +30,18 @@ import {
   AlertTriangle,
   Download,
   Plus,
+  Check,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react'
-import type { LeadDTO } from '@clinicai/repositories'
-import { softDeleteLeadAction } from './actions'
+import type {
+  Funnel,
+  LeadDTO,
+  LeadSource,
+  LeadSourceType,
+  LeadTemperature,
+} from '@clinicai/repositories'
+import { createLeadAction, softDeleteLeadAction, type NewLeadInput } from './actions'
 import { BulkActionBar } from './_components/bulk-action-bar'
 
 type ViewMode = 'table' | 'seven_days' | 'evolution'
@@ -719,7 +728,15 @@ export function LeadsClient({
       )}
 
       {showNewLead && (
-        <NewLeadPlaceholderModal onClose={() => setShowNewLead(false)} />
+        <NewLeadModal
+          onClose={() => setShowNewLead(false)}
+          onToast={showToast}
+          onCreated={(leadId) => {
+            setShowNewLead(false)
+            startTransition(() => router.refresh())
+            router.push(`/leads/${leadId}`)
+          }}
+        />
       )}
 
       {toast && (
@@ -1308,48 +1325,720 @@ function DeleteModal({
   )
 }
 
-function NewLeadPlaceholderModal({ onClose }: { onClose: () => void }) {
+// ──────────────────────────────────────────────────────────────────────────
+// Novo Lead · wizard 3 steps (Lote 2 P0.1 · 2026-05-17)
+//
+// Step 1 · Identificação: nome (≥2), telefone BR (10-11 dig), email/cpf/birth
+// Step 2 · Origem & qualificação: source, source_type, funnel, temperature, score
+// Step 3 · Operação & notas: phase=lead FIXED, notes (≤1000)
+//
+// Dedup phone via createLeadAction (server) que chama
+// repos.leads.findByPhoneVariants + RPC lead_create (idempotente).
+// Quando bate dupe, modal mostra dialog "Lead já existe · Abrir detalhe".
+// ──────────────────────────────────────────────────────────────────────────
+
+interface NewLeadModalProps {
+  onClose: () => void
+  onToast: (msg: string, tone?: 'ok' | 'err') => void
+  onCreated: (leadId: string) => void
+}
+
+type WizardStep = 1 | 2 | 3
+
+interface WizardState {
+  // Step 1
+  name: string
+  phone: string
+  email: string
+  cpf: string
+  birthDate: string
+  // Step 2
+  source: LeadSource | ''
+  sourceType: LeadSourceType | ''
+  funnel: Funnel | ''
+  temperature: LeadTemperature | ''
+  score: string
+  // Step 3
+  notes: string
+}
+
+const INITIAL_STATE: WizardState = {
+  name: '',
+  phone: '',
+  email: '',
+  cpf: '',
+  birthDate: '',
+  source: 'manual',
+  sourceType: 'manual',
+  funnel: 'procedimentos',
+  temperature: 'hot',
+  score: '',
+  notes: '',
+}
+
+// Sources alinhados com enum em packages/repositories/src/types/enums.ts.
+// Subset operacional · removo os internos (webhook, lara_*, b2b_*) porque
+// esses não fazem sentido no UI de cadastro manual.
+const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
+  { value: 'manual', label: 'Manual · cadastro pela equipe' },
+  { value: 'quiz', label: 'Quiz · paciente respondeu' },
+  { value: 'landing_page', label: 'Landing page' },
+  { value: 'import', label: 'Import · planilha' },
+]
+
+const SOURCE_TYPE_OPTIONS: { value: LeadSourceType; label: string }[] = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'whatsapp_fullface', label: 'WhatsApp · Full Face' },
+  { value: 'quiz', label: 'Quiz' },
+  { value: 'landing_page', label: 'Landing page' },
+  { value: 'referral', label: 'Indicação' },
+  { value: 'social', label: 'Social' },
+  { value: 'import', label: 'Import' },
+  { value: 'b2b_voucher', label: 'B2B · voucher' },
+  { value: 'vpi_referral', label: 'VPI · referral' },
+]
+
+const FUNNEL_OPTIONS: { value: Funnel; label: string }[] = [
+  { value: 'olheiras', label: 'Olheiras' },
+  { value: 'fullface', label: 'Full Face' },
+  { value: 'procedimentos', label: 'Procedimentos' },
+]
+
+const TEMP_OPTIONS: { value: LeadTemperature; label: string }[] = [
+  { value: 'hot', label: 'Quente · pronto pra agendar' },
+  { value: 'warm', label: 'Morno · em qualificação' },
+  { value: 'cold', label: 'Frio · sem urgência' },
+]
+
+function normalizePhoneInputBr(raw: string): string {
+  return raw.replace(/\D/g, '').slice(0, 13)
+}
+
+function formatPhoneInputBr(digits: string): string {
+  if (!digits) return ''
+  const d = digits.slice(-11) // mostra como local mesmo se tiver 55
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  }
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7, 11)}`
+}
+
+function isPhoneValid(digits: string): boolean {
+  // 10 ou 11 dígitos BR · ou 12-13 com prefixo 55
+  return digits.length >= 10 && digits.length <= 13
+}
+
+function isEmailValid(raw: string): boolean {
+  if (!raw) return true
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim())
+}
+
+function NewLeadModal({ onClose, onToast, onCreated }: NewLeadModalProps) {
+  const [step, setStep] = useState<WizardStep>(1)
+  const [state, setState] = useState<WizardState>(INITIAL_STATE)
+  const [busy, setBusy] = useState(false)
+  const [duplicate, setDuplicate] = useState<
+    | { leadId: string; reason: 'phone' | 'email'; name?: string | null }
+    | null
+  >(null)
+
+  function patch<K extends keyof WizardState>(k: K, v: WizardState[K]) {
+    setState((s) => ({ ...s, [k]: v }))
+  }
+
+  // ── Validators por step ───────────────────────────────────────────────
+  const phoneDigits = state.phone
+  const step1Errors: string[] = []
+  if (state.name.trim().length < 2) {
+    step1Errors.push('Nome obrigatório · mínimo 2 caracteres')
+  }
+  if (!isPhoneValid(phoneDigits)) {
+    step1Errors.push('Telefone obrigatório · 10 ou 11 dígitos (DDD + número)')
+  }
+  if (state.email && !isEmailValid(state.email)) {
+    step1Errors.push('Email inválido')
+  }
+  const cpfDigits = state.cpf.replace(/\D/g, '')
+  if (cpfDigits && cpfDigits.length !== 11) {
+    step1Errors.push('CPF inválido · 11 dígitos quando preenchido')
+  }
+  if (
+    state.birthDate &&
+    !/^\d{4}-\d{2}-\d{2}$/.test(state.birthDate)
+  ) {
+    step1Errors.push('Data de nascimento inválida (YYYY-MM-DD)')
+  }
+  const step1Valid = step1Errors.length === 0
+
+  const step2Errors: string[] = []
+  if (state.score) {
+    const n = Number(state.score)
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      step2Errors.push('Score deve ser entre 0 e 100')
+    }
+  }
+  const step2Valid = step2Errors.length === 0
+
+  const step3Errors: string[] = []
+  if (state.notes.length > 1000) {
+    step3Errors.push('Notas longas · máximo 1000 caracteres')
+  }
+  const step3Valid = step3Errors.length === 0
+
+  async function handleSubmit() {
+    if (!step1Valid || !step2Valid || !step3Valid) {
+      onToast('Verifique os campos antes de criar o lead', 'err')
+      return
+    }
+    setBusy(true)
+    setDuplicate(null)
+    try {
+      const payload: NewLeadInput = {
+        name: state.name.trim(),
+        phone: phoneDigits,
+        email: state.email.trim() || null,
+        cpf: cpfDigits || null,
+        birthDate: state.birthDate || null,
+        source: (state.source as LeadSource) || 'manual',
+        sourceType: (state.sourceType as LeadSourceType) || 'manual',
+        funnel: (state.funnel as Funnel) || 'procedimentos',
+        temperature: (state.temperature as LeadTemperature) || 'hot',
+        score: state.score ? Number(state.score) : null,
+        notes: state.notes.trim() || null,
+      }
+      const result = await createLeadAction(payload)
+      if (!result.ok) {
+        onToast(result.error || 'Falha ao criar lead', 'err')
+        return
+      }
+      const data = result.data
+      if (!data) {
+        onToast('Resposta vazia do servidor', 'err')
+        return
+      }
+      if (data.existed && data.duplicate) {
+        setDuplicate(data.duplicate)
+        return
+      }
+      onToast('Lead criado com sucesso')
+      onCreated(data.leadId)
+    } catch (e) {
+      onToast((e as Error).message || 'Erro inesperado', 'err')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── Dialog dedup ──────────────────────────────────────────────────────
+  if (duplicate) {
+    return (
+      <div className="b2b-overlay" onClick={busy ? undefined : onClose}>
+        <div
+          className="b2b-modal"
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: 480 }}
+        >
+          <div className="b2b-modal-hdr">
+            <h2
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: 'var(--b2b-champagne)',
+              }}
+            >
+              <AlertTriangle size={16} />
+              Lead já existe
+            </h2>
+            <button
+              onClick={onClose}
+              className="b2b-close"
+              aria-label="Fechar"
+              disabled={busy}
+            >
+              ×
+            </button>
+          </div>
+          <div className="b2b-modal-body">
+            <p style={{ color: 'var(--b2b-text-dim)', fontSize: 13, marginBottom: 12 }}>
+              Já existe um lead ativo com este{' '}
+              <strong style={{ color: 'var(--b2b-ivory)' }}>
+                {duplicate.reason === 'phone' ? 'telefone' : 'email'}
+              </strong>
+              {duplicate.name ? (
+                <>
+                  {' '}
+                  · <em style={{ color: 'var(--b2b-champagne)' }}>{duplicate.name}</em>
+                </>
+              ) : null}
+              .
+            </p>
+            <p style={{ color: 'var(--b2b-text-muted)', fontSize: 12, marginBottom: 4 }}>
+              Pra evitar duplicatas, abra a ficha existente e atualize o que precisa.
+            </p>
+            <div className="b2b-form-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="b2b-btn" onClick={onClose}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="b2b-btn b2b-btn-primary"
+                onClick={() => onCreated(duplicate.leadId)}
+              >
+                Abrir lead existente
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Wizard ────────────────────────────────────────────────────────────
   return (
-    <div className="b2b-overlay" onClick={onClose}>
+    <div className="b2b-overlay" onClick={busy ? undefined : onClose}>
       <div
         className="b2b-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 480 }}
+        style={{ maxWidth: 560, width: '92vw' }}
       >
         <div className="b2b-modal-hdr">
           <h2>
             Novo <em style={{ color: 'var(--b2b-champagne)' }}>lead</em>
           </h2>
-          <button onClick={onClose} className="b2b-close" aria-label="Fechar">
+          <button
+            onClick={onClose}
+            className="b2b-close"
+            aria-label="Fechar"
+            disabled={busy}
+          >
             ×
           </button>
         </div>
-        <div className="b2b-modal-body">
-          <p
-            className="font-display"
+
+        {/* Stepper */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            padding: '0 24px',
+            marginTop: 4,
+            marginBottom: 14,
+          }}
+        >
+          {([1, 2, 3] as WizardStep[]).map((s) => {
+            const active = step === s
+            const done = step > s
+            const label =
+              s === 1 ? 'Identificação' : s === 2 ? 'Origem & qualificação' : 'Operação'
+            return (
+              <div
+                key={s}
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderTop: '2px solid',
+                  borderColor: active
+                    ? 'var(--b2b-champagne)'
+                    : done
+                      ? 'var(--b2b-sage)'
+                      : 'var(--b2b-border)',
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  color: active
+                    ? 'var(--b2b-champagne)'
+                    : done
+                      ? 'var(--b2b-sage)'
+                      : 'var(--b2b-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {done ? <Check size={11} /> : <span>{s}.</span>}
+                {label}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="b2b-modal-body" style={{ minHeight: 280 }}>
+          {step === 1 && (
+            <Step1
+              state={state}
+              patch={patch}
+              busy={busy}
+              errors={step1Errors}
+              phoneDigits={phoneDigits}
+            />
+          )}
+          {step === 2 && (
+            <Step2 state={state} patch={patch} busy={busy} errors={step2Errors} />
+          )}
+          {step === 3 && (
+            <Step3 state={state} patch={patch} busy={busy} errors={step3Errors} />
+          )}
+
+          {/* Nav buttons */}
+          <div
+            className="b2b-form-actions"
             style={{
-              fontSize: 16,
-              fontStyle: 'italic',
-              color: 'var(--b2b-text-dim)',
-              lineHeight: 1.5,
-              marginBottom: 12,
+              marginTop: 18,
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 8,
             }}
           >
-            O cadastro completo em 3 etapas (dados pessoais · endereço/origem ·
-            dados clínicos) entra no próximo commit.
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--b2b-text-muted)' }}>
-            Por enquanto, leads chegam automaticamente via WhatsApp Cloud API +
-            quiz/landing pages. Pra cadastro manual urgente, use o painel CRM
-            antigo.
-          </p>
-        </div>
-        <div className="b2b-form-actions" style={{ padding: '0 24px 20px' }}>
-          <button type="button" className="b2b-btn b2b-btn-primary" onClick={onClose}>
-            Entendi
-          </button>
+            <div>
+              {step > 1 && (
+                <button
+                  type="button"
+                  className="b2b-btn"
+                  onClick={() => setStep((s) => (s - 1) as WizardStep)}
+                  disabled={busy}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <ArrowLeft size={12} /> Voltar
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="b2b-btn" onClick={onClose} disabled={busy}>
+                Cancelar
+              </button>
+              {step < 3 && (
+                <button
+                  type="button"
+                  className="b2b-btn b2b-btn-primary"
+                  disabled={
+                    busy ||
+                    (step === 1 && !step1Valid) ||
+                    (step === 2 && !step2Valid)
+                  }
+                  onClick={() => setStep((s) => (s + 1) as WizardStep)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  Avançar <ArrowRight size={12} />
+                </button>
+              )}
+              {step === 3 && (
+                <button
+                  type="button"
+                  className="b2b-btn b2b-btn-primary"
+                  disabled={busy || !step1Valid || !step2Valid || !step3Valid}
+                  onClick={handleSubmit}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  {busy ? 'Criando...' : 'Criar lead'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Steps ────────────────────────────────────────────────────────────────
+
+function ErrorsBlock({ errors }: { errors: string[] }) {
+  if (!errors.length) return null
+  return (
+    <ul
+      style={{
+        margin: '0 0 12px',
+        padding: '8px 10px 8px 26px',
+        background: 'rgba(217,122,122,0.10)',
+        border: '1px solid rgba(217,122,122,0.30)',
+        borderRadius: 6,
+        color: 'var(--b2b-red)',
+        fontSize: 11,
+        listStyle: 'disc',
+      }}
+    >
+      {errors.map((e) => (
+        <li key={e}>{e}</li>
+      ))}
+    </ul>
+  )
+}
+
+function FormField({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <label
+      style={{
+        display: 'block',
+        marginBottom: 12,
+        fontSize: 11,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        color: 'var(--b2b-text-muted)',
+        fontWeight: 700,
+      }}
+    >
+      <span>{label}</span>
+      {hint ? (
+        <span
+          style={{
+            marginLeft: 6,
+            fontSize: 10,
+            color: 'var(--b2b-text-muted)',
+            textTransform: 'none',
+            letterSpacing: 0,
+            fontWeight: 400,
+            fontStyle: 'italic',
+          }}
+        >
+          {hint}
+        </span>
+      ) : null}
+      <div style={{ marginTop: 4 }}>{children}</div>
+    </label>
+  )
+}
+
+function Step1({
+  state,
+  patch,
+  busy,
+  errors,
+  phoneDigits,
+}: {
+  state: WizardState
+  patch: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
+  busy: boolean
+  errors: string[]
+  phoneDigits: string
+}) {
+  return (
+    <>
+      <ErrorsBlock errors={errors} />
+      <FormField label="Nome completo *">
+        <input
+          type="text"
+          className="b2b-input"
+          value={state.name}
+          onChange={(e) => patch('name', e.target.value)}
+          disabled={busy}
+          maxLength={200}
+          autoFocus
+          placeholder="Ex: Maria da Silva"
+        />
+      </FormField>
+
+      <FormField label="Telefone *" hint="apenas DDD + número (BR)">
+        <input
+          type="tel"
+          inputMode="numeric"
+          className="b2b-input"
+          value={formatPhoneInputBr(phoneDigits)}
+          onChange={(e) => patch('phone', normalizePhoneInputBr(e.target.value))}
+          disabled={busy}
+          placeholder="(44) 99162-2986"
+        />
+      </FormField>
+
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <FormField label="Email" hint="opcional">
+          <input
+            type="email"
+            className="b2b-input"
+            value={state.email}
+            onChange={(e) => patch('email', e.target.value)}
+            disabled={busy}
+            maxLength={200}
+            placeholder="maria@exemplo.com"
+          />
+        </FormField>
+        <FormField label="CPF" hint="opcional · 11 dígitos">
+          <input
+            type="text"
+            inputMode="numeric"
+            className="b2b-input"
+            value={state.cpf}
+            onChange={(e) => patch('cpf', e.target.value.replace(/\D/g, '').slice(0, 11))}
+            disabled={busy}
+            placeholder="00000000000"
+          />
+        </FormField>
+      </div>
+
+      <FormField label="Data de nascimento" hint="opcional">
+        <input
+          type="date"
+          className="b2b-input"
+          value={state.birthDate}
+          onChange={(e) => patch('birthDate', e.target.value)}
+          disabled={busy}
+          style={{ maxWidth: 220 }}
+        />
+      </FormField>
+    </>
+  )
+}
+
+function Step2({
+  state,
+  patch,
+  busy,
+  errors,
+}: {
+  state: WizardState
+  patch: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
+  busy: boolean
+  errors: string[]
+}) {
+  return (
+    <>
+      <ErrorsBlock errors={errors} />
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <FormField label="Origem (source)">
+          <select
+            className="b2b-input"
+            value={state.source}
+            onChange={(e) => patch('source', e.target.value as LeadSource | '')}
+            disabled={busy}
+          >
+            {SOURCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Tipo de origem (source_type)">
+          <select
+            className="b2b-input"
+            value={state.sourceType}
+            onChange={(e) => patch('sourceType', e.target.value as LeadSourceType | '')}
+            disabled={busy}
+          >
+            {SOURCE_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      </div>
+
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <FormField label="Funil">
+          <select
+            className="b2b-input"
+            value={state.funnel}
+            onChange={(e) => patch('funnel', e.target.value as Funnel | '')}
+            disabled={busy}
+          >
+            {FUNNEL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Temperatura">
+          <select
+            className="b2b-input"
+            value={state.temperature}
+            onChange={(e) => patch('temperature', e.target.value as LeadTemperature | '')}
+            disabled={busy}
+          >
+            {TEMP_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      </div>
+
+      <FormField label="Score" hint="opcional · 0 a 100">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          className="b2b-input"
+          value={state.score}
+          onChange={(e) => patch('score', e.target.value)}
+          disabled={busy}
+          placeholder="0-100"
+          style={{ maxWidth: 160 }}
+        />
+      </FormField>
+    </>
+  )
+}
+
+function Step3({
+  state,
+  patch,
+  busy,
+  errors,
+}: {
+  state: WizardState
+  patch: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
+  busy: boolean
+  errors: string[]
+}) {
+  return (
+    <>
+      <ErrorsBlock errors={errors} />
+      <div
+        style={{
+          padding: '10px 12px',
+          background: 'rgba(201,169,110,0.08)',
+          border: '1px solid rgba(201,169,110,0.25)',
+          borderRadius: 6,
+          marginBottom: 14,
+          fontSize: 12,
+          color: 'var(--b2b-text-dim)',
+        }}
+      >
+        Lead será criado em <strong style={{ color: 'var(--b2b-champagne)' }}>fase
+        “Lead”</strong> com lifecycle{' '}
+        <strong style={{ color: 'var(--b2b-champagne)' }}>ativo</strong>. Para
+        avançar (agendar, perdido, paciente, orçamento) use as ações
+        específicas da ficha após criar.
+      </div>
+
+      <FormField label="Notas / contexto" hint="opcional · até 1000 caracteres">
+        <textarea
+          className="b2b-input"
+          value={state.notes}
+          onChange={(e) => patch('notes', e.target.value)}
+          disabled={busy}
+          rows={6}
+          maxLength={1000}
+          placeholder="Anote contexto inicial · de onde veio, queixas, urgência..."
+          style={{ minHeight: 140, resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--b2b-text-muted)',
+            textAlign: 'right',
+            marginTop: 2,
+          }}
+        >
+          {state.notes.length}/1000
+        </div>
+      </FormField>
+    </>
   )
 }

@@ -50,7 +50,7 @@ export default async function LeadsPage({
         pageSize={LEADS_PAGE_SIZE}
         canEdit={data.canEdit}
         canDelete={data.canDelete}
-        canCreate={data.canEdit}
+        canCreate={data.canCreate}
       />
     </PageContainer>
   )

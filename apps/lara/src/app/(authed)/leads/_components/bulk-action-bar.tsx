@@ -12,7 +12,8 @@
  * Visual `b2b-*` themed pra consistência com LeadsClient. Cada botão tem
  * loading próprio (useTransition). Modais controlados localmente.
  *
- * `bulkAddLeadTagsAction` deliberadamente FORA · vide bulk-modals.tsx.
+ * `bulkAddLeadTagsAction` deliberadamente FORA · vide bulk-modals.tsx +
+ * `apps/lara/docs/OUT_P0_TAGS.md` (tags livres pausadas em prod).
  */
 
 import { useState, useTransition } from 'react'

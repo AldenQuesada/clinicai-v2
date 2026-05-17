@@ -550,6 +550,10 @@ export type {
   LeadLostResult,
   LeadRecoverOk,
   LeadRecoverResult,
+  LeadArchiveOk,
+  LeadArchiveResult,
+  LeadUnarchiveOk,
+  LeadUnarchiveResult,
   SdrChangePhaseOk,
   SdrChangePhaseResult,
 } from './types'
