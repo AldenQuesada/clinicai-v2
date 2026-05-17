@@ -975,3 +975,52 @@ export async function exportLeadsCsvAction(
 
   return ok({ csv, filename, count: rows.length })
 }
+
+// ── CRM_PARITY_PATCH_0A · lookupLeadByPhoneAction ────────────────────────────
+//
+// Lookup read-only de lead ativo por telefone · usado pelo NewLeadModal
+// (LeadsClient) on-blur do campo phone pra AVISAR dup ANTES do submit.
+//
+// Reusa `findByPhoneVariants` (canônico · igual webhook e `createLeadAction`).
+// Não muda comportamento de criação · só dá UI hint defensivo. Soft-fail:
+// retorna existed=false se phone inválido ou erro · permite o user continuar.
+
+export interface LeadLookupResult {
+  existed: boolean
+  leadId: string | null
+  name: string | null
+}
+
+export async function lookupLeadByPhoneAction(
+  rawPhone: string,
+): Promise<ActionResult<LeadLookupResult>> {
+  const phone = normalizePhone(rawPhone)
+  if (!phone) {
+    return ok({ existed: false, leadId: null, name: null })
+  }
+  try {
+    const { ctx, repos } = await loadServerReposContext()
+    requireAction(ctx.role, 'patients:view')
+    const existing = await repos.leads.findByPhoneVariants(ctx.clinic_id, [phone])
+    if (!existing) {
+      return ok({ existed: false, leadId: null, name: null })
+    }
+    return ok({
+      existed: true,
+      leadId: existing.id,
+      name: existing.name ?? null,
+    })
+  } catch (err) {
+    log.warn(
+      {
+        clinic_id: 'unknown',
+        action: 'lookup_lead_by_phone',
+        error: (err as Error).message,
+      },
+      'lookupLeadByPhoneAction · falha soft',
+    )
+    // Soft-fail · UI segue sem hint, dedup atômico do createLeadAction
+    // continua sendo a defesa real.
+    return ok({ existed: false, leadId: null, name: null })
+  }
+}

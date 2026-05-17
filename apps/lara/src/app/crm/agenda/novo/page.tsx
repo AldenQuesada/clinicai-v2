@@ -15,6 +15,7 @@
 
 import { PageHeader } from '@clinicai/ui'
 import { loadServerReposContext } from '@/lib/repos'
+import { loadClinicSettingsAction } from '@/app/(authed)/configuracoes/clinica/actions'
 import { NewAppointmentForm } from './_form'
 
 export const dynamic = 'force-dynamic'
@@ -60,6 +61,18 @@ export default async function NewAppointmentPage({
     .list({ status: 'active' })
     .catch(() => [])
 
+  // CRM_PARITY_PATCH_0A · clinic_settings pra validação de periods +
+  // antecedência mínima no Step 2 do wizard. Fail-soft: se não conseguir
+  // carregar, wizard segue sem validar periods (defesa em profundidade fica
+  // só no DB / conflict check).
+  const clinicSettingsResult = await loadClinicSettingsAction().catch(() => null)
+  const operatingHours = clinicSettingsResult?.ok
+    ? clinicSettingsResult.data?.horarios ?? null
+    : null
+  const antecedenciaMinHoras = clinicSettingsResult?.ok
+    ? clinicSettingsResult.data?.antecedencia_min ?? null
+    : null
+
   // Pre-fill patient OU lead (XOR)
   const preFilledPatient = sp.patientId
     ? patients.find((p) => p.id === sp.patientId) ?? null
@@ -104,6 +117,8 @@ export default async function NewAppointmentPage({
           precoPromo: p.precoPromo,
           duracaoMin: p.duracaoMin,
         }))}
+        operatingHours={operatingHours}
+        antecedenciaMinHoras={antecedenciaMinHoras}
         prefillDate={sp.date ?? null}
         prefillTime={sp.time ?? null}
         prefillPatient={

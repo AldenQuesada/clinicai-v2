@@ -182,6 +182,11 @@ export class AppointmentRepository {
       consult_type: input.consultType ?? null,
       eval_type: input.evalType ?? null,
       value: input.value ?? 0,
+      // CRM_PARITY_PATCH_0A · paridade legado · payment_method texto livre
+      // (vide PAYMENT_METHODS em legacy/js/agenda-smart.constants.js). `update()`
+      // ja gravava esta coluna · agora `create()` tambem persiste quando
+      // o wizard envia.
+      payment_method: input.paymentMethod ?? null,
       payment_status: input.paymentStatus ?? 'pendente',
       status: input.status ?? 'agendado',
       origem: input.origem ?? null,

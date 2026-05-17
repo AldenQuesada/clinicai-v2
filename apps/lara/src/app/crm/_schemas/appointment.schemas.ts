@@ -85,6 +85,9 @@ export const CreateAppointmentSchema = z
     consultType: z.string().max(50).nullable().optional(),
     evalType: z.string().max(50).nullable().optional(),
     value: z.number().nonnegative().optional(),
+    // CRM_PARITY_PATCH_0A · texto livre (sem enum no DB · contrato legado).
+    // UI valida contra PAYMENT_METHODS canônico mas DB aceita qualquer string.
+    paymentMethod: z.string().max(50).nullable().optional(),
     paymentStatus: AppointmentPaymentStatus.optional(),
     status: AppointmentStatus.optional(),
     origem: z.string().max(50).nullable().optional(),

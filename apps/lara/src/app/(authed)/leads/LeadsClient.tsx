@@ -41,7 +41,12 @@ import type {
   LeadSourceType,
   LeadTemperature,
 } from '@clinicai/repositories'
-import { createLeadAction, softDeleteLeadAction, type NewLeadInput } from './actions'
+import {
+  createLeadAction,
+  lookupLeadByPhoneAction,
+  softDeleteLeadAction,
+  type NewLeadInput,
+} from './actions'
 import { BulkActionBar } from './_components/bulk-action-bar'
 
 type ViewMode = 'table' | 'seven_days' | 'evolution'
@@ -1445,8 +1450,48 @@ function NewLeadModal({ onClose, onToast, onCreated }: NewLeadModalProps) {
     | null
   >(null)
 
+  // CRM_PARITY_PATCH_0A · A5 · aviso lead duplicado ANTES do submit.
+  // Lookup on-blur (passive · soft-fail) via lookupLeadByPhoneAction · banner
+  // inline no Step 1. createLeadAction continua sendo a defesa atômica real.
+  const [phoneLookup, setPhoneLookup] = useState<
+    | { status: 'idle' }
+    | { status: 'checking' }
+    | { status: 'found'; leadId: string; name: string | null }
+    | { status: 'none' }
+  >({ status: 'idle' })
+
   function patch<K extends keyof WizardState>(k: K, v: WizardState[K]) {
     setState((s) => ({ ...s, [k]: v }))
+    if (k === 'phone') {
+      // Reset lookup ao editar phone · re-disparado no próximo blur
+      setPhoneLookup({ status: 'idle' })
+    }
+  }
+
+  async function handlePhoneBlur(phoneDigits: string) {
+    if (!isPhoneValid(phoneDigits)) {
+      setPhoneLookup({ status: 'idle' })
+      return
+    }
+    setPhoneLookup({ status: 'checking' })
+    try {
+      const r = await lookupLeadByPhoneAction(phoneDigits)
+      if (!r.ok) {
+        setPhoneLookup({ status: 'idle' })
+        return
+      }
+      if (r.data?.existed && r.data.leadId) {
+        setPhoneLookup({
+          status: 'found',
+          leadId: r.data.leadId,
+          name: r.data.name ?? null,
+        })
+      } else {
+        setPhoneLookup({ status: 'none' })
+      }
+    } catch {
+      setPhoneLookup({ status: 'idle' })
+    }
   }
 
   // ── Validators por step ───────────────────────────────────────────────
@@ -1675,6 +1720,9 @@ function NewLeadModal({ onClose, onToast, onCreated }: NewLeadModalProps) {
               busy={busy}
               errors={step1Errors}
               phoneDigits={phoneDigits}
+              phoneLookup={phoneLookup}
+              onPhoneBlur={handlePhoneBlur}
+              onOpenExistingLead={onCreated}
             />
           )}
           {step === 2 && (
@@ -1817,12 +1865,23 @@ function Step1({
   busy,
   errors,
   phoneDigits,
+  phoneLookup,
+  onPhoneBlur,
+  onOpenExistingLead,
 }: {
   state: WizardState
   patch: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
   busy: boolean
   errors: string[]
   phoneDigits: string
+  // CRM_PARITY_PATCH_0A · A5
+  phoneLookup:
+    | { status: 'idle' }
+    | { status: 'checking' }
+    | { status: 'found'; leadId: string; name: string | null }
+    | { status: 'none' }
+  onPhoneBlur: (digits: string) => void | Promise<void>
+  onOpenExistingLead: (leadId: string) => void
 }) {
   return (
     <>
@@ -1847,10 +1906,68 @@ function Step1({
           className="b2b-input"
           value={formatPhoneInputBr(phoneDigits)}
           onChange={(e) => patch('phone', normalizePhoneInputBr(e.target.value))}
+          onBlur={() => void onPhoneBlur(phoneDigits)}
           disabled={busy}
           placeholder="(44) 99162-2986"
         />
       </FormField>
+
+      {/* CRM_PARITY_PATCH_0A · A5 · banner inline pre-submit. createLeadAction
+          continua sendo dedup atômico real (mostra dialog dedicado se passar
+          do banner sem clicar). */}
+      {phoneLookup.status === 'checking' && (
+        <div
+          style={{
+            margin: '-4px 0 12px',
+            fontSize: 11,
+            color: 'var(--b2b-text-muted)',
+          }}
+        >
+          Verificando telefone…
+        </div>
+      )}
+      {phoneLookup.status === 'found' && (
+        <div
+          style={{
+            margin: '-4px 0 12px',
+            padding: '8px 10px',
+            background: 'rgba(217,170,90,0.10)',
+            border: '1px solid rgba(217,170,90,0.30)',
+            borderRadius: 6,
+            color: 'var(--b2b-champagne)',
+            fontSize: 11,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            <AlertTriangle
+              size={12}
+              style={{ verticalAlign: 'text-bottom', marginRight: 4 }}
+            />
+            Lead já existe
+            {phoneLookup.name ? (
+              <>
+                {' '}
+                · <strong>{phoneLookup.name}</strong>
+              </>
+            ) : null}
+            . Considere abrir a ficha existente em vez de criar uma duplicata.
+          </span>
+          <button
+            type="button"
+            className="b2b-btn"
+            disabled={busy}
+            onClick={() => onOpenExistingLead(phoneLookup.leadId)}
+            style={{ fontSize: 10, padding: '4px 10px' }}
+          >
+            Abrir lead atual
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
         <FormField label="Email" hint="opcional">

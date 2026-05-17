@@ -126,10 +126,25 @@ export async function createAppointmentAction(
 
 // ── 1b. checkAppointmentConflictAction · expõe checkConflicts para UI wizard
 
+// CRM_PARITY_PATCH_0A · feedback de conflito não-silencioso.
+// Mantém `counts` (backwards-compat com consumers existentes) e adiciona
+// `details` com snapshot dos appointments conflitantes pra UI montar
+// mensagem clara ("Profissional X já tem consulta às HH:MM com Y").
+export interface ConflictDetailEntry {
+  kind: 'professional' | 'room' | 'patient'
+  appointmentId: string
+  startTime: string
+  endTime: string
+  professionalName: string | null
+  subjectName: string | null
+  status: string
+}
+
 export async function checkAppointmentConflictAction(input: unknown): Promise<
   Result<{
     hasConflict: boolean
     counts: { professional: number; room: number; patient: number }
+    details: ConflictDetailEntry[]
   }>
 > {
   const parsed = CheckAppointmentConflictSchema.safeParse(input)
@@ -153,9 +168,39 @@ export async function checkAppointmentConflictAction(input: unknown): Promise<
     room: conflicts.room.length,
     patient: conflicts.patient.length,
   }
+  const details: ConflictDetailEntry[] = [
+    ...conflicts.professional.map((a) => ({
+      kind: 'professional' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+    ...conflicts.room.map((a) => ({
+      kind: 'room' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+    ...conflicts.patient.map((a) => ({
+      kind: 'patient' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+  ]
   return ok({
     hasConflict: counts.professional + counts.room + counts.patient > 0,
     counts,
+    details,
   })
 }
 
