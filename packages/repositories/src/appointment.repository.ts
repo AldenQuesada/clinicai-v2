@@ -604,6 +604,91 @@ export class AppointmentRepository {
   }
 
   /**
+   * CRM_PACIENTES_KPIS · Retorna appointments futuros (scheduled_date > today)
+   * de pacientes ativos, com status ∈ "futuros agendáveis"
+   * ({agendado, aguardando_confirmacao, confirmado}). Read-only.
+   *
+   * Faz JOIN inner com `patients` (patient_id NOT NULL) pra recuperar
+   * `patients.name + status + last_procedure_at` numa query · usado pelos
+   * 4 KPIs de Retorno da /crm/pacientes:
+   *   1. count distinct patient_id (pacientes com retorno agendado)
+   *   2. total active patients - count distinct (sem retorno)
+   *   3. AVG(scheduledDate - lastProcedureAt) das rows aqui retornadas
+   *   4. ordena por scheduled_date asc → top N pra UI "Próximos retornos"
+   *
+   * Ordem natural: scheduled_date ASC, start_time ASC. Caller pode passar
+   * `limit` pra paginar (default 200 · suficiente pra cobrir top 10 +
+   * derivação dos counts numa clinica pequena/média).
+   *
+   * Filtra `patient.status = 'active'` (somente pacientes em carteira
+   * ativa). Pacientes blocked/deceased/inactive não contam pra "retorno".
+   *
+   * `nowDate` é caller-provided pra permitir testes determinísticos.
+   * Default = today (UTC, YYYY-MM-DD).
+   */
+  async findUpcomingReturnsForActivePatients(
+    clinicId: string,
+    opts: { nowDate?: string; limit?: number } = {},
+  ): Promise<
+    Array<{
+      appointmentId: string
+      patientId: string
+      patientName: string
+      patientLastProcedureAt: string | null
+      scheduledDate: string
+      startTime: string
+      professionalName: string
+    }>
+  > {
+    const nowDate = opts.nowDate ?? new Date().toISOString().slice(0, 10)
+    const limit = Math.min(opts.limit ?? 200, 1000)
+
+    // PostgREST nested resource select · join via FK appointments.patient_id
+    // → patients.id (mig 62). Filtra patient.status='active' via foreign
+    // table operator (PostgREST 12+ syntax: `patients!inner(...)` + .eq
+    // on nested col).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any)
+      .from('appointments')
+      .select(
+        'id, patient_id, scheduled_date, start_time, professional_name, ' +
+          'patients!inner(name, status, last_procedure_at)',
+      )
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .not('patient_id', 'is', null)
+      .gt('scheduled_date', nowDate)
+      .in('status', ['agendado', 'aguardando_confirmacao', 'confirmado'])
+      .eq('patients.status', 'active')
+      .order('scheduled_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(limit)
+
+    if (error || !data) return []
+
+    return (data as unknown as Array<{
+      id: string
+      patient_id: string
+      scheduled_date: string
+      start_time: string
+      professional_name: string | null
+      patients: {
+        name: string | null
+        status: string
+        last_procedure_at: string | null
+      }
+    }>).map((r) => ({
+      appointmentId: r.id,
+      patientId: r.patient_id,
+      patientName: r.patients?.name ?? '',
+      patientLastProcedureAt: r.patients?.last_procedure_at ?? null,
+      scheduledDate: r.scheduled_date,
+      startTime: r.start_time,
+      professionalName: r.professional_name ?? '',
+    }))
+  }
+
+  /**
    * Distribuicao de appointments por status atual · para dashboard health
    * (admin-only). Sem range · todos os appts nao-deletados da clinica.
    *

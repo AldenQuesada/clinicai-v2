@@ -366,6 +366,31 @@ export class LeadRepository {
   }
 
   /**
+   * Bulk fetch por IDs · usado pra resolucao de nomes em listagens
+   * (ex: /crm/orcamentos mostra lead_id bruto · UI precisa do nome).
+   * Read-only, soft-delete-aware. Retorna Map<leadId, LeadDTO> · IDs
+   * nao encontrados ficam ausentes do mapa (caller decide fallback).
+   *
+   * Cap defensivo 500 IDs · acima disso eh sinal de page-size errado.
+   */
+  async findByIds(clinicId: string, ids: string[]): Promise<Map<string, LeadDTO>> {
+    const map = new Map<string, LeadDTO>()
+    if (!ids.length) return map
+    const safeIds = Array.from(new Set(ids)).slice(0, 500)
+    const { data } = await this.supabase
+      .from('leads')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .in('id', safeIds)
+      .is('deleted_at', null)
+    for (const row of (data ?? [])) {
+      const dto = mapLeadRow(row)
+      map.set(dto.id, dto)
+    }
+    return map
+  }
+
+  /**
    * Conta leads sem update ha mais de N dias · cron mira-inactivity-radar.
    */
   async countInactiveSince(clinicId: string, sinceIso: string): Promise<number> {

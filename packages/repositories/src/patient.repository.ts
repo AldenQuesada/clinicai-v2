@@ -280,6 +280,31 @@ export class PatientRepository {
   }
 
   /**
+   * Bulk fetch por IDs · usado pra resolucao de nomes em listagens
+   * (ex: /crm/orcamentos mostra patient_id bruto · UI precisa do nome).
+   * Read-only, soft-delete-aware. Retorna Map<patientId, PatientDTO> · IDs
+   * nao encontrados ficam ausentes do mapa (caller decide fallback).
+   *
+   * Cap defensivo 500 IDs · acima disso eh sinal de page-size errado.
+   */
+  async findByIds(clinicId: string, ids: string[]): Promise<Map<string, PatientDTO>> {
+    const map = new Map<string, PatientDTO>()
+    if (!ids.length) return map
+    const safeIds = Array.from(new Set(ids)).slice(0, 500)
+    const { data } = await this.supabase
+      .from('patients')
+      .select(PATIENT_COLUMNS)
+      .eq('clinic_id', clinicId)
+      .in('id', safeIds)
+      .is('deleted_at', null)
+    for (const row of (data ?? [])) {
+      const dto = mapPatientRow(row)
+      map.set(dto.id, dto)
+    }
+    return map
+  }
+
+  /**
    * Lista pra Export CSV · sem paginacao. Limite hard 5000 (5x mais que UI
    * pagina) · clinica acima disso usa export por mes/segmento. Otimizacao
    * futura: streaming/paginated download.
