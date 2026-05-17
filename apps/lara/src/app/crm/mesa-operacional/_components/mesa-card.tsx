@@ -18,6 +18,7 @@
 import Link from 'next/link'
 import { Badge } from '@clinicai/ui'
 import type { MesaCard as MesaCardType, MesaBucket } from '@clinicai/repositories'
+import { MesaCardActions } from './mesa-card-actions'
 
 interface Props {
   card: MesaCardType
@@ -185,7 +186,7 @@ export function MesaCardItem({ card }: Props) {
         </p>
       ) : null}
 
-      {/* Footer · ações como links */}
+      {/* Footer · navegação + criação (links puros) */}
       <footer className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
         <Link
           href={`/leads/${card.leadId}`}
@@ -217,6 +218,26 @@ export function MesaCardItem({ card }: Props) {
             Orçamento
           </Link>
         ) : null}
+
+        {/* Criação · só onde fizer sentido (sem mutação · só navega pro wizard) */}
+        {card.bucket === 'lead' ? (
+          <Link
+            href={`/crm/agenda/novo?leadId=${card.leadId}`}
+            className="rounded border border-[var(--primary)]/40 bg-[var(--primary)]/10 px-1.5 py-0.5 font-display-uppercase tracking-widest text-[var(--primary)] hover:bg-[var(--primary)]/20"
+          >
+            + Agendar
+          </Link>
+        ) : null}
+        {!card.budgetId &&
+        (card.bucket === 'lead' || card.bucket === 'agendado' || card.bucket === 'paciente') ? (
+          <Link
+            href={`/crm/orcamentos/novo?leadId=${card.leadId}`}
+            className="rounded border border-[var(--primary)]/40 bg-[var(--primary)]/10 px-1.5 py-0.5 font-display-uppercase tracking-widest text-[var(--primary)] hover:bg-[var(--primary)]/20"
+          >
+            + Orçamento
+          </Link>
+        ) : null}
+
         <Link
           href="/crm/kanban"
           className="rounded border border-[var(--border)] px-1.5 py-0.5 font-display-uppercase tracking-widest text-[var(--muted-foreground)] hover:bg-[var(--color-border-soft)]/40"
@@ -237,13 +258,16 @@ export function MesaCardItem({ card }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-display-uppercase tracking-widest text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-              title="Abrir WhatsApp web"
+              title="Abrir WhatsApp web (sem mensagem automática)"
             >
               WhatsApp
             </a>
           </>
         ) : null}
       </footer>
+
+      {/* Mutations seguras (BLOCO 3.2D) · client component · separado visualmente */}
+      <MesaCardActions card={card} />
     </article>
   )
 }
