@@ -18,12 +18,7 @@
 
 import { Suspense } from 'react'
 import Link from 'next/link'
-import {
-  PageHeader,
-  Card,
-  Button,
-  EmptyState,
-} from '@clinicai/ui'
+import { Button } from '@clinicai/ui'
 import { Plus } from 'lucide-react'
 import type {
   AppointmentDTO,
@@ -282,23 +277,26 @@ export default async function AgendaPage({
         </div>
       </div>
 
-      {/* KPIs · 4 cards · `.kpi-grid` + `.kpi-card` LITERAL legacy */}
-      <div className="kpi-grid">
+      {/* KPIs · row horizontal LITERAL · api.js L466-499 (não confundir com
+          .kpi-card vertical do dashboard). Pills inline · 22x22 icon · 18px value */}
+      <div className="agenda-kpi-row">
         <KpiPill
           label="Agendados"
           value={aggregates.agendado.toString()}
           sub={`${aggregates.confirmado} conf.`}
-          iconColor="blue"
+          accent="blue"
+          subTone="emerald"
           icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           }
         />
         <KpiPill
           label="Sem Confirm."
           value={awaitingConfirmation.toString()}
-          iconColor="warning"
+          accent="warning"
+          pillTone={awaitingConfirmation > 0 ? 'warning' : 'default'}
           icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           }
         />
         <KpiPill
@@ -309,18 +307,21 @@ export default async function AgendaPage({
               ? `${Math.round((aggregates.noShow / aggregates.total) * 100)}%`
               : '0%'
           }
-          iconColor="danger"
+          accent="danger"
+          pillTone={aggregates.noShow > 0 ? 'danger' : 'default'}
+          subTone="danger"
           icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           }
         />
         <KpiPill
           label="Prev. | Fat."
           value={BRL.format(aggregates.revenueTotal)}
           sub={BRL.format(aggregates.revenuePaid)}
-          iconColor="emerald"
+          accent="emerald"
+          subTone="emerald"
           icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           }
         />
       </div>
@@ -385,24 +386,15 @@ export default async function AgendaPage({
       {/* Legenda · 11 chips coloridos · LITERAL api.js L431-435 */}
       <StatusLegend />
 
-      {/* Calendario · view switcher · usa filteredAppointments (R3_CRM_3B.3) */}
+      {/* Calendario · sempre visível (legacy mostra grid mesmo vazio · slots
+          vazios viram clickable pra criar appointment) */}
       {view === 'week' && (
-        filteredAppointments.length === 0 ? (
-          <Card className="p-8">
-            <EmptyState
-              variant="generic"
-              title="Sem agendamentos esta semana"
-              message='Clique num slot vazio do calendário ou em "Novo agendamento" pra criar.'
-            />
-          </Card>
-        ) : (
-          <WeekCalendar
-            weekStart={weekStart}
-            appointments={filteredAppointments}
-            startHour={8}
-            endHour={20}
-          />
-        )
+        <WeekCalendar
+          weekStart={weekStart}
+          appointments={filteredAppointments}
+          startHour={8}
+          endHour={20}
+        />
       )}
 
       {view === 'day' && (
@@ -425,31 +417,59 @@ export default async function AgendaPage({
   )
 }
 
-type KpiIconColor = 'blue' | 'emerald' | 'purple' | 'gold' | 'warning' | 'danger'
+type KpiAccent = 'blue' | 'warning' | 'danger' | 'emerald'
 
 interface KpiPillProps {
   label: string
   value: string
+  /** Sub renderizado após separador · ex: "0 conf." ou "0%" */
   sub?: string
-  icon?: React.ReactNode
-  iconColor?: KpiIconColor
+  /** Cor de borda do pill (warning/danger pisca quando há ocorrências) */
+  pillTone?: 'default' | 'warning' | 'danger'
+  /** Cor do ícone+valor */
+  accent: KpiAccent
+  /** Cor do sub (default = mesma do accent) */
+  subTone?: 'emerald' | 'danger' | 'muted'
+  icon: React.ReactNode
 }
 
 /**
- * KpiPill · `.kpi-card` LITERAL · clinic-dashboard/css/style.css L1387-1495.
- * Hierarquia: kpi-card > kpi-card-top (icon + trend) > kpi-value > kpi-label > kpi-sub.
+ * KpiPill · LITERAL · clinic-dashboard/js/api.js L466-499.
+ * Layout HORIZONTAL inline · NÃO usa `.kpi-card` (dashboard).
+ *
+ *   pill > icon-box | label | value | sep | sub
  */
-function KpiPill({ label, value, sub, icon, iconColor = 'gold' }: KpiPillProps) {
+function KpiPill({
+  label,
+  value,
+  sub,
+  pillTone = 'default',
+  accent,
+  subTone,
+  icon,
+}: KpiPillProps) {
+  const pillClass =
+    pillTone === 'warning'
+      ? 'agenda-kpi-pill agenda-kpi-pill-warning'
+      : pillTone === 'danger'
+        ? 'agenda-kpi-pill agenda-kpi-pill-danger'
+        : 'agenda-kpi-pill'
+
   return (
-    <div className="kpi-card">
-      <div className="kpi-card-top">
-        {icon && (
-          <div className={`kpi-icon kpi-icon-${iconColor}`}>{icon}</div>
-        )}
-      </div>
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
+    <div className={pillClass}>
+      <div className={`agenda-kpi-icon agenda-kpi-icon-${accent}`}>{icon}</div>
+      <span className="agenda-kpi-label">{label}</span>
+      <span className={`agenda-kpi-value agenda-kpi-value-${accent}`}>
+        {value}
+      </span>
+      {sub && (
+        <>
+          <span className="agenda-kpi-sep" aria-hidden />
+          <span className={`agenda-kpi-sub agenda-kpi-sub-${subTone ?? 'muted'}`}>
+            {sub}
+          </span>
+        </>
+      )}
     </div>
   )
 }

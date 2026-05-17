@@ -167,81 +167,120 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * kpi-* · LITERAL · style.css L1380-1495
+ * Agenda KPIs · LITERAL · clinic-dashboard/js/api.js L466-499
+ *
+ * Inline horizontal compacto da Agenda (NÃO confundir com .kpi-card
+ * do dashboard que é vertical grande em style.css L1387). O que a
+ * Agenda legacy realmente usa é estilo inline pill horizontal:
+ *
+ *   div { flex:1; background:#fff; border:1px solid #F3F4F6;
+ *         border-radius:10px; padding:8px 18px;
+ *         display:flex; align-items:center; gap:8px }
+ *     box-icon 22x22 radius-6 bg-tint color
+ *     label 10px 700 UPPERCASE color-gray-400
+ *     value 18px 800 color-accent
+ *     separator 1px height-16 bg #E5E7EB
+ *     sub 12px 600 color-accent
  * ═══════════════════════════════════════════════════════════════════ */
 
-.crm-light-scope .kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+.crm-light-scope .agenda-kpi-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.crm-light-scope .kpi-card {
+.crm-light-scope .agenda-kpi-pill {
+  flex: 1;
+  min-width: 180px;
   background: var(--card);
-  border-radius: var(--radius-lg);
-  padding: 18px 18px 14px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition), box-shadow var(--transition);
-  cursor: default;
-}
-
-.crm-light-scope .kpi-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
-}
-
-.crm-light-scope .kpi-card-top {
+  border: 1px solid #F3F4F6;
+  border-radius: 10px;
+  padding: 8px 18px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 8px;
 }
 
-.crm-light-scope .kpi-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-md);
+.crm-light-scope .agenda-kpi-pill-warning {
+  border-color: #FDE68A;
+}
+
+.crm-light-scope .agenda-kpi-pill-danger {
+  border-color: #FECACA;
+}
+
+.crm-light-scope .agenda-kpi-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.crm-light-scope .kpi-icon svg {
-  width: 17px;
-  height: 17px;
-  stroke: currentColor;
-  stroke-width: 2;
+.crm-light-scope .agenda-kpi-icon svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.5;
 }
 
-.crm-light-scope .kpi-icon-blue    { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
-.crm-light-scope .kpi-icon-emerald { background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); }
-.crm-light-scope .kpi-icon-purple  { background: rgba(124, 58, 237, 0.12); color: var(--accent-purple); }
-.crm-light-scope .kpi-icon-gold    { background: rgba(201, 169, 110, 0.15); color: var(--accent-gold); }
-.crm-light-scope .kpi-icon-warning { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
-.crm-light-scope .kpi-icon-danger  { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+.crm-light-scope .agenda-kpi-icon-blue {
+  background: #EFF6FF;
+  color: #3B82F6;
+}
 
-.crm-light-scope .kpi-value {
-  font-size: 26px;
+.crm-light-scope .agenda-kpi-icon-warning {
+  background: #FFFBEB;
+  color: #D97706;
+}
+
+.crm-light-scope .agenda-kpi-icon-danger {
+  background: #FEF2F2;
+  color: #EF4444;
+}
+
+.crm-light-scope .agenda-kpi-icon-emerald {
+  background: #ECFDF5;
+  color: #10B981;
+}
+
+.crm-light-scope .agenda-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.crm-light-scope .agenda-kpi-value {
+  font-size: 18px;
   font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -1px;
-  line-height: 1.1;
-  margin-bottom: 4px;
+  line-height: 1;
 }
 
-.crm-light-scope .kpi-label {
+.crm-light-scope .agenda-kpi-value-blue    { color: #3B82F6; }
+.crm-light-scope .agenda-kpi-value-warning { color: #D97706; }
+.crm-light-scope .agenda-kpi-value-danger  { color: #EF4444; }
+.crm-light-scope .agenda-kpi-value-emerald { color: #10B981; }
+.crm-light-scope .agenda-kpi-value-default { color: var(--text-primary); }
+
+.crm-light-scope .agenda-kpi-sep {
+  width: 1px;
+  height: 16px;
+  background: #E5E7EB;
+}
+
+.crm-light-scope .agenda-kpi-sub {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 2px;
+  white-space: nowrap;
 }
 
-.crm-light-scope .kpi-sub {
-  font-size: 11px;
-  color: var(--text-muted);
-}
+.crm-light-scope .agenda-kpi-sub-emerald { color: #10B981; }
+.crm-light-scope .agenda-kpi-sub-danger  { color: #EF4444; }
+.crm-light-scope .agenda-kpi-sub-muted   { color: var(--text-muted); }
 
 /* ═══════════════════════════════════════════════════════════════════
  * btn-* · LITERAL · style.css L717-756

@@ -126,16 +126,16 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
 
       <div className="flex-1" />
 
-      {/* Fechar o Dia · pill vermelho · disabled · audit legacy abrirFecharDia */}
+      {/* Fechar o Dia · pill vermelho legacy (api.js cores #DC2626 → #B91C1C) */}
       <button
         type="button"
         disabled
         title="Finalização do dia será ativada após validação do fluxo operacional."
         aria-label="Fechar o Dia (em validação)"
-        className="inline-flex h-11 cursor-not-allowed items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white opacity-95"
+        className="inline-flex h-11 cursor-not-allowed items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white"
         style={{
-          background: 'var(--crm-red)',
-          boxShadow: '0 8px 18px rgba(220, 38, 38, 0.18)',
+          background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
+          boxShadow: '0 2px 8px rgba(220,38,38,.35)',
         }}
       >
         <Moon className="h-4 w-4" />
@@ -172,14 +172,14 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         <CheckSquare className="h-4 w-4" />
       </button>
 
-      {/* + Novo dropdown · só rotas existentes (R3_CRM_LIGHT_1 audit) */}
+      {/* + Novo dropdown · pill dourado legacy (.btn-new gradient gold) */}
       <details ref={newDropdownRef} className="relative">
         <summary
           className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white"
           style={{
-            background: 'var(--crm-gold)',
+            background: 'linear-gradient(135deg, #C9A96E, #B8935A)',
             listStyle: 'none',
-            boxShadow: '0 8px 18px rgba(200, 169, 126, 0.18)',
+            boxShadow: '0 2px 8px rgba(201, 169, 110, 0.35)',
           }}
         >
           <Plus className="h-4 w-4" />
@@ -217,12 +217,12 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         >
           {initials}
         </div>
-        <div className="hidden lg:flex flex-col leading-tight">
-          <span className="text-sm font-semibold text-[color:var(--crm-text)]">
+        <div className="hidden md:flex flex-col leading-tight max-w-[140px]">
+          <span className="truncate text-sm font-semibold text-[color:var(--crm-text)]">
             {displayName}
           </span>
           {role && (
-            <span className="text-xs text-[color:var(--crm-muted)] capitalize">
+            <span className="truncate text-xs text-[color:var(--crm-muted)] capitalize">
               {role}
             </span>
           )}
