@@ -30,6 +30,8 @@ import { MonthView } from './_components/month-view'
 import { PeriodNav } from './_components/period-nav'
 import { StatusLegend } from './_components/status-legend'
 import { ViewSwitcher } from './_components/view-switcher'
+import { FinalizarDiaModal } from './_components/finalizar-dia-modal'
+import { BlockTimeButton } from './_components/block-time-button'
 
 const APPOINTMENT_STATUS_ENUM: readonly AppointmentStatus[] = [
   'agendado',
@@ -252,6 +254,15 @@ export default async function AgendaPage({
   // Anchor + label do periodo dependem do view
   const anchor =
     view === 'week' ? weekStart : view === 'day' ? dayDate : month
+
+  // CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 · Finalizar Dia + Block Time
+  // Data alvo do relatório: sempre `dayDate` (= hoje quando view≠day, ou o
+  // dia selecionado quando view=day). Faz mais sentido pra UX "encerrar o
+  // dia operacional" do que tentar consolidar semana inteira.
+  const finalizarDiaDate = dayDate
+  const professionalLabel = profFilter
+    ? professionals.find((p) => p.id === profFilter)?.name ?? 'Profissional'
+    : undefined
   const todayAnchor =
     view === 'week' ? todaySunday : view === 'day' ? todayDate : todayMonth
 
@@ -322,7 +333,7 @@ export default async function AgendaPage({
         </div>
       </div>
 
-      {/* Toolbar legacy · ‹ período › + Horários + Finalizar Dia + Mês/Semana/Hoje + Novo */}
+      {/* Toolbar legacy · ‹ período › + Horários + Finalizar Dia + Bloquear horário + Mês/Semana/Hoje + Novo */}
       <div className="agenda-toolbar">
         <Suspense fallback={null}>
           <PeriodNav view={view} anchor={anchor} todayAnchor={todayAnchor} />
@@ -331,21 +342,24 @@ export default async function AgendaPage({
         <button
           type="button"
           disabled
-          title="Horários · em validação"
+          title="Visão de horários por profissional · recurso em preparação · use o calendário semanal ou diário"
+          aria-label="Horários · em preparação"
           className="btn-outline"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Horários
         </button>
-        <button
-          type="button"
-          disabled
-          title="Finalização do dia será ativada após validação do fluxo operacional."
-          className="btn-outline btn-emerald"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Finalizar Dia
-        </button>
+        {/* CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 · botão habilitado · modal informativa */}
+        <FinalizarDiaModal
+          date={finalizarDiaDate}
+          professionalId={profFilter}
+          professionalLabel={professionalLabel}
+        />
+        {/* CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 · bloqueio de horário (P1.2) */}
+        <BlockTimeButton
+          professionals={professionals}
+          defaultDate={finalizarDiaDate}
+        />
         <Suspense fallback={null}>
           <ViewSwitcher
             current={view}
@@ -400,7 +414,7 @@ export default async function AgendaPage({
       )}
 
       <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">
-        Recurrence wizard, block-time UI, smart-pick → Camada 8c+.
+        Smart-pick → Camada 8c+. Block-time + Finalizar Dia (Lote 3 · 876) ativos.
       </p>
     </div>
   )

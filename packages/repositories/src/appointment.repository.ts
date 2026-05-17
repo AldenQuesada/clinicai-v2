@@ -182,6 +182,11 @@ export class AppointmentRepository {
       consult_type: input.consultType ?? null,
       eval_type: input.evalType ?? null,
       value: input.value ?? 0,
+      // CRM_PARITY_PATCH_0A · paridade legado · payment_method texto livre
+      // (vide PAYMENT_METHODS em legacy/js/agenda-smart.constants.js). `update()`
+      // ja gravava esta coluna · agora `create()` tambem persiste quando
+      // o wizard envia.
+      payment_method: input.paymentMethod ?? null,
       payment_status: input.paymentStatus ?? 'pendente',
       status: input.status ?? 'agendado',
       origem: input.origem ?? null,
@@ -363,15 +368,32 @@ export class AppointmentRepository {
 
   /**
    * Wrapper de `appointment_finalize()` RPC · finaliza consulta + roteia
-   * outcome:
+   * outcome (3 clinicos · PATCH_0C_FINALIZE_BACKEND_GUARD 2026-05-17):
    *   - paciente: chama lead_to_paciente (promove)
    *   - orcamento: chama lead_to_orcamento (cria orcamento + soft-delete lead)
-   *   - perdido: chama lead_lost (reason obrigatorio)
+   *   - paciente_orcamento: chama ambos
+   *
+   * PERDA COMERCIAL NAO PASSA POR AQUI · use `lead_lost(reason)` RPC dedicado
+   * (chamado por markLeadLostAction). Backend mig 151 ainda aceita
+   * p_outcome='perdido' por compat · TS bloqueia desde aqui · mig staged em
+   * clinic-dashboard bloqueia SQL nivel (RAISE EXCEPTION).
    *
    * Sub-RPC pode falhar mesmo com appt finalizado (estado terminal valido) ·
    * UI deve checar `subCall` no result quando ok=true mas tem warning.
    */
   async finalize(input: AppointmentFinalizeRpcInput): Promise<AppointmentFinalizeResult> {
+    // PATCH_0C_FINALIZE_BACKEND_GUARD · defensive runtime guard.
+    // TS ja restringe outcome a 3 valores · este check eh ultima linha
+    // caso caller bypasse tipos (any/JSON dynamic).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((input.outcome as any) === 'perdido') {
+      return {
+        ok: false,
+        error: 'invalid_outcome',
+        detail:
+          'appointment_finalize nao aceita perdido · use lead_lost RPC',
+      } as AppointmentFinalizeResult
+    }
     const itemsForDb = input.orcamentoItems
       ? orcamentoItemsToDbShape(input.orcamentoItems)
       : null
@@ -600,6 +622,185 @@ export class AppointmentRepository {
       bloqueado,
       revenueTotal,
       revenuePaid,
+    }
+  }
+
+  /**
+   * CRM_PACIENTES_KPIS · Retorna appointments futuros (scheduled_date > today)
+   * de pacientes ativos, com status ∈ "futuros agendáveis"
+   * ({agendado, aguardando_confirmacao, confirmado}). Read-only.
+   *
+   * Faz JOIN inner com `patients` (patient_id NOT NULL) pra recuperar
+   * `patients.name + status + last_procedure_at` numa query · usado pelos
+   * 4 KPIs de Retorno da /crm/pacientes:
+   *   1. count distinct patient_id (pacientes com retorno agendado)
+   *   2. total active patients - count distinct (sem retorno)
+   *   3. AVG(scheduledDate - lastProcedureAt) das rows aqui retornadas
+   *   4. ordena por scheduled_date asc → top N pra UI "Próximos retornos"
+   *
+   * Ordem natural: scheduled_date ASC, start_time ASC. Caller pode passar
+   * `limit` pra paginar (default 200 · suficiente pra cobrir top 10 +
+   * derivação dos counts numa clinica pequena/média).
+   *
+   * Filtra `patient.status = 'active'` (somente pacientes em carteira
+   * ativa). Pacientes blocked/deceased/inactive não contam pra "retorno".
+   *
+   * `nowDate` é caller-provided pra permitir testes determinísticos.
+   * Default = today (UTC, YYYY-MM-DD).
+   */
+  async findUpcomingReturnsForActivePatients(
+    clinicId: string,
+    opts: { nowDate?: string; limit?: number } = {},
+  ): Promise<
+    Array<{
+      appointmentId: string
+      patientId: string
+      patientName: string
+      patientLastProcedureAt: string | null
+      scheduledDate: string
+      startTime: string
+      professionalName: string
+    }>
+  > {
+    const nowDate = opts.nowDate ?? new Date().toISOString().slice(0, 10)
+    const limit = Math.min(opts.limit ?? 200, 1000)
+
+    // PostgREST nested resource select · join via FK appointments.patient_id
+    // → patients.id (mig 62). Filtra patient.status='active' via foreign
+    // table operator (PostgREST 12+ syntax: `patients!inner(...)` + .eq
+    // on nested col).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any)
+      .from('appointments')
+      .select(
+        'id, patient_id, scheduled_date, start_time, professional_name, ' +
+          'patients!inner(name, status, last_procedure_at)',
+      )
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .not('patient_id', 'is', null)
+      .gt('scheduled_date', nowDate)
+      .in('status', ['agendado', 'aguardando_confirmacao', 'confirmado'])
+      .eq('patients.status', 'active')
+      .order('scheduled_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(limit)
+
+    if (error || !data) return []
+
+    return (data as unknown as Array<{
+      id: string
+      patient_id: string
+      scheduled_date: string
+      start_time: string
+      professional_name: string | null
+      patients: {
+        name: string | null
+        status: string
+        last_procedure_at: string | null
+      }
+    }>).map((r) => ({
+      appointmentId: r.id,
+      patientId: r.patient_id,
+      patientName: r.patients?.name ?? '',
+      patientLastProcedureAt: r.patients?.last_procedure_at ?? null,
+      scheduledDate: r.scheduled_date,
+      startTime: r.start_time,
+      professionalName: r.professional_name ?? '',
+    }))
+  }
+
+  /**
+   * CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 (mig 876) · wrapper read-only do RPC
+   * `appointment_finalize_day(p_date, p_professional_id)`. Alimenta a modal
+   * "Finalizar Dia" da agenda · puramente informativo · zero mutation no DB.
+   *
+   * Retorna:
+   *   - `summary` · contagens por status (total + 9 buckets canônicos mig 62)
+   *   - `openItems` · appointments pendentes/na_clinica/em_atendimento
+   *      ordenados por start_time ASC (limit 500 client-safe)
+   *
+   * Caller decide UX (modal info-only). NÃO finaliza appointments
+   * automaticamente · operador precisa finalizar 1-a-1 via
+   * `appointment_finalize()` ou marcar no-show via `appointment_change_status`.
+   *
+   * `professionalId` opcional · null = todos os profissionais da clinica.
+   */
+  async getDayReport(
+    date: string,
+    professionalId: string | null = null,
+  ): Promise<
+    | {
+        ok: true
+        date: string
+        professionalId: string | null
+        summary: {
+          total: number
+          finalizados: number
+          pendentes: number
+          naClinica: number
+          emAtendimento: number
+          cancelados: number
+          noShow: number
+          bloqueados: number
+          remarcados: number
+        }
+        openItems: Array<{
+          id: string
+          subjectName: string
+          startTime: string
+          status: AppointmentStatus
+          professionalName: string
+        }>
+      }
+    | { ok: false; error: string }
+  > {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_finalize_day',
+      {
+        p_date: date,
+        p_professional_id: professionalId,
+      },
+    )
+
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    if (r.ok !== true) {
+      return { ok: false, error: r.error ?? 'rpc_returned_not_ok' }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (r.summary ?? {}) as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawOpen = (r.openItems ?? []) as Array<any>
+
+    return {
+      ok: true,
+      date: r.date ?? date,
+      professionalId: (r.professional_id ?? professionalId) || null,
+      summary: {
+        total: Number(s.total ?? 0),
+        finalizados: Number(s.finalizados ?? 0),
+        pendentes: Number(s.pendentes ?? 0),
+        naClinica: Number(s.na_clinica ?? 0),
+        emAtendimento: Number(s.em_atendimento ?? 0),
+        cancelados: Number(s.cancelados ?? 0),
+        noShow: Number(s.no_show ?? 0),
+        bloqueados: Number(s.bloqueados ?? 0),
+        remarcados: Number(s.remarcados ?? 0),
+      },
+      openItems: rawOpen.map((o) => ({
+        id: String(o.id),
+        subjectName: String(o.subjectName ?? ''),
+        startTime: String(o.startTime ?? ''),
+        status: o.status as AppointmentStatus,
+        professionalName: String(o.professionalName ?? ''),
+      })),
     }
   }
 

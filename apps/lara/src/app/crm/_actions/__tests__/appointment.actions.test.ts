@@ -21,7 +21,9 @@ vi.mock('@clinicai/logger', () => ({
 import {
   dragDropAppointmentAction,
   changeAppointmentStatusAction,
+  finalizeAppointmentAction,
 } from '../appointment.actions'
+import { FinalizeAppointmentSchema } from '../../_schemas/appointment.schemas'
 import { applyContextMock } from './_mock-context'
 import { updateTag } from 'next/cache'
 
@@ -213,5 +215,91 @@ describe('changeAppointmentStatusAction', () => {
     })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toBe('transition_not_allowed')
+  })
+})
+
+// ── PATCH_0C_FINALIZE_BACKEND_GUARD · outcome='perdido' rejeitado ──────────
+
+describe('FinalizeAppointmentSchema · outcome guard', () => {
+  const baseInput = {
+    appointmentId: APPT_ID,
+    paymentStatus: 'pago' as const,
+    value: 100,
+  }
+
+  it('aceita outcome=paciente', () => {
+    const r = FinalizeAppointmentSchema.safeParse({
+      ...baseInput,
+      outcome: 'paciente',
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('aceita outcome=orcamento (com orcamentoItems + subtotal)', () => {
+    const r = FinalizeAppointmentSchema.safeParse({
+      ...baseInput,
+      outcome: 'orcamento',
+      orcamentoItems: [
+        { name: 'Item teste', qty: 1, unitPrice: 100, subtotal: 100 },
+      ],
+      orcamentoSubtotal: 100,
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('aceita outcome=paciente_orcamento (com orcamento items + subtotal)', () => {
+    const r = FinalizeAppointmentSchema.safeParse({
+      ...baseInput,
+      outcome: 'paciente_orcamento',
+      orcamentoItems: [
+        { name: 'Item', qty: 1, unitPrice: 50, subtotal: 50 },
+      ],
+      orcamentoSubtotal: 50,
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('REJEITA outcome=perdido · regra arquitetural · perda passa por lead_lost', () => {
+    const r = FinalizeAppointmentSchema.safeParse({
+      ...baseInput,
+      outcome: 'perdido',
+      lostReason: 'teste',
+    })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      // Zod enum rejeita 'perdido' antes de qualquer refine custom
+      expect(r.error.issues.some((i) => i.path[0] === 'outcome')).toBe(true)
+    }
+  })
+
+  it('REJEITA outcome desconhecido (ex: nenhum)', () => {
+    const r = FinalizeAppointmentSchema.safeParse({
+      ...baseInput,
+      outcome: 'nenhum' as 'paciente',
+    })
+    expect(r.success).toBe(false)
+  })
+})
+
+describe('finalizeAppointmentAction · runtime guard defensivo perdido', () => {
+  it('rejeita outcome=perdido com error=invalid_outcome (caso schema bypassed)', async () => {
+    // Caller bypassa o Zod (ex: cast any) · runtime guard defensivo intercepta.
+    // Passa o objeto direto sem chamar Zod · simula caso real onde algum
+    // caller bypassasse o parse (que NÃO acontece via UI mas é defesa em
+    // profundidade).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = await finalizeAppointmentAction({
+      appointmentId: APPT_ID,
+      outcome: 'perdido',
+      lostReason: 'teste motivo bypass',
+    } as any)
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      // Pode vir como zodFail (`invalid_input`) OU como guard runtime
+      // (`invalid_outcome`) · ambos aceitos · defense in depth · qual gate
+      // dispara antes nao importa pra regra arquitetural (perdido nunca
+      // chega no banco via appointment_finalize).
+      expect(['invalid_outcome', 'invalid_input']).toContain(r.error)
+    }
   })
 })

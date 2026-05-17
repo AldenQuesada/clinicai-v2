@@ -54,6 +54,14 @@ interface AppointmentActionsProps {
   consentSigned?: boolean
   /** CRM_PHASE_2J.1 · lead ainda ativo comercialmente · libera Marcar como perdido */
   canMarkLeadLost?: boolean
+  /** PATCH_B · paymentStatus atual do appointment · banner amarelo se pendente/parcial antes de finalizar */
+  currentPaymentStatus?:
+    | 'pendente'
+    | 'parcial'
+    | 'pago'
+    | 'cortesia'
+    | 'isento'
+    | null
 }
 
 const OVERRIDE_ALLOWED_ROLES = new Set(['owner', 'admin'])
@@ -75,6 +83,7 @@ export function AppointmentActions({
   anamnesisStatus = 'none',
   consentSigned = false,
   canMarkLeadLost = false,
+  currentPaymentStatus = null,
 }: AppointmentActionsProps) {
   const router = useRouter()
   const { fromResult, success } = useToast()
@@ -334,6 +343,7 @@ export function AppointmentActions({
         clinicalGateStatus={clinicalGateStatus}
         anamnesisStatus={anamnesisStatus}
         consentSigned={consentSigned}
+        currentPaymentStatus={currentPaymentStatus}
         canOverrideGate={
           typeof role === 'string' && OVERRIDE_ALLOWED_ROLES.has(role)
         }
@@ -386,14 +396,24 @@ function CancelModal({
 
   async function handle() {
     setError(null)
-    if (requiresNotes && notes.trim().length < 2) {
-      setError('Observação obrigatória quando motivo é "Outro"')
+    // PATCH_B · FE-gate · observação obrigatória quando "outro" (min 3 chars).
+    // BE valida motivo composto ≥2 chars (Zod CancelAppointmentSchema), mas
+    // FE empurra pra 3 chars na observação pra forçar contexto útil.
+    if (requiresNotes && notes.trim().length < 3) {
+      setError('Observação obrigatória (mínimo 3 caracteres) quando motivo é "Outro"')
       return
     }
     const label =
       CANCEL_REASONS.find((r) => r.value === reasonCode)?.label ?? reasonCode
     const composed =
       notes.trim().length > 0 ? `${label}: ${notes.trim()}` : label
+
+    // PATCH_B · sanity check final · BE Zod exige ≥2 mas FE garante ≥3 pra
+    // qualquer motivo (label catálogo sempre passa · "outro" forçado acima).
+    if (composed.trim().length < 3) {
+      setError('Motivo inválido · selecione um motivo válido.')
+      return
+    }
 
     setBusy(true)
     try {
@@ -404,12 +424,16 @@ function CancelModal({
     }
   }
 
+  // PATCH_B · botão desabilitado se "outro" + notes vazia (feedback visual)
+  const submitDisabled =
+    busy || (requiresNotes && notes.trim().length < 3)
+
   return (
     <Modal
       open={open}
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title="Cancelar agendamento"
-      description="Selecione o motivo do cancelamento · observação opcional."
+      description="Selecione o motivo do cancelamento · observação obrigatória quando 'Outro'."
       dismissable={!busy}
     >
       <div className="space-y-3">
@@ -451,7 +475,7 @@ function CancelModal({
         <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
           Voltar
         </Button>
-        <Button variant="destructive" onClick={handle} disabled={busy}>
+        <Button variant="destructive" onClick={handle} disabled={submitDisabled}>
           {busy ? 'Cancelando…' : 'Confirmar cancelamento'}
         </Button>
       </div>
@@ -504,14 +528,21 @@ function NoShowModal({
 
   async function handle() {
     setError(null)
-    if (requiresNotes && notes.trim().length < 2) {
-      setError('Observação obrigatória quando motivo é "Outro"')
+    // PATCH_B · FE-gate · "outro" exige observação ≥3 chars.
+    if (requiresNotes && notes.trim().length < 3) {
+      setError('Observação obrigatória (mínimo 3 caracteres) quando motivo é "Outro"')
       return
     }
     const label =
       NO_SHOW_REASONS.find((r) => r.value === reasonCode)?.label ?? reasonCode
     const composed =
       notes.trim().length > 0 ? `${label}: ${notes.trim()}` : label
+
+    // PATCH_B · sanity check final · BE Zod exige ≥2 mas FE garante ≥3.
+    if (composed.trim().length < 3) {
+      setError('Motivo inválido · selecione um motivo válido.')
+      return
+    }
 
     setBusy(true)
     try {
@@ -522,12 +553,16 @@ function NoShowModal({
     }
   }
 
+  // PATCH_B · botão desabilitado se "outro" + notes vazia
+  const submitDisabled =
+    busy || (requiresNotes && notes.trim().length < 3)
+
   return (
     <Modal
       open={open}
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title="Marcar como não compareceu"
-      description="Selecione o motivo do no-show · observação opcional."
+      description="Selecione o motivo do no-show · observação obrigatória quando 'Outro'."
       dismissable={!busy}
     >
       <div className="space-y-3">
@@ -569,7 +604,7 @@ function NoShowModal({
         <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
           Voltar
         </Button>
-        <Button variant="destructive" onClick={handle} disabled={busy}>
+        <Button variant="destructive" onClick={handle} disabled={submitDisabled}>
           {busy ? 'Salvando…' : 'Marcar no-show'}
         </Button>
       </div>
@@ -718,6 +753,22 @@ interface FinalizeWizardProps {
   consentSigned: boolean
   /** Apenas owner/admin pode usar override do hard gate */
   canOverrideGate: boolean
+  /**
+   * PATCH_B · paymentStatus persistido no appointment ANTES de finalizar
+   * (vem do `appointments.payment_status` no servidor · não é o que o
+   * usuário escolhe no select do wizard).
+   *
+   * Banner amarelo aparece quando é `pendente` ou `parcial` · não bloqueia
+   * cegamente · operador marca checkbox "confirmo cobrança separada" pra
+   * passar. NÃO altera comportamento do server action.
+   */
+  currentPaymentStatus?:
+    | 'pendente'
+    | 'parcial'
+    | 'pago'
+    | 'cortesia'
+    | 'isento'
+    | null
   onSuccess: () => void
 }
 
@@ -741,6 +792,7 @@ function FinalizeWizard({
   anamnesisStatus,
   consentSigned,
   canOverrideGate,
+  currentPaymentStatus = null,
   onSuccess,
 }: FinalizeWizardProps) {
   const { fromResult, success, warning } = useToast()
@@ -759,8 +811,24 @@ function FinalizeWizard({
   // CRM_PHASE_2I.1 · override admin
   const [overrideRequested, setOverrideRequested] = React.useState(false)
   const [overrideReason, setOverrideReason] = React.useState('')
+  // PATCH_B · banner pagamento pendente · operador confirma cobrança separada
+  const [confirmedPaymentDespitePending, setConfirmedPaymentDespitePending] =
+    React.useState(false)
 
   const isCortesia = paymentStatus === 'cortesia'
+  // PATCH_B · banner aparece SÓ se appointment chegou com pendente/parcial.
+  // Não bloqueia cegamente: operador pode marcar checkbox "cobrança confirmada"
+  // OU alterar o select pra "pago"/"cortesia"/"isento" no wizard (caso normal:
+  // pagamento foi feito agora). Banner ainda aparece mesmo se o select já
+  // mudou, pra dar awareness de que o appt ENTROU pendente.
+  const showPaymentBanner =
+    currentPaymentStatus === 'pendente' || currentPaymentStatus === 'parcial'
+  // O gate FE só "trava" se o operador NÃO confirmou cobrança E o select
+  // continua em pendente/parcial. Se mudou pra pago/cortesia/isento → libera.
+  const paymentGateBlocking =
+    showPaymentBanner &&
+    (paymentStatus === 'pendente' || paymentStatus === 'parcial') &&
+    !confirmedPaymentDespitePending
 
   const needsOrcamento =
     outcome === 'orcamento' || outcome === 'paciente_orcamento'
@@ -769,13 +837,14 @@ function FinalizeWizard({
   const gateBlocking = clinicalGateStatus === 'warning'
   const overrideValid =
     overrideRequested && overrideReason.trim().length >= 5
-  const submitBlocked = gateBlocking && !overrideValid
+  const submitBlocked = (gateBlocking && !overrideValid) || paymentGateBlocking
 
   React.useEffect(() => {
     if (!open) {
       setError(null)
       setOverrideRequested(false)
       setOverrideReason('')
+      setConfirmedPaymentDespitePending(false)
     }
   }, [open])
 
@@ -791,6 +860,17 @@ function FinalizeWizard({
     // BLOCO 2.4 · cortesia exige motivo (min 3 chars)
     if (isCortesia && motivoCortesia.trim().length < 3) {
       setError('Motivo da cortesia obrigatório (mínimo 3 caracteres)')
+      return
+    }
+
+    // PATCH_B · gate FE de pagamento · não bloqueia se operador confirmou
+    // cobrança separada OU mudou o status pra pago/cortesia/isento.
+    if (paymentGateBlocking) {
+      setError(
+        'Pagamento ainda está como ' +
+          (paymentStatus === 'parcial' ? 'parcial' : 'pendente') +
+          ' · confirme cobrança separada (checkbox acima) ou atualize o status do pagamento.',
+      )
       return
     }
 
@@ -938,6 +1018,51 @@ function FinalizeWizard({
           </p>
         )}
 
+        {/* PATCH_B · banner pagamento pendente/parcial antes de finalizar.
+            Não bloqueia cegamente: operador OU marca "cobrança confirmada
+            separada" OU atualiza select abaixo pra pago/cortesia/isento. */}
+        {showPaymentBanner && (
+          <div
+            role="note"
+            className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 space-y-2 text-xs text-amber-900 dark:text-amber-200"
+          >
+            <div>
+              <strong>
+                Pagamento {currentPaymentStatus === 'parcial' ? 'parcial' : 'pendente'}
+              </strong>{' '}
+              · confirme a cobrança antes de finalizar a consulta. Você pode:
+              <ul className="mt-1 list-disc pl-5">
+                <li>
+                  Atualizar o status do pagamento abaixo (Pago / Cortesia /
+                  Isento), <em>ou</em>
+                </li>
+                <li>
+                  Marcar o checkbox abaixo confirmando que a cobrança foi
+                  feita por outro canal (Pix, link Asaas, máquina, etc).
+                </li>
+              </ul>
+            </div>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={confirmedPaymentDespitePending}
+                onChange={(e) =>
+                  setConfirmedPaymentDespitePending(e.target.checked)
+                }
+                className="mt-0.5"
+              />
+              <span>
+                Confirmo que a cobrança foi realizada separadamente · ciente
+                que o pagamento ficará registrado como{' '}
+                <code className="rounded bg-amber-500/15 px-1">
+                  {paymentStatus}
+                </code>{' '}
+                no histórico.
+              </span>
+            </label>
+          </div>
+        )}
+
         <FormField label="Desfecho" htmlFor="fin-outcome" required>
           <Select
             id="fin-outcome"
@@ -1003,26 +1128,32 @@ function FinalizeWizard({
           </FormField>
         </div>
 
-        {/* BLOCO 2.4 · campo motivo aparece só quando paymentStatus=cortesia */}
+        {/* BLOCO 2.4 + PATCH_B · campo motivo aparece só quando paymentStatus=cortesia.
+            Microcopy reforçada: motivo é obrigatório, vira nota auditável,
+            e exemplos cobrem casos comuns de cortesia (primeira consulta,
+            parceria, indicação, ajuste interno). */}
         {isCortesia && (
           <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-3 space-y-2">
             <FormField
-              label="Motivo da cortesia"
+              label="Motivo da cortesia · obrigatório"
               htmlFor="fin-motivo-cortesia"
               required
-              hint="Ex: primeira consulta · parceria fechada · cortesia institucional · indicação direta da Dra."
+              hint="Registrado no audit · ficará visível no histórico do paciente. Ex: primeira consulta · parceria · indicação · ajuste interno · cortesia institucional"
             >
               <Input
                 id="fin-motivo-cortesia"
                 value={motivoCortesia}
                 onChange={(e) => setMotivoCortesia(e.target.value)}
                 maxLength={500}
-                placeholder="Motivo da cortesia (obrigatório · mínimo 3 caracteres)"
+                placeholder="Ex: primeira consulta, parceria, indicação, ajuste interno..."
+                title="Motivo da cortesia · registrado no audit · obrigatório"
+                aria-required="true"
               />
             </FormField>
             <p className="text-[10px] text-[var(--muted-foreground)]">
-              Valor cobrado fixado em R$ 0,00. O motivo será registrado em
-              notas (prefixo <code>[Cortesia]</code>) para auditoria.
+              Valor cobrado fixado em R$ 0,00. O motivo será prefixado com{' '}
+              <code>[Cortesia]</code> nas notas do appointment para auditoria
+              futura.
             </p>
           </div>
         )}

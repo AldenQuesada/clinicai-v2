@@ -48,6 +48,13 @@ export interface LeadsPageData {
   canView: boolean
   canEdit: boolean
   canDelete: boolean
+  /**
+   * Lote 2 P0.1 (2026-05-17) · permission canônica pra criar lead novo via
+   * wizard. Antes o LeadsClient recebia `canCreate={data.canEdit}` · agora
+   * é separado pra mapear 1:1 com `patients:create`. Comportamento de role
+   * fica idêntico ao painel CRM legacy (receptionist+ podem criar).
+   */
+  canCreate: boolean
 }
 
 function pickFunnel(raw: string | undefined): Funnel | undefined {
@@ -122,6 +129,7 @@ export async function loadLeadsPageData(
     const canView = can(role, 'patients:view')
     const canEdit = can(role, 'patients:edit')
     const canDelete = can(role, 'patients:delete')
+    const canCreate = can(role, 'patients:create')
 
     if (!canView) {
       return {
@@ -132,6 +140,7 @@ export async function loadLeadsPageData(
         canView: false,
         canEdit: false,
         canDelete: false,
+        canCreate: false,
       }
     }
 
@@ -147,7 +156,7 @@ export async function loadLeadsPageData(
       offset,
     })
 
-    return { rows, total, filter, page, canView, canEdit, canDelete }
+    return { rows, total, filter, page, canView, canEdit, canDelete, canCreate }
   } catch (e) {
     console.error('[leads-page-data] loadLeadsPageData failed:', (e as Error).message, (e as Error).stack)
     return {
@@ -158,6 +167,7 @@ export async function loadLeadsPageData(
       canView: false,
       canEdit: false,
       canDelete: false,
+      canCreate: false,
     }
   }
 }

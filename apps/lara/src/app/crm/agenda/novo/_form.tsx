@@ -43,8 +43,15 @@ import {
   createAppointmentAction,
   updateAppointmentAction,
   checkAppointmentConflictAction,
+  type ConflictDetailEntry,
 } from '@/app/crm/_actions/appointment.actions'
+import type { HorariosMap } from '@/app/(authed)/configuracoes/clinica/lib/horarios'
 import { RecurrenceSection, type SeriesBasePayload } from './_components/recurrence-section'
+import {
+  checkInPeriods,
+  checkMinAdvance,
+  getClinicDay,
+} from './_components/agenda-validation'
 
 interface SubjectOption {
   id: string
@@ -93,6 +100,9 @@ interface EditingPrefill {
   procedureName: string
   consultType: string | null
   value: number
+  /** CRM_PARITY_PATCH_0A · payment fields opcionais em edit */
+  paymentMethod?: string | null
+  paymentStatus?: string | null
   status: string
   origem: string | null
   obs: string | null
@@ -106,6 +116,17 @@ export interface NewAppointmentFormProps {
   professionals: ReadonlyArray<ProfessionalOption>
   /** CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · catálogo ativo de clinic_procedimentos */
   procedures: ReadonlyArray<ProcedureOption>
+  /**
+   * CRM_PARITY_PATCH_0A · horários de funcionamento da clínica
+   * (`operating_hours` jsonb). `null` = sem contrato configurado · UI
+   * pula validação de periods.
+   */
+  operatingHours?: HorariosMap | null
+  /**
+   * CRM_PARITY_PATCH_0A · antecedência mínima em horas
+   * (`settings.antecedencia_min`). 0/null = sem regra.
+   */
+  antecedenciaMinHoras?: string | number | null
   prefillDate: string | null
   prefillTime: string | null
   prefillPatient: SubjectOption | null
@@ -132,6 +153,23 @@ interface FormState {
   procedureName: string
   consultType: string
   value: string
+  /**
+   * CRM_PARITY_PATCH_0A · forma de pagamento · texto livre alinhado com
+   * PAYMENT_METHODS canônico do legado. Persiste em
+   * `appointments.payment_method`. Vazio = não definido (NULL no DB).
+   */
+  paymentMethod: string
+  /**
+   * CRM_PARITY_PATCH_0A · status do pagamento · enum mig 152
+   * (`pendente|parcial|pago|cortesia|isento`). Default `pendente`.
+   */
+  paymentStatus: string
+  /**
+   * CRM_PARITY_PATCH_0A · motivo obrigatório quando paymentStatus ∈
+   * {cortesia,isento}. Persiste em `appointments.obs` (prepend) na criação ·
+   * sem schema novo. Fase 2 (Patch B) decide se vira coluna dedicada.
+   */
+  motivoPagamento: string
   status: string
   origem: string
   obs: string
@@ -163,6 +201,35 @@ const STATUS_OPTIONS = [
   { value: 'aguardando_confirmacao', label: 'Aguard. Confirmação' },
   { value: 'confirmado', label: 'Confirmado' },
 ]
+
+// CRM_PARITY_PATCH_0A · paridade 1:1 com PAYMENT_METHODS legado
+// (apps/lara/public/legacy/js/agenda-smart.constants.js linhas 108-119).
+// Texto livre no DB (sem enum) · UI mantém lista canônica pra evitar typos.
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'pix', label: 'PIX' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'debito', label: 'Débito' },
+  { value: 'credito', label: 'Crédito' },
+  { value: 'parcelado', label: 'Parcelado' },
+  { value: 'entrada_saldo', label: 'Entrada + Saldo' },
+  { value: 'boleto', label: 'Boleto' },
+  { value: 'link', label: 'Link Pagamento' },
+  { value: 'cortesia', label: 'Cortesia' },
+  { value: 'convenio', label: 'Convênio' },
+]
+
+// CRM_PARITY_PATCH_0A · enum canônico mig 152
+// (chk_appt_payment_status). `cortesia` ≠ `isento` (vide enums.ts:96-104).
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'pendente', label: 'Pendente' },
+  { value: 'parcial', label: 'Parcial' },
+  { value: 'pago', label: 'Pago' },
+  { value: 'cortesia', label: 'Cortesia · gratuito intencional' },
+  { value: 'isento', label: 'Isento · convênio/parceria' },
+]
+
+const PAYMENT_STATUS_REQUIRES_MOTIVO = new Set(['cortesia', 'isento'])
 
 const ORIGEM_OPTIONS = [
   { value: 'manual', label: 'Manual (recepção)' },
@@ -202,6 +269,8 @@ export function NewAppointmentForm({
   leads,
   professionals,
   procedures,
+  operatingHours = null,
+  antecedenciaMinHoras = null,
   prefillDate,
   prefillTime,
   prefillPatient,
@@ -267,6 +336,10 @@ export function NewAppointmentForm({
     procedureName: editing?.procedureName ?? '',
     consultType: editing?.consultType ?? 'consulta',
     value: editing ? String(editing.value) : '',
+    // CRM_PARITY_PATCH_0A · payment fields (Step 3)
+    paymentMethod: editing?.paymentMethod ?? '',
+    paymentStatus: editing?.paymentStatus ?? 'pendente',
+    motivoPagamento: '',
     status: editing?.status ?? 'agendado',
     origem: editing?.origem ?? 'manual',
     obs: editing?.obs ?? '',
@@ -286,9 +359,19 @@ export function NewAppointmentForm({
     | { kind: 'idle' }
     | { kind: 'checking' }
     | { kind: 'ok' }
-    | { kind: 'conflict'; counts: { professional: number; room: number; patient: number } }
+    | {
+        kind: 'conflict'
+        counts: { professional: number; room: number; patient: number }
+        details: ConflictDetailEntry[]
+      }
     | { kind: 'error' }
   >({ kind: 'idle' })
+
+  // CRM_PARITY_PATCH_0A · erro estrutural de periods/antecedência (validação
+  // pre-submit local, antes de chamar checkAppointmentConflictAction).
+  const [scheduleConstraintError, setScheduleConstraintError] = React.useState<
+    string | null
+  >(null)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setData((d) => ({ ...d, [key]: value }))
@@ -300,6 +383,7 @@ export function NewAppointmentForm({
       key === 'professionalId'
     ) {
       setConflictState({ kind: 'idle' })
+      setScheduleConstraintError(null)
     }
   }
 
@@ -320,6 +404,7 @@ export function NewAppointmentForm({
       endTime: addMinutes(newStart, oldDuration),
     }))
     setConflictState({ kind: 'idle' })
+    setScheduleConstraintError(null)
   }
 
   function handleProcedureSelect(rawValue: string) {
@@ -398,14 +483,54 @@ export function NewAppointmentForm({
       else if (dur > 240) errs.endTime = 'Duração máxima: 4 horas'
     }
     if (!data.professionalId) errs.professionalId = 'Selecione um profissional'
+
+    // CRM_PARITY_PATCH_0A · validação contra clinic_settings (periods +
+    // antecedência mínima). Soft skip se settings indisponível (operatingHours
+    // null OU antecedenciaMinHoras null/0).
+    let constraintErr: string | null = null
+    if (
+      operatingHours &&
+      data.scheduledDate &&
+      data.startTime &&
+      data.endTime &&
+      !errs.scheduledDate &&
+      !errs.startTime &&
+      !errs.endTime
+    ) {
+      const day = getClinicDay(operatingHours, data.scheduledDate)
+      constraintErr = checkInPeriods(day, data.startTime, data.endTime)
+    }
+    if (
+      !constraintErr &&
+      antecedenciaMinHoras != null &&
+      data.scheduledDate &&
+      data.startTime
+    ) {
+      constraintErr = checkMinAdvance(
+        antecedenciaMinHoras,
+        data.scheduledDate,
+        data.startTime,
+      )
+    }
+    setScheduleConstraintError(constraintErr)
     setErrors(errs)
-    return Object.keys(errs).length === 0
+    return Object.keys(errs).length === 0 && !constraintErr
   }
 
   function validateStep3(): boolean {
     const errs: Partial<Record<keyof FormState, string>> = {}
     if (!data.status) errs.status = 'Status obrigatório'
     if (!data.origem) errs.origem = 'Origem obrigatória'
+    if (!data.paymentStatus) errs.paymentStatus = 'Status do pagamento obrigatório'
+    // CRM_PARITY_PATCH_0A · cortesia/isento exige motivo (mínimo 3 chars).
+    // Defesa em profundidade · FinalizeAppointmentSchema já valida no servidor
+    // para cortesia, e aqui exigimos também na criação direta.
+    if (
+      PAYMENT_STATUS_REQUIRES_MOTIVO.has(data.paymentStatus) &&
+      data.motivoPagamento.trim().length < 3
+    ) {
+      errs.motivoPagamento = 'Motivo obrigatório (mínimo 3 caracteres) para cortesia ou isento'
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -427,7 +552,11 @@ export function NewAppointmentForm({
         return false
       }
       if (r.data.hasConflict) {
-        setConflictState({ kind: 'conflict', counts: r.data.counts })
+        setConflictState({
+          kind: 'conflict',
+          counts: r.data.counts,
+          details: r.data.details ?? [],
+        })
         return false
       }
       setConflictState({ kind: 'ok' })
@@ -489,6 +618,35 @@ export function NewAppointmentForm({
     const procedureIdPayload =
       data.procedureMode === 'canonical' && data.procedureId ? data.procedureId : null
 
+    // CRM_PARITY_PATCH_0A · cortesia/isento prepende motivo em obs pra preservar
+    // contexto operacional sem schema novo (mesmo padrão usado em
+    // finalizeAppointmentAction · ver appointment.actions.ts:447-454).
+    const motivoTag =
+      PAYMENT_STATUS_REQUIRES_MOTIVO.has(data.paymentStatus) &&
+      data.motivoPagamento.trim()
+        ? `[${data.paymentStatus === 'cortesia' ? 'Cortesia' : 'Isento'}] ${data.motivoPagamento.trim()}`
+        : null
+    const obsPayload = motivoTag
+      ? `${motivoTag}${data.obs ? `\n\n${data.obs}` : ''}`
+      : data.obs || null
+
+    // CRM_PARITY_PATCH_0A · cortesia força value=0 (defensivo · regra de
+    // negócio do enum, mesma lógica do FinalizeAppointmentSchema:368-380).
+    const valuePayload =
+      data.paymentStatus === 'cortesia'
+        ? 0
+        : data.value
+          ? parseFloat(data.value) || 0
+          : 0
+
+    const paymentMethodPayload = data.paymentMethod || null
+    const paymentStatusPayload = data.paymentStatus as
+      | 'pendente'
+      | 'parcial'
+      | 'pago'
+      | 'cortesia'
+      | 'isento'
+
     setBusy(true)
     try {
       const r = isEdit
@@ -502,12 +660,14 @@ export function NewAppointmentForm({
             procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
-            value: data.value ? parseFloat(data.value) || 0 : 0,
+            value: valuePayload,
+            paymentMethod: paymentMethodPayload,
+            paymentStatus: paymentStatusPayload,
             status: data.status as
               | 'agendado'
               | 'aguardando_confirmacao'
               | 'confirmado',
-            obs: data.obs || null,
+            obs: obsPayload,
           })
         : await createAppointmentAction({
             patientId: data.subjectKind === 'patient' ? data.patientId : null,
@@ -522,28 +682,36 @@ export function NewAppointmentForm({
             procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
-            value: data.value ? parseFloat(data.value) || 0 : 0,
+            value: valuePayload,
+            paymentMethod: paymentMethodPayload,
+            paymentStatus: paymentStatusPayload,
             status: data.status as
               | 'agendado'
               | 'aguardando_confirmacao'
               | 'confirmado',
             origem: data.origem || null,
-            obs: data.obs || null,
+            obs: obsPayload,
           })
 
       if (!r.ok) {
         if (r.error === 'schedule_conflict') {
           warning('Conflito de agenda detectado · revise horário/profissional')
           setStep(2)
-          setConflictState({
-            kind: 'conflict',
-            counts: (r.details as { professional?: number; room?: number; patient?: number } | undefined)
-              ? {
-                  professional: (r.details as { professional?: number }).professional ?? 0,
-                  room: (r.details as { room?: number }).room ?? 0,
-                  patient: (r.details as { patient?: number }).patient ?? 0,
-                }
-              : { professional: 0, room: 0, patient: 0 },
+          // CRM_PARITY_PATCH_0A · re-roda checkAppointmentConflictAction pra
+          // obter `details` enriquecidos (createAppointmentAction só devolve
+          // counts no `details` legado). Fallback: usa counts do retorno.
+          await runConflictCheck().catch(() => {
+            setConflictState({
+              kind: 'conflict',
+              counts: (r.details as { professional?: number; room?: number; patient?: number } | undefined)
+                ? {
+                    professional: (r.details as { professional?: number }).professional ?? 0,
+                    room: (r.details as { room?: number }).room ?? 0,
+                    patient: (r.details as { patient?: number }).patient ?? 0,
+                  }
+                : { professional: 0, room: 0, patient: 0 },
+              details: [],
+            })
           })
           return
         }
@@ -791,19 +959,48 @@ export function NewAppointmentForm({
           {conflictState.kind === 'conflict' && (
             <div className="flex items-start gap-2 rounded-md border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-900 dark:text-red-200">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <strong>Conflito detectado:</strong>
-                <ul className="mt-1 list-disc pl-4">
-                  {conflictState.counts.professional > 0 && (
-                    <li>{conflictState.counts.professional} appointment(s) do mesmo profissional</li>
-                  )}
-                  {conflictState.counts.room > 0 && (
-                    <li>{conflictState.counts.room} appointment(s) na mesma sala</li>
-                  )}
-                  {conflictState.counts.patient > 0 && (
-                    <li>{conflictState.counts.patient} appointment(s) do mesmo paciente/lead</li>
-                  )}
-                </ul>
+                {/* CRM_PARITY_PATCH_0A · conflito não-silencioso · mensagens
+                    granulares por categoria (profissional/sala/paciente) com
+                    nome + horário do appointment conflitante. */}
+                {conflictState.details.length > 0 ? (
+                  <ul className="mt-1 space-y-1 list-disc pl-4">
+                    {conflictState.details.map((d) => (
+                      <li key={`${d.kind}-${d.appointmentId}`}>
+                        {d.kind === 'professional' && (
+                          <>
+                            Profissional ocupado · {d.professionalName || 'sem nome'} já tem consulta {d.startTime}–{d.endTime}
+                            {d.subjectName ? ` com ${d.subjectName}` : ''}.
+                          </>
+                        )}
+                        {d.kind === 'patient' && (
+                          <>
+                            Paciente/lead já tem agenda · {d.subjectName || 'sem nome'} às {d.startTime}–{d.endTime}.
+                          </>
+                        )}
+                        {d.kind === 'room' && (
+                          <>
+                            Sala ocupada · {d.startTime}–{d.endTime}
+                            {d.subjectName ? ` (${d.subjectName})` : ''}.
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ul className="mt-1 list-disc pl-4">
+                    {conflictState.counts.professional > 0 && (
+                      <li>{conflictState.counts.professional} appointment(s) do mesmo profissional</li>
+                    )}
+                    {conflictState.counts.room > 0 && (
+                      <li>{conflictState.counts.room} appointment(s) na mesma sala</li>
+                    )}
+                    {conflictState.counts.patient > 0 && (
+                      <li>{conflictState.counts.patient} appointment(s) do mesmo paciente/lead</li>
+                    )}
+                  </ul>
+                )}
                 <p className="mt-1">Ajuste data, horário ou profissional.</p>
               </div>
             </div>
@@ -813,6 +1010,15 @@ export function NewAppointmentForm({
               Não foi possível verificar conflitos · prosseguir mesmo assim
               é arriscado (servidor revalida no submit).
             </p>
+          )}
+          {scheduleConstraintError && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <strong>Fora do horário permitido:</strong>
+                <p className="mt-1">{scheduleConstraintError}</p>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -935,6 +1141,78 @@ export function NewAppointmentForm({
             </Select>
           </FormField>
 
+          {/* CRM_PARITY_PATCH_0A · Forma de pagamento (texto livre · DB sem
+              enum) + Status do pagamento (enum mig 152). Cortesia/isento
+              exigem motivo (prepend em obs). */}
+          <FormField
+            label="Forma de pagamento"
+            htmlFor="paymentMethod"
+            hint="Opcional · pode ser definido na finalização"
+          >
+            <Select
+              id="paymentMethod"
+              value={data.paymentMethod}
+              onChange={(e) => set('paymentMethod', e.target.value)}
+            >
+              {PAYMENT_METHOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField
+            label="Status do pagamento"
+            htmlFor="paymentStatus"
+            required
+            error={errors.paymentStatus}
+            hint={
+              data.paymentStatus === 'cortesia'
+                ? 'Cortesia força valor 0 · motivo obrigatório'
+                : data.paymentStatus === 'isento'
+                  ? 'Isento exige motivo (convênio/parceria)'
+                  : undefined
+            }
+          >
+            <Select
+              id="paymentStatus"
+              value={data.paymentStatus}
+              onChange={(e) => set('paymentStatus', e.target.value)}
+              invalid={!!errors.paymentStatus}
+            >
+              {PAYMENT_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+
+          {PAYMENT_STATUS_REQUIRES_MOTIVO.has(data.paymentStatus) && (
+            <FormField
+              label={`Motivo · ${data.paymentStatus === 'cortesia' ? 'cortesia' : 'isenção'}`}
+              htmlFor="motivoPagamento"
+              required
+              error={errors.motivoPagamento}
+              className="md:col-span-2"
+              hint="Mínimo 3 caracteres · prepende em observações pra auditoria"
+            >
+              <Textarea
+                id="motivoPagamento"
+                value={data.motivoPagamento}
+                onChange={(e) => set('motivoPagamento', e.target.value)}
+                maxLength={500}
+                rows={2}
+                placeholder={
+                  data.paymentStatus === 'cortesia'
+                    ? 'Ex: cliente VIP, atendimento institucional, fechamento de campanha'
+                    : 'Ex: convênio Unimed, parceria B2B, isenção judicial'
+                }
+              />
+            </FormField>
+          )}
+
           {!isEdit && (
             <FormField label="Origem" htmlFor="origem" required error={errors.origem}>
               <Select
@@ -999,6 +1277,27 @@ export function NewAppointmentForm({
             }
           />
           <SummaryRow label="Valor" value={data.value ? BRL.format(parseFloat(data.value) || 0) : '—'} />
+          <SummaryRow
+            label="Pagamento · forma"
+            value={
+              PAYMENT_METHOD_OPTIONS.find((o) => o.value === data.paymentMethod)?.label ??
+              data.paymentMethod ??
+              '—'
+            }
+          />
+          <SummaryRow
+            label="Pagamento · status"
+            value={
+              PAYMENT_STATUS_OPTIONS.find((o) => o.value === data.paymentStatus)?.label ??
+              data.paymentStatus
+            }
+          />
+          {PAYMENT_STATUS_REQUIRES_MOTIVO.has(data.paymentStatus) && data.motivoPagamento && (
+            <SummaryRow
+              label={`Motivo ${data.paymentStatus}`}
+              value={data.motivoPagamento}
+            />
+          )}
           <SummaryRow
             label="Status inicial"
             value={STATUS_OPTIONS.find((s) => s.value === data.status)?.label ?? data.status}

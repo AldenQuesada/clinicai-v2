@@ -1,16 +1,19 @@
 'use client'
 
 /**
- * LeadTagsPanel · gerencia tags + funnel/phase/temperature.
+ * LeadTagsPanel · gerencia funnel/phase/temperature (tags removidas).
  *
- * Tags vivem no array `leads.tags` (text[]) · server actions append/remove.
+ * Lote 2 P0.2 (2026-05-17): UI de tags livres removida · `leads.tags` está
+ * pausada (ver `apps/lara/docs/OUT_P0_TAGS.md`). Painel mantido pelo nome
+ * histórico e pelos demais controles (funnel/phase/temperature). Rename
+ * fica pra refactor futuro quando tags voltarem.
+ *
  * Mudancas de funnel/phase/temperature usam actions tipadas (sdr_change_phase
  * pra phase preserva audit trail).
  */
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, X } from 'lucide-react'
 import type {
   Funnel,
   LeadDTO,
@@ -18,8 +21,6 @@ import type {
   LeadTemperature,
 } from '@clinicai/repositories'
 import {
-  addLeadTagsAction,
-  removeLeadTagsAction,
   setLeadFunnelAction,
   setLeadPhaseAction,
   setLeadTemperatureAction,
@@ -55,36 +56,7 @@ export function LeadTagsPanel({
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [tags, setTags] = useState<string[]>(lead.tags || [])
-  const [newTag, setNewTag] = useState('')
   const [busy, setBusy] = useState(false)
-
-  async function handleAddTag() {
-    const tag = newTag.trim()
-    if (!tag) return
-    setBusy(true)
-    const result = await addLeadTagsAction(lead.id, [tag])
-    setBusy(false)
-    if (!result.ok) {
-      onToast(result.error || 'Falha ao adicionar tag', 'err')
-      return
-    }
-    setTags(result.data?.tags ?? [...tags, tag])
-    setNewTag('')
-    startTransition(() => router.refresh())
-  }
-
-  async function handleRemoveTag(tag: string) {
-    setBusy(true)
-    const result = await removeLeadTagsAction(lead.id, [tag])
-    setBusy(false)
-    if (!result.ok) {
-      onToast(result.error || 'Falha ao remover tag', 'err')
-      return
-    }
-    setTags(result.data?.tags ?? tags.filter((t) => t !== tag))
-    startTransition(() => router.refresh())
-  }
 
   async function handleFunnel(f: Funnel) {
     if (!canEdit || lead.funnel === f) return

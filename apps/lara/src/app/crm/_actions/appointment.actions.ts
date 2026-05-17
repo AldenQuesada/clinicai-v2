@@ -126,10 +126,25 @@ export async function createAppointmentAction(
 
 // ── 1b. checkAppointmentConflictAction · expõe checkConflicts para UI wizard
 
+// CRM_PARITY_PATCH_0A · feedback de conflito não-silencioso.
+// Mantém `counts` (backwards-compat com consumers existentes) e adiciona
+// `details` com snapshot dos appointments conflitantes pra UI montar
+// mensagem clara ("Profissional X já tem consulta às HH:MM com Y").
+export interface ConflictDetailEntry {
+  kind: 'professional' | 'room' | 'patient'
+  appointmentId: string
+  startTime: string
+  endTime: string
+  professionalName: string | null
+  subjectName: string | null
+  status: string
+}
+
 export async function checkAppointmentConflictAction(input: unknown): Promise<
   Result<{
     hasConflict: boolean
     counts: { professional: number; room: number; patient: number }
+    details: ConflictDetailEntry[]
   }>
 > {
   const parsed = CheckAppointmentConflictSchema.safeParse(input)
@@ -153,9 +168,39 @@ export async function checkAppointmentConflictAction(input: unknown): Promise<
     room: conflicts.room.length,
     patient: conflicts.patient.length,
   }
+  const details: ConflictDetailEntry[] = [
+    ...conflicts.professional.map((a) => ({
+      kind: 'professional' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+    ...conflicts.room.map((a) => ({
+      kind: 'room' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+    ...conflicts.patient.map((a) => ({
+      kind: 'patient' as const,
+      appointmentId: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      professionalName: a.professionalName || null,
+      subjectName: a.subjectName || null,
+      status: a.status,
+    })),
+  ]
   return ok({
     hasConflict: counts.professional + counts.room + counts.patient > 0,
     counts,
+    details,
   })
 }
 
@@ -434,12 +479,26 @@ export async function finalizeAppointmentAction(
   Result<{
     appointmentId: string
     leadId: string | null
-    outcome: 'paciente' | 'orcamento' | 'paciente_orcamento' | 'perdido'
+    outcome: 'paciente' | 'orcamento' | 'paciente_orcamento'
     subCallOk: boolean
   }>
 > {
   const parsed = FinalizeAppointmentSchema.safeParse(input)
   if (!parsed.success) return zodFail(parsed.error)
+
+  // PATCH_0C_FINALIZE_BACKEND_GUARD · defensive runtime guard.
+  // Zod ja rejeita outcome='perdido' no parse acima · este check eh ultima
+  // linha caso schema mude no futuro ou caller bypasse o parse.
+  // Perda comercial passa pelo path dedicado markLeadLostAction (lead_lost RPC).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((parsed.data.outcome as any) === 'perdido') {
+    return {
+      ok: false,
+      error: 'invalid_outcome',
+      detail:
+        'appointment_finalize nao aceita perdido · use markLeadLostAction (lead_lost RPC)',
+    } as never
+  }
 
   const { ctx, repos } = await loadServerReposContext()
 
@@ -871,6 +930,91 @@ export async function createBlockTimeAction(
   )
   updateTag(CRM_TAGS.appointments)
   return ok({ appointmentId: created.id })
+}
+
+// ── CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 · getFinalizarDiaReportAction ──────
+//
+// Wrapper read-only do RPC `appointment_finalize_day` (mig 876).
+// Retorna relatório agregado do dia: summary por status + openItems[]
+// (appointments que ainda precisam ação humana).
+//
+// PURAMENTE INFORMATIVO · zero mutation. O operador finaliza appointments
+// individualmente via `finalizeAppointmentAction` (RPC appointment_finalize)
+// ou `markNoShowAction` (RPC appointment_change_status). Esta action serve
+// pra UI mostrar "quantas consultas ainda faltam encerrar hoje".
+
+const GetFinalizarDiaReportSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve ser YYYY-MM-DD'),
+  professionalId: z.string().uuid().nullable().optional(),
+})
+
+export type FinalizarDiaReport = {
+  date: string
+  professionalId: string | null
+  summary: {
+    total: number
+    finalizados: number
+    pendentes: number
+    naClinica: number
+    emAtendimento: number
+    cancelados: number
+    noShow: number
+    bloqueados: number
+    remarcados: number
+  }
+  openItems: Array<{
+    id: string
+    subjectName: string
+    startTime: string
+    status: string
+    professionalName: string
+  }>
+}
+
+export async function getFinalizarDiaReportAction(
+  input: unknown,
+): Promise<Result<FinalizarDiaReport>> {
+  const parsed = GetFinalizarDiaReportSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+
+  const result = await repos.appointments.getDayReport(
+    parsed.data.date,
+    parsed.data.professionalId ?? null,
+  )
+
+  if (!result.ok) {
+    log.warn(
+      {
+        action: 'crm.appt.finalizeDayReport',
+        clinic_id: ctx.clinic_id,
+        date: parsed.data.date,
+        error: result.error,
+      },
+      'appt.finalizeDayReport.failed',
+    )
+    return fail(result.error)
+  }
+
+  log.info(
+    {
+      action: 'crm.appt.finalizeDayReport',
+      clinic_id: ctx.clinic_id,
+      date: result.date,
+      total: result.summary.total,
+      pendentes: result.summary.pendentes,
+      open_items: result.openItems.length,
+    },
+    'appt.finalizeDayReport.ok',
+  )
+
+  return ok({
+    date: result.date,
+    professionalId: result.professionalId,
+    summary: result.summary,
+    openItems: result.openItems,
+  })
 }
 
 // ── BLOCO 2.2A · createAppointmentSeriesAction · paridade V1 (ATÔMICA) ──────

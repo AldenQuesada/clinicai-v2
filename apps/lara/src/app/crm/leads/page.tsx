@@ -47,7 +47,7 @@ export default async function CrmLeadsPage({
         pageSize={LEADS_PAGE_SIZE}
         canEdit={data.canEdit}
         canDelete={data.canDelete}
-        canCreate={data.canEdit}
+        canCreate={data.canCreate}
       />
     </div>
   )

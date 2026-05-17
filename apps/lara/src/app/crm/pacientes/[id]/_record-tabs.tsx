@@ -39,7 +39,11 @@ import {
   FolderLock,
   StickyNote,
   Receipt,
+  ShieldCheck,
+  ExternalLink,
+  Plus,
 } from 'lucide-react'
+import Link from 'next/link'
 import { sexLabel, formatPhoneBR } from '@clinicai/utils'
 import type {
   AppointmentDTO,
@@ -99,6 +103,7 @@ type TabKey =
   | 'agenda'
   | 'procedimentos'
   | 'anamnese'
+  | 'consent'
   | 'orcamentos'
   | 'timeline'
   | 'documentos'
@@ -114,6 +119,9 @@ const TAB_DEFS: ReadonlyArray<{
   { key: 'agenda', label: 'Agenda', icon: CalendarClock },
   { key: 'procedimentos', label: 'Procedimentos', icon: ListChecks },
   { key: 'anamnese', label: 'Anamnese', icon: ClipboardList },
+  // PATCH_C · Consent/Legal · fonte: appointments.consentimentoImg +
+  // anamnesisRecords.status (mig 166). Read-only.
+  { key: 'consent', label: 'Consentimento', icon: ShieldCheck },
   { key: 'orcamentos', label: 'Orçamentos', icon: Receipt },
   { key: 'timeline', label: 'Timeline', icon: History },
   { key: 'documentos', label: 'Documentos', icon: FolderLock },
@@ -244,7 +252,18 @@ export function PatientRecordTabs({
       {tab === 'anamnese' && (
         <AnamnesisTab records={anamnesisRecords} appointments={appointments} />
       )}
-      {tab === 'orcamentos' && <OrcamentosTab orcamentos={orcamentos} />}
+      {tab === 'consent' && (
+        <ConsentTab
+          appointments={appointments}
+          anamnesisRecords={anamnesisRecords}
+        />
+      )}
+      {tab === 'orcamentos' && (
+        <OrcamentosTab
+          orcamentos={orcamentos}
+          appointments={appointments}
+        />
+      )}
       {tab === 'timeline' && (
         <TimelineTab
           patient={patient}
@@ -572,6 +591,9 @@ function AgendaTab({ appointments }: { appointments: AppointmentDTO[] }) {
         <CardTitle>Histórico de agenda · {appointments.length}</CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">
+          Clique em uma consulta para abrir o detalhe na agenda.
+        </p>
         <table className="w-full text-sm">
           <thead className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
             <tr className="border-b border-[var(--border)]">
@@ -581,10 +603,14 @@ function AgendaTab({ appointments }: { appointments: AppointmentDTO[] }) {
               <th className="py-2 text-left">Profissional</th>
               <th className="py-2 text-left">Status</th>
               <th className="py-2 text-right">Valor</th>
+              <th className="py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((a) => (
+              // PATCH_C · drill-down · cada row tem link "Abrir" na coluna
+              // Ações. NAO faz row inteira clickable (preserva selecao de
+              // texto · evita conflito com tooltip de status).
               <tr key={a.id} className="border-b border-[var(--border)]/60">
                 <td className="py-2">{fmtDate(a.scheduledDate)}</td>
                 <td className="py-2 tabular-nums">
@@ -597,6 +623,17 @@ function AgendaTab({ appointments }: { appointments: AppointmentDTO[] }) {
                 </td>
                 <td className="py-2 text-right tabular-nums">
                   {a.value > 0 ? BRL.format(a.value) : '—'}
+                </td>
+                <td className="py-2 text-right">
+                  <Link
+                    href={`/crm/agenda/${a.id}`}
+                    title="Abrir consulta"
+                    aria-label={`Abrir consulta de ${fmtDate(a.scheduledDate)} ${a.startTime ? a.startTime.slice(0, 5) : ''}`}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-[var(--primary)] hover:bg-[var(--primary)]/10"
+                  >
+                    Abrir
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -833,10 +870,266 @@ function AnamnesisTab({
 
 // ── Orçamentos ─────────────────────────────────────────────────────────────
 
-function OrcamentosTab({ orcamentos }: { orcamentos: OrcamentoDTO[] }) {
+// ── Consentimento/Legal ────────────────────────────────────────────────────
+// PATCH_C · CRM_PARITY_PATCH_C_PATIENT_TABS_CONSENT_LEGAL (2026-05-17)
+//
+// Fonte de dados REAL (auditada · sem schema novo):
+//   1. appointments.consentimentoImg (enum mig 656 · pendente|assinado|
+//      recusado|nao_aplica)
+//   2. appointment_anamneses (mig 166 · status: draft|complete|archived)
+//   3. anamnesisRecords.completedAt
+//
+// Read-only. Empty state real. NAO chama action mutativa. NAO assina.
+// NAO faz upload. NAO cria schema novo. Para alterar consentimento de um
+// appointment, operador usa o detalhe da consulta (/crm/agenda/[id]).
+
+const CONSENT_IMG_LABEL: Record<string, string> = {
+  pendente: 'Pendente',
+  assinado: 'Assinado',
+  recusado: 'Recusado',
+  nao_aplica: 'Não se aplica',
+}
+
+const CONSENT_IMG_TONE: Record<string, string> = {
+  pendente: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  assinado: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  recusado: 'bg-red-500/10 text-red-700 dark:text-red-300',
+  nao_aplica: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300',
+}
+
+function ConsentTab({
+  appointments,
+  anamnesisRecords,
+}: {
+  appointments: AppointmentDTO[]
+  anamnesisRecords: PatientAnamnesisRecordDTO[]
+}) {
+  if (appointments.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-sm text-[var(--muted-foreground)]">
+          Nenhum agendamento registrado · sem dados de consentimento para exibir.
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Index anamneses by appointmentId (status + completedAt)
+  const anamneseByAppt = new Map(
+    anamnesisRecords
+      .filter((r) => r.appointmentId)
+      .map((r) => [r.appointmentId as string, r]),
+  )
+
+  // Sort appointments por scheduled desc
+  const sorted = [...appointments].sort((a, b) => {
+    if (a.scheduledDate !== b.scheduledDate)
+      return b.scheduledDate.localeCompare(a.scheduledDate)
+    return (b.startTime ?? '').localeCompare(a.startTime ?? '')
+  })
+
+  // KPIs agregados (read-only)
+  const totalAppts = appointments.length
+  const consentSigned = appointments.filter(
+    (a) => a.consentimentoImg === 'assinado',
+  ).length
+  const consentPending = appointments.filter(
+    (a) => a.consentimentoImg === 'pendente',
+  ).length
+  const consentRefused = appointments.filter(
+    (a) => a.consentimentoImg === 'recusado',
+  ).length
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" /> Consentimento e Anamnese
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-4 text-[11px] text-[var(--muted-foreground)]">
+          Snapshot agregado de <code>appointments.consentimento_img</code> +
+          status de <code>appointment_anamneses</code> por consulta. Para
+          alterar o estado de uma consulta específica, abra o detalhe da
+          agenda. Esta tab é somente leitura · LGPD/imagem.
+        </p>
+
+        {/* KPIs */}
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-md border border-[var(--border)] p-3">
+            <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+              Consultas
+            </div>
+            <div className="text-xl font-semibold tabular-nums">
+              {totalAppts}
+            </div>
+          </div>
+          <div className="rounded-md border border-emerald-500/30 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+              Assinado
+            </div>
+            <div className="text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+              {consentSigned}
+            </div>
+          </div>
+          <div className="rounded-md border border-amber-500/30 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-400">
+              Pendente
+            </div>
+            <div className="text-xl font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+              {consentPending}
+            </div>
+          </div>
+          <div className="rounded-md border border-red-500/30 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-red-700 dark:text-red-400">
+              Recusado
+            </div>
+            <div className="text-xl font-semibold tabular-nums text-red-700 dark:text-red-300">
+              {consentRefused}
+            </div>
+          </div>
+        </div>
+
+        {/* Lista por appointment */}
+        <table className="w-full text-sm">
+          <thead className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+            <tr className="border-b border-[var(--border)]">
+              <th className="py-2 text-left">Data</th>
+              <th className="py-2 text-left">Procedimento</th>
+              <th className="py-2 text-left">Consentimento de imagem</th>
+              <th className="py-2 text-left">Anamnese</th>
+              <th className="py-2 text-left">Concluída em</th>
+              <th className="py-2 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((a) => {
+              const consentTone =
+                CONSENT_IMG_TONE[a.consentimentoImg] ??
+                'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300'
+              const consentLbl =
+                CONSENT_IMG_LABEL[a.consentimentoImg] ?? a.consentimentoImg
+              const anamnese = anamneseByAppt.get(a.id)
+              const anamneseLabel = anamnese
+                ? anamnese.status ?? 'sem status'
+                : 'sem registro'
+              return (
+                <tr key={a.id} className="border-b border-[var(--border)]/60">
+                  <td className="py-2">{fmtDate(a.scheduledDate)}</td>
+                  <td className="py-2 text-[12px] line-clamp-1 max-w-xs">
+                    {a.procedureName || '—'}
+                  </td>
+                  <td className="py-2">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] ${consentTone}`}
+                    >
+                      {consentLbl}
+                    </span>
+                  </td>
+                  <td className="py-2 text-[11px]">{anamneseLabel}</td>
+                  <td className="py-2 text-[12px]">
+                    {anamnese?.completedAt
+                      ? fmtDateTime(anamnese.completedAt)
+                      : '—'}
+                  </td>
+                  <td className="py-2 text-right">
+                    <Link
+                      href={`/crm/agenda/${a.id}`}
+                      title="Abrir consulta"
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-[var(--primary)] hover:bg-[var(--primary)]/10"
+                    >
+                      Abrir
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        <p className="mt-3 text-[10px] text-[var(--muted-foreground)]">
+          ℹ Documentos legais (TCLE assinado externamente · termos pré-consulta)
+          vivem no fluxo legacy <code>legal_doc_requests</code> · ainda não
+          integrados aqui. Plano em{' '}
+          <code>apps/lara/docs/BACKEND_SQL_GUARD_PENDING.md</code>.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Orçamentos ─────────────────────────────────────────────────────────────
+
+function NewOrcamentoButton({
+  href,
+  disabledReason,
+}: {
+  href: string | null
+  disabledReason: string | null
+}) {
+  if (!href) {
+    return (
+      <button
+        type="button"
+        disabled
+        title={disabledReason ?? 'Indisponível'}
+        className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-[var(--border)] bg-transparent px-3 py-1.5 text-xs text-[var(--muted-foreground)] opacity-60"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Novo orçamento
+      </button>
+    )
+  }
+  return (
+    <Link
+      href={href}
+      title="Criar novo orçamento para este paciente"
+      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/20"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Novo orçamento
+    </Link>
+  )
+}
+
+function OrcamentosTab({
+  orcamentos,
+  appointments,
+}: {
+  orcamentos: OrcamentoDTO[]
+  appointments: AppointmentDTO[]
+}) {
+  // PATCH_C · "+ Novo Orçamento" inline (sem schema novo · fluxo oficial)
+  // /crm/orcamentos/novo exige ?leadId · paciente NAO tem leadId direto no
+  // DTO. Fallback: pega leadId de orçamento existente OU de appointment do
+  // mesmo paciente. Se ambos null, botão fica disabled com motivo claro.
+  const fallbackLeadId =
+    orcamentos.find((o) => o.leadId)?.leadId ??
+    appointments.find((a) => a.leadId)?.leadId ??
+    null
+
+  const newOrcamentoHref = fallbackLeadId
+    ? `/crm/orcamentos/novo?leadId=${fallbackLeadId}`
+    : null
+
   if (orcamentos.length === 0) {
     return (
       <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Orçamentos · 0</CardTitle>
+            <NewOrcamentoButton
+              href={newOrcamentoHref}
+              disabledReason={
+                fallbackLeadId
+                  ? null
+                  : 'Sem lead de origem · crie a partir de /crm/leads'
+              }
+            />
+          </div>
+        </CardHeader>
         <CardContent className="py-12 text-center text-sm text-[var(--muted-foreground)]">
           Nenhum orçamento registrado para este paciente.
         </CardContent>
@@ -846,7 +1139,17 @@ function OrcamentosTab({ orcamentos }: { orcamentos: OrcamentoDTO[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Orçamentos · {orcamentos.length}</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Orçamentos · {orcamentos.length}</CardTitle>
+          <NewOrcamentoButton
+            href={newOrcamentoHref}
+            disabledReason={
+              fallbackLeadId
+                ? null
+                : 'Sem lead de origem · crie a partir de /crm/leads'
+            }
+          />
+        </div>
       </CardHeader>
       <CardContent>
         <table className="w-full text-sm">

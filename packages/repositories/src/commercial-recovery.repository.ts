@@ -177,6 +177,36 @@ interface ViewRow {
   updated_at: string
 }
 
+// Module-scoped twin de ViewRow pra commercial_recovery_workflow_view (2RC.1)
+// Compartilhado entre listWorkflowQueue e os bucket helpers (overdue/today/upcoming).
+interface WorkflowViewRow {
+  item_id: string
+  clinic_id: string
+  source_type: RecoverySourceType
+  source_id: string
+  lead_id: string | null
+  patient_id: string | null
+  appointment_id: string | null
+  orcamento_id: string | null
+  display_name: string | null
+  phone_last4: string | null
+  reason: string | null
+  source_notes: string | null
+  source_event_at: string | null
+  resolved_at: string | null
+  workflow_id: string | null
+  stage: RecoveryStage
+  priority: RecoveryPriority
+  status: RecoveryStatus
+  assigned_to: string | null
+  next_action_type: RecoveryNextActionType | null
+  next_action_at: string | null
+  workflow_note: string | null
+  suggested_message: string | null
+  workflow_updated_at: string | null
+  next_action_overdue: boolean
+}
+
 function mapRow(r: ViewRow): CommercialRecoveryItemDTO {
   return {
     itemId: r.item_id,
@@ -360,65 +390,127 @@ export class CommercialRecoveryRepository {
     const { data, error } = await q
     if (error) return { items: [], error: error.message }
 
-    interface ViewRow {
-      item_id: string
-      clinic_id: string
-      source_type: RecoverySourceType
-      source_id: string
-      lead_id: string | null
-      patient_id: string | null
-      appointment_id: string | null
-      orcamento_id: string | null
-      display_name: string | null
-      phone_last4: string | null
-      reason: string | null
-      source_notes: string | null
-      source_event_at: string | null
-      resolved_at: string | null
-      workflow_id: string | null
-      stage: RecoveryStage
-      priority: RecoveryPriority
-      status: RecoveryStatus
-      assigned_to: string | null
-      next_action_type: RecoveryNextActionType | null
-      next_action_at: string | null
-      workflow_note: string | null
-      suggested_message: string | null
-      workflow_updated_at: string | null
-      next_action_overdue: boolean
-    }
-
-    const items: RecoveryWorkflowItemDTO[] = (data as ViewRow[] | null ?? []).map(
-      (r) => ({
-        itemId: r.item_id,
-        clinicId: r.clinic_id,
-        sourceType: r.source_type,
-        sourceId: r.source_id,
-        leadId: r.lead_id,
-        patientId: r.patient_id,
-        appointmentId: r.appointment_id,
-        orcamentoId: r.orcamento_id,
-        displayName: r.display_name,
-        phoneLast4: r.phone_last4,
-        reason: r.reason,
-        sourceNotes: r.source_notes,
-        sourceEventAt: r.source_event_at,
-        resolvedAt: r.resolved_at,
-        workflowId: r.workflow_id,
-        stage: r.stage,
-        priority: r.priority,
-        status: r.status,
-        assignedTo: r.assigned_to,
-        nextActionType: r.next_action_type,
-        nextActionAt: r.next_action_at,
-        workflowNote: r.workflow_note,
-        suggestedMessage: r.suggested_message,
-        workflowUpdatedAt: r.workflow_updated_at,
-        nextActionOverdue: r.next_action_overdue,
-      }),
+    const items: RecoveryWorkflowItemDTO[] = (data as WorkflowViewRow[] | null ?? []).map(
+      (r) => this.mapWorkflowRow(r),
     )
 
     return { items }
+  }
+
+  // ── Bucket helpers (Lote 3 · scheduler view) ────────────────────────────
+  //
+  // 3 buckets read-only sobre commercial_recovery_workflow_view · status='aberto'
+  //   - listOverdue   · next_action_at < now()
+  //   - listToday     · next_action_at::date = current_date
+  //   - listUpcoming  · next_action_at > now() · próximos 7 dias
+  //
+  // Zero side-effect · zero cron · zero envio. Só read.
+  //
+  // Compartilha o mesmo mapping de listWorkflowQueue.
+
+  private mapWorkflowRow(r: WorkflowViewRow): RecoveryWorkflowItemDTO {
+    return {
+      itemId: r.item_id,
+      clinicId: r.clinic_id,
+      sourceType: r.source_type,
+      sourceId: r.source_id,
+      leadId: r.lead_id,
+      patientId: r.patient_id,
+      appointmentId: r.appointment_id,
+      orcamentoId: r.orcamento_id,
+      displayName: r.display_name,
+      phoneLast4: r.phone_last4,
+      reason: r.reason,
+      sourceNotes: r.source_notes,
+      sourceEventAt: r.source_event_at,
+      resolvedAt: r.resolved_at,
+      workflowId: r.workflow_id,
+      stage: r.stage,
+      priority: r.priority,
+      status: r.status,
+      assignedTo: r.assigned_to,
+      nextActionType: r.next_action_type,
+      nextActionAt: r.next_action_at,
+      workflowNote: r.workflow_note,
+      suggestedMessage: r.suggested_message,
+      workflowUpdatedAt: r.workflow_updated_at,
+      nextActionOverdue: r.next_action_overdue,
+    }
+  }
+
+  /**
+   * Itens com `next_action_at < now()` e status aberto. Ordenado pelo mais
+   * antigo primeiro (maior atraso). Limit defensivo (default 50).
+   *
+   * READ-ONLY · não dispara envio · não muta workflow.
+   */
+  async listOverdue(limit = 50): Promise<{ items: RecoveryWorkflowItemDTO[]; error?: string }> {
+    const nowIso = new Date().toISOString()
+    const { data, error } = await this.supabase
+      .from('commercial_recovery_workflow_view')
+      .select('*')
+      .eq('status', 'aberto')
+      .not('next_action_at', 'is', null)
+      .lt('next_action_at', nowIso)
+      .order('next_action_at', { ascending: true })
+      .limit(limit)
+
+    if (error) return { items: [], error: error.message }
+    return { items: (data as WorkflowViewRow[] | null ?? []).map((r) => this.mapWorkflowRow(r)) }
+  }
+
+  /**
+   * Itens com `next_action_at` HOJE (na timezone do servidor Postgres) e
+   * status aberto. Ordenado pelo horário ascendente (mais cedo primeiro).
+   *
+   * READ-ONLY.
+   */
+  async listToday(limit = 50): Promise<{ items: RecoveryWorkflowItemDTO[]; error?: string }> {
+    const now = new Date()
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(now)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    const { data, error } = await this.supabase
+      .from('commercial_recovery_workflow_view')
+      .select('*')
+      .eq('status', 'aberto')
+      .gte('next_action_at', startOfDay.toISOString())
+      .lte('next_action_at', endOfDay.toISOString())
+      .order('next_action_at', { ascending: true })
+      .limit(limit)
+
+    if (error) return { items: [], error: error.message }
+    return { items: (data as WorkflowViewRow[] | null ?? []).map((r) => this.mapWorkflowRow(r)) }
+  }
+
+  /**
+   * Itens com `next_action_at` nos PRÓXIMOS 7 dias (a partir de amanhã 00:00) e
+   * status aberto. Ordenado pelo mais próximo. Default limit 20.
+   *
+   * READ-ONLY.
+   */
+  async listUpcoming(limit = 20): Promise<{ items: RecoveryWorkflowItemDTO[]; error?: string }> {
+    const now = new Date()
+    const startTomorrow = new Date(now)
+    startTomorrow.setDate(startTomorrow.getDate() + 1)
+    startTomorrow.setHours(0, 0, 0, 0)
+    const endHorizon = new Date(now)
+    endHorizon.setDate(endHorizon.getDate() + 7)
+    endHorizon.setHours(23, 59, 59, 999)
+
+    const { data, error } = await this.supabase
+      .from('commercial_recovery_workflow_view')
+      .select('*')
+      .eq('status', 'aberto')
+      .gte('next_action_at', startTomorrow.toISOString())
+      .lte('next_action_at', endHorizon.toISOString())
+      .order('next_action_at', { ascending: true })
+      .limit(limit)
+
+    if (error) return { items: [], error: error.message }
+    return { items: (data as WorkflowViewRow[] | null ?? []).map((r) => this.mapWorkflowRow(r)) }
   }
 
   /**

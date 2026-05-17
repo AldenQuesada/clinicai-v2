@@ -15,14 +15,18 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { PageHeader, Button } from '@clinicai/ui'
 import { Plus } from 'lucide-react'
+import { createLogger } from '@clinicai/logger'
 import { loadServerReposContext } from '@/lib/repos'
 import { KpiCards } from './_components/kpi-cards'
 import { PatientFilters } from './_components/patient-filters'
 import { SortHeader } from './_components/sort-header'
 import { ExportButton } from './_components/export-button'
 import { PatientListTable } from './_components/patient-list-table'
+import { RetornoKpis } from './_components/retorno-kpis'
 
 export const dynamic = 'force-dynamic'
+
+const log = createLogger({ app: 'lara' })
 
 const PER_PAGE = 20
 
@@ -81,32 +85,55 @@ export default async function PatientsListPage({
     createdUntil,
   }
 
-  // KPIs + lista + count + orcamentos abertos · todos em paralelo
+  // KPIs + lista + count + orcamentos abertos + retornos · todos em paralelo
   const todayIso = new Date().toISOString().slice(0, 10)
-  const [aggregates, patients, totalCount, orcSentCount, orcSentRows] =
-    await Promise.all([
-      repos.patients.aggregates(ctx.clinic_id).catch(() => ({
-        total: 0,
-        active: 0,
-        churn: 0,
-        churnPct: 0,
-        revenueTotal: 0,
-        proceduresTotal: 0,
-        ticketAvg: 0,
-      })),
-      repos.patients.list(ctx.clinic_id, {
-        ...filterArgs,
-        sort: sortField,
-        sortDir,
-        limit: PER_PAGE,
-        offset: (page - 1) * PER_PAGE,
+  const [
+    aggregates,
+    patients,
+    totalCount,
+    orcSentCount,
+    orcSentRows,
+    upcomingReturnsResult,
+  ] = await Promise.all([
+    repos.patients.aggregates(ctx.clinic_id).catch(() => ({
+      total: 0,
+      active: 0,
+      churn: 0,
+      churnPct: 0,
+      revenueTotal: 0,
+      proceduresTotal: 0,
+      ticketAvg: 0,
+    })),
+    repos.patients.list(ctx.clinic_id, {
+      ...filterArgs,
+      sort: sortField,
+      sortDir,
+      limit: PER_PAGE,
+      offset: (page - 1) * PER_PAGE,
+    }),
+    repos.patients.countWithFilters(ctx.clinic_id, filterArgs),
+    repos.orcamentos.countByStatus(ctx.clinic_id, 'sent').catch(() => 0),
+    repos.orcamentos
+      .list(ctx.clinic_id, { status: 'sent', limit: 500 })
+      .catch(() => []),
+    // CRM_PACIENTES_KPIS · 4 KPIs de Retorno · loga erro real, não engole.
+    // Fallback retorna array vazio · empty state cobre.
+    repos.appointments
+      .findUpcomingReturnsForActivePatients(ctx.clinic_id, { limit: 500 })
+      .then((rows) => ({ ok: true as const, rows }))
+      .catch((err: unknown) => {
+        log.error(
+          {
+            clinic_id: ctx.clinic_id,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'crm.pacientes.upcoming_returns_fetch_failed',
+        )
+        return { ok: false as const, rows: [] }
       }),
-      repos.patients.countWithFilters(ctx.clinic_id, filterArgs),
-      repos.orcamentos.countByStatus(ctx.clinic_id, 'sent').catch(() => 0),
-      repos.orcamentos
-        .list(ctx.clinic_id, { status: 'sent', limit: 500 })
-        .catch(() => []),
-    ])
+  ])
+
+  const upcomingReturns = upcomingReturnsResult.rows
 
   const orcSentValue = orcSentRows.reduce((sum, o) => sum + Number(o.total), 0)
 
@@ -154,6 +181,11 @@ export default async function PatientsListPage({
         orcamentoOpenValue={orcSentValue}
       />
 
+      <RetornoKpis
+        activePatientCount={aggregates.active}
+        upcomingReturns={upcomingReturns}
+      />
+
       <div className="mt-6">
         <Suspense fallback={null}>
           <PatientFilters />
@@ -191,10 +223,6 @@ export default async function PatientsListPage({
         }}
       />
 
-      <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">
-        2 KPIs deferidos pra Camada 8 (Agenda): Retorno (count com appointments
-        futuros) + Return Days médio.
-      </p>
     </div>
   )
 }

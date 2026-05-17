@@ -291,6 +291,13 @@ export interface CreateAppointmentInput {
   consultType?: string | null
   evalType?: string | null
   value?: number
+  /**
+   * CRM_PARITY_PATCH_0A · paridade com legado (PAYMENT_METHODS canônico em
+   * agenda-smart.constants.js). Coluna `appointments.payment_method` ja
+   * existia · `update()` ja gravava · agora `create()` tambem aceita.
+   * Texto livre · sem enum no DB (contrato historico legado).
+   */
+  paymentMethod?: string | null
   paymentStatus?: AppointmentPaymentStatus
   status?: AppointmentStatus
   origem?: string | null

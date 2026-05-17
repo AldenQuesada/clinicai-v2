@@ -25,12 +25,14 @@ import type {
 import type { DedupHit, LeadDTO } from './types/dtos'
 import type { LeadPhase, LeadTemperature } from './types/enums'
 import type {
+  LeadArchiveResult,
   LeadCreateResult,
   LeadLostResult,
   LeadRecoverResult,
   LeadToAppointmentResult,
   LeadToOrcamentoResult,
   LeadToPacienteResult,
+  LeadUnarchiveResult,
   SdrChangePhaseResult,
 } from './types/rpc'
 
@@ -127,30 +129,21 @@ export class LeadRepository {
   /**
    * @deprecated leads.tags does not exist in production. The column was
    * removed during REFACTOR_LEAD_MODEL but this method still references it.
-   * Calls fail silently · merged set never reaches DB. Do not use until
-   * persistent tag architecture is restored (either ADD COLUMN leads.tags
-   * back or introduce conversation_tags table). Pills/filas operacionais
-   * governed by wa_conversations_operational_view since 2026-05-05.
    *
-   * Append-only · soma novas tags as existentes (dedup) e devolve set final.
-   * Retorna [] se algo falhar · caller decide se trata como erro.
+   * Lote 2 P0.2 (2026-05-17): mudança de comportamento · agora LANÇA erro
+   * ao invés de falhar silenciosamente. Calls remanescentes precisam ser
+   * removidas. Ver `apps/lara/docs/OUT_P0_TAGS.md`.
+   *
+   * Pra reabilitar: 1) audit SQL pra decidir schema (leads.tags vs
+   * conversation_tags) · 2) migration nova · 3) restaurar implementação
+   * append-only e remover o throw.
    */
   async addTags(leadId: string, newTags: string[]): Promise<string[]> {
-    if (!newTags.length) return []
-
-    const { data: row } = await this.supabase
-      .from('leads')
-      .select('tags')
-      .eq('id', leadId)
-      .single()
-
-    const existing: string[] = Array.isArray(row?.tags) ? row.tags : []
-    const merged = Array.from(new Set([...existing, ...newTags]))
-
-    if (merged.length === existing.length) return existing
-
-    await this.supabase.from('leads').update({ tags: merged }).eq('id', leadId)
-    return merged
+    void leadId
+    void newTags
+    throw new Error(
+      'TAGS_NOT_SUPPORTED · pending audit · ver doc OUT_P0_TAGS · LeadRepository.addTags',
+    )
   }
 
   async setFunnel(
@@ -267,29 +260,30 @@ export class LeadRepository {
   }
 
   /**
-   * Toggle de tag · remove se ja tem, adiciona se nao tem. Retorna set final.
+   * @deprecated leads.tags does not exist in production · ver `addTags`.
+   *
+   * Lote 2 P0.2 (2026-05-17): LANÇA erro · ver OUT_P0_TAGS.md.
    */
   async toggleTag(leadId: string, tag: string): Promise<string[]> {
-    const existing = await this.getTags(leadId)
-    const has = existing.includes(tag)
-    const next = has ? existing.filter((t) => t !== tag) : [...existing, tag]
-    await this.supabase.from('leads').update({ tags: next }).eq('id', leadId)
-    return next
+    void leadId
+    void tag
+    throw new Error(
+      'TAGS_NOT_SUPPORTED · pending audit · ver doc OUT_P0_TAGS · LeadRepository.toggleTag',
+    )
   }
 
   /**
-   * @deprecated leads.tags does not exist in production · ver `addTags` pra
-   * contexto. Não usar até arquitetura de tags persistentes ser restaurada.
+   * @deprecated leads.tags does not exist in production · ver `addTags`.
    *
-   * Remove tags especificas · op-set inverso de addTags.
+   * Lote 2 P0.2 (2026-05-17): mudança de comportamento · agora LANÇA erro
+   * ao invés de falhar silenciosamente. Ver `apps/lara/docs/OUT_P0_TAGS.md`.
    */
   async removeTags(leadId: string, tagsToRemove: string[]): Promise<string[]> {
-    if (!tagsToRemove.length) return []
-    const existing = await this.getTags(leadId)
-    const next = existing.filter((t) => !tagsToRemove.includes(t))
-    if (next.length === existing.length) return existing
-    await this.supabase.from('leads').update({ tags: next }).eq('id', leadId)
-    return next
+    void leadId
+    void tagsToRemove
+    throw new Error(
+      'TAGS_NOT_SUPPORTED · pending audit · ver doc OUT_P0_TAGS · LeadRepository.removeTags',
+    )
   }
 
   async getTags(leadId: string): Promise<string[]> {
@@ -361,6 +355,31 @@ export class LeadRepository {
     for (const row of (data ?? [])) {
       const dto = mapLeadRow(row)
       map.set(dto.phone, dto)
+    }
+    return map
+  }
+
+  /**
+   * Bulk fetch por IDs · usado pra resolucao de nomes em listagens
+   * (ex: /crm/orcamentos mostra lead_id bruto · UI precisa do nome).
+   * Read-only, soft-delete-aware. Retorna Map<leadId, LeadDTO> · IDs
+   * nao encontrados ficam ausentes do mapa (caller decide fallback).
+   *
+   * Cap defensivo 500 IDs · acima disso eh sinal de page-size errado.
+   */
+  async findByIds(clinicId: string, ids: string[]): Promise<Map<string, LeadDTO>> {
+    const map = new Map<string, LeadDTO>()
+    if (!ids.length) return map
+    const safeIds = Array.from(new Set(ids)).slice(0, 500)
+    const { data } = await this.supabase
+      .from('leads')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .in('id', safeIds)
+      .is('deleted_at', null)
+    for (const row of (data ?? [])) {
+      const dto = mapLeadRow(row)
+      map.set(dto.id, dto)
     }
     return map
   }
@@ -1186,6 +1205,47 @@ export class LeadRepository {
     // string · cast via unknown pra projetar pro shape declarado em
     // `LeadExportRow` (colunas garantidas pelo schema · vide types.ts:8181).
     return ((data ?? []) as unknown) as LeadExportRow[]
+  }
+
+  // ── CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · Agente C ─────────────────────
+  // Wrappers das RPCs lead_archive / lead_unarchive (mig 875 · clinic-dashboard).
+  // Lifecycle ortogonal a phase · phase é PRESERVADA · NÃO usa deleted_at.
+
+  /**
+   * Wrapper de `lead_archive(p_lead_id, p_reason)`. Seta
+   * `lifecycle_status='arquivado'` preservando `phase`. Idempotente: se já
+   * estava arquivado, retorna `ok=true` com `idempotentSkip=true`.
+   *
+   * Reason obrigatório (>=3 chars · validado server-side também).
+   */
+  async archive(leadId: string, reason: string): Promise<LeadArchiveResult> {
+    const { data, error } = await this.supabase.rpc('lead_archive', {
+      p_lead_id: leadId,
+      p_reason: reason,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadArchiveResult
+    }
+    return mapRpcResult<LeadArchiveResult>(data)
+  }
+
+  /**
+   * Wrapper de `lead_unarchive(p_lead_id, p_reason)`. Seta
+   * `lifecycle_status='ativo'` preservando `phase`. NÃO idempotente:
+   * retorna `error='not_archived'` se lead não estava arquivado (proteção
+   * contra call inválido vindo de UI fora de sincronia).
+   *
+   * Reason obrigatório (>=3 chars · validado server-side também).
+   */
+  async unarchive(leadId: string, reason: string): Promise<LeadUnarchiveResult> {
+    const { data, error } = await this.supabase.rpc('lead_unarchive', {
+      p_lead_id: leadId,
+      p_reason: reason,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message } as LeadUnarchiveResult
+    }
+    return mapRpcResult<LeadUnarchiveResult>(data)
   }
 }
 

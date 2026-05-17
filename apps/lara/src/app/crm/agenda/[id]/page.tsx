@@ -197,6 +197,7 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
               anamnesisStatus={clinicalData.anamnesis.status}
               consentSigned={clinicalData.consent.signed}
               canMarkLeadLost={canMarkLeadLost}
+              currentPaymentStatus={appt.paymentStatus}
             />
           </CardContent>
         </Card>

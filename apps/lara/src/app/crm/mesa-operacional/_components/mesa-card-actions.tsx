@@ -6,13 +6,17 @@
  * Botões de mutação inline no card da Mesa Operacional. Cada bucket habilita
  * apenas as ações seguras pra ele:
  *
- *   - lead        · Perder (motivo obrigatório)
- *   - agendado    · Chegou + Cancelar (motivo obrigatório se permitido) + Perder
+ *   - lead        · Perder · Arquivar (motivo obrigatório)
+ *   - agendado    · Chegou · Cancelar (motivo se permitido) · Perder · Arquivar
  *   - paciente    · (sem mutação · só links via mesa-card)
  *   - orcamento   · (sem mutação · só links via mesa-card)
  *   - paciente_orcamento · (sem mutação · só links via mesa-card)
- *   - perdido     · Recuperar (motivo obrigatório)
- *   - arquivado   · read-only (lead_archive/unarchive não existem)
+ *   - perdido     · Recuperar · Arquivar (motivo obrigatório)
+ *   - arquivado   · Desarquivar (motivo obrigatório · ÚNICA ação)
+ *
+ * CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · Agente C habilitou Arquivar (lead/
+ * agendado/perdido) + Desarquivar (arquivado). Bucket arquivado deixou de
+ * ser read-only após mig 875 (lead_archive/unarchive RPCs).
  *
  * Usa Modal do @clinicai/ui · useTransition pra loading · useToast pra
  * feedback. Sem provider externo, sem WhatsApp automático.
@@ -22,10 +26,12 @@ import { useState, useTransition } from 'react'
 import { Modal, Button, useToast } from '@clinicai/ui'
 import type { MesaCard } from '@clinicai/repositories'
 import {
+  archiveLeadFromMesaAction,
+  cancelAppointmentFromMesaAction,
+  markArrivedFromMesaAction,
   markLeadLostFromMesaAction,
   recoverLeadFromMesaAction,
-  markArrivedFromMesaAction,
-  cancelAppointmentFromMesaAction,
+  unarchiveLeadFromMesaAction,
 } from '../_actions'
 
 interface Props {
@@ -61,9 +67,27 @@ export function MesaCardActions({ card }: Props) {
     !!card.appointmentId &&
     !!card.appointmentStatus &&
     !CANCEL_BLOCKED_STATUSES.has(card.appointmentStatus)
+  // CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · Arquivar disponível em buckets
+  // ativos (lead/agendado) E em perdido (decisão humana de retirar perdido
+  // da fila de Recuperação por motivo qualitativo). NÃO disponível em
+  // paciente/orcamento/paciente_orcamento (esses têm trilho próprio).
+  const showArchive =
+    card.bucket === 'lead' ||
+    card.bucket === 'agendado' ||
+    card.bucket === 'perdido'
+  // Desarquivar é EXCLUSIVO do bucket arquivado · única ação possível lá.
+  const showUnarchive = card.bucket === 'arquivado'
 
-  // Bucket arquivado é read-only · não renderiza nada
-  if (!showLost && !showRecover && !showAttend && !showCancel) return null
+  if (
+    !showLost &&
+    !showRecover &&
+    !showAttend &&
+    !showCancel &&
+    !showArchive &&
+    !showUnarchive
+  ) {
+    return null
+  }
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1 border-t border-dashed border-[var(--border)] pt-1.5">
@@ -71,6 +95,8 @@ export function MesaCardActions({ card }: Props) {
       {showCancel ? <CancelButton card={card} /> : null}
       {showRecover ? <RecoverButton card={card} /> : null}
       {showLost ? <LostButton card={card} /> : null}
+      {showArchive ? <ArchiveButton card={card} /> : null}
+      {showUnarchive ? <UnarchiveButton card={card} /> : null}
     </div>
   )
 }
@@ -319,6 +345,160 @@ function RecoverButton({ card }: Props) {
           onCancel={() => setOpen(false)}
           onConfirm={submit}
           confirmLabel="Recuperar"
+          confirmVariant="default"
+        />
+      </Modal>
+    </>
+  )
+}
+
+// ─── Arquivar lead · CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · modal motivo ──
+// Disponível em lead / agendado / perdido. lifecycle_status='arquivado' ·
+// phase preservado. Idempotente (toast distinto se já estava arquivado).
+
+function ArchiveButton({ card }: Props) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [pending, startTransition] = useTransition()
+  const toast = useToast()
+
+  const submit = () => {
+    const value = reason.trim()
+    if (value.length < 3) {
+      toast.warning('Motivo precisa ter no mínimo 3 caracteres')
+      return
+    }
+    startTransition(async () => {
+      const r = await archiveLeadFromMesaAction({
+        leadId: card.leadId,
+        reason: value,
+      })
+      toast.fromResult(r, {
+        successMsg: r.ok && r.data.idempotentSkip
+          ? 'Lead já estava arquivado (sem mudança)'
+          : 'Lead arquivado',
+        errorMessages: {
+          invalid_input: 'Motivo inválido (mín 3 caracteres)',
+          reason_too_short: 'Motivo precisa ter no mínimo 3 caracteres',
+          lead_not_found: 'Lead não encontrado ou já excluído',
+          no_clinic_in_jwt: 'Sessão sem clínica · faça login novamente',
+          forbidden: 'Sem permissão para arquivar',
+        },
+      })
+      if (r.ok) {
+        setOpen(false)
+        setReason('')
+      }
+    })
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="h-6 px-2 text-[10px]"
+      >
+        Arquivar
+      </Button>
+      <Modal
+        open={open}
+        onOpenChange={(o) => {
+          if (!pending) setOpen(o)
+        }}
+        title={`Arquivar registro? · ${card.name ?? '(sem nome)'}`}
+        description="O registro sairá da operação diária, mas o histórico será preservado. A fase atual não será alterada · pode ser reativado a qualquer momento."
+        dismissable={!pending}
+      >
+        <ReasonForm
+          value={reason}
+          onChange={setReason}
+          placeholder="Ex: lead duplicado, mudou de cidade, faleceu, opt-out manual..."
+        />
+        <ModalFooter
+          pending={pending}
+          onCancel={() => setOpen(false)}
+          onConfirm={submit}
+          confirmLabel="Arquivar"
+          confirmVariant="default"
+        />
+      </Modal>
+    </>
+  )
+}
+
+// ─── Desarquivar lead · CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · modal motivo
+// Disponível APENAS no bucket arquivado. lifecycle_status='ativo' · phase
+// preservado. Lead volta automaticamente ao bucket correspondente à phase
+// (via crm_operational_view CASE).
+
+function UnarchiveButton({ card }: Props) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [pending, startTransition] = useTransition()
+  const toast = useToast()
+
+  const submit = () => {
+    const value = reason.trim()
+    if (value.length < 3) {
+      toast.warning('Motivo precisa ter no mínimo 3 caracteres')
+      return
+    }
+    startTransition(async () => {
+      const r = await unarchiveLeadFromMesaAction({
+        leadId: card.leadId,
+        reason: value,
+      })
+      toast.fromResult(r, {
+        successMsg: 'Lead desarquivado e voltou pra mesa correta',
+        errorMessages: {
+          invalid_input: 'Motivo inválido (mín 3 caracteres)',
+          reason_too_short: 'Motivo precisa ter no mínimo 3 caracteres',
+          not_archived: 'Lead não está arquivado · recarregue a página',
+          lead_not_found: 'Lead não encontrado ou já excluído',
+          no_clinic_in_jwt: 'Sessão sem clínica · faça login novamente',
+          forbidden: 'Sem permissão para desarquivar',
+        },
+      })
+      if (r.ok) {
+        setOpen(false)
+        setReason('')
+      }
+    })
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="default"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="h-6 px-2 text-[10px]"
+      >
+        Desarquivar
+      </Button>
+      <Modal
+        open={open}
+        onOpenChange={(o) => {
+          if (!pending) setOpen(o)
+        }}
+        title={`Reativar registro arquivado? · ${card.name ?? '(sem nome)'}`}
+        description="O registro volta para a operação como ativo, preservando a fase original (lead/agendado/paciente/orçamento)."
+        dismissable={!pending}
+      >
+        <ReasonForm
+          value={reason}
+          onChange={setReason}
+          placeholder="Ex: voltou a ter interesse, contato retomado, erro no arquivamento..."
+        />
+        <ModalFooter
+          pending={pending}
+          onCancel={() => setOpen(false)}
+          onConfirm={submit}
+          confirmLabel="Reativar"
           confirmVariant="default"
         />
       </Modal>

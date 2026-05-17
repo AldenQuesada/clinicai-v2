@@ -17,7 +17,6 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Bell,
   CheckSquare,
   ChevronDown,
   Home,
@@ -25,6 +24,10 @@ import {
   Plus,
   Search,
 } from 'lucide-react'
+// PATCH_D · usar AlertBell real (appointment_internal_alerts mig 161
+// + useAppointmentInternalAlerts hook polling 30s). Substitui o Bell
+// disabled antigo que era apenas placeholder.
+import { AlertBell } from '@/components/AlertBell'
 
 interface CrmTopbarProps {
   displayName: string
@@ -107,7 +110,8 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
           type="text"
           disabled
           placeholder="Buscar leads, pacientes... (⌘K)"
-          aria-label="Busca global (em validação)"
+          title="Busca global · em validação · use os menus laterais por enquanto"
+          aria-label="Busca global · em validação"
           className="search-input"
         />
         <span className="search-shortcut">⌘K</span>
@@ -125,30 +129,23 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         Fechar o Dia
       </button>
 
-      {/* Notificações · index.html L174 */}
+      {/* Notificações · AlertBell real (mig 161 · polling 30s) ·
+          PATCH_D substituiu placeholder disabled por dados reais */}
       <div className="header-action">
-        <button
-          type="button"
-          disabled
-          title="Notificações · em validação"
-          aria-label="Notificações"
-          className="header-action-btn"
-        >
-          <Bell />
-        </button>
+        <AlertBell />
       </div>
 
-      {/* Tasks · index.html L188-193 (com badge legacy 7) */}
+      {/* Tasks · em validação · PATCH_D: badge fake "24" removida ·
+          title explicativo · index.html L188-193 */}
       <div className="header-action">
         <button
           type="button"
           disabled
-          title="Tarefas · em validação"
-          aria-label="Tarefas"
+          title="Tarefas · módulo em validação · sem dados reais ainda"
+          aria-label="Tarefas · em validação"
           className="header-action-btn"
         >
           <CheckSquare />
-          <span className="badge badge-warning">24</span>
         </button>
       </div>
 
@@ -181,12 +178,12 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         </nav>
       </details>
 
-      {/* Theme toggle · index.html L223-225 (placeholder · não funcional ainda) */}
+      {/* Theme toggle · placeholder · index.html L223-225 */}
       <button
         type="button"
         disabled
-        title="Tema · em validação"
-        aria-label="Alternar tema"
+        title="Tema escuro · recurso em preparação · não afeta a operação atual"
+        aria-label="Alternar tema · em preparação"
         className="theme-toggle"
       >
         <Moon />

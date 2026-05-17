@@ -198,10 +198,12 @@ export function RecoveryList({ items, counts, currentFilter, canAct }: Props) {
         </button>
       </div>
 
-      {/* Banner aviso · dry-run */}
-      <p className="rounded-md border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
-        💡 Este painel é <strong>interno (dry-run)</strong> · sugestões de abordagem não disparam
-        WhatsApp · canal Meta segue em aprovação.
+      {/* Banner aviso · dry-run · PATCH_D microcopy refinada */}
+      <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-200">
+        💡 Painel interno · <strong>modo seguro (dry-run)</strong> · Mensagens
+        automáticas podem estar em modo seguro/dry-run conforme configuração do
+        worker · use os atalhos manuais (ligar / WhatsApp link) para entrar em
+        contato.
       </p>
 
       {items.length === 0 ? (
@@ -660,8 +662,9 @@ function PriorityDialog({
 }
 
 // ── Dialog: NextAction ────────────────────────────────────────────────────
+// Exportado para reuso em _recovery-buckets.tsx (Lote 3 · scheduler).
 
-function NextActionDialog({
+export function NextActionDialog({
   workflowId,
   currentType,
   currentAt,

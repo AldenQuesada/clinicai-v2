@@ -44,13 +44,14 @@ const AppointmentConsentImg = z.enum([
 ])
 
 // CRM_PHASE_2J: alinhado 1:1 com RPC banco (4 outcomes).
-// UI oficial expoe 3 · 'perdido' permanece valido aqui para path dedicado
-// (lead_lost) reaproveitar o mesmo Zod, mas FinalizeWizard nao oferece.
+// PATCH_0C_FINALIZE_BACKEND_GUARD (2026-05-17):
+// Zod restringe a 3 outcomes clinicos · 'perdido' bloqueado no runtime.
+// Path comercial via lead_lost RPC dedicado (markLeadLostAction)
+// usa Zod separado · NAO reusa AppointmentFinalizeOutcome.
 const AppointmentFinalizeOutcome = z.enum([
   'paciente',
   'orcamento',
   'paciente_orcamento',
-  'perdido',
 ])
 
 const TimeStr = z
@@ -85,6 +86,9 @@ export const CreateAppointmentSchema = z
     consultType: z.string().max(50).nullable().optional(),
     evalType: z.string().max(50).nullable().optional(),
     value: z.number().nonnegative().optional(),
+    // CRM_PARITY_PATCH_0A · texto livre (sem enum no DB · contrato legado).
+    // UI valida contra PAYMENT_METHODS canônico mas DB aceita qualquer string.
+    paymentMethod: z.string().max(50).nullable().optional(),
     paymentStatus: AppointmentPaymentStatus.optional(),
     status: AppointmentStatus.optional(),
     origem: z.string().max(50).nullable().optional(),
@@ -295,6 +299,9 @@ export const FinalizeAppointmentSchema = z
     value: z.number().nonnegative().nullable().optional(),
     paymentStatus: AppointmentPaymentStatus.nullable().optional(),
     notes: z.string().max(4000).nullable().optional(),
+    // PATCH_0C_FINALIZE_BACKEND_GUARD · lostReason mantido no schema
+    // apenas pra compat backwards com callers antigos · validacao foi
+    // removida. Finalize NAO aceita perdido · perda via lead_lost.
     lostReason: z.string().max(500).nullable().optional(),
     orcamentoItems: z.array(OrcamentoItemSchema).nullable().optional(),
     orcamentoSubtotal: z.number().nonnegative().nullable().optional(),
@@ -307,18 +314,9 @@ export const FinalizeAppointmentSchema = z
     // quando paymentStatus='cortesia'.
     motivoCortesia: z.string().max(500).nullable().optional(),
   })
-  .refine(
-    (v) => {
-      if (v.outcome === 'perdido') {
-        return !!v.lostReason && v.lostReason.trim().length >= 2
-      }
-      return true
-    },
-    {
-      message: 'lostReason obrigatorio quando outcome=perdido',
-      path: ['lostReason'],
-    },
-  )
+  // PATCH_0C_FINALIZE_BACKEND_GUARD · refine de lostReason removido ·
+  // outcome='perdido' agora rejeitado no enum acima (Zod parse falha
+  // antes de chegar aqui). Perda passa por lead_lost RPC dedicado.
   .refine(
     (v) => {
       if (v.outcome === 'orcamento' || v.outcome === 'paciente_orcamento') {

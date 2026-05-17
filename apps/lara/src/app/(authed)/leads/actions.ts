@@ -18,6 +18,8 @@ import { revalidatePath } from 'next/cache'
 import type {
   Funnel,
   LeadPhase,
+  LeadSource,
+  LeadSourceType,
   LeadTemperature,
   UpdateLeadInput,
   ListLeadsFilter,
@@ -25,6 +27,9 @@ import type {
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { requireAction } from '@/lib/permissions'
+import { createLogger, hashPhone, maskEmail } from '@clinicai/logger'
+
+const log = createLogger({ app: 'lara' })
 
 const ROUTE = '/leads'
 
@@ -73,6 +78,302 @@ function ok<T>(data?: T): ActionResult<T> {
 }
 function fail<T = unknown>(error: string): ActionResult<T> {
   return { ok: false, error }
+}
+
+// ── 0. createLead · wizard 3-step "Novo lead" ───────────────────────────────
+//
+// Lote 2 P0.1 (2026-05-17) · substitui placeholder modal por wizard funcional.
+//
+// Fluxo:
+//   1. Valida input (Zod já não · validação manual igual demais actions
+//      pra reusar normalizePhone/isValidEmail e ficar 1:1 com updateLeadAction).
+//   2. Dedup por phone via repos.leads.findByPhoneVariants (canônico · webhook
+//      usa o mesmo). Email dedup via SELECT direto (LeadRepository não tem
+//      método dedicado · evitamos adicionar pra não criar API nova).
+//   3. Cria via LeadRepository.createViaRpc (RPC `lead_create` · idempotente
+//      por (clinic_id, phone) · ADR · evita race com webhook que pode estar
+//      processando msg do mesmo número exatamente nesse momento).
+//   4. Revalida /leads + /crm/leads + /crm/dashboard.
+//   5. Logger estruturado · phone hash, email mask (compliance LGPD).
+//
+// NÃO chama `repos.leads.create()` direto porque a RPC já trata:
+//   - clinic_id via app_clinic_id() (JWT)
+//   - dedup atômico
+//   - phase default 'lead', source/source_type default seguros
+//
+// Caller (UI wizard) controla redirect pra detalhe · server action só retorna
+// leadId + flag `existed` quando RPC indica que lead já estava ativo.
+
+export interface NewLeadInput {
+  name: string
+  phone: string
+  email?: string | null
+  cpf?: string | null
+  birthDate?: string | null
+  source?: LeadSource | null
+  sourceType?: LeadSourceType | null
+  funnel?: Funnel | null
+  temperature?: LeadTemperature | null
+  score?: number | null
+  notes?: string | null
+}
+
+export interface CreateLeadActionResult {
+  leadId: string
+  existed: boolean
+  /** ID de lead já existente quando dedup bate · UI redireciona pra detalhe. */
+  duplicate?: { leadId: string; reason: 'phone' | 'email'; name?: string | null }
+}
+
+const VALID_SOURCES: readonly LeadSource[] = [
+  'manual',
+  'lara_recipient',
+  'lara_vpi_partner',
+  'b2b_partnership_referral',
+  'b2b_admin_registered',
+  'quiz',
+  'landing_page',
+  'import',
+  'webhook',
+]
+const VALID_SOURCE_TYPES: readonly LeadSourceType[] = [
+  'manual',
+  'quiz',
+  'import',
+  'referral',
+  'social',
+  'whatsapp',
+  'whatsapp_fullface',
+  'landing_page',
+  'b2b_voucher',
+  'vpi_referral',
+]
+
+export async function createLeadAction(
+  input: NewLeadInput,
+): Promise<ActionResult<CreateLeadActionResult>> {
+  const { supabase, ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'patients:create')
+
+  // 1. Identificação · nome obrigatório (≥2 chars)
+  const name = String(input?.name ?? '').trim()
+  if (name.length < 2) return fail('Nome obrigatório · mínimo 2 caracteres')
+  if (name.length > 200) return fail('Nome longo · máximo 200 caracteres')
+
+  // 1.b Telefone obrigatório · 10-13 dígitos (BR + variantes com 55)
+  const phone = normalizePhone(input?.phone)
+  if (!phone) return fail('Telefone obrigatório · esperado 10-13 dígitos')
+
+  // 1.c Email opcional
+  const emailRaw = String(input?.email ?? '').trim() || null
+  if (emailRaw && !isValidEmail(emailRaw)) return fail('Email inválido')
+
+  // 1.d CPF opcional · só normaliza (apenas dígitos · 11)
+  const cpfRaw = String(input?.cpf ?? '').replace(/\D/g, '').trim() || null
+  if (cpfRaw && cpfRaw.length !== 11) return fail('CPF inválido · esperado 11 dígitos')
+
+  // 1.e birthDate opcional · YYYY-MM-DD
+  const birthDateRaw = String(input?.birthDate ?? '').trim() || null
+  if (birthDateRaw && !/^\d{4}-\d{2}-\d{2}$/.test(birthDateRaw)) {
+    return fail('Data de nascimento inválida · use formato YYYY-MM-DD')
+  }
+
+  // 2. Origem & qualificação
+  const source: LeadSource =
+    input?.source && VALID_SOURCES.includes(input.source) ? input.source : 'manual'
+  const sourceType: LeadSourceType =
+    input?.sourceType && VALID_SOURCE_TYPES.includes(input.sourceType)
+      ? input.sourceType
+      : 'manual'
+  const funnel: Funnel =
+    input?.funnel && VALID_FUNNELS.includes(input.funnel)
+      ? input.funnel
+      : 'procedimentos'
+  const temperature: LeadTemperature =
+    input?.temperature && VALID_TEMPS.includes(input.temperature)
+      ? input.temperature
+      : 'hot' // Default hot · mig 20260532000000_leads_default_temperature_hot.sql
+
+  const score = parseScore(input?.score == null ? null : String(input.score))
+
+  // 3. Operação & notas · phase=lead fixed (Step 3 da spec)
+  const notesRaw = String(input?.notes ?? '').trim() || null
+  if (notesRaw && notesRaw.length > 1000) {
+    return fail('Notas longas · máximo 1000 caracteres')
+  }
+
+  // 4. Dedup phone · usa findByPhoneVariants (canônico · igual webhook)
+  try {
+    const existingByPhone = await repos.leads.findByPhoneVariants(ctx.clinic_id, [phone])
+    if (existingByPhone) {
+      log.info(
+        {
+          clinic_id: ctx.clinic_id,
+          user_id: ctx.user_id,
+          phone: hashPhone(phone),
+          existing_lead_id: existingByPhone.id,
+          action: 'create_lead_dedup_phone',
+        },
+        'createLeadAction · phone duplicado',
+      )
+      return ok({
+        leadId: existingByPhone.id,
+        existed: true,
+        duplicate: {
+          leadId: existingByPhone.id,
+          reason: 'phone',
+          name: existingByPhone.name ?? null,
+        },
+      })
+    }
+  } catch (err) {
+    log.error(
+      { err: (err as Error).message, clinic_id: ctx.clinic_id },
+      'createLeadAction · falha em dedup phone',
+    )
+    // Não bloqueia · RPC lead_create tem dedup atômico defensivo
+  }
+
+  // 5. Dedup email opcional · SELECT direto (sem método dedicado no repo)
+  if (emailRaw) {
+    try {
+      const { data } = await supabase
+        .from('leads')
+        .select('id, name')
+        .eq('clinic_id', ctx.clinic_id)
+        .eq('email', emailRaw)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      // Multi-line select faz supabase-js retornar GenericStringError[] no
+      // generic · cast via unknown pra shape conhecido (mesmo pattern do
+      // LeadRepository.listForExport).
+      const existingByEmail = data as { id: string; name: string | null } | null
+      if (existingByEmail?.id) {
+        log.info(
+          {
+            clinic_id: ctx.clinic_id,
+            user_id: ctx.user_id,
+            email: maskEmail(emailRaw),
+            existing_lead_id: existingByEmail.id,
+            action: 'create_lead_dedup_email',
+          },
+          'createLeadAction · email duplicado',
+        )
+        return ok({
+          leadId: existingByEmail.id,
+          existed: true,
+          duplicate: {
+            leadId: existingByEmail.id,
+            reason: 'email',
+            name: existingByEmail.name,
+          },
+        })
+      }
+    } catch (err) {
+      log.error(
+        { err: (err as Error).message, clinic_id: ctx.clinic_id },
+        'createLeadAction · falha em dedup email',
+      )
+      // Não bloqueia
+    }
+  }
+
+  // 6. Cria via RPC `lead_create` · idempotente (clinic_id, phone)
+  const rpcResult = await repos.leads.createViaRpc({
+    phone,
+    name,
+    email: emailRaw,
+    source,
+    sourceType,
+    funnel,
+    temperature,
+    metadata: {
+      created_via: 'crm_ui_wizard_p0_1',
+      ...(cpfRaw ? { cpf: cpfRaw } : {}),
+      ...(birthDateRaw ? { birth_date: birthDateRaw } : {}),
+      ...(score != null ? { initial_score: score } : {}),
+      ...(notesRaw ? { initial_notes: notesRaw } : {}),
+    },
+  })
+
+  if (!rpcResult.ok) {
+    log.warn(
+      {
+        clinic_id: ctx.clinic_id,
+        user_id: ctx.user_id,
+        phone: hashPhone(phone),
+        err: rpcResult.error,
+        detail: rpcResult.detail,
+        action: 'create_lead_failed',
+      },
+      'createLeadAction · RPC lead_create falhou',
+    )
+    return fail(rpcResult.error || 'Não foi possível criar o lead')
+  }
+
+  const leadId = rpcResult.leadId
+  if (!leadId) {
+    log.error(
+      { clinic_id: ctx.clinic_id, action: 'create_lead_no_id' },
+      'createLeadAction · RPC ok mas sem leadId',
+    )
+    return fail('Resposta inesperada · lead criado sem ID')
+  }
+
+  // RPC pode retornar existed=true em race (dedup escapa do nosso check) ·
+  // tratamos como duplicate explícito · UI mostra link pra detalhe.
+  if (rpcResult.existed) {
+    log.info(
+      {
+        clinic_id: ctx.clinic_id,
+        user_id: ctx.user_id,
+        lead_id: leadId,
+        phone: hashPhone(phone),
+        action: 'create_lead_rpc_dedup',
+      },
+      'createLeadAction · RPC detectou lead existente (race)',
+    )
+    return ok({
+      leadId,
+      existed: true,
+      duplicate: { leadId, reason: 'phone' },
+    })
+  }
+
+  log.info(
+    {
+      clinic_id: ctx.clinic_id,
+      user_id: ctx.user_id,
+      lead_id: leadId,
+      phone: hashPhone(phone),
+      action: 'create_lead_ok',
+      source,
+      source_type: sourceType,
+      funnel,
+      temperature,
+    },
+    'createLeadAction · lead criado',
+  )
+
+  // 7. Score inicial · RPC lead_create não aceita score · UPDATE separado
+  if (score != null && score > 0) {
+    try {
+      await repos.leads.updateScore(leadId, score)
+    } catch (err) {
+      log.warn(
+        { err: (err as Error).message, lead_id: leadId },
+        'createLeadAction · score inicial falhou (não fatal)',
+      )
+    }
+  }
+
+  revalidatePath(ROUTE)
+  revalidatePath('/crm/leads')
+  revalidatePath('/crm/dashboard')
+
+  return ok({ leadId, existed: false })
 }
 
 // ── 1. updateLead · campos da aba "Info" ────────────────────────────────────
@@ -190,41 +491,42 @@ export async function setLeadPhaseAction(
   return ok({ fromPhase: result.fromPhase, toPhase: result.toPhase })
 }
 
-// ── 5. addLeadTags · adiciona tags (append-only · dedup) ────────────────────
+// ── 5. addLeadTags · OUT desta release (Lote 2 P0.2) ────────────────────────
+//
+// Tags livres foram pausadas em 2026-05-05 · coluna `leads.tags` removida em
+// produção durante REFACTOR_LEAD_MODEL · ver `apps/lara/docs/OUT_P0_TAGS.md`.
+// UI de tags foi removida do LeadsClient/bulk-actions/LeadTagsPanel. Action
+// mantida pra compat de import path mas falha explicitamente · UI nunca
+// deveria chamar mais.
 
 export async function addLeadTagsAction(
   leadId: string,
   tags: string[],
 ): Promise<ActionResult<{ tags: string[] }>> {
-  const { ctx, repos } = await loadServerReposContext()
-  requireAction(ctx.role, 'patients:edit')
-
-  const clean = (tags || [])
-    .map((t) => String(t || '').trim())
-    .filter(Boolean)
-  if (!clean.length) return fail('Nenhuma tag valida')
-
-  const next = await repos.leads.addTags(leadId, clean)
-
-  revalidatePath(ROUTE)
-  revalidatePath(`${ROUTE}/${leadId}`)
-  return ok({ tags: next })
+  // Suprimir unused vars (mantemos assinatura pra evitar quebrar imports do
+  // call site antigo se ainda existir · TS pega quem chamar inválido).
+  void leadId
+  void tags
+  log.warn(
+    { lead_id: leadId, action: 'add_tags_blocked' },
+    'addLeadTagsAction · TAGS_NOT_SUPPORTED · ver OUT_P0_TAGS',
+  )
+  return fail('TAGS_NOT_SUPPORTED · pending audit · ver doc OUT_P0_TAGS')
 }
 
-// ── 6. removeLeadTags ───────────────────────────────────────────────────────
+// ── 6. removeLeadTags · OUT desta release (Lote 2 P0.2) ─────────────────────
 
 export async function removeLeadTagsAction(
   leadId: string,
   tags: string[],
 ): Promise<ActionResult<{ tags: string[] }>> {
-  const { ctx, repos } = await loadServerReposContext()
-  requireAction(ctx.role, 'patients:edit')
-
-  const next = await repos.leads.removeTags(leadId, tags || [])
-
-  revalidatePath(ROUTE)
-  revalidatePath(`${ROUTE}/${leadId}`)
-  return ok({ tags: next })
+  void leadId
+  void tags
+  log.warn(
+    { lead_id: leadId, action: 'remove_tags_blocked' },
+    'removeLeadTagsAction · TAGS_NOT_SUPPORTED · ver OUT_P0_TAGS',
+  )
+  return fail('TAGS_NOT_SUPPORTED · pending audit · ver doc OUT_P0_TAGS')
 }
 
 // ── 7. updateLeadScore · UI e "score quiz" (0-100) ──────────────────────────
@@ -327,9 +629,14 @@ export async function markLeadLostAction(
 
 /**
  * Transbordar pra atendimento humano · port da acao `Transferir para Dra.`
- * do clinic-dashboard. Achata 2 ops: pausa AI na conversa associada
- * (via ConversationRepository.pause se existir) + marca lead.tags com
- * `transbordo_humano`. Se conversa nao existe, soh adiciona a tag.
+ * do clinic-dashboard. Pausa IA na conversa associada (via
+ * ConversationRepository.setStatus('dra')).
+ *
+ * Lote 2 P0.2 (2026-05-17): tag `transbordo_humano` no lead foi removida ·
+ * `leads.tags` está pausada (ver OUT_P0_TAGS). Sinal de transbordo já fica
+ * em `wa_conversations.status='dra'` (canônico · view operacional). Se
+ * conversa não existir, ainda assim a ação retorna ok (efeito principal era
+ * pausar IA · sem conversa não há IA pra pausar).
  */
 export async function transbordarLeadAction(
   leadId: string,
@@ -340,10 +647,7 @@ export async function transbordarLeadAction(
   const lead = await repos.leads.getById(leadId)
   if (!lead) return fail('Lead nao encontrado')
 
-  // 1. Tag transbordo no lead (campo tags · text[])
-  await repos.leads.addTags(leadId, ['transbordo_humano'])
-
-  // 2. Tenta encontrar conversa ativa pelo phone e mudar status pra 'dra'
+  // Tenta encontrar conversa ativa pelo phone e mudar status pra 'dra'
   try {
     const conv = await repos.conversations.findActiveByPhoneVariants(
       ctx.clinic_id,
@@ -351,9 +655,17 @@ export async function transbordarLeadAction(
     )
     if (conv?.id) {
       await repos.conversations.setStatus(conv.id, 'dra')
+    } else {
+      log.info(
+        { clinic_id: ctx.clinic_id, lead_id: leadId, action: 'transbordo_no_conv' },
+        'transbordarLeadAction · lead sem conversa ativa · noop',
+      )
     }
   } catch (e) {
-    console.warn('[transbordarLeadAction] falha ao mudar conversa:', (e as Error).message)
+    log.warn(
+      { err: (e as Error).message, lead_id: leadId, action: 'transbordo_failed' },
+      'transbordarLeadAction · falha ao mudar conversa',
+    )
   }
 
   revalidatePath(ROUTE)
@@ -662,4 +974,53 @@ export async function exportLeadsCsvAction(
   const filename = `leads-export-${today}.csv`
 
   return ok({ csv, filename, count: rows.length })
+}
+
+// ── CRM_PARITY_PATCH_0A · lookupLeadByPhoneAction ────────────────────────────
+//
+// Lookup read-only de lead ativo por telefone · usado pelo NewLeadModal
+// (LeadsClient) on-blur do campo phone pra AVISAR dup ANTES do submit.
+//
+// Reusa `findByPhoneVariants` (canônico · igual webhook e `createLeadAction`).
+// Não muda comportamento de criação · só dá UI hint defensivo. Soft-fail:
+// retorna existed=false se phone inválido ou erro · permite o user continuar.
+
+export interface LeadLookupResult {
+  existed: boolean
+  leadId: string | null
+  name: string | null
+}
+
+export async function lookupLeadByPhoneAction(
+  rawPhone: string,
+): Promise<ActionResult<LeadLookupResult>> {
+  const phone = normalizePhone(rawPhone)
+  if (!phone) {
+    return ok({ existed: false, leadId: null, name: null })
+  }
+  try {
+    const { ctx, repos } = await loadServerReposContext()
+    requireAction(ctx.role, 'patients:view')
+    const existing = await repos.leads.findByPhoneVariants(ctx.clinic_id, [phone])
+    if (!existing) {
+      return ok({ existed: false, leadId: null, name: null })
+    }
+    return ok({
+      existed: true,
+      leadId: existing.id,
+      name: existing.name ?? null,
+    })
+  } catch (err) {
+    log.warn(
+      {
+        clinic_id: 'unknown',
+        action: 'lookup_lead_by_phone',
+        error: (err as Error).message,
+      },
+      'lookupLeadByPhoneAction · falha soft',
+    )
+    // Soft-fail · UI segue sem hint, dedup atômico do createLeadAction
+    // continua sendo a defesa real.
+    return ok({ existed: false, leadId: null, name: null })
+  }
 }
