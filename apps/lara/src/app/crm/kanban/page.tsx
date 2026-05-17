@@ -23,6 +23,8 @@
  * Sem WhatsApp · sem provider · zero side-effects fora da RPC `sdr_move_lead`.
  */
 
+import Link from 'next/link'
+import { ArrowLeftRight } from 'lucide-react'
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '@clinicai/ui'
 import { loadServerReposContext } from '@/lib/repos'
 import { LeadsKanban } from './_components/leads-kanban'
@@ -99,6 +101,26 @@ export default async function KanbanPage({
         title="Kanban de Leads"
         description="Pipeline evolution · arraste os cards entre estágios pra mover leads."
       />
+
+      {/* BLOCO 3.5B · Toggle Evolução / 7 Dias */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
+          Pipeline:
+        </span>
+        <span
+          aria-current="page"
+          className="inline-flex items-center gap-1 rounded-md border border-[var(--primary)]/40 bg-[var(--primary)]/10 px-3 py-1.5 font-medium text-[var(--primary)]"
+        >
+          Evolução
+        </span>
+        <Link
+          href="/crm/kanban/seven-days"
+          className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--color-border-soft)]/40"
+        >
+          <ArrowLeftRight className="h-3 w-3" />
+          7 Dias
+        </Link>
+      </div>
 
       <Card>
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

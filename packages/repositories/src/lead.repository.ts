@@ -936,6 +936,150 @@ export class LeadRepository {
     }
   }
 
+  // ── BLOCO 3.5B · Kanban 7 Dias (read-only · pipeline seven_days) ───────────
+  //
+  // Espelha `getKanbanEvolution` com 2 diferenças:
+  //   1. RPC `sdr_get_kanban_7dias` (mig V1 20260509)
+  //   2. 8 stages canônicos (mig V1 20260513 seed):
+  //      sem_data · dia_1 · dia_2 · dia_3 · dia_4 · dia_5 · dia_6 · dia_7_plus
+  //
+  // Pipeline é READ-ONLY (paridade V1): leads avançam pelo cron
+  // `sdr_advance_day_buckets()` diariamente às 00:00. Não há `moveSevenDays` ·
+  // não chamamos `sdr_move_lead` com pipeline_slug='seven_days' pra evitar
+  // bypass do cron.
+  //
+  // Estado atual do banco: `lead_pipeline_positions=0` (BLOCO 3.1A audit
+  // ainda válido). Fallback obrigatório: distribuir leads ativos por idade
+  // (`now() - created_at`) replicando lógica do cron.
+  //
+  // **Fallback NÃO persiste posições** · ZERO INSERT em
+  // `lead_pipeline_positions` · ZERO UPDATE em `leads.day_bucket` · zero
+  // chamada a `sdr_init_lead_pipelines`. UI mostra distribuição calculada,
+  // o cron sincroniza quando rodar.
+  async getKanban7Dias(
+    clinicId: string,
+    phaseFilter?: string | null,
+  ): Promise<KanbanEvolutionResult> {
+    const { data, error } = await this.supabase.rpc('sdr_get_kanban_7dias', {
+      p_phase: phaseFilter ?? undefined,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message }
+    }
+    const parsed = data as
+      | { ok?: boolean; error?: string; data?: { stages?: KanbanStageRpc[] } }
+      | null
+    if (!parsed?.ok) {
+      return { ok: false, error: parsed?.error ?? 'unknown_error' }
+    }
+
+    // Garantia: sempre 8 stages presentes (mesmo vazios) pra UI render estável.
+    const rpcStages = parsed.data?.stages ?? []
+    const stages: KanbanStageRpc[] = SEVEN_DAYS_STAGE_SEED.map((seed) => {
+      const found = rpcStages.find((s) => s.slug === seed.slug)
+      return {
+        slug: seed.slug,
+        label: seed.label,
+        color: seed.color,
+        sort_order: seed.sortOrder,
+        leads: found?.leads ?? [],
+      }
+    })
+
+    // IDs já posicionados via RPC (defensivo · dedup do fallback)
+    const positionedIds = new Set<string>()
+    for (const s of stages) {
+      for (const l of s.leads ?? []) {
+        positionedIds.add(l.id)
+      }
+    }
+
+    // SELECT leads ativos sem position · scope clinic_id + lifecycle
+    let selQuery = this.supabase
+      .from('leads')
+      .select(
+        'id, name, phone, status, phase, temperature, priority, assigned_to, created_at',
+      )
+      .eq('clinic_id', clinicId)
+      .eq('lifecycle_status', 'ativo')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1000)
+
+    if (phaseFilter) {
+      selQuery = selQuery.eq('phase', phaseFilter)
+    }
+
+    const { data: activeRows, error: selErr } = await selQuery
+
+    if (selErr) {
+      return {
+        ok: true,
+        stages,
+        fallbackWarning: `fallback_query_failed: ${selErr.message}`,
+      }
+    }
+
+    const unpositioned = (activeRows ?? []).filter(
+      (row) => !positionedIds.has(row.id as string),
+    )
+
+    if (unpositioned.length === 0) {
+      return { ok: true, stages }
+    }
+
+    // Distribui por idade · mesmo corte do cron sdr_advance_day_buckets:
+    //   created_at < 1h         → sem_data
+    //   1h-1d                   → dia_1
+    //   1-2d / 2-3d / ... / 5-6d → dia_2..dia_6
+    //   6d+                     → dia_7_plus
+    const now = Date.now()
+    const HOUR_MS = 60 * 60 * 1000
+    const DAY_MS = 24 * HOUR_MS
+
+    const bucketBySlug: Record<string, KanbanLeadCard[]> = {}
+    for (const seed of SEVEN_DAYS_STAGE_SEED) bucketBySlug[seed.slug] = []
+
+    for (const row of unpositioned) {
+      const created = row.created_at ? new Date(row.created_at as string).getTime() : now
+      const ageMs = now - created
+      let slug: string
+      if (ageMs < HOUR_MS) slug = 'sem_data'
+      else if (ageMs < DAY_MS) slug = 'dia_1'
+      else if (ageMs < 2 * DAY_MS) slug = 'dia_2'
+      else if (ageMs < 3 * DAY_MS) slug = 'dia_3'
+      else if (ageMs < 4 * DAY_MS) slug = 'dia_4'
+      else if (ageMs < 5 * DAY_MS) slug = 'dia_5'
+      else if (ageMs < 6 * DAY_MS) slug = 'dia_6'
+      else slug = 'dia_7_plus'
+
+      bucketBySlug[slug]!.push({
+        id: row.id as string,
+        name: (row.name as string | null) ?? '',
+        phone: (row.phone as string | null) ?? null,
+        status: (row.status as string | null) ?? null,
+        phase: (row.phase as string | null) ?? null,
+        temperature: (row.temperature as string | null) ?? null,
+        priority: (row.priority as string | null) ?? null,
+        assigned_to: (row.assigned_to as string | null) ?? null,
+        created_at: row.created_at as string,
+        isUnpositioned: true,
+      })
+    }
+
+    const stagesOut = stages.map((s) => ({
+      ...s,
+      leads: [...(s.leads ?? []), ...(bucketBySlug[s.slug] ?? [])],
+    }))
+
+    return {
+      ok: true,
+      stages: stagesOut,
+      fallbackWarning:
+        'positions_empty: leads distribuídos por created_at (paridade cron sdr_advance_day_buckets · não persiste)',
+    }
+  }
+
   // ── BLOCO 3.4B · bulk actions /leads ────────────────────────────────────────
   //
   // Wrappers read-only-safe sobre RPC já existente + SELECT direto pra export.
@@ -1086,6 +1230,35 @@ export type KanbanEvolutionResult =
       fallbackWarning?: string
     }
   | { ok: false; error: string; detail?: string }
+
+// ── BLOCO 3.5B · seed dos stages canônicos do pipeline `seven_days` ─────────
+// Espelho da mig V1 20260513_sdr_seed_pipelines.sql · cores adaptadas pro tema
+// dark do CRM V2 (intensidade crescente: neutro→info→warning→danger). Mantém
+// `slug` idêntico ao banco pra garantir round-trip RPC.
+
+export interface SevenDaysStageSeed {
+  slug: string
+  label: string
+  /** Texto curto pra header da coluna · "Recém-criado", "Há 1 dia", etc. */
+  hint: string
+  /** Cor primária (string CSS) · usar em borda/badge. */
+  color: string
+  /** Tom de severidade · neutro/info/warning/danger. */
+  tone: 'neutral' | 'info' | 'warning' | 'danger'
+  sortOrder: number
+  dayNumber: number | null
+}
+
+export const SEVEN_DAYS_STAGE_SEED: readonly SevenDaysStageSeed[] = [
+  { slug: 'sem_data', label: 'Dia 0', hint: 'Recém-criado (< 1h)', color: '#94a3b8', tone: 'neutral', sortOrder: 0, dayNumber: 0 },
+  { slug: 'dia_1', label: 'Dia 1', hint: '1h–1d', color: '#60a5fa', tone: 'info', sortOrder: 10, dayNumber: 1 },
+  { slug: 'dia_2', label: 'Dia 2', hint: '1–2 dias', color: '#3b82f6', tone: 'info', sortOrder: 20, dayNumber: 2 },
+  { slug: 'dia_3', label: 'Dia 3', hint: '2–3 dias', color: '#6366f1', tone: 'info', sortOrder: 30, dayNumber: 3 },
+  { slug: 'dia_4', label: 'Dia 4', hint: '3–4 dias', color: '#f59e0b', tone: 'warning', sortOrder: 40, dayNumber: 4 },
+  { slug: 'dia_5', label: 'Dia 5', hint: '4–5 dias', color: '#f97316', tone: 'warning', sortOrder: 50, dayNumber: 5 },
+  { slug: 'dia_6', label: 'Dia 6', hint: '5–6 dias', color: '#ef4444', tone: 'danger', sortOrder: 60, dayNumber: 6 },
+  { slug: 'dia_7_plus', label: 'Dia 7+', hint: '6+ dias', color: '#dc2626', tone: 'danger', sortOrder: 70, dayNumber: null },
+] as const
 
 // ── BLOCO 3.4B · tipos exportados pra bulk + export ─────────────────────────
 

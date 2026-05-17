@@ -10,11 +10,13 @@
 
 export {
   LeadRepository,
+  SEVEN_DAYS_STAGE_SEED,
   type KanbanLeadCard,
   type KanbanStageRpc,
   type KanbanEvolutionResult,
   type BulkChangePhaseResult,
   type LeadExportRow,
+  type SevenDaysStageSeed,
 } from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
 export { computeSla, type SlaInput, type SlaFields } from './sla'

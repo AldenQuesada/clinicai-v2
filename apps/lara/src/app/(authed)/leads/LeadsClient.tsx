@@ -310,31 +310,81 @@ export function LeadsClient({
         )}
       </div>
 
-      {view !== 'table' && (
+      {view === 'seven_days' && (
         <div
           className="luxury-card"
           style={{
-            padding: '40px 24px',
+            padding: '32px 24px',
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 10,
+            gap: 14,
+          }}
+        >
+          <div
+            className="font-display"
+            style={{ fontSize: 20, color: 'var(--b2b-ivory)' }}
+          >
+            Kanban <em>7 Dias</em>
+          </div>
+          <p
+            className="font-display"
+            style={{
+              fontStyle: 'italic',
+              color: 'var(--b2b-text-muted)',
+              fontSize: 14,
+              maxWidth: 480,
+            }}
+          >
+            Pipeline read-only · stages avançam automaticamente todo dia às 00:00.
+            A visão fica em rota própria para preservar foco operacional.
+          </p>
+          <a
+            href="/crm/kanban/seven-days"
+            className="b2b-btn b2b-btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            Abrir Kanban 7 Dias →
+          </a>
+        </div>
+      )}
+
+      {view === 'evolution' && (
+        <div
+          className="luxury-card"
+          style={{
+            padding: '32px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
           }}
         >
           <Construction size={28} style={{ color: 'var(--b2b-champagne)' }} />
           <div className="font-display" style={{ fontSize: 20, color: 'var(--b2b-ivory)' }}>
-            {view === 'seven_days' ? 'Kanban 7 Dias' : 'Kanban Evolução'} ·{' '}
-            <em>em breve</em>
+            Kanban <em>Evolução</em>
           </div>
           <p
             className="font-display"
-            style={{ fontStyle: 'italic', color: 'var(--b2b-text-muted)', fontSize: 14 }}
+            style={{
+              fontStyle: 'italic',
+              color: 'var(--b2b-text-muted)',
+              fontSize: 14,
+              maxWidth: 480,
+            }}
           >
-            {view === 'seven_days'
-              ? 'Pipeline read-only · stages avançam automaticamente.'
-              : 'Pipeline drag-drop · arraste leads entre stages.'}
+            Pipeline drag-drop · arraste leads entre stages comportamentais.
+            Disponível em rota dedicada.
           </p>
+          <a
+            href="/crm/kanban"
+            className="b2b-btn b2b-btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            Abrir Kanban Evolução →
+          </a>
         </div>
       )}
 
