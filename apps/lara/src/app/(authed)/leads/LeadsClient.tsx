@@ -17,7 +17,7 @@
  * KPIs reativos · recalculam local quando muda período/temp/tag/search.
  */
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
   Phone,
@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import type { LeadDTO } from '@clinicai/repositories'
 import { softDeleteLeadAction } from './actions'
+import { BulkActionBar } from './_components/bulk-action-bar'
 
 type ViewMode = 'table' | 'seven_days' | 'evolution'
 type Period = 'all' | 'today' | 'week' | 'month' | 'custom'
@@ -66,6 +67,8 @@ export function LeadsClient({
   const [confirmDelete, setConfirmDelete] = useState<LeadDTO | null>(null)
   const [showNewLead, setShowNewLead] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'err' } | null>(null)
+  // BLOCO 3.4B · seleção múltipla
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const periodFromUrl: Period =
     (searchParams.get('period') as Period | null) || 'all'
@@ -158,6 +161,46 @@ export function LeadsClient({
     if (!tempFromUrl) return tagFiltered
     return tagFiltered.filter((l) => l.temperature === tempFromUrl)
   }, [tagFiltered, tempFromUrl])
+
+  // BLOCO 3.4B · reset selection quando rows mudam (paginação / filtros)
+  const rowIdsKey = useMemo(() => finalRows.map((l) => l.id).join('|'), [finalRows])
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [rowIdsKey])
+
+  const selectableIds = useMemo(
+    () => finalRows.filter((l) => !l.deletedAt).map((l) => l.id),
+    [finalRows],
+  )
+  const allSelected =
+    selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id))
+  const someSelected = selectableIds.some((id) => selectedIds.has(id)) && !allSelected
+
+  function toggleLead(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) => {
+      if (allSelected) {
+        const next = new Set(prev)
+        for (const id of selectableIds) next.delete(id)
+        return next
+      }
+      const next = new Set(prev)
+      for (const id of selectableIds) next.add(id)
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -491,7 +534,19 @@ export function LeadsClient({
             </select>
           </div>
 
-          {/* ── Tabela 7 colunas ──────────────────────────────────────── */}
+          {/* BLOCO 3.4B · banner de bulk actions sticky · só com seleção */}
+          {selectedIds.size > 0 && (
+            <BulkActionBar
+              selectedIds={Array.from(selectedIds)}
+              onClearSelection={clearSelection}
+              onToast={showToast}
+              onAfterSuccess={() => {
+                /* clearSelection já roda dentro do bar · router.refresh idem */
+              }}
+            />
+          )}
+
+          {/* ── Tabela 8 colunas (checkbox + 7 originais) ─────────────── */}
           {finalRows.length === 0 ? (
             <div className="b2b-empty" style={{ padding: 32 }}>
               Nenhum lead encontrado · ajuste os filtros ou aguarde novos contatos.
@@ -503,11 +558,28 @@ export function LeadsClient({
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
-                    '40px minmax(220px, 1.6fr) 110px 1fr 1.2fr 80px 110px',
+                    '36px 40px minmax(220px, 1.6fr) 110px 1fr 1.2fr 80px 110px',
                   rowGap: 0,
                   fontSize: 12,
                 }}
               >
+                <Cell header center>
+                  <input
+                    type="checkbox"
+                    aria-label={
+                      allSelected
+                        ? 'Desmarcar todos visíveis'
+                        : 'Selecionar todos visíveis'
+                    }
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected
+                    }}
+                    onChange={toggleAllVisible}
+                    disabled={selectableIds.length === 0}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </Cell>
                 <Cell header>#</Cell>
                 <Cell header>Lead</Cell>
                 <Cell header>Temperatura</Cell>
@@ -528,6 +600,8 @@ export function LeadsClient({
                     canEdit={canEdit}
                     canDelete={canDelete}
                     onDelete={() => setConfirmDelete(lead)}
+                    isSelected={selectedIds.has(lead.id)}
+                    onToggleSelect={() => toggleLead(lead.id)}
                   />
                 ))}
               </div>
@@ -724,12 +798,16 @@ function LeadRow({
   canEdit,
   canDelete,
   onDelete,
+  isSelected,
+  onToggleSelect,
 }: {
   rowIdx: number
   lead: LeadDTO
   canEdit: boolean
   canDelete: boolean
   onDelete: () => void
+  isSelected: boolean
+  onToggleSelect: () => void
 }) {
   const router = useRouter()
   const initial = (lead.name || lead.phone || '?').trim().charAt(0).toUpperCase()
@@ -740,16 +818,34 @@ function LeadRow({
   const queixas = lead.queixasFaciais || []
   const queixaText = queixas.join(' · ')
   const isActive = !lead.deletedAt
+  const selectable = !lead.deletedAt
 
   function clickRow(e: React.MouseEvent) {
-    // Ignora click se vier de elemento interativo (a/button/select)
+    // Ignora click se vier de elemento interativo (a/button/select/checkbox)
     const target = e.target as HTMLElement
-    if (target.closest('a, button, select, input')) return
+    if (target.closest('a, button, select, input, label')) return
     router.push(`/leads/${lead.id}`)
   }
 
   return (
     <>
+      <Cell center>
+        <input
+          type="checkbox"
+          aria-label={isSelected ? 'Desmarcar lead' : 'Selecionar lead'}
+          checked={isSelected}
+          onChange={onToggleSelect}
+          onClick={(e) => e.stopPropagation()}
+          disabled={!selectable}
+          title={
+            selectable
+              ? 'Marcar/desmarcar pra ações em lote'
+              : 'Lead deletado · não selecionável'
+          }
+          style={{ cursor: selectable ? 'pointer' : 'not-allowed' }}
+        />
+      </Cell>
+
       <Cell onClick={clickRow}>
         <span style={{ color: 'var(--b2b-text-muted)' }}>{rowIdx}</span>
       </Cell>

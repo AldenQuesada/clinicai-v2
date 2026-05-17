@@ -13,6 +13,8 @@ export {
   type KanbanLeadCard,
   type KanbanStageRpc,
   type KanbanEvolutionResult,
+  type BulkChangePhaseResult,
+  type LeadExportRow,
 } from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
 export { computeSla, type SlaInput, type SlaFields } from './sla'

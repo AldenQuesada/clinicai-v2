@@ -935,6 +935,114 @@ export class LeadRepository {
       },
     }
   }
+
+  // ── BLOCO 3.4B · bulk actions /leads ────────────────────────────────────────
+  //
+  // Wrappers read-only-safe sobre RPC já existente + SELECT direto pra export.
+  // Zero migration · zero RPC nova · zero alteração de schema.
+
+  /**
+   * Wrapper da RPC `leads_bulk_change_phase(p_ids text[], p_phase text)`.
+   *
+   * RPC é ATÔMICA por design (transação plpgsql única) · registra
+   * `phase_history` automaticamente · respeita `_lead_phase_transition_allowed`
+   * por lead (leads em transições inválidas são pulados pela RPC e contam
+   * como falha agregada no retorno · não há partial commit).
+   *
+   * Retorno jsonb da RPC pode variar entre versões. Mapeio defensivamente:
+   *   - { ok: true, updated: N } → usar updated
+   *   - { ok: true, count: N }   → usar count
+   *   - { ok: true } sem contagem → assumir ids.length
+   *   - { ok: false, error }     → propagar
+   *
+   * NÃO chamar pra perdido/recuperação · phase 'perdido' não existe (virou
+   * lifecycle_status · usar `markLost` em loop).
+   */
+  async bulkChangePhase(
+    ids: string[],
+    phase: LeadPhase,
+  ): Promise<BulkChangePhaseResult> {
+    if (ids.length === 0) return { ok: true, updated: 0, total: 0 }
+    const { data, error } = await this.supabase.rpc('leads_bulk_change_phase', {
+      p_ids: ids,
+      p_phase: phase,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message }
+    }
+    const parsed = data as
+      | { ok?: boolean; error?: string; updated?: number; count?: number }
+      | null
+    if (!parsed?.ok) {
+      return { ok: false, error: parsed?.error ?? 'unknown_error' }
+    }
+    const updated =
+      typeof parsed.updated === 'number'
+        ? parsed.updated
+        : typeof parsed.count === 'number'
+          ? parsed.count
+          : ids.length
+    return { ok: true, updated, total: ids.length }
+  }
+
+  /**
+   * SELECT direto pra export CSV · escopo clinic_id + deleted_at NULL.
+   *
+   * Modos:
+   *   - `ids` definido: exporta apenas esses leads (intersect com clinic_id).
+   *   - `filter` definido (sem ids): aplica subset dos filtros da página.
+   *   - nenhum: exporta até `limit` leads ativos.
+   *
+   * Cap hard de 5000 linhas pra evitar payload gigante (UI client downloads
+   * blob de uma vez). Caller que precisar mais paginar manualmente.
+   *
+   * Campos projetados: somente o que a UI da lista de leads já mostra +
+   * timestamps de auditoria. Nada sensível além disso.
+   */
+  async listForExport(
+    clinicId: string,
+    options: {
+      filter?: ListLeadsFilter
+      ids?: string[]
+      limit?: number
+    } = {},
+  ): Promise<LeadExportRow[]> {
+    const cap = Math.max(1, Math.min(options.limit ?? 5000, 5000))
+    let q = this.supabase
+      .from('leads')
+      .select(
+        'id, name, phone, email, phase, lifecycle_status, lost_from_phase, ' +
+          'temperature, source, source_type, funnel, lead_score, ' +
+          'queixas_faciais, created_at, updated_at, last_response_at',
+      )
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(cap)
+
+    if (options.ids && options.ids.length > 0) {
+      q = q.in('id', options.ids)
+    } else if (options.filter) {
+      const f = options.filter
+      if (f.phase) q = q.eq('phase', f.phase)
+      if (f.temperature) q = q.eq('temperature', f.temperature)
+      if (f.funnel) q = q.eq('funnel', f.funnel)
+      if (f.sourceType) q = q.eq('source_type', f.sourceType)
+      if (f.lifecycleStatus) q = q.eq('lifecycle_status', f.lifecycleStatus)
+      if (f.search) {
+        const term = f.search.replace(/%/g, '').replace(/,/g, ' ')
+        q = q.or(
+          `name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+        )
+      }
+    }
+
+    const { data } = await q
+    // supabase-js infere `GenericStringError[]` quando o select é multi-line
+    // string · cast via unknown pra projetar pro shape declarado em
+    // `LeadExportRow` (colunas garantidas pelo schema · vide types.ts:8181).
+    return ((data ?? []) as unknown) as LeadExportRow[]
+  }
 }
 
 // ── BLOCO 3.1 · tipos exportados pro kanban ──────────────────────────────────
@@ -978,3 +1086,28 @@ export type KanbanEvolutionResult =
       fallbackWarning?: string
     }
   | { ok: false; error: string; detail?: string }
+
+// ── BLOCO 3.4B · tipos exportados pra bulk + export ─────────────────────────
+
+export type BulkChangePhaseResult =
+  | { ok: true; updated: number; total: number }
+  | { ok: false; error: string; detail?: string }
+
+export interface LeadExportRow {
+  id: string
+  name: string | null
+  phone: string | null
+  email: string | null
+  phase: string | null
+  lifecycle_status: string | null
+  lost_from_phase: string | null
+  temperature: string | null
+  source: string | null
+  source_type: string | null
+  funnel: string | null
+  lead_score: number | null
+  queixas_faciais: unknown
+  created_at: string
+  updated_at: string | null
+  last_response_at: string | null
+}

@@ -20,6 +20,8 @@ import type {
   LeadPhase,
   LeadTemperature,
   UpdateLeadInput,
+  ListLeadsFilter,
+  LeadExportRow,
 } from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
 import { requireAction } from '@/lib/permissions'
@@ -357,4 +359,307 @@ export async function transbordarLeadAction(
   revalidatePath(ROUTE)
   revalidatePath(`${ROUTE}/${leadId}`)
   return ok()
+}
+
+// ── BLOCO 3.4B · Bulk Actions /leads ────────────────────────────────────────
+//
+// Reusa contratos canônicos:
+//   - RPC `leads_bulk_change_phase` (ATÔMICA · phase_history automático)
+//   - `repos.leads.markLost(id, reason)` em loop (lead_lost · sem RPC bulk)
+//   - `repos.leads.listForExport()` para CSV server-side
+//
+// `bulkAddLeadTagsAction` deliberadamente FORA neste bloco · repository
+// `addTags` está @deprecated porque `leads.tags` foi removida em produção
+// durante REFACTOR_LEAD_MODEL. Calls fail silently · merged set nunca chega
+// no DB. Implementar bulk seria UI sem efeito. Re-adicionar quando arquitetura
+// de tags persistentes for restaurada (FASE 3.4M ou conversation_tags).
+
+// Cap rígido pra evitar abuso · pacientes também usa 500.
+const BULK_MAX_IDS = 500
+const EXPORT_MAX_IDS = 5000
+
+function isUuid(s: unknown): s is string {
+  return typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+}
+
+function parseBulkIds(raw: unknown, max = BULK_MAX_IDS): string[] | null {
+  if (!Array.isArray(raw)) return null
+  if (raw.length === 0 || raw.length > max) return null
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const v of raw) {
+    if (!isUuid(v)) return null
+    if (!seen.has(v)) {
+      seen.add(v)
+      out.push(v)
+    }
+  }
+  return out
+}
+
+// ── 11. bulkChangeLeadPhaseAction · atômica via leads_bulk_change_phase ─────
+
+/**
+ * Muda phase de N leads em lote. ATÔMICA via RPC `leads_bulk_change_phase`
+ * (transação plpgsql única · phase_history automático). Reason é livre ·
+ * gravado no campo phase_history.reason quando suportado.
+ *
+ * Transições inválidas pela matriz `_lead_phase_transition_allowed` por lead
+ * são puladas pela RPC e refletidas no count de `updated` retornado.
+ */
+export async function bulkChangeLeadPhaseAction(
+  input: { ids: string[]; toPhase: LeadPhase; reason?: string },
+): Promise<ActionResult<{ updated: number; total: number }>> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'patients:edit')
+
+  const ids = parseBulkIds(input?.ids)
+  if (!ids) return fail(`Selecione 1-${BULK_MAX_IDS} leads válidos`)
+
+  if (!VALID_PHASES.includes(input?.toPhase)) {
+    return fail('Fase inválida · use lead, agendado, paciente ou orcamento')
+  }
+
+  // reason é opcional · RPC não obriga
+  const reason = String(input?.reason ?? '').trim()
+  if (reason.length > 500) return fail('Motivo longo · máximo 500 caracteres')
+
+  const result = await repos.leads.bulkChangePhase(ids, input.toPhase)
+  if (!result.ok) {
+    return fail(result.error || 'Falha ao mudar fase em lote')
+  }
+
+  void ctx
+  void reason // RPC atual não recebe reason · preservado pra futuro
+
+  revalidatePath(ROUTE)
+  revalidatePath('/crm/kanban')
+  revalidatePath('/crm/mesa-operacional')
+  revalidatePath('/crm/dashboard')
+  return ok({ updated: result.updated, total: result.total })
+}
+
+// ── 12. bulkMarkLeadsLostAction · loop sequencial · partial result ──────────
+
+/**
+ * Marca N leads como perdidos via loop em `lead_lost` RPC. NÃO atômico ·
+ * partial success possível. Retorna {updated, failed, total, failedIds}
+ * pra UI mostrar feedback granular. Reason min 3 max 500 obrigatório.
+ *
+ * Cap 500 IDs. Volume operacional típico (até 50 leads em batch · ~5-10s
+ * total). Se um lead já está em lifecycle perdido, RPC retorna idempotent
+ * ou erro · contado em failed defensivamente.
+ */
+export async function bulkMarkLeadsLostAction(
+  input: { ids: string[]; reason: string },
+): Promise<
+  ActionResult<{
+    updated: number
+    failed: number
+    total: number
+    failedIds: string[]
+  }>
+> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'patients:edit')
+
+  const ids = parseBulkIds(input?.ids)
+  if (!ids) return fail(`Selecione 1-${BULK_MAX_IDS} leads válidos`)
+
+  const reason = String(input?.reason ?? '').trim()
+  if (reason.length < 3) return fail('Motivo curto · mínimo 3 caracteres')
+  if (reason.length > 500) return fail('Motivo longo · máximo 500 caracteres')
+
+  const failedIds: string[] = []
+  let updated = 0
+
+  for (const leadId of ids) {
+    try {
+      const r = await repos.leads.markLost(leadId, reason)
+      if (r.ok) {
+        updated++
+      } else {
+        failedIds.push(leadId)
+      }
+    } catch {
+      failedIds.push(leadId)
+    }
+  }
+
+  void ctx
+
+  revalidatePath(ROUTE)
+  revalidatePath('/crm/kanban')
+  revalidatePath('/crm/mesa-operacional')
+  revalidatePath('/crm/dashboard')
+  revalidatePath('/crm/recuperacao')
+
+  return ok({
+    updated,
+    failed: failedIds.length,
+    total: ids.length,
+    failedIds,
+  })
+}
+
+// ── 13. exportLeadsCsvAction · read-only · CSV BOM UTF-8 ────────────────────
+
+const EXPORT_FILTER_KEYS = [
+  'q',
+  'funnel',
+  'phase',
+  'temp',
+  'source',
+  'status',
+  'period',
+  'from',
+  'to',
+  'tag',
+  'queixa',
+  'no_resp_days',
+] as const
+type ExportFilterKey = (typeof EXPORT_FILTER_KEYS)[number]
+type ExportFiltersInput = Partial<Record<ExportFilterKey, string>>
+
+const EXPORT_PHASE_LABEL: Record<string, string> = {
+  lead: 'Lead',
+  agendado: 'Agendado',
+  paciente: 'Paciente',
+  orcamento: 'Orçamento',
+}
+
+const EXPORT_LIFECYCLE_LABEL: Record<string, string> = {
+  ativo: 'Ativo',
+  perdido: 'Perdido',
+  recuperacao: 'Em recuperação',
+  arquivado: 'Arquivado',
+}
+
+const EXPORT_TEMP_LABEL: Record<string, string> = {
+  hot: 'Hot',
+  warm: 'Warm',
+  cold: 'Cold',
+}
+
+function csvEscape(value: unknown): string {
+  const s = value == null ? '' : String(value)
+  return `"${s.replace(/"/g, '""')}"`
+}
+
+function formatDateIsoForCsv(iso: string | null): string {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('pt-BR')
+  } catch {
+    return iso
+  }
+}
+
+function formatQueixasForCsv(value: unknown): string {
+  if (!Array.isArray(value)) return ''
+  return value.map((v) => String(v)).join(' / ')
+}
+
+function buildFilterFromInput(raw: ExportFiltersInput | undefined): ListLeadsFilter {
+  if (!raw) return {}
+  const f: ListLeadsFilter = {}
+  if (raw.q) f.search = String(raw.q).slice(0, 200)
+  if (raw.funnel && VALID_FUNNELS.includes(raw.funnel as Funnel)) f.funnel = raw.funnel as Funnel
+  if (raw.phase && VALID_PHASES.includes(raw.phase as LeadPhase)) f.phase = raw.phase as LeadPhase
+  if (raw.temp && VALID_TEMPS.includes(raw.temp as LeadTemperature)) f.temperature = raw.temp as LeadTemperature
+  // source/source_type ficam fora do filter do repo aqui · subset minimalista.
+  // status → mapeia pra excludePhases/excludeLifecycleStatuses (mesma regra de page.tsx)
+  const status = raw.status || 'active'
+  if (status === 'active') {
+    f.excludePhases = ['paciente', 'orcamento']
+    f.excludeLifecycleStatuses = ['perdido', 'arquivado']
+  } else if (status === 'patient') {
+    f.phases = ['paciente']
+    f.excludeLifecycleStatuses = ['perdido', 'arquivado']
+  } else if (status === 'archived') {
+    f.lifecycleStatus = 'perdido'
+  }
+  return f
+}
+
+/**
+ * Gera CSV server-side · BOM UTF-8 + separador `;` (Excel pt-BR).
+ *
+ * Modos:
+ *   - input.ids → exporta apenas esses (cap 5000)
+ *   - input.filters → aplica subset dos filtros da página
+ *   - nenhum → exporta até 5000 leads ativos
+ *
+ * Read-only · zero revalidatePath. Loga count + tipo (selected vs filter).
+ */
+export async function exportLeadsCsvAction(
+  input: { ids?: string[]; filters?: ExportFiltersInput },
+): Promise<ActionResult<{ csv: string; filename: string; count: number }>> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'patients:view')
+
+  let ids: string[] | undefined
+  if (input?.ids) {
+    const parsed = parseBulkIds(input.ids, EXPORT_MAX_IDS)
+    if (!parsed) return fail(`Lista de IDs inválida · máximo ${EXPORT_MAX_IDS}`)
+    ids = parsed
+  }
+
+  const filter = ids ? undefined : buildFilterFromInput(input?.filters)
+  const rows = await repos.leads.listForExport(ctx.clinic_id, {
+    ids,
+    filter,
+    limit: EXPORT_MAX_IDS,
+  })
+
+  if (rows.length === 0) return fail('empty_export')
+
+  const sep = ';'
+  const header = [
+    'Nome',
+    'Telefone',
+    'Email',
+    'Funnel',
+    'Fase',
+    'Lifecycle',
+    'Perdido de (lost_from_phase)',
+    'Temperatura',
+    'Origem',
+    'Source type',
+    'Score',
+    'Queixas',
+    'Última resposta',
+    'Criado em',
+    'Atualizado em',
+  ]
+    .map(csvEscape)
+    .join(sep)
+
+  const lines = rows.map((r: LeadExportRow) =>
+    [
+      r.name,
+      r.phone,
+      r.email,
+      r.funnel,
+      r.phase ? EXPORT_PHASE_LABEL[r.phase] ?? r.phase : '',
+      r.lifecycle_status ? EXPORT_LIFECYCLE_LABEL[r.lifecycle_status] ?? r.lifecycle_status : '',
+      r.lost_from_phase ?? '',
+      r.temperature ? EXPORT_TEMP_LABEL[r.temperature] ?? r.temperature : '',
+      r.source ?? '',
+      r.source_type ?? '',
+      r.lead_score ?? 0,
+      formatQueixasForCsv(r.queixas_faciais),
+      formatDateIsoForCsv(r.last_response_at),
+      formatDateIsoForCsv(r.created_at),
+      formatDateIsoForCsv(r.updated_at),
+    ]
+      .map(csvEscape)
+      .join(sep),
+  )
+
+  const csv = '﻿' + header + '\n' + lines.join('\n')
+  const today = new Date().toISOString().slice(0, 10)
+  const filename = `leads-export-${today}.csv`
+
+  return ok({ csv, filename, count: rows.length })
 }
