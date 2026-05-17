@@ -274,6 +274,53 @@ export async function restoreLeadAction(
   return ok()
 }
 
+// ── 9.5 markLeadLost · BLOCO 3.3 · marca lifecycle=perdido (lead_lost RPC) ──
+
+/**
+ * Marca lead como perdido (lifecycle_status='perdido') via RPC `lead_lost`.
+ *
+ * Reusa o mesmo repository.markLost que a Mesa Operacional 3.2D e o
+ * markLeadLostAction do CRM. Aqui é um wrapper local pra manter coerência
+ * com o ActionResult pattern desta área (/leads). Motivo obrigatório (3-500).
+ *
+ * Revalida todas as rotas que mostram contagens/listas afetadas:
+ *   - /leads (lista)
+ *   - /leads/[id] (detalhe)
+ *   - /crm/kanban
+ *   - /crm/mesa-operacional
+ *   - /crm/dashboard
+ *   - /crm/recuperacao
+ *
+ * Guards de UI (em LeadActions.tsx):
+ *   - esconde botão se lifecycleStatus !== 'ativo'
+ *   - esconde botão se deletedAt
+ */
+export async function markLeadLostAction(
+  leadId: string,
+  reason: string,
+): Promise<ActionResult<{ leadId: string }>> {
+  const { ctx, repos } = await loadServerReposContext()
+  requireAction(ctx.role, 'patients:edit')
+
+  const cleanReason = String(reason || '').trim()
+  if (cleanReason.length < 3) return fail('Motivo curto · mínimo 3 caracteres')
+  if (cleanReason.length > 500) return fail('Motivo longo · máximo 500 caracteres')
+
+  const result = await repos.leads.markLost(leadId, cleanReason)
+  if (!result.ok) return fail(result.error || 'Não foi possível marcar perdido')
+
+  // Suprimir warn no console pra ctx (usado só pra type narrowing)
+  void ctx
+
+  revalidatePath(ROUTE)
+  revalidatePath(`${ROUTE}/${leadId}`)
+  revalidatePath('/crm/kanban')
+  revalidatePath('/crm/mesa-operacional')
+  revalidatePath('/crm/dashboard')
+  revalidatePath('/crm/recuperacao')
+  return ok({ leadId: result.leadId })
+}
+
 // ── 10. transbordarLead · pausa IA + status=dra (transferir pra humano) ─────
 
 /**

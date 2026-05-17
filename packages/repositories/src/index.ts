@@ -407,6 +407,9 @@ export {
   type CrmDashboardByProfessional,
   type CrmDashboardFunnel,
   type CrmDashboardOperationalLists,
+  type CrmDashboardFinancialSummary,
+  type CrmDashboardTemperatureDistribution,
+  type CrmDashboardSourceRow,
 } from './crm-dashboard.repository'
 export {
   CrmOperationalRepository,

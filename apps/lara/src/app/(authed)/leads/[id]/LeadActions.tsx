@@ -9,9 +9,16 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, ArchiveRestore, Trash2, UserCog } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArchiveRestore,
+  Trash2,
+  UserCog,
+  UserX,
+} from 'lucide-react'
 import type { LeadDTO } from '@clinicai/repositories'
 import {
+  markLeadLostAction,
   restoreLeadAction,
   softDeleteLeadAction,
   transbordarLeadAction,
@@ -33,7 +40,30 @@ export function LeadActions({
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmDel, setConfirmDel] = useState(false)
+  const [confirmLost, setConfirmLost] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  // BLOCO 3.3 · só ativos podem virar perdido
+  const canMarkLost =
+    canEdit && !lead.deletedAt && lead.lifecycleStatus === 'ativo'
+  const lifecycleLabel =
+    lead.lifecycleStatus && lead.lifecycleStatus !== 'ativo'
+      ? lead.lifecycleStatus
+      : null
+
+  async function handleMarkLost(reason: string) {
+    if (!canMarkLost) return
+    setBusy(true)
+    const result = await markLeadLostAction(lead.id, reason)
+    setBusy(false)
+    if (!result.ok) {
+      onToast(result.error || 'Falha ao marcar perdido', 'err')
+      return
+    }
+    onToast('Lead marcado como perdido')
+    setConfirmLost(false)
+    startTransition(() => router.refresh())
+  }
 
   async function handleTransbordar() {
     if (!canEdit) return
@@ -89,7 +119,44 @@ export function LeadActions({
         Ações operacionais
       </h3>
 
+      {lifecycleLabel && (
+        <div
+          style={{
+            padding: '10px 12px',
+            border: '1px solid rgba(239,68,68,0.30)',
+            borderRadius: 8,
+            background: 'rgba(239,68,68,0.08)',
+            color: '#ef4444',
+            fontSize: 11,
+            marginBottom: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <AlertTriangle size={13} />
+          <span>
+            Lifecycle atual:{' '}
+            <strong style={{ textTransform: 'uppercase' }}>{lifecycleLabel}</strong>{' '}
+            · ações destrutivas indisponíveis enquanto este estado persistir.
+          </span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Marcar perdido · BLOCO 3.3 */}
+        {canMarkLost && (
+          <ActionRow
+            title="Marcar como perdido"
+            description="Move este lead pro lifecycle 'perdido' preservando a phase atual em lost_from_phase. Reversível via /crm/recuperacao."
+            actionLabel="Marcar perdido"
+            actionIcon={UserX}
+            onAction={() => setConfirmLost(true)}
+            disabled={busy}
+            tone="danger"
+          />
+        )}
+
         {/* Transbordar */}
         {canEdit && !lead.deletedAt && (
           <ActionRow
@@ -136,6 +203,16 @@ export function LeadActions({
           busy={busy}
           onCancel={() => setConfirmDel(false)}
           onConfirm={handleDelete}
+        />
+      )}
+
+      {/* Modal motivo · marcar perdido · BLOCO 3.3 */}
+      {confirmLost && (
+        <MarkLostModal
+          lead={lead}
+          busy={busy}
+          onCancel={() => setConfirmLost(false)}
+          onConfirm={handleMarkLost}
         />
       )}
     </div>
@@ -207,6 +284,88 @@ function ActionRow({
         <Icon size={13} />
         {actionLabel}
       </button>
+    </div>
+  )
+}
+
+function MarkLostModal({
+  lead,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  lead: LeadDTO
+  busy: boolean
+  onCancel: () => void
+  onConfirm: (reason: string) => void | Promise<void>
+}) {
+  const [reason, setReason] = useState('')
+  const trimmed = reason.trim()
+  const canSubmit = trimmed.length >= 3 && trimmed.length <= 500
+
+  return (
+    <div className="b2b-overlay" onClick={busy ? undefined : onCancel}>
+      <div
+        className="b2b-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 480 }}
+      >
+        <div className="b2b-modal-hdr">
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444' }}>
+            <AlertTriangle size={16} />
+            Marcar lead como perdido
+          </h2>
+          <button onClick={onCancel} aria-label="Fechar" disabled={busy}>
+            ×
+          </button>
+        </div>
+        <div className="b2b-modal-body">
+          <p style={{ marginBottom: 12, color: 'var(--b2b-text-dim)', fontSize: 13 }}>
+            Esta ação move <strong style={{ color: 'var(--b2b-ivory)' }}>{lead.name || '(sem nome)'}</strong>{' '}
+            pro lifecycle <code>perdido</code> preservando a phase atual em <code>lost_from_phase</code>.
+            Reversível pela página de recuperação.
+          </p>
+          <p style={{ marginBottom: 6, fontSize: 12 }}>Motivo (mín 3 caracteres):</p>
+          <textarea
+            className="b2b-input"
+            placeholder="Ex: sem interesse, optou por concorrente, preço, sem retorno..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            maxLength={500}
+            disabled={busy}
+            style={{ minHeight: 72, resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          <div
+            style={{
+              fontSize: 10,
+              color: 'var(--b2b-text-muted)',
+              textAlign: 'right',
+              marginTop: 4,
+            }}
+          >
+            {trimmed.length}/500
+          </div>
+          <div className="b2b-form-actions">
+            <button type="button" className="b2b-btn" onClick={onCancel} disabled={busy}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="b2b-btn"
+              disabled={busy || !canSubmit}
+              onClick={() => onConfirm(trimmed)}
+              style={{
+                background: '#ef4444',
+                color: '#fff',
+                borderColor: '#ef4444',
+              }}
+            >
+              {busy ? 'Salvando...' : 'Marcar perdido'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

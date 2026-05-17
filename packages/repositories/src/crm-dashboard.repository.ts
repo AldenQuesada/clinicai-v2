@@ -105,6 +105,43 @@ export interface CrmDashboardFunnel {
   recuperado: number
 }
 
+// ── BLOCO 3.3 · novos contratos read-only · paridade parcial dashboard ─────
+
+export interface CrmDashboardFinancialSummary {
+  /** Soma de appointments finalizados no período (R$) · não é faturamento contábil. */
+  valorFinalizado: number
+  /** Ticket médio entre finalizados que tiveram value > 0. */
+  ticketMedio: number
+  /** Quantos finalizados entraram no cálculo do ticket médio. */
+  finalizadosComValor: number
+  /** Total de finalizados no período (mesmo sem valor). */
+  finalizadosTotal: number
+}
+
+export interface CrmDashboardTemperatureDistribution {
+  hot: number
+  warm: number
+  cold: number
+  unknown: number
+  total: number
+}
+
+export interface CrmDashboardSourceRow {
+  source: string | null
+  sourceType: string | null
+  total: number
+  agendado: number
+  paciente: number
+  orcamento: number
+  perdido: number
+  /** total agendado / total leads × 100 */
+  pctAgendamento: number
+  /** total (paciente + orcamento) / total leads × 100 */
+  pctConversao: number
+  /** total perdido / total leads × 100 */
+  pctPerda: number
+}
+
 export interface CrmDashboardOperationalLists {
   upcomingAppointments: Array<{
     id: string
@@ -674,3 +711,209 @@ export class CrmDashboardRepository {
 
 // Expor termos canon para uso externo (validation/types)
 export const CRM_DASHBOARD_APPT_STATUSES = APPT_BLOCKED_PROF_STATUSES
+
+// ── BLOCO 3.3 · métodos read-only adicionais (paridade parcial) ─────────────
+// Mantidos como extensão prototípica pra não inflar a classe principal e
+// poder versionar/auditar separadamente. Mesmo this/supabase · 100% RLS.
+
+/**
+ * Soma `appointments.value` de finalizados no range (R$ + count).
+ *
+ * Filtra por `scheduled_date` (data da consulta · não created_at) e
+ * `status='finalizado'`. value=0 conta como finalizado mas não entra
+ * no ticket médio (evita dividir por algo que distorce). Cortesias
+ * (value=0 + payment_status='cortesia') ficam fora do ticket médio
+ * automaticamente. Filtros profissional/origem são respeitados.
+ */
+async function _getFinancialSummary(
+  this: CrmDashboardRepository,
+  clinicId: string,
+  filters: CrmDashboardFilters,
+): Promise<CrmDashboardFinancialSummary> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (this as any).supabase as SupabaseClient<any>
+  let q = sb
+    .from('appointments')
+    .select('value, payment_status')
+    .eq('clinic_id', clinicId)
+    .is('deleted_at', null)
+    .eq('status', 'finalizado')
+    .gte('scheduled_date', filters.startDate)
+    .lte('scheduled_date', filters.endDate)
+  if (filters.professionalId) q = q.eq('professional_id', filters.professionalId)
+  if (filters.origem) q = q.eq('origem', filters.origem)
+
+  const { data } = await q
+  const rows = (data ?? []) as Array<{
+    value: number | string | null
+    payment_status: string | null
+  }>
+
+  let valorFinalizado = 0
+  let finalizadosComValor = 0
+  for (const r of rows) {
+    const v = r.value == null ? 0 : Number(r.value)
+    if (Number.isFinite(v) && v > 0) {
+      valorFinalizado += v
+      finalizadosComValor += 1
+    }
+  }
+
+  const ticketMedio = finalizadosComValor > 0
+    ? Math.round((valorFinalizado / finalizadosComValor) * 100) / 100
+    : 0
+
+  return {
+    valorFinalizado: Math.round(valorFinalizado * 100) / 100,
+    ticketMedio,
+    finalizadosComValor,
+    finalizadosTotal: rows.length,
+  }
+}
+
+/**
+ * Distribuição de temperatura de leads ATIVOS no período.
+ *
+ * Escopo: leads com `lifecycle_status='ativo'` AND `deleted_at IS NULL`
+ * criados dentro do período. Perdidos/arquivados ficam fora (a métrica
+ * é sobre quem está vivo no funil). null/missing entra em `unknown`.
+ *
+ * Filtros profissional/origem ignorados aqui (não fazem sentido pra
+ * snapshot de temperatura · `origem` é da appointment, não do lead).
+ */
+async function _getTemperatureDistribution(
+  this: CrmDashboardRepository,
+  clinicId: string,
+  filters: CrmDashboardFilters,
+): Promise<CrmDashboardTemperatureDistribution> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (this as any).supabase as SupabaseClient<any>
+  const { data } = await sb
+    .from('leads')
+    .select('temperature')
+    .eq('clinic_id', clinicId)
+    .is('deleted_at', null)
+    .eq('lifecycle_status', 'ativo')
+    .gte('created_at', `${filters.startDate}T00:00:00`)
+    .lte('created_at', `${filters.endDate}T23:59:59`)
+
+  const rows = (data ?? []) as Array<{ temperature: string | null }>
+  const dist: CrmDashboardTemperatureDistribution = {
+    hot: 0,
+    warm: 0,
+    cold: 0,
+    unknown: 0,
+    total: rows.length,
+  }
+  for (const r of rows) {
+    const t = (r.temperature ?? '').toLowerCase()
+    if (t === 'hot') dist.hot += 1
+    else if (t === 'warm') dist.warm += 1
+    else if (t === 'cold') dist.cold += 1
+    else dist.unknown += 1
+  }
+  return dist
+}
+
+/**
+ * Comparativo por origem · `source` + `source_type` agrupados.
+ *
+ * Conta leads do período por phase/lifecycle e calcula taxas de
+ * agendamento, conversão (paciente+orçamento) e perda. Sobre leads
+ * (não appointments). Phase=lead vai em "outros" (ainda não convertido).
+ *
+ * Ordenado por `total` desc · top primeiro. Limita a 20 origens pra
+ * tabela não explodir.
+ */
+async function _getBySource(
+  this: CrmDashboardRepository,
+  clinicId: string,
+  filters: CrmDashboardFilters,
+): Promise<CrmDashboardSourceRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (this as any).supabase as SupabaseClient<any>
+  const { data } = await sb
+    .from('leads')
+    .select('source, source_type, phase, lifecycle_status')
+    .eq('clinic_id', clinicId)
+    .is('deleted_at', null)
+    .gte('created_at', `${filters.startDate}T00:00:00`)
+    .lte('created_at', `${filters.endDate}T23:59:59`)
+
+  const rows = (data ?? []) as Array<{
+    source: string | null
+    source_type: string | null
+    phase: string | null
+    lifecycle_status: string | null
+  }>
+
+  const map = new Map<string, CrmDashboardSourceRow>()
+
+  for (const r of rows) {
+    const key = `${r.source ?? '(none)'}::${r.source_type ?? '(none)'}`
+    let acc = map.get(key)
+    if (!acc) {
+      acc = {
+        source: r.source,
+        sourceType: r.source_type,
+        total: 0,
+        agendado: 0,
+        paciente: 0,
+        orcamento: 0,
+        perdido: 0,
+        pctAgendamento: 0,
+        pctConversao: 0,
+        pctPerda: 0,
+      }
+      map.set(key, acc)
+    }
+    acc.total += 1
+    if (r.lifecycle_status === 'perdido') {
+      acc.perdido += 1
+    } else if (r.phase === 'agendado') {
+      acc.agendado += 1
+    } else if (r.phase === 'paciente') {
+      acc.paciente += 1
+    } else if (r.phase === 'orcamento') {
+      acc.orcamento += 1
+    }
+  }
+
+  // Calcula pcts e finaliza
+  for (const acc of map.values()) {
+    if (acc.total > 0) {
+      acc.pctAgendamento = Math.round((acc.agendado / acc.total) * 1000) / 10
+      acc.pctConversao =
+        Math.round(((acc.paciente + acc.orcamento) / acc.total) * 1000) / 10
+      acc.pctPerda = Math.round((acc.perdido / acc.total) * 1000) / 10
+    }
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 20)
+}
+
+// Anexa os métodos ao protótipo · pattern de extensão sem mexer no corpo
+// original da classe (mantém diff pequeno e auditável).
+CrmDashboardRepository.prototype.getFinancialSummary = _getFinancialSummary as never
+CrmDashboardRepository.prototype.getTemperatureDistribution =
+  _getTemperatureDistribution as never
+CrmDashboardRepository.prototype.getBySource = _getBySource as never
+
+declare module './crm-dashboard.repository' {
+  interface CrmDashboardRepository {
+    getFinancialSummary(
+      clinicId: string,
+      filters: CrmDashboardFilters,
+    ): Promise<CrmDashboardFinancialSummary>
+    getTemperatureDistribution(
+      clinicId: string,
+      filters: CrmDashboardFilters,
+    ): Promise<CrmDashboardTemperatureDistribution>
+    getBySource(
+      clinicId: string,
+      filters: CrmDashboardFilters,
+    ): Promise<CrmDashboardSourceRow[]>
+  }
+}

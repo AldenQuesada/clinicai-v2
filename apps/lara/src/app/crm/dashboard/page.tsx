@@ -28,6 +28,9 @@ import { DashboardFilters } from './_filters'
 import { ByProfessionalTable } from './_by-professional'
 import { FunnelCard } from './_funnel'
 import { OperationalLists } from './_operational-lists'
+import { FinancialKpis } from './_financial-kpis'
+import { SourceComparison } from './_source-comparison'
+import { TemperatureDistribution } from './_temperature-distribution'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +84,16 @@ export default async function CrmDashboardPage({
     origem: sp.origem ?? null,
   }
 
-  const [summary, funnel, byProfessional, lists, professionals] = await Promise.all([
+  const [
+    summary,
+    funnel,
+    byProfessional,
+    lists,
+    professionals,
+    financial,
+    temperature,
+    sourceRows,
+  ] = await Promise.all([
     repos.crmDashboard.getSummary(ctx.clinic_id, filters),
     repos.crmDashboard.getFunnel(ctx.clinic_id),
     repos.crmDashboard.getByProfessional(ctx.clinic_id, {
@@ -93,6 +105,20 @@ export default async function CrmDashboardPage({
       endDate: range.endDate,
     }),
     repos.professionalProfiles.listActiveForAgenda(ctx.clinic_id).catch(() => []),
+    repos.crmDashboard.getFinancialSummary(ctx.clinic_id, filters).catch(() => ({
+      valorFinalizado: 0,
+      ticketMedio: 0,
+      finalizadosComValor: 0,
+      finalizadosTotal: 0,
+    })),
+    repos.crmDashboard.getTemperatureDistribution(ctx.clinic_id, filters).catch(() => ({
+      hot: 0,
+      warm: 0,
+      cold: 0,
+      unknown: 0,
+      total: 0,
+    })),
+    repos.crmDashboard.getBySource(ctx.clinic_id, filters).catch(() => []),
   ])
 
   return (
@@ -142,6 +168,9 @@ export default async function CrmDashboardPage({
         />
       </div>
 
+      {/* BLOCO 3.3 · KPIs financeiros · valor finalizado + ticket médio */}
+      <FinancialKpis financial={financial} rangeLabel={range.label} />
+
       {/* Rates */}
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
         <RateCard label="Taxa de agendamento" value={summary.rates.pctAgendamento} hint="appts agendados / leads ativos" />
@@ -174,6 +203,14 @@ export default async function CrmDashboardPage({
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* BLOCO 3.3 · Distribuição de temperatura + Comparativo por origem */}
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <TemperatureDistribution distribution={temperature} />
+        <div className="md:col-span-2">
+          <SourceComparison rows={sourceRows} />
+        </div>
       </div>
 
       {/* By professional */}
