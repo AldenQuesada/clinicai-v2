@@ -268,18 +268,17 @@ export default async function AgendaPage({
 
   return (
     <div>
-      {/* R3_CRM_LIGHT_3 · page-title-row legacy · KPIs na mesma linha do título.
-          Espelha clinic-dashboard/css/style.css `.page-title-row` literal. */}
-      <div className="page-title-row">
-        <div>
-          <h1 className="page-title">Agenda</h1>
-          <p className="page-subtitle">Drag &amp; drop para reagendar</p>
+      {/* Header LITERAL · index.html L1954-1960 · title + KPIs INLINE */}
+      <div className="agenda-page-header">
+        <div className="agenda-page-header-title">
+          <h1 className="page-title" style={{ margin: 0 }}>Agenda</h1>
+          <p className="page-subtitle" style={{ margin: '2px 0 0' }}>
+            Drag &amp; drop para reagendar
+          </p>
         </div>
-      </div>
 
-      {/* KPIs · row horizontal LITERAL · api.js L466-499 (não confundir com
-          .kpi-card vertical do dashboard). Pills inline · 22x22 icon · 18px value */}
-      <div className="agenda-kpi-row">
+        {/* agendaKpiRow · index.html L1959 · flex gap-10 flex-shrink-0 */}
+        <div className="agenda-kpi-row">
         <KpiPill
           label="Agendados"
           value={aggregates.agendado.toString()}
@@ -324,6 +323,7 @@ export default async function AgendaPage({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           }
         />
+        </div>
       </div>
 
       {/* Toolbar legacy · ‹ período › + Horários + Finalizar Dia + Mês/Semana/Hoje + Novo */}

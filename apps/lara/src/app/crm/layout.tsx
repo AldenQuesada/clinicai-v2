@@ -1,16 +1,11 @@
 /**
- * CRM layout · shell light · R3_CRM_LIGHT_1 (2026-05-17).
+ * CRM layout · R3_CRM_LIGHT_5 (2026-05-17).
  *
- * Mudança principal vs versão anterior:
- *   - Wrap raiz com `.crm-light-scope` (CSS vars invertidas pra light) ·
- *     apenas dentro do CRM, sem afetar Lara/Secretaria/Conversas.
- *   - Sidebar 224px → 56px · icon-only desktop · tooltip via title.
- *   - Topbar global clara (CrmTopbar) acima do main · breadcrumb + busca +
- *     Fechar Dia + Notificações + Tasks + "+ Novo" + avatar.
- *   - Mobile mantém drawer com labels (CrmMobileNav).
+ * Sidebar e Topbar transcritos LITERAL do clinic-dashboard:
+ *   - Sidebar 260px com logo "ClinicAI/Premium" + nav-labels 13.5px + footer rico
+ *   - Topbar 64px com breadcrumb + search 280x36 + actions 36x36 + theme toggle + avatar
  *
- * Auth obrigatória · loadServerContext throw 401 se sem JWT (middleware
- * Lara redireciona pra /login).
+ * Auth via loadServerContext · redirect /login se sem JWT.
  */
 
 import Link from 'next/link'
@@ -28,9 +23,6 @@ interface CrmLayoutProps {
 }
 
 export default async function CrmLayout({ children }: CrmLayoutProps) {
-  // Auth gate · loadServerContext throw quando sem JWT/clinic. Em vez de
-  // deixar virar 500 unfriendly, redirect explicito pra /login (middleware
-  // Lara fecha auth flow).
   let ctx
   try {
     const result = await loadServerContext()
@@ -39,17 +31,13 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
     redirect('/login?next=/crm')
   }
 
-  // Profile lookup pra topbar (avatar + nome + role).
-  // Defensive · qualquer erro cai em fallback (não quebra o layout).
   let displayName = 'Usuário'
   let initials = 'U'
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient({
       getAll: () => cookieStore.getAll(),
-      setAll: () => {
-        /* noop · ja autenticou via loadServerContext */
-      },
+      setAll: () => {},
     })
     const result = await supabase.auth.getUser()
     const user = result.data.user
@@ -67,89 +55,83 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
 
   return (
     <ToastProvider>
-      {/* R3_CRM_LIGHT_1A · escopo light isolado do resto do app */}
       <div className="crm-light-scope flex h-screen overflow-hidden">
-        {/* R3_CRM_LIGHT_1B · sidebar rail dark 56px · icon-only desktop */}
-        <aside className="crm-sidebar hidden md:flex" aria-label="Navegação CRM">
-          {/* Logo monograma · centralizado · sem label */}
+        {/* Sidebar 260px LITERAL legacy · L1955 wrapper */}
+        <aside className="sidebar hidden md:flex">
+          {/* sidebar-logo (style.css L193-244) */}
           <Link
             href="/crm"
-            className="flex h-20 w-full items-center justify-center"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-            title="CRM · Clínica Mirian"
+            className="sidebar-logo"
+            style={{ textDecoration: 'none' }}
           >
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold"
-              style={{
-                background: 'var(--crm-gold)',
-                color: 'var(--crm-graphite)',
-              }}
-            >
-              C
+            <div className="sidebar-logo-icon">C</div>
+            <div className="sidebar-logo-text">
+              <span className="sidebar-logo-name">ClinicAI</span>
+              <span className="sidebar-logo-badge">Premium</span>
             </div>
           </Link>
 
           <CrmSidebarNav />
 
-          {/* Footer · clinic_id curto · role pill */}
-          <div
-            className="border-t w-full px-2 py-3 text-center"
-            style={{ borderTopColor: 'rgba(255,255,255,0.06)' }}
-          >
-            <p
-              className="truncate text-[9px] uppercase tracking-widest"
-              style={{ color: 'rgba(245,240,232,0.55)' }}
-              title={ctx.clinic_id}
-            >
-              {ctx.clinic_id.slice(0, 4)}
-            </p>
-            {ctx.role && (
-              <p
-                className="mt-1 text-[8px] uppercase tracking-widest"
-                style={{ color: 'rgba(200,169,126,0.85)' }}
-                title={ctx.role}
+          {/* sidebar-footer (style.css L409-460) */}
+          <div className="sidebar-footer">
+            <div className="sidebar-footer-avatar">MP</div>
+            <div className="sidebar-footer-info">
+              <span
+                className="sidebar-footer-name"
+                title={ctx.clinic_id}
               >
-                {ctx.role.slice(0, 3)}
-              </p>
-            )}
+                Clínica Mirian de Paula
+              </span>
+              <span className="sidebar-footer-plan">
+                {ctx.role ? `Plano ${ctx.role}` : 'Plano Premium'}
+              </span>
+            </div>
           </div>
         </aside>
 
-        {/* Topbar mobile compacto · drawer com labels */}
+        {/* Mobile compact header · drawer com labels */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <header
             className="flex h-14 items-center gap-3 border-b px-4 md:hidden"
             style={{
-              background: 'var(--crm-surface)',
-              borderBottomColor: 'var(--crm-border)',
+              background: 'var(--card)',
+              borderBottomColor: 'var(--border)',
             }}
           >
             <Link href="/crm" className="flex items-center gap-2">
               <div
                 className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
                 style={{
-                  background: 'var(--crm-gold)',
-                  color: '#FFFFFF',
+                  background:
+                    'linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark))',
+                  color: '#fff',
                 }}
               >
                 C
               </div>
-              <span className="text-xs font-bold uppercase tracking-widest text-[color:var(--crm-text)]">
-                CRM
+              <span className="text-xs font-bold uppercase tracking-widest text-[color:var(--text-primary)]">
+                ClinicAI
               </span>
             </Link>
             <CrmMobileNav />
           </header>
 
-          {/* R3_CRM_LIGHT_1C · topbar global do CRM · desktop · 80px */}
-          <CrmTopbar displayName={displayName} initials={initials} role={ctx.role ?? null} />
+          {/* Topbar 64px LITERAL legacy · desktop only */}
+          <CrmTopbar
+            displayName={displayName}
+            initials={initials}
+            role={ctx.role ?? null}
+          />
 
-          {/* Conteúdo principal · padding 36/26 (contrato R3_CRM_LIGHT_2) */}
           <main
-            className="crm-page flex-1 overflow-y-auto"
-            style={{ background: 'var(--crm-bg)' }}
+            className="flex-1 overflow-y-auto"
+            style={{
+              background: 'var(--bg)',
+              padding: '28px',
+            }}
           >
-            <div className="crm-content">{children}</div>
+            {children}
           </main>
         </div>
       </div>

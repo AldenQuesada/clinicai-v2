@@ -201,171 +201,155 @@ export function WeekCalendar({
     }
   }
 
+  const todayIso = new Date().toISOString().slice(0, 10)
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="crm-week-calendar overflow-x-auto">
-        <div className="grid min-w-[1240px] grid-cols-[92px_repeat(7,minmax(180px,1fr))]">
-          {/* Header · vazio + 7 dias · 64px */}
-          <div
-            className="border-b border-r"
-            style={{
-              background: 'var(--crm-surface)',
-              borderBottomColor: 'var(--crm-border)',
-              borderRightColor: 'var(--crm-border)',
-              height: 64,
-            }}
-          />
-          {days.map((date, i) => {
-            const isToday = date === new Date().toISOString().slice(0, 10)
-            const isSunday = i === 0
-            const dayNum = parseInt(date.slice(8, 10), 10)
-            return (
-              <div
-                key={date}
-                className="border-b border-r flex flex-col items-center justify-center text-center"
-                style={{
-                  borderBottomColor: 'var(--crm-border)',
-                  borderRightColor: 'var(--crm-border)',
-                  background: isToday
-                    ? 'rgba(124, 58, 237, 0.08)'
-                    : isSunday
-                      ? '#F4F0FF'
-                      : 'var(--crm-surface)',
-                  height: 64,
-                }}
-              >
-                <div
-                  className="text-[10px] font-bold uppercase tracking-widest"
-                  style={{
-                    color: isSunday ? 'var(--crm-purple)' : 'var(--crm-muted)',
-                  }}
-                >
-                  {WEEKDAYS_PT[i]}
-                </div>
-                <div
-                  className="text-base font-bold"
-                  style={{
-                    color: isToday
-                      ? 'var(--crm-purple)'
-                      : isSunday
-                        ? 'var(--crm-purple)'
-                        : 'var(--crm-text)',
-                  }}
-                >
-                  {dayNum}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Linhas de slots · time column 92px + 7 dias · 42px height each */}
-          {slots.map((slot) => (
-            <React.Fragment key={slot.label}>
-              <div
-                className="border-b border-r px-2 flex items-center justify-center text-xs font-semibold"
-                style={{
-                  background: 'var(--crm-surface)',
-                  borderBottomColor: 'var(--crm-border)',
-                  borderRightColor: 'var(--crm-border)',
-                  color: 'var(--crm-muted)',
-                  height: 42,
-                }}
-              >
-                {slot.label}
-              </div>
-              {days.map((date) => {
-                const dayAppts = apptsByDay.get(date) ?? []
-                const slotAppts = dayAppts.filter((a) => {
-                  const start = timeToMinutes(a.startTime)
-                  const end = timeToMinutes(a.endTime)
-                  // Appt overlaps slot · start dentro OU spanning
-                  return start < slot.minutes + slotMinutes && end > slot.minutes
-                })
-                const slotId = makeSlotId(date, slot.label)
+      <div className="agenda-calendar-wrapper">
+        <table className="agenda-calendar-table">
+          <thead>
+            <tr className="agenda-cal-thead-row">
+              <th className="agenda-cal-hora-th">Hora</th>
+              {days.map((date, i) => {
+                const isToday = date === todayIso
+                const dayNum = parseInt(date.slice(8, 10), 10)
                 return (
-                  <DroppableSlot
-                    key={`${date}-${slot.label}`}
-                    slotId={slotId}
-                    isEmpty={slotAppts.length === 0}
-                    onClickEmpty={() => handleSlotClick(date, slot.label)}
-                    busy={dragBusy}
+                  <th
+                    key={date}
+                    className={
+                      isToday
+                        ? 'agenda-cal-day-th agenda-cal-day-th-today'
+                        : 'agenda-cal-day-th'
+                    }
                   >
-                    {slotAppts.map((a) => {
-                      const startMins = timeToMinutes(a.startTime)
-                      // Renderiza apenas no slot inicial
-                      if (
-                        startMins < slot.minutes ||
-                        startMins >= slot.minutes + slotMinutes
-                      ) {
-                        return null
-                      }
-                      return (
-                        <AppointmentSlot
-                          key={a.id}
-                          appointment={a}
-                          onClick={() => handleAppointmentClick(a.id)}
-                        />
-                      )
-                    })}
-                  </DroppableSlot>
+                    <div>{WEEKDAYS_PT[i]}</div>
+                    <div className="agenda-cal-day-num">{dayNum}</div>
+                  </th>
                 )
               })}
-            </React.Fragment>
-          ))}
-        </div>
+            </tr>
+          </thead>
+          <tbody>
+            {slots.map((slot) => {
+              const isHour = slot.label.endsWith(':00')
+              return (
+                <tr
+                  key={slot.label}
+                  className={isHour ? 'agenda-cal-row-hour' : 'agenda-cal-row'}
+                >
+                  <td
+                    className={
+                      isHour
+                        ? 'agenda-cal-time-td agenda-cal-time-td-hour'
+                        : 'agenda-cal-time-td'
+                    }
+                  >
+                    {slot.label}
+                  </td>
+                  {days.map((date) => {
+                    const dayAppts = apptsByDay.get(date) ?? []
+                    const slotAppts = dayAppts.filter((a) => {
+                      const start = timeToMinutes(a.startTime)
+                      const end = timeToMinutes(a.endTime)
+                      return (
+                        start < slot.minutes + slotMinutes &&
+                        end > slot.minutes
+                      )
+                    })
+                    const slotId = makeSlotId(date, slot.label)
+                    const isToday = date === todayIso
+                    const isPast = date < todayIso
+                    return (
+                      <DroppableSlotTd
+                        key={`${date}-${slot.label}`}
+                        slotId={slotId}
+                        isEmpty={slotAppts.length === 0}
+                        isHour={isHour}
+                        isToday={isToday}
+                        isPast={isPast && slotAppts.length === 0}
+                        onClickEmpty={() => handleSlotClick(date, slot.label)}
+                        busy={dragBusy}
+                      >
+                        {slotAppts.map((a) => {
+                          const startMins = timeToMinutes(a.startTime)
+                          if (
+                            startMins < slot.minutes ||
+                            startMins >= slot.minutes + slotMinutes
+                          ) {
+                            return null
+                          }
+                          return (
+                            <AppointmentSlot
+                              key={a.id}
+                              appointment={a}
+                              onClick={() => handleAppointmentClick(a.id)}
+                            />
+                          )
+                        })}
+                      </DroppableSlotTd>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </DndContext>
   )
 }
 
-// ── Droppable wrapper · cada celula 1 dia × 1 slot ──────────────────────────
+// ── Droppable slot · <td> · LITERAL · api.js L744-754 ──────────────────────
 
-interface DroppableSlotProps {
+interface DroppableSlotTdProps {
   slotId: string
   isEmpty: boolean
+  isHour: boolean
+  isToday: boolean
+  isPast: boolean
   onClickEmpty: () => void
   busy: boolean
   children: React.ReactNode
 }
 
-function DroppableSlot({
+function DroppableSlotTd({
   slotId,
   isEmpty,
+  isHour,
+  isToday,
+  isPast,
   onClickEmpty,
   busy,
   children,
-}: DroppableSlotProps) {
+}: DroppableSlotTdProps) {
   const { isOver, setNodeRef } = useDroppable({ id: slotId })
-  // Detecta domingo via slotId formato `${date}|${time}` · primeiro dia da semana
-  const datePart = slotId.split('|')[0] ?? ''
-  const isSunday =
-    datePart.length === 10
-      ? new Date(`${datePart}T00:00:00.000Z`).getUTCDay() === 0
-      : false
+
+  // Classes literais legacy · sem hatching default · sem destaque sunday
+  const classes = ['agenda-cal-slot-td']
+  if (isHour) classes.push('agenda-cal-slot-td-hour')
+  if (isToday) classes.push('agenda-cal-slot-td-today')
+  if (isPast) classes.push('agenda-cal-slot-td-past')
 
   return (
-    <div
+    <td
       ref={setNodeRef}
-      className={`relative border-b border-r transition-colors ${
-        isEmpty ? 'agenda-empty-slot cursor-pointer' : ''
-      } ${busy ? 'cursor-wait' : ''}`}
-      style={{
-        height: 42,
-        borderBottomColor: 'var(--crm-border)',
-        borderRightColor: 'var(--crm-border)',
-        background: isOver
-          ? 'rgba(124, 58, 237, 0.10)'
-          : isSunday
-            ? '#F4F0FF'
-            : 'var(--crm-surface)',
-        boxShadow: isOver ? 'inset 0 0 0 1px var(--crm-purple)' : undefined,
-      }}
+      className={classes.join(' ')}
+      style={
+        isOver
+          ? {
+              background: 'rgba(124, 58, 237, 0.10)',
+              boxShadow: 'inset 0 0 0 1px var(--accent-purple)',
+            }
+          : busy
+            ? { cursor: 'wait' }
+            : undefined
+      }
       onClick={() => {
         if (isEmpty && !busy) onClickEmpty()
       }}
     >
       {children}
-    </div>
+    </td>
   )
 }
 

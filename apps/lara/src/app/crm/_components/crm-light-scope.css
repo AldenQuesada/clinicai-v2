@@ -1,21 +1,15 @@
 /**
- * crm-light-scope.css · R3_CRM_LIGHT_3 TRANSCRIBE_CSS_LITERAL (2026-05-17).
+ * crm-light-scope.css · R3_CRM_LIGHT_5 (2026-05-17).
  *
- * Override scoped + transcrição LITERAL do CSS legacy clinic-dashboard
- * (style.css :root + .kpi-* + .sidebar-* + .breadcrumb-* + .btn-new +
- * .page-title-*). Apenas dentro do shell CRM via `.crm-light-scope`.
+ * TRANSCRIÇÃO LITERAL do clinic-dashboard/css/style.css.
+ * Zero interpretação. Valores e nomes vêm direto do legacy.
  *
- * Lara/Secretaria/Conversas continuam dark · não tocamos `:root` global.
- *
- * Regra: zero interpretação. Valores e nomes de classes vêm direto de
- * clinic-dashboard/css/style.css.
+ * Scope: `.crm-light-scope` no wrapper raiz do CRM.
+ * Não afeta Lara/Secretaria/Conversas/etc (não tocamos :root global).
  */
 
 .crm-light-scope {
-  /* ═══════════════════════════════════════════════════════════════════
-   * :root LITERAL legacy · clinic-dashboard/css/style.css L8-30
-   * ═══════════════════════════════════════════════════════════════════ */
-
+  /* ──── :root LITERAL · style.css L8-50 ──── */
   --bg: #F7F8FC;
   --sidebar-bg: #0D0E14;
   --sidebar-hover: rgba(255, 255, 255, 0.05);
@@ -34,72 +28,53 @@
   --danger: #EF4444;
   --warning: #F59E0B;
 
-  --sidebar-width: 56px;        /* V2 mantém sidebar estreita (ícone-only) */
+  --sidebar-width: 260px;
   --header-height: 64px;
   --content-padding: 28px;
 
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
   --shadow-lg: 0 10px 32px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
-  --shadow-dropdown: 0 8px 28px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
 
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --radius-xl: 18px;
   --radius-full: 9999px;
 
   --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ═══════════════════════════════════════════════════════════════════
-   * Tailwind/shadcn HSL · derivado da paleta legacy
-   * ═══════════════════════════════════════════════════════════════════ */
-
-  --background: 225 31% 97%;          /* #F7F8FC */
-  --foreground: 232 27% 14%;          /* #1A1B2E */
+  /* ──── Tailwind HSL · derivado da paleta legacy ──── */
+  --background: 225 31% 97%;
+  --foreground: 232 27% 14%;
   --card-foreground: 232 27% 14%;
   --popover: 0 0% 100%;
   --popover-foreground: 232 27% 14%;
-  --primary: 36 39% 60%;              /* #C9A96E */
+  --primary: 36 39% 60%;
   --primary-foreground: 0 0% 100%;
   --secondary: 225 21% 95%;
   --secondary-foreground: 232 27% 14%;
   --muted: 225 21% 95%;
-  --muted-foreground: 220 9% 46%;     /* #6B7280 */
+  --muted-foreground: 220 9% 46%;
   --accent: 225 21% 92%;
   --accent-foreground: 232 27% 14%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   --input: 225 21% 91%;
   --ring: 36 39% 60%;
-  --success: 160 84% 39%;
   --color-border-soft: 225 25% 95%;
 
-  /* ═══════════════════════════════════════════════════════════════════
-   * b2b-* · adaptado pra light (mantém compat com components Lara)
-   * ═══════════════════════════════════════════════════════════════════ */
-
+  /* ──── b2b-* adapter pra Lara components ──── */
   --b2b-bg-0: #F7F8FC;
   --b2b-bg-1: #FFFFFF;
   --b2b-bg-2: #F3F4F6;
   --b2b-bg-3: #E8EAF0;
   --b2b-champagne: #C9A96E;
-  --b2b-champagne-light: #DFC5A0;
-  --b2b-champagne-dark: #B8935A;
-  --b2b-ivory: #FFFFFF;
   --b2b-text: #1A1B2E;
   --b2b-text-muted: #6B7280;
-  --b2b-text-dim: #4A4A4A;
   --b2b-border: #E8EAF0;
-  --b2b-border-strong: rgba(201, 169, 110, 0.45);
-  --b2b-sage: #5C7A5A;
-  --b2b-amber: #B45309;
-  --b2b-red: #EF4444;
-
-  --lara-shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --lara-shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
-  --lara-shadow-lg: 0 10px 32px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --lara-shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --lara-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
 
   color-scheme: light;
   background-color: var(--bg);
@@ -115,35 +90,441 @@
   font-family: inherit;
 }
 
-.crm-light-scope .b2b-input {
-  color-scheme: light;
-  background: var(--card);
-  color: var(--text-primary);
-  border-color: var(--border);
+/* ═══════════════════════════════════════════════════════════════════
+ * SIDEBAR · LITERAL · style.css L178-475
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.crm-light-scope .font-display-italic {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+.crm-light-scope .sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
 }
 
-.crm-light-scope .font-display-uppercase {
-  font-family: 'Inter', system-ui, sans-serif;
+.crm-light-scope .sidebar-logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  font-weight: 700;
+}
+
+.crm-light-scope .sidebar-logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.crm-light-scope .sidebar-logo-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+
+.crm-light-scope .sidebar-logo-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent-gold);
+  background: rgba(201, 169, 110, 0.15);
+  border: 1px solid rgba(201, 169, 110, 0.3);
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  width: fit-content;
+}
+
+.crm-light-scope .sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 0 16px;
+}
+
+.crm-light-scope .nav-section {
+  padding: 2px 10px;
+}
+
+.crm-light-scope .nav-item {
+  margin-bottom: 2px;
+}
+
+.crm-light-scope .nav-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition);
+  text-decoration: none;
+}
+
+.crm-light-scope .nav-item-main:hover {
+  background: var(--sidebar-hover);
+}
+
+.crm-light-scope .nav-item.has-active > .nav-item-main {
+  background: var(--sidebar-active-bg);
+}
+
+.crm-light-scope .nav-item.has-active > .nav-item-main .nav-label,
+.crm-light-scope .nav-item.has-active > .nav-item-main .nav-icon {
+  color: var(--accent-gold);
+}
+
+.crm-light-scope .nav-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.45);
+  transition: color var(--transition);
+}
+
+.crm-light-scope .nav-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.crm-light-scope .nav-item-main:hover .nav-icon {
+  color: rgba(255,255,255,0.75);
+}
+
+.crm-light-scope .nav-label {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.65);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--transition);
+}
+
+.crm-light-scope .nav-item-main:hover .nav-label {
+  color: rgba(255,255,255,0.9);
+}
+
+.crm-light-scope .sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.crm-light-scope .sidebar-footer-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.crm-light-scope .sidebar-footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.crm-light-scope .sidebar-footer-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-light-scope .sidebar-footer-plan {
+  font-size: 10.5px;
+  color: var(--accent-gold);
+  font-weight: 500;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * page-title-row · LITERAL · style.css L1122-1148
+ * HEADER (TOPBAR) · LITERAL · style.css L502-700
  * ═══════════════════════════════════════════════════════════════════ */
 
-.crm-light-scope .page-title-row {
+.crm-light-scope .header {
+  height: var(--header-height);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 0 24px;
+  box-shadow: var(--shadow-sm);
 }
+
+.crm-light-scope .header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.crm-light-scope .breadcrumb-icon {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.crm-light-scope .breadcrumb-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.crm-light-scope .breadcrumb-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.crm-light-scope .breadcrumb-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.crm-light-scope .breadcrumb-current {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.crm-light-scope .header-spacer {
+  flex: 1;
+}
+
+.crm-light-scope .header-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 12px;
+  height: 36px;
+  width: 280px;
+  transition: border-color var(--transition);
+}
+
+.crm-light-scope .header-search:focus-within {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.12);
+}
+
+.crm-light-scope .search-icon {
+  color: var(--text-muted);
+  display: flex;
+  flex-shrink: 0;
+}
+
+.crm-light-scope .search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.crm-light-scope .search-input {
+  flex: 1;
+  background: none;
+  font-size: 13px;
+  color: var(--text-primary);
+  border: none;
+  outline: none;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crm-light-scope .search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.crm-light-scope .search-shortcut {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.crm-light-scope .header-action {
+  position: relative;
+}
+
+.crm-light-scope .header-action-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.crm-light-scope .header-action-btn:hover {
+  background: var(--card);
+  border-color: var(--accent-gold);
+  color: var(--text-primary);
+}
+
+.crm-light-scope .header-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.crm-light-scope .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  border-radius: var(--radius-full);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--card);
+  line-height: 1;
+  color: #fff;
+}
+
+.crm-light-scope .badge-warning {
+  background: var(--warning);
+}
+
+.crm-light-scope .badge-danger {
+  background: var(--danger);
+}
+
+.crm-light-scope .fechar-dia-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #DC2626, #B91C1C);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(220,38,38,.35);
+  transition: all .2s;
+  white-space: nowrap;
+}
+
+.crm-light-scope .fechar-dia-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(220,38,38,.5);
+  transform: translateY(-1px);
+}
+
+.crm-light-scope .theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.crm-light-scope .theme-toggle svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.crm-light-scope .avatar-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.crm-light-scope .avatar-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent-purple), #6D28D9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.crm-light-scope .avatar-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.crm-light-scope .avatar-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-light-scope .avatar-role {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * PAGE TITLE · LITERAL · style.css L1122-1148
+ * ═══════════════════════════════════════════════════════════════════ */
 
 .crm-light-scope .page-title {
   font-size: 22px;
@@ -159,49 +540,39 @@
   font-weight: 400;
 }
 
-.crm-light-scope .page-title-actions {
+/* Wrapper Agenda · title + KPIs INLINE · index.html L1955 LITERAL */
+.crm-light-scope .agenda-page-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  margin-bottom: 4px;
+  padding: 0 0 8px;
+}
+
+.crm-light-scope .agenda-page-header-title {
+  flex-shrink: 0;
+  margin-right: auto;
+}
+
+.crm-light-scope .agenda-kpi-row {
+  display: flex;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * Agenda KPIs · LITERAL · clinic-dashboard/js/api.js L466-499
- *
- * Inline horizontal compacto da Agenda (NÃO confundir com .kpi-card
- * do dashboard que é vertical grande em style.css L1387). O que a
- * Agenda legacy realmente usa é estilo inline pill horizontal:
- *
- *   div { flex:1; background:#fff; border:1px solid #F3F4F6;
- *         border-radius:10px; padding:8px 18px;
- *         display:flex; align-items:center; gap:8px }
- *     box-icon 22x22 radius-6 bg-tint color
- *     label 10px 700 UPPERCASE color-gray-400
- *     value 18px 800 color-accent
- *     separator 1px height-16 bg #E5E7EB
- *     sub 12px 600 color-accent
+ * AGENDA KPI PILLS · LITERAL · api.js L466-499
  * ═══════════════════════════════════════════════════════════════════ */
-
-.crm-light-scope .agenda-kpi-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
 
 .crm-light-scope .agenda-kpi-pill {
   flex: 1;
-  min-width: 210px;
-  height: 48px;
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0 18px;
+  border: 1px solid #F3F4F6;
+  border-radius: 10px;
+  padding: 8px 18px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  box-shadow: var(--shadow-sm);
+  gap: 8px;
+  min-width: 180px;
 }
 
 .crm-light-scope .agenda-kpi-pill-warning {
@@ -249,26 +620,23 @@
 }
 
 .crm-light-scope .agenda-kpi-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #9CA3AF;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
 .crm-light-scope .agenda-kpi-value {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.5px;
 }
 
 .crm-light-scope .agenda-kpi-value-blue    { color: #3B82F6; }
 .crm-light-scope .agenda-kpi-value-warning { color: #D97706; }
 .crm-light-scope .agenda-kpi-value-danger  { color: #EF4444; }
 .crm-light-scope .agenda-kpi-value-emerald { color: #10B981; }
-.crm-light-scope .agenda-kpi-value-default { color: var(--text-primary); }
 
 .crm-light-scope .agenda-kpi-sep {
   width: 1px;
@@ -287,7 +655,7 @@
 .crm-light-scope .agenda-kpi-sub-muted   { color: var(--text-muted); }
 
 /* ═══════════════════════════════════════════════════════════════════
- * btn-* · LITERAL · style.css L717-756
+ * BTN-NEW + BTN-OUTLINE · LITERAL · style.css L717-756
  * ═══════════════════════════════════════════════════════════════════ */
 
 .crm-light-scope .btn-new {
@@ -306,6 +674,7 @@
   white-space: nowrap;
   border: none;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .crm-light-scope .btn-new:hover {
@@ -347,18 +716,8 @@
   color: var(--accent-emerald);
 }
 
-.crm-light-scope .btn-outline.btn-danger {
-  border-color: var(--danger);
-  color: var(--danger);
-  font-weight: 700;
-}
-
-.crm-light-scope .btn-outline.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.06);
-}
-
 /* ═══════════════════════════════════════════════════════════════════
- * view-switcher · 3 pills em container cinza · LITERAL api.js L424
+ * VIEW SWITCHER · LITERAL · api.js L424
  * ═══════════════════════════════════════════════════════════════════ */
 
 .crm-light-scope .view-switcher {
@@ -388,52 +747,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * filter-bar + filter-select · ajustado paleta legacy
- * ═══════════════════════════════════════════════════════════════════ */
-
-.crm-light-scope .agenda-filter-bar {
-  min-height: 54px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--card);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.crm-light-scope .agenda-filter-bar-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  margin-right: 6px;
-}
-
-.crm-light-scope .agenda-filter-select {
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #D1D5DB;
-  background: var(--card);
-  padding: 0 12px;
-  font-size: 13px;
-  color: var(--text-primary);
-  cursor: pointer;
-  outline: none;
-  transition: border-color var(--transition);
-}
-
-.crm-light-scope .agenda-filter-select:focus {
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.12);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- * status-chips · LITERAL · api.js L431-435
- * background colorido + dot + label · não só dot transparent
+ * STATUS CHIPS · LITERAL · api.js L431-435
  * ═══════════════════════════════════════════════════════════════════ */
 
 .crm-light-scope .agenda-status-row {
@@ -441,7 +755,7 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .crm-light-scope .agenda-status-chip {
@@ -456,8 +770,53 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * Toolbar agenda (period nav + Horários + Finalizar Dia + view switcher)
- * LITERAL · api.js L408-426
+ * FILTER BAR · adaptado pra V2
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.crm-light-scope .agenda-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.crm-light-scope .agenda-filter-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.crm-light-scope .agenda-filter-select {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #D1D5DB;
+  background: var(--card);
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.crm-light-scope .agenda-filter-select:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.12);
+}
+
+.crm-light-scope .agenda-filter-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * AGENDA TOOLBAR · LITERAL · api.js L408
  * ═══════════════════════════════════════════════════════════════════ */
 
 .crm-light-scope .agenda-toolbar {
@@ -477,48 +836,129 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * Calendar week view · paleta legacy
+ * CALENDAR WEEK · LITERAL · api.js L716-768
  * ═══════════════════════════════════════════════════════════════════ */
 
-.crm-light-scope .crm-week-calendar {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
+.crm-light-scope .agenda-calendar-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  box-sizing: border-box;
 }
 
-.crm-light-scope .crm-week-header {
-  height: 56px;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+.crm-light-scope .agenda-calendar-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 600px;
 }
 
-.crm-light-scope .crm-time-column {
-  background: var(--card);
-  border-right: 1px solid var(--border);
+.crm-light-scope .agenda-cal-thead-row {
+  background: #F9FAFB;
 }
 
-.crm-light-scope .crm-day-column {
-  border-right: 1px solid var(--border);
-  background: var(--card);
+.crm-light-scope .agenda-cal-hora-th {
+  width: 72px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+  border-right: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  text-align: left;
 }
 
-.crm-light-scope .crm-day-column-sunday {
-  background: #F4F0FF;
+.crm-light-scope .agenda-cal-day-th {
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  border-right: 1px solid #E5E7EB;
+  text-align: center;
+  background: #F9FAFB;
 }
 
-.crm-light-scope .crm-time-slot {
-  border-bottom: 1px solid var(--border);
+.crm-light-scope .agenda-cal-day-th-today {
+  color: var(--accent-purple);
+  background: #F5F3FF;
 }
 
-/* Hatching diagonal nos slots vazios */
-.crm-light-scope .agenda-empty-slot {
+.crm-light-scope .agenda-cal-day-num {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.crm-light-scope .agenda-cal-row {
+  background: #fff;
+}
+
+.crm-light-scope .agenda-cal-row-hour {
+  background: #FAFAFA;
+}
+
+.crm-light-scope .agenda-cal-time-td {
+  width: 72px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #9CA3AF;
+  border-right: 1px solid #E5E7EB;
+  border-bottom: 1px solid #F3F4F6;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.crm-light-scope .agenda-cal-time-td-hour {
+  font-weight: 700;
+  color: #374151;
+  background: #FAFAFA;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.crm-light-scope .agenda-cal-slot-td {
+  padding: 2px 3px;
+  border-right: 1px solid #E5E7EB;
+  border-bottom: 1px solid #F3F4F6;
+  height: 34px;
+  vertical-align: top;
+  cursor: pointer;
+  position: relative;
+}
+
+.crm-light-scope .agenda-cal-slot-td-hour {
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.crm-light-scope .agenda-cal-slot-td-today {
+  background: #FEFCE8;
+}
+
+.crm-light-scope .agenda-cal-slot-td-past {
+  background: #F9FAFB;
+  opacity: 0.5;
+}
+
+/* Hatching · APENAS em slot bloqueado (almoço · fechado).
+   V2 não tem fonte de blocked yet · sem aplicação default. */
+.crm-light-scope .agenda-cal-slot-td-blocked-lunch {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(148, 163, 184, 0.08) 0,
-    rgba(148, 163, 184, 0.08) 4px,
-    transparent 4px,
-    transparent 8px
+    #FEF3C7,
+    #FEF3C7 4px,
+    #FDE68A 4px,
+    #FDE68A 8px
   );
+  cursor: not-allowed;
+}
+
+.crm-light-scope .agenda-cal-slot-td-blocked-closed {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #F3F4F6,
+    #F3F4F6 4px,
+    #E5E7EB 4px,
+    #E5E7EB 8px
+  );
+  cursor: not-allowed;
 }

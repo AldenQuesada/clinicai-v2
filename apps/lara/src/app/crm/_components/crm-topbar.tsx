@@ -1,22 +1,16 @@
 'use client'
 
 /**
- * CrmTopbar · header global do CRM · R3_CRM_LIGHT_1C.
+ * CrmTopbar · header global do CRM · R3_CRM_LIGHT_5.
  *
- * Espelha header do legacy clinic-dashboard:
- *   - Breadcrumb dinâmico (esquerda)
- *   - Busca global placeholder (centro · disabled · sem rota de busca ainda)
- *   - "Fechar o Dia" pill vermelho (disabled · vide audit abrirFecharDia)
- *   - Notificações (read-only · count placeholder 0)
- *   - Tasks (read-only · count placeholder 0)
- *   - "+ Novo" dropdown (3 itens · só rotas EXISTENTES: agenda/novo,
- *     pacientes/novo, orcamentos/novo · /crm/leads/novo NÃO existe e
- *     ficou fora)
- *   - Avatar + nome + role (passado do server via props)
+ * LITERAL clinic-dashboard/index.html L125-240 + style.css L502-700.
+ * Classes: .header / .header-breadcrumb / .breadcrumb-* / .header-spacer /
+ *          .header-search / .search-icon / .search-input / .search-shortcut /
+ *          .header-action / .header-action-btn / .badge / .btn-new /
+ *          .theme-toggle / .avatar-btn / .avatar-circle / .avatar-info
  *
- * Mobile: oculto (mobile usa header reduzido do `crm/layout.tsx`).
- *
- * ZERO mutation · placeholders disabled onde não há action segura.
+ * Mobile: oculto (mobile usa header reduzido do layout).
+ * ZERO mutation · placeholders disabled onde sem action segura.
  */
 
 import * as React from 'react'
@@ -26,6 +20,7 @@ import {
   Bell,
   CheckSquare,
   ChevronDown,
+  Home,
   Moon,
   Plus,
   Search,
@@ -38,7 +33,7 @@ interface CrmTopbarProps {
 }
 
 const BREADCRUMB_LABELS: Record<string, string> = {
-  '/crm': 'Home',
+  '/crm': 'CRM',
   '/crm/dashboard': 'Dashboard',
   '/crm/leads': 'Leads',
   '/crm/kanban': 'Kanban Evolution',
@@ -50,154 +45,137 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   '/crm/recuperacao': 'Recuperação',
 }
 
-/** "+ Novo" dropdown items · apenas rotas REAIS confirmadas no FS (R3_CRM_LIGHT audit). */
 const NEW_DROPDOWN_ITEMS: readonly { href: string; label: string }[] = [
   { href: '/crm/agenda/novo', label: 'Novo agendamento' },
   { href: '/crm/pacientes/novo', label: 'Novo paciente' },
   { href: '/crm/orcamentos/novo', label: 'Novo orçamento' },
-  // `/crm/leads/novo` NÃO existe · removido pra não criar 404.
 ]
 
-function deriveBreadcrumb(pathname: string): string {
-  // Match exato em paths conhecidos · fallback "CRM" pra rotas dinâmicas.
-  if (BREADCRUMB_LABELS[pathname]) return BREADCRUMB_LABELS[pathname]
-  // Prefix match pra subrotas como /crm/agenda/[id]
-  for (const [path, label] of Object.entries(BREADCRUMB_LABELS)) {
-    if (pathname.startsWith(path + '/')) return label
+function deriveBreadcrumb(pathname: string): { section: string; current: string } {
+  const section = 'CRM'
+  if (BREADCRUMB_LABELS[pathname]) {
+    return { section, current: BREADCRUMB_LABELS[pathname] }
   }
-  return 'CRM'
+  for (const [path, label] of Object.entries(BREADCRUMB_LABELS)) {
+    if (pathname.startsWith(path + '/')) {
+      return { section, current: label }
+    }
+  }
+  return { section, current: 'CRM' }
 }
 
 export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
   const pathname = usePathname()
-  const breadcrumb = deriveBreadcrumb(pathname ?? '/crm')
+  const { section, current } = deriveBreadcrumb(pathname ?? '/crm')
   const newDropdownRef = React.useRef<HTMLDetailsElement>(null)
+  const avatarDropdownRef = React.useRef<HTMLDetailsElement>(null)
 
-  // Fecha dropdown ao mudar rota (clicou em algo).
   React.useEffect(() => {
     if (newDropdownRef.current?.open) {
       newDropdownRef.current.removeAttribute('open')
     }
+    if (avatarDropdownRef.current?.open) {
+      avatarDropdownRef.current.removeAttribute('open')
+    }
   }, [pathname])
 
   return (
-    <header className="crm-topbar hidden md:flex">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
+    <header className="header hidden md:flex">
+      {/* Breadcrumb · index.html L130-138 */}
+      <div className="header-breadcrumb">
+        <span className="breadcrumb-icon">
+          <Home />
+        </span>
+        <span className="breadcrumb-sep">/</span>
         <Link
           href="/crm"
-          className="text-[color:var(--crm-muted)] hover:text-[color:var(--crm-text)]"
+          className="breadcrumb-text"
+          style={{ textDecoration: 'none' }}
         >
-          CRM
+          {section}
         </Link>
-        <span className="text-[color:var(--crm-muted-2)]">/</span>
-        <span className="font-semibold text-[color:var(--crm-text)]">
-          {breadcrumb}
-        </span>
+        <span className="breadcrumb-sep">/</span>
+        <span className="breadcrumb-current">{current}</span>
       </div>
 
-      {/* Busca global · placeholder · disabled · 350x44 */}
-      <div
-        className="relative ml-6 flex items-center"
-        title="Busca global · em validação"
-      >
-        <Search className="absolute left-3 h-4 w-4 text-[color:var(--crm-muted-2)]" />
+      <div className="header-spacer" />
+
+      {/* Search · index.html L143-160 */}
+      <div className="header-search">
+        <span className="search-icon">
+          <Search />
+        </span>
         <input
           type="text"
           disabled
-          placeholder="Buscar leads, pacientes..."
+          placeholder="Buscar leads, pacientes... (⌘K)"
           aria-label="Busca global (em validação)"
-          className="h-11 w-[350px] cursor-not-allowed rounded-xl border bg-white pl-10 pr-14 text-sm text-[color:var(--crm-muted)] placeholder:text-[color:var(--crm-muted-2)]"
-          style={{
-            borderColor: 'var(--crm-border)',
-            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-          }}
+          className="search-input"
         />
-        <kbd
-          className="absolute right-3 rounded px-2 py-0.5 text-[10px] font-semibold text-[color:var(--crm-muted)]"
-          style={{
-            background: '#F3F4F6',
-            border: '1px solid var(--crm-border)',
-          }}
-        >
-          ⌘K
-        </kbd>
+        <span className="search-shortcut">⌘K</span>
       </div>
 
-      <div className="flex-1" />
-
-      {/* Fechar o Dia · pill vermelho legacy (api.js cores #DC2626 → #B91C1C) */}
+      {/* Fechar o Dia · index.html L164-170 LITERAL */}
       <button
         type="button"
         disabled
         title="Finalização do dia será ativada após validação do fluxo operacional."
         aria-label="Fechar o Dia (em validação)"
-        className="inline-flex h-11 cursor-not-allowed items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white"
-        style={{
-          background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
-          boxShadow: '0 2px 8px rgba(220,38,38,.35)',
-        }}
+        className="fechar-dia-btn"
       >
-        <Moon className="h-4 w-4" />
+        <Moon />
         Fechar o Dia
       </button>
 
-      {/* Notificações · read-only */}
-      <button
-        type="button"
-        disabled
-        title="Notificações · em validação"
-        aria-label="Notificações"
-        className="relative inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-[10px] text-[color:var(--crm-muted)]"
-        style={{
-          background: 'var(--crm-surface)',
-          border: '1px solid var(--crm-border)',
-        }}
-      >
-        <Bell className="h-4 w-4" />
-      </button>
-
-      {/* Tasks · read-only */}
-      <button
-        type="button"
-        disabled
-        title="Tarefas · em validação"
-        aria-label="Tarefas"
-        className="relative inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-[10px] text-[color:var(--crm-muted)]"
-        style={{
-          background: 'var(--crm-surface)',
-          border: '1px solid var(--crm-border)',
-        }}
-      >
-        <CheckSquare className="h-4 w-4" />
-      </button>
-
-      {/* + Novo dropdown · pill dourado legacy (.btn-new gradient gold) */}
-      <details ref={newDropdownRef} className="relative">
-        <summary
-          className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] px-6 text-sm font-bold text-white"
-          style={{
-            background: 'linear-gradient(135deg, #C9A96E, #B8935A)',
-            listStyle: 'none',
-            boxShadow: '0 2px 8px rgba(201, 169, 110, 0.35)',
-          }}
+      {/* Notificações · index.html L174 */}
+      <div className="header-action">
+        <button
+          type="button"
+          disabled
+          title="Notificações · em validação"
+          aria-label="Notificações"
+          className="header-action-btn"
         >
-          <Plus className="h-4 w-4" />
-          Novo
-          <ChevronDown className="h-3.5 w-3.5" />
+          <Bell />
+        </button>
+      </div>
+
+      {/* Tasks · index.html L188-193 (com badge legacy 7) */}
+      <div className="header-action">
+        <button
+          type="button"
+          disabled
+          title="Tarefas · em validação"
+          aria-label="Tarefas"
+          className="header-action-btn"
+        >
+          <CheckSquare />
+          <span className="badge badge-warning">24</span>
+        </button>
+      </div>
+
+      {/* + Novo dropdown · index.html L196-220 · LITERAL .btn-new */}
+      <details ref={newDropdownRef} className="header-action">
+        <summary
+          className="btn-new"
+          style={{ listStyle: 'none' }}
+        >
+          <Plus />
+          <span>Novo</span>
+          <ChevronDown style={{ width: 13, height: 13, opacity: 0.7 }} />
         </summary>
         <nav
-          className="absolute right-0 top-14 z-40 flex w-56 flex-col gap-0.5 rounded-xl border bg-white p-1.5"
+          className="absolute right-0 top-11 z-40 flex w-56 flex-col gap-0.5 rounded-xl border bg-white p-1.5"
           style={{
-            borderColor: 'var(--crm-border)',
-            boxShadow: 'var(--lara-shadow-md)',
+            borderColor: 'var(--border)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           {NEW_DROPDOWN_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-lg px-3 py-2 text-sm text-[color:var(--crm-text)] hover:bg-[color:var(--crm-soft)]"
+              className="rounded-lg px-3 py-2 text-sm text-[color:var(--text-primary)] hover:bg-[color:var(--bg)]"
             >
               {item.label}
             </Link>
@@ -205,29 +183,33 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         </nav>
       </details>
 
-      {/* Avatar + nome + role */}
-      <div
-        className="flex items-center gap-3 pl-4 ml-2 border-l"
-        style={{ borderLeftColor: 'var(--crm-border)' }}
+      {/* Theme toggle · index.html L223-225 (placeholder · não funcional ainda) */}
+      <button
+        type="button"
+        disabled
+        title="Tema · em validação"
+        aria-label="Alternar tema"
+        className="theme-toggle"
       >
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
-          style={{ background: 'var(--crm-purple)' }}
-          title={displayName}
+        <Moon />
+      </button>
+
+      {/* Avatar · index.html L228-260 */}
+      <details ref={avatarDropdownRef} className="header-action">
+        <summary
+          className="avatar-btn"
+          style={{ listStyle: 'none' }}
         >
-          {initials}
-        </div>
-        <div className="hidden md:flex flex-col leading-tight max-w-[140px]">
-          <span className="truncate text-sm font-semibold text-[color:var(--crm-text)]">
-            {displayName}
-          </span>
-          {role && (
-            <span className="truncate text-xs text-[color:var(--crm-muted)] capitalize">
-              {role}
-            </span>
-          )}
-        </div>
-      </div>
+          <div className="avatar-circle" title={displayName}>
+            {initials}
+          </div>
+          <div className="avatar-info">
+            <span className="avatar-name">{displayName}</span>
+            {role && <span className="avatar-role">{role}</span>}
+          </div>
+          <ChevronDown style={{ width: 13, height: 13, color: 'var(--text-muted)' }} />
+        </summary>
+      </details>
     </header>
   )
 }

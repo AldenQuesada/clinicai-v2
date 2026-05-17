@@ -95,24 +95,27 @@ function isActive(itemHref: string, pathname: string): boolean {
 export function CrmSidebarNav() {
   const pathname = usePathname()
   return (
-    <nav
-      className="flex flex-1 flex-col items-center gap-1 py-3"
-      aria-label="Menu CRM"
-    >
-      {NAV.map((item) => {
-        const active = isActive(item.href, pathname)
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            title={item.label}
-            className={cn('crm-sidebar-item', active && 'crm-sidebar-item-active')}
-          >
-            {item.icon}
-          </Link>
-        )
-      })}
+    <nav className="sidebar-nav" aria-label="Menu CRM">
+      <div className="nav-section">
+        {NAV.map((item) => {
+          const active = isActive(item.href, pathname)
+          return (
+            <div
+              key={item.href}
+              className={cn('nav-item', active && 'has-active')}
+            >
+              <Link
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className="nav-item-main"
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-label">{item.label}</span>
+              </Link>
+            </div>
+          )
+        })}
+      </div>
     </nav>
   )
 }
