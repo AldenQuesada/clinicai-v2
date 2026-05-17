@@ -25,13 +25,57 @@ import {
   EmptyState,
 } from '@clinicai/ui'
 import { Plus } from 'lucide-react'
+import type {
+  AppointmentDTO,
+  AppointmentPaymentStatus,
+  AppointmentStatus,
+} from '@clinicai/repositories'
 import { loadServerReposContext } from '@/lib/repos'
+import { AgendaFilters } from './_components/agenda-filters'
 import { WeekCalendar } from './_components/week-calendar'
 import { DayView } from './_components/day-view'
 import { MonthView } from './_components/month-view'
+import { FinalizarDiaPlaceholder } from './_components/finalizar-dia-placeholder'
 import { PeriodNav } from './_components/period-nav'
 import { ProfessionalFilter } from './_components/professional-filter'
+import { StatusLegend } from './_components/status-legend'
 import { ViewSwitcher } from './_components/view-switcher'
+
+const APPOINTMENT_STATUS_ENUM: readonly AppointmentStatus[] = [
+  'agendado',
+  'aguardando_confirmacao',
+  'confirmado',
+  'aguardando',
+  'na_clinica',
+  'em_atendimento',
+  'finalizado',
+  'remarcado',
+  'cancelado',
+  'no_show',
+  'bloqueado',
+]
+
+const PAYMENT_STATUS_ENUM: readonly AppointmentPaymentStatus[] = [
+  'pendente',
+  'parcial',
+  'pago',
+  'cortesia',
+  'isento',
+]
+
+function pickStatus(raw: string | undefined): AppointmentStatus | null {
+  return raw && APPOINTMENT_STATUS_ENUM.includes(raw as AppointmentStatus)
+    ? (raw as AppointmentStatus)
+    : null
+}
+
+function pickPaymentStatus(
+  raw: string | undefined,
+): AppointmentPaymentStatus | null {
+  return raw && PAYMENT_STATUS_ENUM.includes(raw as AppointmentPaymentStatus)
+    ? (raw as AppointmentPaymentStatus)
+    : null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -105,6 +149,14 @@ interface PageSearch {
   date?: string
   month?: string
   prof?: string
+  /** R3_CRM_3B.3 · filter por status (enum canônico) */
+  status?: string
+  /** R3_CRM_3B.3 · filter por consult_type (string · distinct) */
+  ct?: string
+  /** R3_CRM_3B.3 · filter por payment_status (enum canônico) */
+  ptm?: string
+  /** R3_CRM_3B.3 · filter por origem (string · distinct) */
+  og?: string
 }
 
 export default async function AgendaPage({
@@ -124,6 +176,11 @@ export default async function AgendaPage({
   const month =
     sp.month && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : todayMonth
   const profFilter = sp.prof && sp.prof.length > 0 ? sp.prof : null
+  const statusFilter = pickStatus(sp.status)
+  const paymentStatusFilter = pickPaymentStatus(sp.ptm)
+  const consultTypeFilter =
+    sp.ct && sp.ct.trim().length > 0 ? sp.ct.trim() : null
+  const origemFilter = sp.og && sp.og.trim().length > 0 ? sp.og.trim() : null
 
   const { startDate, endDate } = resolveRange(view, weekStart, dayDate, month)
 
@@ -155,6 +212,42 @@ export default async function AgendaPage({
       error: 'unknown',
     })),
   ])
+
+  // R3_CRM_3B.3 · distinct options pra filtros sem enum (consult_type, origem).
+  // Tirados do dataset carregado · sem hit extra ao banco. Strings vazias/null
+  // são ignoradas. Ordem alfabética pt-BR.
+  const distinctConsultTypes = Array.from(
+    new Set(
+      appointments
+        .map((a: AppointmentDTO) => a.consultType)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const distinctOrigens = Array.from(
+    new Set(
+      appointments
+        .map((a: AppointmentDTO) => a.origem)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  // R3_CRM_3B.3 · aplica os 4 filtros novos no array já carregado (server-side).
+  // `professionalId` já filtrou no banco · estes 4 filtros são client-side
+  // sobre o subconjunto retornado pra evitar redundância de query.
+  const filteredAppointments = appointments.filter((a: AppointmentDTO) => {
+    if (statusFilter && a.status !== statusFilter) return false
+    if (paymentStatusFilter && a.paymentStatus !== paymentStatusFilter)
+      return false
+    if (consultTypeFilter && a.consultType !== consultTypeFilter) return false
+    if (origemFilter && a.origem !== origemFilter) return false
+    return true
+  })
+
+  // R3_CRM_3B.4 · count "Sem Confirm." · status canônico aguardando_confirmacao.
+  // Conta do array filtrado (respeita filtros aplicados) pra consistência visual.
+  const awaitingConfirmation = filteredAppointments.filter(
+    (a: AppointmentDTO) => a.status === 'aguardando_confirmacao',
+  ).length
 
   const professionals = (
     staffList.ok && staffList.data ? staffList.data : []
@@ -217,17 +310,48 @@ export default async function AgendaPage({
                 Novo agendamento
               </Button>
             </Link>
+            {/* R3_CRM_3B.5 · botão placeholder · audit do legacy abrirFecharDia() */}
+            <FinalizarDiaPlaceholder />
           </>
         }
       />
 
-      {/* KPIs · 6 cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      {/* R3_CRM_3B.2 · hint drag-drop · espelha legacy "Drag & drop para reagendar" */}
+      <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">
+        Drag &amp; drop para reagendar.
+      </p>
+
+      {/* R3_CRM_3B.1 · legenda de status (11 chips canônicos) */}
+      <StatusLegend />
+
+      {/* R3_CRM_3B.3 · filtros adicionais · Status + Tipo + Financeiro + Origem.
+          Avaliação (eval_type) omitida · sem enum canônico claro. */}
+      <Suspense fallback={null}>
+        <AgendaFilters
+          consultTypeOptions={distinctConsultTypes}
+          origemOptions={distinctOrigens}
+          current={{
+            status: statusFilter,
+            paymentStatus: paymentStatusFilter,
+            consultType: consultTypeFilter,
+            origem: origemFilter,
+          }}
+        />
+      </Suspense>
+
+      {/* KPIs · 7 cards · R3_CRM_3B.4 adicionou "Sem Confirm." e refinou
+          o card Receita pra "Prev. / Fat." (espelha legacy PREV.|FAT.) */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
         <KpiCard label="Total" value={aggregates.total.toString()} />
         <KpiCard
           label="Agendados"
           value={aggregates.agendado.toString()}
           accent="info"
+        />
+        <KpiCard
+          label="Sem Confirm."
+          value={awaitingConfirmation.toString()}
+          accent={awaitingConfirmation > 0 ? 'warning' : undefined}
         />
         <KpiCard
           label="Em fluxo"
@@ -247,14 +371,14 @@ export default async function AgendaPage({
           }
         />
         <KpiCard
-          label="Receita pago / total"
-          value={`${BRL.format(aggregates.revenuePaid)} / ${BRL.format(aggregates.revenueTotal)}`}
+          label="Prev. | Fat."
+          value={`${BRL.format(aggregates.revenueTotal)} / ${BRL.format(aggregates.revenuePaid)}`}
         />
       </div>
 
-      {/* Calendario · view switcher */}
+      {/* Calendario · view switcher · usa filteredAppointments (R3_CRM_3B.3) */}
       {view === 'week' && (
-        appointments.length === 0 ? (
+        filteredAppointments.length === 0 ? (
           <Card className="p-8">
             <EmptyState
               variant="generic"
@@ -265,7 +389,7 @@ export default async function AgendaPage({
         ) : (
           <WeekCalendar
             weekStart={weekStart}
-            appointments={appointments}
+            appointments={filteredAppointments}
             startHour={8}
             endHour={20}
           />
@@ -275,14 +399,14 @@ export default async function AgendaPage({
       {view === 'day' && (
         <DayView
           date={dayDate}
-          appointments={appointments}
+          appointments={filteredAppointments}
           startHour={8}
           endHour={20}
         />
       )}
 
       {view === 'month' && (
-        <MonthView month={month} appointments={appointments} />
+        <MonthView month={month} appointments={filteredAppointments} />
       )}
 
       <p className="mt-6 text-[10px] text-[var(--muted-foreground)]/60">

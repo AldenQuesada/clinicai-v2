@@ -40,10 +40,12 @@ const NAV: NavItem[] = [
     label: 'Dashboard',
     icon: <BarChart3 className="h-4 w-4" />,
   },
-  // Leads list vive em /(authed)/leads · path real é /leads. Antes este item
-  // apontava pra /crm/leads, que não existe e gerava 404 (R1 audit 2026-05-17).
-  // Mantemos um redirect em /crm/leads → /leads pra tolerância a links antigos.
-  { href: '/leads', label: 'Leads', icon: <UserCircle className="h-4 w-4" /> },
+  // Leads dentro do shell CRM (R3_CRM_3A · 2026-05-17). Antes do R1 o item
+  // apontava pra /crm/leads (rota inexistente · 404). R1 corrigiu pra /leads,
+  // mas isso tirava o usuário do shell CRM (sidebar trocava). R3_CRM_3A criou
+  // /crm/leads como página real reusando `loadLeadsPageData + LeadsClient` do
+  // /leads (shell authed). Ambas as rotas funcionam · CRM linka pra /crm/leads.
+  { href: '/crm/leads', label: 'Leads', icon: <UserCircle className="h-4 w-4" /> },
   {
     href: '/crm/kanban',
     label: 'Kanban Evolution',

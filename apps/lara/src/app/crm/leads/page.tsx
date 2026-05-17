@@ -1,20 +1,54 @@
 /**
- * /crm/leads · redirect → /leads.
+ * /crm/leads · lista de leads dentro do shell CRM.
  *
- * Histórico: o sub-nav do CRM (CrmSidebarNav) linkou `/crm/leads` por meses,
- * mas a rota nunca existiu — a lista canônica de leads vive em
- * `/(authed)/leads` (path real `/leads`). Resultado: clique no menu = 404.
+ * R3_CRM_3A (2026-05-17): substitui o redirect anterior por página real.
+ * Razão (audit R3_CRM): clicar "Leads" no menu CRM levava o usuário pra
+ * `/leads` (shell authed) · sidebar trocava · perda de contexto.
  *
- * R1 (audit 2026-05-17) corrigiu o link no CrmSidebarNav direto pra `/leads`.
- * Este redirect cobre o flanco: links externos, bookmarks, histórico do
- * browser ou qualquer referência antiga a `/crm/leads` cai em `/leads` em
- * vez de 404.
+ * Reusa `loadLeadsPageData` + `LeadsClient` do `/leads` (authed).
+ * Diferença: aqui o shell CRM já é provido por `app/crm/layout.tsx`
+ * (sidebar CRM + auth gate). Header usa `PageHeader` (padrão CRM)
+ * em vez de `PageHero` (padrão authed).
  *
- * Server Component · `redirect()` server-side · zero JS no client.
+ * `/leads` (authed) segue funcional · não removemos. Bookmarks e
+ * referências antigas continuam válidos.
  */
 
 import { redirect } from 'next/navigation'
+import { PageHeader } from '@clinicai/ui'
+import { LEADS_PAGE_SIZE, loadLeadsPageData } from '@/lib/leads-page-data'
+import { LeadsClient } from '@/app/(authed)/leads/LeadsClient'
 
-export default function CrmLeadsRedirectPage() {
-  redirect('/leads')
+export const dynamic = 'force-dynamic'
+
+export default async function CrmLeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
+  const data = await loadLeadsPageData(sp)
+
+  if (!data.canView) {
+    redirect('/dashboard')
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      <PageHeader
+        title="Leads"
+        description="Pessoas em contato com a clínica · filtros, KPIs e ações por linha."
+      />
+
+      <LeadsClient
+        rows={data.rows}
+        total={data.total}
+        page={data.page}
+        pageSize={LEADS_PAGE_SIZE}
+        canEdit={data.canEdit}
+        canDelete={data.canDelete}
+        canCreate={data.canEdit}
+      />
+    </div>
+  )
 }
