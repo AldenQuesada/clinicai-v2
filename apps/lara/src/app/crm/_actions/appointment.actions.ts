@@ -479,12 +479,26 @@ export async function finalizeAppointmentAction(
   Result<{
     appointmentId: string
     leadId: string | null
-    outcome: 'paciente' | 'orcamento' | 'paciente_orcamento' | 'perdido'
+    outcome: 'paciente' | 'orcamento' | 'paciente_orcamento'
     subCallOk: boolean
   }>
 > {
   const parsed = FinalizeAppointmentSchema.safeParse(input)
   if (!parsed.success) return zodFail(parsed.error)
+
+  // PATCH_0C_FINALIZE_BACKEND_GUARD · defensive runtime guard.
+  // Zod ja rejeita outcome='perdido' no parse acima · este check eh ultima
+  // linha caso schema mude no futuro ou caller bypasse o parse.
+  // Perda comercial passa pelo path dedicado markLeadLostAction (lead_lost RPC).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((parsed.data.outcome as any) === 'perdido') {
+    return {
+      ok: false,
+      error: 'invalid_outcome',
+      detail:
+        'appointment_finalize nao aceita perdido · use markLeadLostAction (lead_lost RPC)',
+    } as never
+  }
 
   const { ctx, repos } = await loadServerReposContext()
 

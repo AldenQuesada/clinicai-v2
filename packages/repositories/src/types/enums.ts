@@ -116,15 +116,19 @@ export type OrcamentoStatus =
 
 // ── Cross-flow (appointment_finalize outcome) ──────────────────────────────
 //
-// CRM_PHASE_2J: RPC banco aceita 4 outcomes (paciente, orcamento,
-// paciente_orcamento, perdido). UI oficial expoe 3 (paciente, orcamento,
-// paciente_orcamento) · perdido fica reservado para path dedicado via
-// lead_lost (nao nasce da finalizacao de consulta).
+// CRM_PHASE_2J + PATCH_0C_FINALIZE_BACKEND_GUARD (2026-05-17):
+// Regra arquitetural · `appointment_finalize` SO aceita 3 outcomes clinicos
+// (paciente, orcamento, paciente_orcamento). Perda comercial NAO nasce da
+// finalizacao de consulta · path dedicado via `lead_lost(reason)` RPC chamado
+// pelo LeadLostModal/markLeadLostAction (commercial cycle separado).
+//
+// Backend mig 151 (clinic-dashboard) ainda aceita p_outcome='perdido' por
+// compatibilidade legacy · mig staged em clinic-dashboard bloqueia essa
+// porta no SQL (RAISE EXCEPTION). TS+Zod ja impedem desde aqui.
 export type AppointmentFinalizeOutcome =
   | 'paciente'
   | 'orcamento'
   | 'paciente_orcamento'
-  | 'perdido'
 
 // ── Dedup cross-tabela (LeadRepository.findInAnySystem) ────────────────────
 export type DedupHitKind = 'patient' | 'lead' | 'voucher_recipient' | 'partner_referral'

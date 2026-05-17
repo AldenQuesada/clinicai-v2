@@ -368,15 +368,32 @@ export class AppointmentRepository {
 
   /**
    * Wrapper de `appointment_finalize()` RPC · finaliza consulta + roteia
-   * outcome:
+   * outcome (3 clinicos · PATCH_0C_FINALIZE_BACKEND_GUARD 2026-05-17):
    *   - paciente: chama lead_to_paciente (promove)
    *   - orcamento: chama lead_to_orcamento (cria orcamento + soft-delete lead)
-   *   - perdido: chama lead_lost (reason obrigatorio)
+   *   - paciente_orcamento: chama ambos
+   *
+   * PERDA COMERCIAL NAO PASSA POR AQUI · use `lead_lost(reason)` RPC dedicado
+   * (chamado por markLeadLostAction). Backend mig 151 ainda aceita
+   * p_outcome='perdido' por compat · TS bloqueia desde aqui · mig staged em
+   * clinic-dashboard bloqueia SQL nivel (RAISE EXCEPTION).
    *
    * Sub-RPC pode falhar mesmo com appt finalizado (estado terminal valido) ·
    * UI deve checar `subCall` no result quando ok=true mas tem warning.
    */
   async finalize(input: AppointmentFinalizeRpcInput): Promise<AppointmentFinalizeResult> {
+    // PATCH_0C_FINALIZE_BACKEND_GUARD · defensive runtime guard.
+    // TS ja restringe outcome a 3 valores · este check eh ultima linha
+    // caso caller bypasse tipos (any/JSON dynamic).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((input.outcome as any) === 'perdido') {
+      return {
+        ok: false,
+        error: 'invalid_outcome',
+        detail:
+          'appointment_finalize nao aceita perdido · use lead_lost RPC',
+      } as AppointmentFinalizeResult
+    }
     const itemsForDb = input.orcamentoItems
       ? orcamentoItemsToDbShape(input.orcamentoItems)
       : null
