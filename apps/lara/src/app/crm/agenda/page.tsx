@@ -31,7 +31,6 @@ import { WeekCalendar } from './_components/week-calendar'
 import { DayView } from './_components/day-view'
 import { MonthView } from './_components/month-view'
 import { PeriodNav } from './_components/period-nav'
-import { ProfessionalFilter } from './_components/professional-filter'
 import { StatusLegend } from './_components/status-legend'
 import { ViewSwitcher } from './_components/view-switcher'
 
@@ -332,9 +331,6 @@ export default async function AgendaPage({
           <PeriodNav view={view} anchor={anchor} todayAnchor={todayAnchor} />
         </Suspense>
         <div style={{ flex: 1 }} />
-        <Suspense fallback={null}>
-          <ProfessionalFilter professionals={professionals} current={profFilter} />
-        </Suspense>
         <button
           type="button"
           disabled
@@ -369,13 +365,15 @@ export default async function AgendaPage({
         </Link>
       </div>
 
-      {/* Filtros (status, tipo, financeiro, origem) */}
+      {/* Filtros (status, profissional, tipo, financeiro, origem, avaliação) */}
       <Suspense fallback={null}>
         <AgendaFilters
+          professionals={professionals}
           consultTypeOptions={distinctConsultTypes}
           origemOptions={distinctOrigens}
           current={{
             status: statusFilter,
+            professional: profFilter,
             paymentStatus: paymentStatusFilter,
             consultType: consultTypeFilter,
             origem: origemFilter,

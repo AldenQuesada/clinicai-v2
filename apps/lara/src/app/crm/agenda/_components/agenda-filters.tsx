@@ -55,13 +55,21 @@ const PAYMENT_STATUS_VALUES: readonly AppointmentPaymentStatus[] = [
   'isento',
 ]
 
+interface ProfessionalOption {
+  id: string
+  name: string
+}
+
 interface AgendaFiltersProps {
+  /** Lista de profissionais ativos · select "Todos profissionais" */
+  professionals: ReadonlyArray<ProfessionalOption>
   /** Valores distintos de `consult_type` no dataset carregado · pode ser []. */
   consultTypeOptions: readonly string[]
   /** Valores distintos de `origem` no dataset carregado · pode ser []. */
   origemOptions: readonly string[]
   current: {
     status: string | null
+    professional: string | null
     paymentStatus: string | null
     consultType: string | null
     origem: string | null
@@ -69,6 +77,7 @@ interface AgendaFiltersProps {
 }
 
 export function AgendaFilters({
+  professionals,
   consultTypeOptions,
   origemOptions,
   current,
@@ -94,7 +103,6 @@ export function AgendaFilters({
       <select
         aria-label="Filtrar por status"
         className="agenda-filter-select"
-        style={{ width: 190 }}
         value={current.status ?? ''}
         onChange={(e) => updateParam('status', e.target.value)}
       >
@@ -106,10 +114,24 @@ export function AgendaFilters({
         ))}
       </select>
 
+      {/* Profissional · ordem legacy (agenda-smart.js L525) · 2º select */}
+      <select
+        aria-label="Filtrar por profissional"
+        className="agenda-filter-select"
+        value={current.professional ?? ''}
+        onChange={(e) => updateParam('prof', e.target.value)}
+      >
+        <option value="">Todos profissionais</option>
+        {professionals.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+
       <select
         aria-label="Filtrar por tipo de consulta"
         className="agenda-filter-select"
-        style={{ width: 190 }}
         value={current.consultType ?? ''}
         onChange={(e) => updateParam('ct', e.target.value)}
         disabled={consultTypeOptions.length === 0}
@@ -119,7 +141,7 @@ export function AgendaFilters({
             : 'Tipo de consulta'
         }
       >
-        <option value="">Todos tipos</option>
+        <option value="">Tipo de consulta</option>
         {consultTypeOptions.map((v) => (
           <option key={v} value={v}>
             {v}
@@ -130,7 +152,6 @@ export function AgendaFilters({
       <select
         aria-label="Filtrar por status financeiro"
         className="agenda-filter-select"
-        style={{ width: 120 }}
         value={current.paymentStatus ?? ''}
         onChange={(e) => updateParam('ptm', e.target.value)}
       >
@@ -145,7 +166,6 @@ export function AgendaFilters({
       <select
         aria-label="Filtrar por origem"
         className="agenda-filter-select"
-        style={{ width: 120 }}
         value={current.origem ?? ''}
         onChange={(e) => updateParam('og', e.target.value)}
         disabled={origemOptions.length === 0}
@@ -155,7 +175,7 @@ export function AgendaFilters({
             : 'Origem'
         }
       >
-        <option value="">Todas origens</option>
+        <option value="">Origem</option>
         {origemOptions.map((v) => (
           <option key={v} value={v}>
             {v}
@@ -165,11 +185,10 @@ export function AgendaFilters({
 
       {/* Avaliação · placeholder visual disabled (R3_CRM_LIGHT_4 contrato Alden).
           `eval_type` existe mas sem enum canônico · sem fonte de opções.
-          Renderizado pra manter paridade visual de 5 selects · zero lógica. */}
+          Renderizado pra manter paridade visual de 6 selects · zero lógica. */}
       <select
         aria-label="Filtrar por avaliação (em validação)"
         className="agenda-filter-select"
-        style={{ width: 120 }}
         disabled
         title="Avaliação · em validação · campo eval_type sem enum canônico"
       >
