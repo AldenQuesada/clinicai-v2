@@ -32,6 +32,7 @@ import {
   CommercialRecoveryRepository,
   ProfessionalProfilesRepository,
   CrmDashboardRepository,
+  CrmOperationalRepository,
   ProcedureAdminRepository,
   PatientProfileRepository,
   AnamnesisTemplateRepository,
@@ -74,6 +75,8 @@ export interface Repos {
   professionalProfiles: ProfessionalProfilesRepository
   /** CRM_PHASE_LEGACY.PORT.DASHBOARDS · aggregates read-only do dashboard CRM */
   crmDashboard: CrmDashboardRepository
+  /** BLOCO 3.2B · Mesa Operacional · consome crm_operational_view + enrichment */
+  crmOperational: CrmOperationalRepository
   /** CRM_PHASE_LEGACY.PORT.PROCEDURES_ADMIN · CRUD admin de procedimentos */
   procedureAdmin: ProcedureAdminRepository
   /** CRM_PHASE_LEGACY.PORT.PACIENTE_PRONTUARIO_BASE · foto + consent + welcome (mig 180) */
@@ -111,6 +114,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     commercialRecovery: new CommercialRecoveryRepository(sb),
     professionalProfiles: new ProfessionalProfilesRepository(sb),
     crmDashboard: new CrmDashboardRepository(sb),
+    crmOperational: new CrmOperationalRepository(sb),
     procedureAdmin: new ProcedureAdminRepository(sb),
     patientProfile: new PatientProfileRepository(sb),
     anamnesisTemplates: new AnamnesisTemplateRepository(sb),

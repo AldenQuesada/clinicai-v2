@@ -409,6 +409,16 @@ export {
   type CrmDashboardOperationalLists,
 } from './crm-dashboard.repository'
 export {
+  CrmOperationalRepository,
+  MESA_BUCKETS,
+  MESA_BUCKET_LABELS,
+  type MesaBucket,
+  type GetMesaParams,
+  type MesaCard,
+  type MesaBucketResult,
+  type GetMesaResult,
+} from './crm-operational.repository'
+export {
   OrcamentoRepository,
   type OrcamentoFollowupCandidateDTO,
 } from './orcamento.repository'

@@ -17,7 +17,7 @@ import {
   CardContent,
   PageHeader,
 } from '@clinicai/ui'
-import { Users, UserCircle, Calendar, FileText } from 'lucide-react'
+import { Users, UserCircle, Calendar, FileText, LayoutGrid, ArrowRight } from 'lucide-react'
 import { loadServerReposContext } from '@/lib/repos'
 
 export const dynamic = 'force-dynamic'
@@ -47,6 +47,26 @@ export default async function CrmDashboardPage() {
         title="CRM"
         description="Pacientes · Agenda · Orçamentos"
       />
+
+      <Link
+        href="/crm/mesa-operacional"
+        className="mb-4 flex items-center justify-between gap-3 rounded-md border border-[var(--primary)]/30 bg-[var(--primary)]/5 p-4 transition-all hover:border-[var(--primary)] hover:shadow-luxury-sm"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--primary)]/15 text-[var(--primary)]">
+            <LayoutGrid className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-display-uppercase text-sm tracking-widest text-[var(--primary)]">
+              Mesa Operacional
+            </h3>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              Visão unificada · 7 buckets · secretária-first (leads, agenda, pacientes, orçamentos, recuperação)
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="h-4 w-4 shrink-0 text-[var(--primary)]" />
+      </Link>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ModuleCard
