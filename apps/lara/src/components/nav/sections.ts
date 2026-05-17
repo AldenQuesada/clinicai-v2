@@ -21,6 +21,7 @@ import {
   Bell,
   HelpCircle,
   History,
+  Calendar,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type StaffRole, type Action } from '@/lib/permissions'
@@ -99,6 +100,18 @@ export const SECTIONS: readonly Section[] = [
     label: 'CRM',
     path: '/crm',
     icon: Briefcase,
+    requires: 'patients:view',
+  },
+  {
+    // Agenda como top-level · audit R1 2026-05-17: estava enterrada no
+    // sub-nav do CRM. Alden reportou que não encontrava. Mantemos também
+    // o item Agenda dentro do CrmSidebarNav · este atalho top-level é o
+    // caminho principal pro fluxo "ver agenda" sem precisar passar pelo
+    // CRM landing.
+    key: 'agenda',
+    label: 'Agenda',
+    path: '/crm/agenda',
+    icon: Calendar,
     requires: 'patients:view',
   },
   {

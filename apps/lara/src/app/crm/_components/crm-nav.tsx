@@ -17,10 +17,13 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
+  CalendarClock,
   FileText,
   UserCircle,
   RotateCcw,
   BarChart3,
+  Kanban,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@clinicai/ui'
 
@@ -37,16 +40,34 @@ const NAV: NavItem[] = [
     label: 'Dashboard',
     icon: <BarChart3 className="h-4 w-4" />,
   },
-  { href: '/crm/leads', label: 'Leads', icon: <UserCircle className="h-4 w-4" /> },
+  // Leads list vive em /(authed)/leads · path real é /leads. Antes este item
+  // apontava pra /crm/leads, que não existe e gerava 404 (R1 audit 2026-05-17).
+  // Mantemos um redirect em /crm/leads → /leads pra tolerância a links antigos.
+  { href: '/leads', label: 'Leads', icon: <UserCircle className="h-4 w-4" /> },
   {
-    href: '/crm/pacientes',
-    label: 'Pacientes',
-    icon: <Users className="h-4 w-4" />,
+    href: '/crm/kanban',
+    label: 'Kanban Evolution',
+    icon: <Kanban className="h-4 w-4" />,
+  },
+  {
+    href: '/crm/kanban/seven-days',
+    label: 'Kanban 7 Dias',
+    icon: <CalendarClock className="h-4 w-4" />,
+  },
+  {
+    href: '/crm/mesa-operacional',
+    label: 'Mesa Operacional',
+    icon: <ClipboardList className="h-4 w-4" />,
   },
   {
     href: '/crm/agenda',
     label: 'Agenda',
     icon: <Calendar className="h-4 w-4" />,
+  },
+  {
+    href: '/crm/pacientes',
+    label: 'Pacientes',
+    icon: <Users className="h-4 w-4" />,
   },
   {
     href: '/crm/orcamentos',
