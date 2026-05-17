@@ -408,8 +408,8 @@ function ArchiveButton({ card }: Props) {
         onOpenChange={(o) => {
           if (!pending) setOpen(o)
         }}
-        title={`Arquivar lead · ${card.name ?? '(sem nome)'}`}
-        description="O lead vai pra lifecycle 'arquivado' preservando a phase atual. NÃO é exclusão · fica visível no bucket Arquivados e pode ser desarquivado a qualquer momento."
+        title={`Arquivar registro? · ${card.name ?? '(sem nome)'}`}
+        description="O registro sairá da operação diária, mas o histórico será preservado. A fase atual não será alterada · pode ser reativado a qualquer momento."
         dismissable={!pending}
       >
         <ReasonForm
@@ -485,8 +485,8 @@ function UnarchiveButton({ card }: Props) {
         onOpenChange={(o) => {
           if (!pending) setOpen(o)
         }}
-        title={`Desarquivar lead · ${card.name ?? '(sem nome)'}`}
-        description="Lead volta pra lifecycle 'ativo' preservando a phase. Vai aparecer automaticamente no bucket correspondente à phase atual (lead/agendado/paciente/orcamento)."
+        title={`Reativar registro arquivado? · ${card.name ?? '(sem nome)'}`}
+        description="O registro volta para a operação como ativo, preservando a fase original (lead/agendado/paciente/orçamento)."
         dismissable={!pending}
       >
         <ReasonForm
@@ -498,7 +498,7 @@ function UnarchiveButton({ card }: Props) {
           pending={pending}
           onCancel={() => setOpen(false)}
           onConfirm={submit}
-          confirmLabel="Desarquivar"
+          confirmLabel="Reativar"
           confirmVariant="default"
         />
       </Modal>

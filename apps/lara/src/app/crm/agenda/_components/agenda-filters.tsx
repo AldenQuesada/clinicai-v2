@@ -137,8 +137,8 @@ export function AgendaFilters({
         disabled={consultTypeOptions.length === 0}
         title={
           consultTypeOptions.length === 0
-            ? 'Sem tipos no período carregado'
-            : 'Tipo de consulta'
+            ? 'Nenhum tipo de consulta encontrado no período selecionado · amplie o intervalo'
+            : 'Filtrar por tipo de consulta'
         }
       >
         <option value="">Tipo de consulta</option>
@@ -171,8 +171,8 @@ export function AgendaFilters({
         disabled={origemOptions.length === 0}
         title={
           origemOptions.length === 0
-            ? 'Sem origens no período carregado'
-            : 'Origem'
+            ? 'Nenhuma origem encontrada no período selecionado · amplie o intervalo'
+            : 'Filtrar por origem do lead'
         }
       >
         <option value="">Origem</option>
@@ -187,10 +187,10 @@ export function AgendaFilters({
           `eval_type` existe mas sem enum canônico · sem fonte de opções.
           Renderizado pra manter paridade visual de 6 selects · zero lógica. */}
       <select
-        aria-label="Filtrar por avaliação (em validação)"
+        aria-label="Filtrar por tipo de avaliação · em preparação"
         className="agenda-filter-select"
         disabled
-        title="Avaliação · em validação · campo eval_type sem enum canônico"
+        title="Tipo de avaliação · em preparação · enum canônico de eval_type ainda não definido (gap registrado)"
       >
         <option value="">Avaliação</option>
       </select>

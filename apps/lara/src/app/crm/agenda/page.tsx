@@ -342,7 +342,8 @@ export default async function AgendaPage({
         <button
           type="button"
           disabled
-          title="Horários · em validação"
+          title="Visão de horários por profissional · recurso em preparação · use o calendário semanal ou diário"
+          aria-label="Horários · em preparação"
           className="btn-outline"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

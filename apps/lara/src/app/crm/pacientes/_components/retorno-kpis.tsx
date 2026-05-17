@@ -163,7 +163,7 @@ export function RetornoKpis({
 
         {top10.length === 0 ? (
           <p className="py-3 text-center text-[12px] text-[#9CA3AF]">
-            Nenhum retorno agendado nos próximos dias.
+            Nenhum retorno futuro encontrado para pacientes ativos.
           </p>
         ) : (
           <ul className="divide-y divide-[#F3F4F6]">

@@ -397,7 +397,9 @@ function AppointmentSlot({ appointment: a, onClick }: AppointmentSlotProps) {
       }}
       className="absolute inset-x-1 top-1 select-none rounded-md border-l-2 px-2 py-1 text-left text-xs shadow-luxury-sm transition-shadow hover:shadow-luxury-md"
       title={`${a.startTime}-${a.endTime} · ${APPOINTMENT_STATUS_LABELS[a.status]}${
-        draggable ? '' : ' · não arrastável'
+        draggable
+          ? ' · arraste para reagendar · clique para abrir'
+          : ' · status terminal (finalizado/cancelado/no-show) ou bloqueio · não pode ser reagendado por arrastar · use editar manual'
       }`}
       role="button"
       tabIndex={0}

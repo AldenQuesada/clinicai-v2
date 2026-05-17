@@ -68,7 +68,7 @@ export function RecoveryBuckets({
         count={overdue.length}
         error={overdueError}
         items={overdue}
-        emptyMsg="Sem ações pendentes vencidas."
+        emptyMsg="Nenhum follow-up vencido · operação sem atrasos."
         canAct={canAct}
       />
       <BucketCard
@@ -77,7 +77,7 @@ export function RecoveryBuckets({
         count={today.length}
         error={todayError}
         items={today}
-        emptyMsg="Nada agendado para hoje."
+        emptyMsg="Nenhum follow-up agendado para hoje."
         canAct={canAct}
       />
       <BucketCard
@@ -86,7 +86,7 @@ export function RecoveryBuckets({
         count={upcoming.length}
         error={upcomingError}
         items={upcoming}
-        emptyMsg="Sem ações na próxima semana."
+        emptyMsg="Nenhum follow-up nos próximos 7 dias."
         canAct={canAct}
       />
     </div>
