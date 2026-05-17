@@ -1,0 +1,133 @@
+/**
+ * crm-light-scope.css · R3_CRM_LIGHT_1A.
+ *
+ * Override scoped das CSS vars do V2 para light theme · APENAS dentro do
+ * shell CRM. Importado por `apps/lara/src/app/crm/layout.tsx` e ativado
+ * via classe `.crm-light-scope` no wrapper raiz.
+ *
+ * IMPORTANTE:
+ *   - Lara/Secretaria/Conversas/etc continuam dark (não tocamos `:root`).
+ *   - Componentes do CRM que consomem `var(--background)`, `var(--card)`,
+ *     `var(--b2b-bg-0)` etc. agora resolvem light por causa do override.
+ *   - Componentes UI shared (@clinicai/ui) funcionam sem mudança · só
+ *     leem CSS vars cuja resolução muda no scope.
+ *
+ * Contrato visual: imagem legacy clara (clinic-dashboard) · 2026-05-17.
+ */
+
+.crm-light-scope {
+  /* ═══════════════════════════════════════════════════════════════════
+   * Tailwind 4 / shadcn HSL tokens · sobrescritos pra light
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  --background: 36 24% 97%;          /* off-white ivory legacy */
+  --foreground: 30 10% 18%;          /* graphite */
+  --card: 0 0% 100%;                 /* white puro */
+  --card-foreground: 30 10% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 30 10% 18%;
+
+  --primary: 35 36% 50%;             /* champagne mais saturado pra contraste em light */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 36 24% 94%;
+  --secondary-foreground: 30 10% 18%;
+
+  --muted: 220 14% 96%;              /* gray-50 */
+  --muted-foreground: 220 9% 46%;    /* gray-500 */
+
+  --accent: 36 24% 92%;              /* ivory soft */
+  --accent-foreground: 30 10% 18%;
+
+  --destructive: 0 72% 51%;          /* red-600 (pra "Fechar o Dia") */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 13% 91%;             /* gray-200 */
+  --input: 220 13% 91%;
+  --ring: 35 36% 50%;                /* match primary */
+
+  --success: 145 35% 38%;            /* emerald escuro pra contraste light */
+  --warning: 35 75% 45%;             /* amber escuro */
+  --danger: 0 72% 51%;
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * b2b-* tokens · invertidos pra light · mantém estética champagne
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  --b2b-bg-0: #FAFAFA;               /* fundo geral */
+  --b2b-bg-1: #FFFFFF;               /* cards */
+  --b2b-bg-2: #F5F0E8;               /* ivory soft (hover, inputs) */
+  --b2b-bg-3: #EAE3D5;               /* champagne tint */
+
+  --b2b-champagne: #B8945A;          /* champagne mais escuro pra contraste em light */
+  --b2b-champagne-light: #C9A96E;
+  --b2b-champagne-dark: #8E6F3E;
+
+  --b2b-ivory: #FFFFFF;
+  --b2b-text: #2C2C2C;               /* graphite */
+  --b2b-text-muted: #6B7280;
+  --b2b-text-dim: #4A4A4A;
+
+  --b2b-border: rgba(0, 0, 0, 0.08);
+  --b2b-border-strong: rgba(184, 148, 90, 0.45);
+
+  --b2b-sage: #5C7A5A;
+  --b2b-amber: #B45309;
+  --b2b-red: #DC2626;                /* "Fechar o Dia" destacado */
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * Sombras suaves light (ao invés das pretas do dark theme)
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  --lara-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --lara-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --lara-shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.06);
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * Comportamento nativo do browser · light scheme dentro do scope
+   * (inputs, scrollbars, autofill devem renderizar em light)
+   * ═══════════════════════════════════════════════════════════════════ */
+
+  color-scheme: light;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Inputs nativos dentro do scope · force light color-scheme override.
+   Resolve caso em que `.b2b-input` herdou `color-scheme: dark` de globals. */
+.crm-light-scope input,
+.crm-light-scope select,
+.crm-light-scope textarea {
+  color-scheme: light;
+}
+
+/* Override pontual de `.b2b-input` que tem `color-scheme: dark` hardcoded.
+   Mantemos o resto do utility (border, padding) intactos · só corrige a cor. */
+.crm-light-scope .b2b-input {
+  color-scheme: light;
+  background: var(--b2b-bg-1);
+  color: var(--b2b-text);
+}
+
+.crm-light-scope .b2b-input:focus {
+  border-color: var(--b2b-champagne);
+  box-shadow: 0 0 0 3px rgba(184, 148, 90, 0.15);
+}
+
+/* Calendar week-view · hatching diagonal nos slots vazios (legacy) */
+.crm-light-scope .agenda-empty-slot {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(0, 0, 0, 0.025) 6px,
+    rgba(0, 0, 0, 0.025) 7px
+  );
+}
+
+/* Tipografia · reduzir display italic dentro do CRM (legacy usa Inter regular) */
+.crm-light-scope .font-display-italic {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-style: normal;
+  font-weight: 600;
+}

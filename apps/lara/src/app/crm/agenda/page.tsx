@@ -35,7 +35,6 @@ import { AgendaFilters } from './_components/agenda-filters'
 import { WeekCalendar } from './_components/week-calendar'
 import { DayView } from './_components/day-view'
 import { MonthView } from './_components/month-view'
-import { FinalizarDiaPlaceholder } from './_components/finalizar-dia-placeholder'
 import { PeriodNav } from './_components/period-nav'
 import { ProfessionalFilter } from './_components/professional-filter'
 import { StatusLegend } from './_components/status-legend'
@@ -310,14 +309,13 @@ export default async function AgendaPage({
                 Novo agendamento
               </Button>
             </Link>
-            {/* R3_CRM_3B.5 · botão placeholder · audit do legacy abrirFecharDia() */}
-            <FinalizarDiaPlaceholder />
+            {/* "Fechar o Dia" agora vive na topbar global do CRM (R3_CRM_LIGHT_1C) */}
           </>
         }
       />
 
       {/* R3_CRM_3B.2 · hint drag-drop · espelha legacy "Drag & drop para reagendar" */}
-      <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">
+      <p className="mb-3 text-[11px] text-[hsl(var(--muted-foreground))]">
         Drag &amp; drop para reagendar.
       </p>
 
@@ -339,40 +337,34 @@ export default async function AgendaPage({
         />
       </Suspense>
 
-      {/* KPIs · 7 cards · R3_CRM_3B.4 adicionou "Sem Confirm." e refinou
-          o card Receita pra "Prev. / Fat." (espelha legacy PREV.|FAT.) */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
-        <KpiCard label="Total" value={aggregates.total.toString()} />
-        <KpiCard
+      {/* R3_CRM_LIGHT_1D · KPIs · 4 pills compactos espelhando legacy (Agendados,
+          Sem Confirm., No-show%, Prev.|Fat.). Métricas combinadas das 7 antigas. */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiPill
           label="Agendados"
           value={aggregates.agendado.toString()}
+          sub={`${aggregates.confirmado} conf.`}
           accent="info"
         />
-        <KpiCard
+        <KpiPill
           label="Sem Confirm."
           value={awaitingConfirmation.toString()}
-          accent={awaitingConfirmation > 0 ? 'warning' : undefined}
+          accent={awaitingConfirmation > 0 ? 'warning' : 'muted'}
         />
-        <KpiCard
-          label="Em fluxo"
-          value={aggregates.confirmado.toString()}
-          accent="primary"
-        />
-        <KpiCard
-          label="Finalizados"
-          value={aggregates.finalizado.toString()}
-          accent="success"
-        />
-        <KpiCard
-          label="Cancel + No-show"
-          value={(aggregates.cancelado + aggregates.noShow).toString()}
-          accent={
-            aggregates.cancelado + aggregates.noShow > 0 ? 'destructive' : undefined
+        <KpiPill
+          label="No-show"
+          value={aggregates.noShow.toString()}
+          sub={
+            aggregates.total > 0
+              ? `${Math.round((aggregates.noShow / aggregates.total) * 100)}%`
+              : '0%'
           }
+          accent={aggregates.noShow > 0 ? 'destructive' : 'muted'}
         />
-        <KpiCard
+        <KpiPill
           label="Prev. | Fat."
-          value={`${BRL.format(aggregates.revenueTotal)} / ${BRL.format(aggregates.revenuePaid)}`}
+          value={BRL.format(aggregates.revenueTotal)}
+          sub={BRL.format(aggregates.revenuePaid)}
         />
       </div>
 
@@ -416,34 +408,47 @@ export default async function AgendaPage({
   )
 }
 
-interface KpiCardProps {
+interface KpiPillProps {
   label: string
   value: string
-  accent?: 'info' | 'primary' | 'success' | 'warning' | 'destructive'
+  /** Sub-line abaixo do valor · ex: "X conf." ou "X%" */
+  sub?: string
+  accent?: 'info' | 'primary' | 'success' | 'warning' | 'destructive' | 'muted'
 }
 
-function KpiCard({ label, value, accent }: KpiCardProps) {
+/**
+ * KpiPill · pill compacto light · R3_CRM_LIGHT_1D.
+ * Espelha estilo legacy (imagem B): card claro com border sutil, label
+ * em uppercase pequeno, valor grande, sub opcional em cinza.
+ */
+function KpiPill({ label, value, sub, accent }: KpiPillProps) {
+  const valueColor =
+    accent === 'success'
+      ? 'text-emerald-600'
+      : accent === 'destructive'
+        ? 'text-rose-600'
+        : accent === 'warning'
+          ? 'text-amber-600'
+          : accent === 'info'
+            ? 'text-sky-600'
+            : accent === 'primary'
+              ? 'text-[hsl(var(--primary))]'
+              : accent === 'muted'
+                ? 'text-[hsl(var(--muted-foreground))]'
+                : 'text-[hsl(var(--foreground))]'
+
   return (
-    <Card className="p-3">
-      <div className="text-[9px] font-display-uppercase tracking-widest text-[var(--muted-foreground)]">
+    <Card className="p-3" style={{ background: 'hsl(var(--card))' }}>
+      <div className="text-[9px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
         {label}
       </div>
-      <div
-        className={`mt-1 font-display-italic text-xl ${
-          accent === 'success'
-            ? 'text-emerald-400'
-            : accent === 'destructive'
-              ? 'text-rose-400'
-              : accent === 'warning'
-                ? 'text-amber-400'
-                : accent === 'info'
-                  ? 'text-sky-400'
-                  : accent === 'primary'
-                    ? 'text-[var(--primary)]'
-                    : 'text-[var(--foreground)]'
-        }`}
-      >
-        {value}
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className={`text-2xl font-semibold ${valueColor}`}>{value}</span>
+        {sub && (
+          <span className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            {sub}
+          </span>
+        )}
       </div>
     </Card>
   )
