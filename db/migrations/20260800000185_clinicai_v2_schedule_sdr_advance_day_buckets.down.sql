@@ -1,11 +1,22 @@
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ DOWN · Migration 800-185 · clinicai-v2 · unschedule sdr-advance-day-... ║
 -- ╠══════════════════════════════════════════════════════════════════════════╣
--- ║ Remove o cron job sdr-advance-day-buckets criado pela migration 800-185. ║
+-- ║ Remove o cron job sdr-advance-day-buckets versionado/adotado pela        ║
+-- ║ migration 800-185 (adopt strategy).                                      ║
 -- ║                                                                          ║
 -- ║ Idempotente · só faz unschedule se o job existir.                       ║
 -- ║                                                                          ║
--- ║ ⚠️ Após o rollback:                                                      ║
+-- ║ ⚠️ ATENÇÃO HISTÓRICA: o cron sdr-advance-day-buckets foi originalmente   ║
+-- ║ agendado MANUALMENTE em prod (provavelmente via Studio SQL editor)      ║
+-- ║ antes desta migration. Rolling back este DOWN remove o job que estava   ║
+-- ║ rodando ANTES da mig 800-185 também · porque a mig adotou o existente.  ║
+-- ║                                                                          ║
+-- ║ Se o intent do rollback for "voltar ao estado pré-mig 185" sem desligar ║
+-- ║ o cron operacional, **NÃO rodar este .down.sql** · apenas remover a     ║
+-- ║ entry no tracker Supabase CLI (`supabase migration repair --status      ║
+-- ║ reverted 20260800000185`) sem tocar em cron.job.                        ║
+-- ║                                                                          ║
+-- ║ Após o rollback:                                                         ║
 -- ║   - Avanços diários do pipeline seven_days param.                        ║
 -- ║   - lead_pipeline_positions existentes ficam congeladas no estágio      ║
 -- ║     atual (não revertem · não há histórico de transição).               ║
@@ -14,7 +25,7 @@
 -- ║     calculado por created_at (BLOCO 3.5B).                              ║
 -- ║                                                                          ║
 -- ║ Não dropa GRANT EXECUTE · função pode continuar sendo chamada            ║
--- ║ manualmente por service_role/postgres (ex: durante UAT controlado).     ║
+-- ║ manualmente por authenticated/service_role/postgres.                     ║
 -- ║                                                                          ║
 -- ║ Não dropa a função sdr_advance_day_buckets() · é da mig V1 20260514.    ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
