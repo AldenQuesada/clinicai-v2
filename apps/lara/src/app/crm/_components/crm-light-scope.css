@@ -414,6 +414,7 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-right: 64px;
 }
 
 .crm-light-scope .breadcrumb-icon {
@@ -685,13 +686,15 @@
 
 .crm-light-scope .agenda-page-header-title {
   flex-shrink: 0;
-  margin-right: 16px;
+  margin-right: 32px;
 }
 
+/* Row ocupa todo espaço restante até a borda direita (até "Hoje" do toolbar abaixo)
+ * Pills autoexpand internamente proporcional ao conteúdo. */
 .crm-light-scope .agenda-kpi-row {
   display: flex;
   gap: 10px;
-  flex-shrink: 1;
+  flex: 1;
   min-width: 0;
 }
 
@@ -699,8 +702,12 @@
  * AGENDA KPI PILLS · LITERAL · api.js L466-499
  * ═══════════════════════════════════════════════════════════════════ */
 
+/* flex 1 1 auto · pills crescem proporcional ao CONTEÚDO · PREV.|FAT.
+ * naturalmente ocupa mais largura por ter texto monetário. Sem overflow:hidden
+ * pra não cortar o value. min-width:0 só pra permitir shrink em viewport muito
+ * apertada se realmente necessário. */
 .crm-light-scope .agenda-kpi-pill {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   background: var(--card);
   border: 1px solid #F3F4F6;
   border-radius: 10px;
@@ -709,7 +716,6 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  overflow: hidden;
 }
 
 .crm-light-scope .agenda-kpi-pill-warning {
@@ -769,8 +775,7 @@
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  min-width: 0;
-  flex-shrink: 1;
+  flex-shrink: 0;
 }
 
 .crm-light-scope .agenda-kpi-value-blue    { color: #3B82F6; }
