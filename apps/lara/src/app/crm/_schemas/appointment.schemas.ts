@@ -343,3 +343,82 @@ export const FinalizeAppointmentSchema = z
       path: ['clinicalOverrideReason'],
     },
   )
+
+// ── BLOCO 2.2 · Recorrência/Séries (V1 paridade) ────────────────────────────
+//
+// Cria série de N appointments com intervalo fixo a partir de uma data base.
+// Reusa CreateAppointmentSchema como "base" (subject + horário + profissional +
+// procedimento) e adiciona campos series-only: totalSessions + intervalDays.
+//
+// Limites alinhados com `repository.createSeries()` (linhas 656-661):
+//   - totalSessions: 2..52  (V1 RPC suporta 1..100 · UI restringe a 2..52)
+//   - intervalDays:  1..365
+//
+// Não atômico: repository chama `create()` per session com conflict-check
+// individual. Retorna { created: [...], failed: [...] }.
+// (V1 RPC `appt_create_series` server-side é atômica, mas V2 optou por
+// criação parcial tolerável pra UX · ADR pendente.)
+
+export const CreateAppointmentSeriesSchema = z
+  .object({
+    // Subject (XOR · lead OU patient · não bloqueado em série)
+    leadId: z.string().uuid().nullable().optional(),
+    patientId: z.string().uuid().nullable().optional(),
+    subjectName: z.string().min(1).max(120),
+    subjectPhone: z.string().max(20).nullable().optional(),
+    // Tempo base · TODAS sessões usam mesmo horário + duração
+    startDate: DateStr,
+    startTime: TimeStr,
+    endTime: TimeStr,
+    // Profissional / procedimento (mesmos pra toda série)
+    professionalId: z.string().uuid().nullable().optional(),
+    professionalName: z.string().max(120).optional(),
+    procedureId: z.string().uuid().nullable().optional(),
+    procedureName: z.string().max(200).optional(),
+    consultType: z.string().max(50).nullable().optional(),
+    evalType: z.string().max(50).nullable().optional(),
+    value: z.number().nonnegative().optional(),
+    origem: z.string().max(50).nullable().optional(),
+    obs: z.string().max(2000).nullable().optional(),
+    // Series-specific
+    totalSessions: z.number().int().min(2).max(52),
+    intervalDays: z.number().int().min(1).max(365),
+    recurrenceProcedure: z.string().max(200).nullable().optional(),
+    // Opt-in pra pular conflict-check (uso administrativo · default false)
+    skipConflictCheck: z.boolean().optional(),
+  })
+  .refine(
+    (v) => {
+      // Subject XOR · série exige subject (sem block-time em série)
+      const subjects = (v.leadId ? 1 : 0) + (v.patientId ? 1 : 0)
+      return subjects === 1
+    },
+    {
+      message: 'Série exige EXATAMENTE um de leadId/patientId',
+      path: ['leadId'],
+    },
+  )
+  .refine((v) => v.endTime > v.startTime, {
+    message: 'Horário final deve ser maior que o inicial',
+    path: ['endTime'],
+  })
+  .refine(
+    (v) => {
+      // Duração 15..240min · alinhado com CreateAppointmentSchema
+      const [sh, sm] = v.startTime.split(':').map((s) => parseInt(s, 10))
+      const [eh, em] = v.endTime.split(':').map((s) => parseInt(s, 10))
+      const durMin = eh * 60 + em - (sh * 60 + sm)
+      return durMin >= 15 && durMin <= 240
+    },
+    { message: 'Duração deve estar entre 15 minutos e 4 horas', path: ['endTime'] },
+  )
+  .refine(
+    (v) => {
+      const todayIso = new Date().toISOString().slice(0, 10)
+      return v.startDate >= todayIso
+    },
+    {
+      message: 'Data inicial da série não pode ser anterior a hoje',
+      path: ['startDate'],
+    },
+  )

@@ -24,6 +24,7 @@ import {
   CancelAppointmentSchema,
   CheckAppointmentConflictSchema,
   CreateAppointmentSchema,
+  CreateAppointmentSeriesSchema,
   FinalizeAppointmentSchema,
   MarkNoShowSchema,
   UpdateAppointmentSchema,
@@ -859,4 +860,160 @@ export async function createBlockTimeAction(
   )
   updateTag(CRM_TAGS.appointments)
   return ok({ appointmentId: created.id })
+}
+
+// ── BLOCO 2.2A · createAppointmentSeriesAction · paridade V1 (ATÔMICA) ──────
+//
+// Cria série de N appointments ATOMICAMENTE via RPC `appt_create_series`.
+// Comportamento: all-or-nothing real · RAISE em qualquer item aborta a
+// transação inteira da plpgsql function · NENHUM appointment fica órfão se
+// algo falhar.
+//
+// Fluxo:
+//  1. Pré-check de conflito em TODAS as N datas calculadas (a menos que
+//     `skipConflictCheck=true`). Se qualquer conflito → retorna erro
+//     `schedule_conflict_in_series` com lista de slots conflitantes ANTES
+//     de chamar a RPC. Nenhuma criação foi tentada.
+//  2. Se pré-check OK (ou pulado): chama `repos.appointments.createSeriesAtomic`
+//     que invoca a RPC `appt_create_series(p_appts jsonb)`.
+//  3. RPC retorna { ok, count, ids, group_ids } · em erro abortou tudo.
+
+export async function createAppointmentSeriesAction(
+  input: unknown,
+): Promise<
+  Result<{
+    createdCount: number
+    groupId: string
+    appointmentIds: string[]
+    totalRequested: number
+  }>
+> {
+  const parsed = CreateAppointmentSeriesSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+
+  const base = {
+    leadId: parsed.data.leadId ?? null,
+    patientId: parsed.data.patientId ?? null,
+    subjectName: parsed.data.subjectName,
+    subjectPhone: parsed.data.subjectPhone ?? null,
+    professionalId: parsed.data.professionalId ?? null,
+    professionalName: parsed.data.professionalName ?? '',
+    scheduledDate: parsed.data.startDate,
+    startTime: parsed.data.startTime,
+    endTime: parsed.data.endTime,
+    procedureId: parsed.data.procedureId ?? null,
+    procedureName: parsed.data.procedureName ?? '',
+    consultType: parsed.data.consultType ?? null,
+    evalType: parsed.data.evalType ?? null,
+    value: parsed.data.value ?? 0,
+    origem: parsed.data.origem ?? null,
+    obs: parsed.data.obs ?? null,
+  }
+
+  // ── 1. Pré-check de conflitos · em paralelo nas N datas ───────────────────
+  // Sem isso, RPC pode falhar tarde · 1 chamada por sessão é aceitável (max
+  // 52 sessões pelo schema). Resultado fail-fast: lista TODOS conflitos
+  // identificados antes de tentar criação atômica.
+  if (!(parsed.data.skipConflictCheck ?? false)) {
+    const firstD = new Date(`${parsed.data.startDate}T00:00:00.000Z`)
+    const dates: string[] = []
+    for (let i = 1; i <= parsed.data.totalSessions; i++) {
+      const d = new Date(firstD)
+      d.setUTCDate(d.getUTCDate() + (i - 1) * parsed.data.intervalDays)
+      dates.push(d.toISOString().slice(0, 10))
+    }
+
+    const conflictResults = await Promise.all(
+      dates.map((scheduledDate) =>
+        repos.appointments.checkConflicts(ctx.clinic_id, {
+          scheduledDate,
+          startTime: parsed.data.startTime,
+          endTime: parsed.data.endTime,
+          professionalId: parsed.data.professionalId ?? null,
+          roomIdx: null,
+          leadId: parsed.data.leadId ?? null,
+          patientId: parsed.data.patientId ?? null,
+        }),
+      ),
+    )
+
+    const conflicts: Array<{ index: number; date: string }> = []
+    conflictResults.forEach((c, idx) => {
+      const hasConflict =
+        c.professional.length > 0 ||
+        c.room.length > 0 ||
+        c.patient.length > 0
+      if (hasConflict) conflicts.push({ index: idx + 1, date: dates[idx]! })
+    })
+
+    if (conflicts.length > 0) {
+      log.warn(
+        {
+          action: 'crm.appt.createSeries',
+          clinic_id: ctx.clinic_id,
+          total_requested: parsed.data.totalSessions,
+          conflict_count: conflicts.length,
+          start_date: parsed.data.startDate,
+          interval_days: parsed.data.intervalDays,
+        },
+        'appt.createSeries.precheck_conflict',
+      )
+      return fail('schedule_conflict_in_series', {
+        conflicts,
+        totalRequested: parsed.data.totalSessions,
+      })
+    }
+  }
+
+  // ── 2. Criação atômica via RPC appt_create_series ─────────────────────────
+  const result = await repos.appointments.createSeriesAtomic(
+    ctx.clinic_id,
+    base,
+    {
+      firstDate: parsed.data.startDate,
+      intervalDays: parsed.data.intervalDays,
+      total: parsed.data.totalSessions,
+      recurrenceProcedure:
+        parsed.data.recurrenceProcedure ?? parsed.data.procedureName ?? undefined,
+    },
+  )
+
+  if (!result.ok) {
+    log.error(
+      {
+        action: 'crm.appt.createSeries',
+        clinic_id: ctx.clinic_id,
+        total_requested: parsed.data.totalSessions,
+        start_date: parsed.data.startDate,
+        interval_days: parsed.data.intervalDays,
+        error: result.error,
+      },
+      'appt.createSeries.rpc_failed',
+    )
+    return fail('series_rpc_failed', { reason: result.error })
+  }
+
+  log.info(
+    {
+      action: 'crm.appt.createSeries',
+      clinic_id: ctx.clinic_id,
+      total_requested: parsed.data.totalSessions,
+      created_count: result.createdCount,
+      interval_days: parsed.data.intervalDays,
+      start_date: parsed.data.startDate,
+      group_id: result.groupId,
+    },
+    'appt.createSeries.ok',
+  )
+
+  updateTag(CRM_TAGS.appointments)
+
+  return ok({
+    createdCount: result.createdCount,
+    groupId: result.groupId,
+    appointmentIds: result.appointmentIds,
+    totalRequested: parsed.data.totalSessions,
+  })
 }

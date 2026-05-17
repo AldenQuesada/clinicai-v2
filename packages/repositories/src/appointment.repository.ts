@@ -627,7 +627,132 @@ export class AppointmentRepository {
   }
 
   /**
-   * Cria N appointments em sequencia (recurrence series).
+   * BLOCO 2.2A · Cria série recorrente ATOMICAMENTE via RPC
+   * `appt_create_series` (mig V1 20260700000483 · preservada na mig V2 153).
+   *
+   * Atomicidade: a RPC é uma plpgsql function que itera o array `p_appts`,
+   * chama `appt_upsert(item)` em cada e dá RAISE se qualquer um falhar — o
+   * RAISE aborta a transação implícita da function, revertendo TODOS os
+   * inserts anteriores. All-or-nothing real.
+   *
+   * Caminho da UI nova de recorrência (BLOCO 2.2). Substitui o loop
+   * client-side `createSeries()` (best-effort com tolerância parcial) que
+   * continua disponível pra callers legacy que aceitam série parcial.
+   *
+   * Conflict-check é responsabilidade do caller · idealmente faz pré-check
+   * em todas as N datas ANTES de chamar este método. A RPC interna NÃO
+   * valida conflito · só faz INSERTs em sequência.
+   *
+   * Payload por item · formato camelCase legacy que `appt_upsert` aceita
+   * (ver mig V2 153, helper `_appt_upsert_one`):
+   *   id, pacienteId, pacienteNome, pacientePhone,
+   *   _professionalId, profissionalNome,
+   *   data, horaInicio, horaFim,
+   *   procedimento, tipoConsulta, tipoAvaliacao, valor,
+   *   status, origem, obs,
+   *   recurrenceGroupId, recurrenceIndex, recurrenceTotal,
+   *   recurrenceProcedure, recurrenceIntervalDays
+   *
+   * NOTA: a RPC `appt_upsert` é legacy writer (não grava `procedure_id` FK
+   * canônica · só `procedure_name` snapshot). Trade-off aceito pra ganhar
+   * atomicidade · pendência ADR: futuro patch da RPC pra aceitar `procedure_id`.
+   */
+  async createSeriesAtomic(
+    clinicId: string,
+    base: CreateAppointmentInput,
+    series: {
+      firstDate: string // YYYY-MM-DD
+      intervalDays: number
+      total: number
+      recurrenceProcedure?: string
+    },
+  ): Promise<
+    | { ok: true; createdCount: number; groupId: string; appointmentIds: string[] }
+    | { ok: false; error: string }
+  > {
+    if (series.total < 1 || series.total > 100) {
+      return { ok: false, error: 'total_out_of_range_1_100' }
+    }
+    if (series.intervalDays < 1 || series.intervalDays > 365) {
+      return { ok: false, error: 'interval_days_out_of_range_1_365' }
+    }
+    if (!base.leadId && !base.patientId) {
+      return { ok: false, error: 'subject_required' }
+    }
+
+    const groupId = uuidv4()
+    const subjectId = base.leadId ?? base.patientId
+    const firstD = new Date(`${series.firstDate}T00:00:00.000Z`)
+
+    const items: Array<Record<string, unknown>> = []
+    for (let i = 1; i <= series.total; i++) {
+      const d = new Date(firstD)
+      d.setUTCDate(d.getUTCDate() + (i - 1) * series.intervalDays)
+      const scheduledDate = d.toISOString().slice(0, 10)
+
+      items.push({
+        // id é gerado pela RPC se ausente · não passa pra evitar collision
+        pacienteId: subjectId,
+        pacienteNome: base.subjectName ?? '',
+        pacientePhone: base.subjectPhone ?? null,
+        _professionalId: base.professionalId ?? null,
+        profissionalNome: base.professionalName ?? '',
+        data: scheduledDate,
+        horaInicio: base.startTime,
+        horaFim: base.endTime,
+        procedimento: base.procedureName ?? '',
+        tipoConsulta: base.consultType ?? null,
+        tipoAvaliacao: base.evalType ?? null,
+        valor: base.value ?? 0,
+        status: base.status ?? 'agendado',
+        origem: base.origem ?? null,
+        obs: base.obs ?? null,
+        recurrenceGroupId: groupId,
+        recurrenceIndex: i,
+        recurrenceTotal: series.total,
+        recurrenceProcedure: series.recurrenceProcedure ?? base.procedureName ?? null,
+        recurrenceIntervalDays: series.intervalDays,
+      })
+    }
+
+    const { data, error } = await this.supabase.rpc('appt_create_series', {
+      p_appts: items as unknown as never,
+    })
+
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+
+    // RPC retorna { ok, count, ids[], group_ids[] } · ver mig V1 20260700000483
+    const result = (data ?? {}) as {
+      ok?: boolean
+      count?: number
+      ids?: string[]
+      group_ids?: string[]
+    }
+
+    if (!result.ok) {
+      return { ok: false, error: 'rpc_returned_not_ok' }
+    }
+
+    // Multi-tenant: `clinicId` é informacional pra log do caller · a RPC
+    // resolve `app_clinic_id()` via JWT internamente. Suppressed unused warn.
+    void clinicId
+
+    return {
+      ok: true,
+      createdCount: result.count ?? items.length,
+      groupId,
+      appointmentIds: result.ids ?? [],
+    }
+  }
+
+  /**
+   * Cria N appointments em sequencia (recurrence series). BEST-EFFORT ·
+   * tolerância parcial · não atômico. Mantido pra callers legacy.
+   *
+   * Para nova UI de recorrência (BLOCO 2.2/2.2A), prefira `createSeriesAtomic`
+   * que usa RPC `appt_create_series` (all-or-nothing real).
    *
    * Compartilham `recurrence_group_id` (uuid gerado aqui) · cada appt tem
    * `recurrence_index` (1..N) e `recurrence_total` setado.

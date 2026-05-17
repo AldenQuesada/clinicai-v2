@@ -44,6 +44,7 @@ import {
   updateAppointmentAction,
   checkAppointmentConflictAction,
 } from '@/app/crm/_actions/appointment.actions'
+import { RecurrenceSection, type SeriesBasePayload } from './_components/recurrence-section'
 
 interface SubjectOption {
   id: string
@@ -274,6 +275,12 @@ export function NewAppointmentForm({
     Partial<Record<keyof FormState, string>>
   >({})
   const [busy, setBusy] = React.useState(false)
+
+  // BLOCO 2.2 · modo série · quando true, RecurrenceSection assume o submit
+  // e o botão padrão "Criar agendamento" é ocultado pra evitar ambiguidade.
+  // Edit mode (isEdit=true) nunca ativa série · ediçao reutiliza appointment
+  // existente, não cria nova série.
+  const [recurrenceEnabled, setRecurrenceEnabled] = React.useState(false)
 
   const [conflictState, setConflictState] = React.useState<
     | { kind: 'idle' }
@@ -1010,6 +1017,56 @@ export function NewAppointmentForm({
               antes de salvar. O servidor revalida e bloqueará se persistir.
             </div>
           )}
+
+          {/* BLOCO 2.2 · Recorrência opt-in · só em create mode (edit reusa appt) */}
+          {!isEdit && (
+            <div className="pt-2">
+              <RecurrenceSection
+                enabled={recurrenceEnabled}
+                onEnabledChange={setRecurrenceEnabled}
+                onBusy={setBusy}
+                getBasePayload={(): SeriesBasePayload | null => {
+                  const subject =
+                    data.subjectKind === 'patient'
+                      ? patients.find((p) => p.id === data.patientId) ?? null
+                      : leads.find((l) => l.id === data.leadId) ?? null
+                  if (!subject) return null
+                  const professional =
+                    professionals.find((p) => p.id === data.professionalId) ?? null
+                  const procedureIdPayload =
+                    data.procedureMode === 'canonical' && data.procedureId
+                      ? data.procedureId
+                      : null
+                  return {
+                    leadId: data.subjectKind === 'lead' ? data.leadId : null,
+                    patientId: data.subjectKind === 'patient' ? data.patientId : null,
+                    subjectName: subject.name,
+                    subjectPhone: subject.phone,
+                    startDate: data.scheduledDate,
+                    startTime: data.startTime,
+                    endTime: data.endTime,
+                    professionalId: data.professionalId || null,
+                    professionalName: professional?.displayName ?? '',
+                    procedureId: procedureIdPayload,
+                    procedureName: data.procedureName || '',
+                    consultType: data.consultType || null,
+                    value: data.value ? parseFloat(data.value) || 0 : 0,
+                    origem: data.origem || null,
+                    obs: data.obs || null,
+                  }
+                }}
+                onSeriesCreated={({ groupId, createdCount }) => {
+                  // BLOCO 2.2A · sucesso ATÔMICO (all-or-nothing) · sempre
+                  // redireciona pra agenda filtrada pelo group_id. Conflitos
+                  // de pré-check ou falha de RPC mantêm user no form (não
+                  // chamam este callback).
+                  void createdCount
+                  router.push(`/crm/agenda?group=${groupId}`)
+                  router.refresh()
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1038,7 +1095,10 @@ export function NewAppointmentForm({
               <ChevronRight className="h-4 w-4" />
             </Button>
           )}
-          {step === 4 && (
+          {/* BLOCO 2.2 · botão padrão oculto quando modo série ativo · UX
+              evita dois CTAs concorrentes no mesmo passo. RecurrenceSection
+              renderiza seu próprio botão "Criar X sessões". */}
+          {step === 4 && !recurrenceEnabled && (
             <Button onClick={submit} disabled={busy}>
               <Save className="h-4 w-4" />
               {busy ? 'Salvando…' : submitLabel}
