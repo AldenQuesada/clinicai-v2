@@ -660,8 +660,9 @@ function PriorityDialog({
 }
 
 // ── Dialog: NextAction ────────────────────────────────────────────────────
+// Exportado para reuso em _recovery-buckets.tsx (Lote 3 · scheduler).
 
-function NextActionDialog({
+export function NextActionDialog({
   workflowId,
   currentType,
   currentAt,

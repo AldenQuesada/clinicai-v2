@@ -873,6 +873,91 @@ export async function createBlockTimeAction(
   return ok({ appointmentId: created.id })
 }
 
+// ── CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 · getFinalizarDiaReportAction ──────
+//
+// Wrapper read-only do RPC `appointment_finalize_day` (mig 876).
+// Retorna relatório agregado do dia: summary por status + openItems[]
+// (appointments que ainda precisam ação humana).
+//
+// PURAMENTE INFORMATIVO · zero mutation. O operador finaliza appointments
+// individualmente via `finalizeAppointmentAction` (RPC appointment_finalize)
+// ou `markNoShowAction` (RPC appointment_change_status). Esta action serve
+// pra UI mostrar "quantas consultas ainda faltam encerrar hoje".
+
+const GetFinalizarDiaReportSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve ser YYYY-MM-DD'),
+  professionalId: z.string().uuid().nullable().optional(),
+})
+
+export type FinalizarDiaReport = {
+  date: string
+  professionalId: string | null
+  summary: {
+    total: number
+    finalizados: number
+    pendentes: number
+    naClinica: number
+    emAtendimento: number
+    cancelados: number
+    noShow: number
+    bloqueados: number
+    remarcados: number
+  }
+  openItems: Array<{
+    id: string
+    subjectName: string
+    startTime: string
+    status: string
+    professionalName: string
+  }>
+}
+
+export async function getFinalizarDiaReportAction(
+  input: unknown,
+): Promise<Result<FinalizarDiaReport>> {
+  const parsed = GetFinalizarDiaReportSchema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { ctx, repos } = await loadServerReposContext()
+
+  const result = await repos.appointments.getDayReport(
+    parsed.data.date,
+    parsed.data.professionalId ?? null,
+  )
+
+  if (!result.ok) {
+    log.warn(
+      {
+        action: 'crm.appt.finalizeDayReport',
+        clinic_id: ctx.clinic_id,
+        date: parsed.data.date,
+        error: result.error,
+      },
+      'appt.finalizeDayReport.failed',
+    )
+    return fail(result.error)
+  }
+
+  log.info(
+    {
+      action: 'crm.appt.finalizeDayReport',
+      clinic_id: ctx.clinic_id,
+      date: result.date,
+      total: result.summary.total,
+      pendentes: result.summary.pendentes,
+      open_items: result.openItems.length,
+    },
+    'appt.finalizeDayReport.ok',
+  )
+
+  return ok({
+    date: result.date,
+    professionalId: result.professionalId,
+    summary: result.summary,
+    openItems: result.openItems,
+  })
+}
+
 // ── BLOCO 2.2A · createAppointmentSeriesAction · paridade V1 (ATÔMICA) ──────
 //
 // Cria série de N appointments ATOMICAMENTE via RPC `appt_create_series`.

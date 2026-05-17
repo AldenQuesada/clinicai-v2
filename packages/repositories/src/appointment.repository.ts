@@ -689,6 +689,100 @@ export class AppointmentRepository {
   }
 
   /**
+   * CRM_FUNCTIONALITY_MULTI_AGENT Lote 3 (mig 876) · wrapper read-only do RPC
+   * `appointment_finalize_day(p_date, p_professional_id)`. Alimenta a modal
+   * "Finalizar Dia" da agenda · puramente informativo · zero mutation no DB.
+   *
+   * Retorna:
+   *   - `summary` · contagens por status (total + 9 buckets canônicos mig 62)
+   *   - `openItems` · appointments pendentes/na_clinica/em_atendimento
+   *      ordenados por start_time ASC (limit 500 client-safe)
+   *
+   * Caller decide UX (modal info-only). NÃO finaliza appointments
+   * automaticamente · operador precisa finalizar 1-a-1 via
+   * `appointment_finalize()` ou marcar no-show via `appointment_change_status`.
+   *
+   * `professionalId` opcional · null = todos os profissionais da clinica.
+   */
+  async getDayReport(
+    date: string,
+    professionalId: string | null = null,
+  ): Promise<
+    | {
+        ok: true
+        date: string
+        professionalId: string | null
+        summary: {
+          total: number
+          finalizados: number
+          pendentes: number
+          naClinica: number
+          emAtendimento: number
+          cancelados: number
+          noShow: number
+          bloqueados: number
+          remarcados: number
+        }
+        openItems: Array<{
+          id: string
+          subjectName: string
+          startTime: string
+          status: AppointmentStatus
+          professionalName: string
+        }>
+      }
+    | { ok: false; error: string }
+  > {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (this.supabase as any).rpc(
+      'appointment_finalize_day',
+      {
+        p_date: date,
+        p_professional_id: professionalId,
+      },
+    )
+
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = (data as any) ?? {}
+    if (r.ok !== true) {
+      return { ok: false, error: r.error ?? 'rpc_returned_not_ok' }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (r.summary ?? {}) as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawOpen = (r.openItems ?? []) as Array<any>
+
+    return {
+      ok: true,
+      date: r.date ?? date,
+      professionalId: (r.professional_id ?? professionalId) || null,
+      summary: {
+        total: Number(s.total ?? 0),
+        finalizados: Number(s.finalizados ?? 0),
+        pendentes: Number(s.pendentes ?? 0),
+        naClinica: Number(s.na_clinica ?? 0),
+        emAtendimento: Number(s.em_atendimento ?? 0),
+        cancelados: Number(s.cancelados ?? 0),
+        noShow: Number(s.no_show ?? 0),
+        bloqueados: Number(s.bloqueados ?? 0),
+        remarcados: Number(s.remarcados ?? 0),
+      },
+      openItems: rawOpen.map((o) => ({
+        id: String(o.id),
+        subjectName: String(o.subjectName ?? ''),
+        startTime: String(o.startTime ?? ''),
+        status: o.status as AppointmentStatus,
+        professionalName: String(o.professionalName ?? ''),
+      })),
+    }
+  }
+
+  /**
    * Distribuicao de appointments por status atual · para dashboard health
    * (admin-only). Sem range · todos os appts nao-deletados da clinica.
    *

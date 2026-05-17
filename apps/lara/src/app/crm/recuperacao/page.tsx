@@ -1,8 +1,13 @@
 /**
- * /crm/recuperacao · fila de recuperação comercial · CRM_PHASE_2RC + 2RC.1.
+ * /crm/recuperacao · fila de recuperação comercial · CRM_PHASE_2RC + 2RC.1 + Lote 3.
  *
  * Consome commercial_recovery_workflow_view (queue + workflow LEFT JOIN · mig 174).
  * Suporta filtros por origem / estágio / prioridade / status + toggle "atrasados".
+ *
+ * Lote 3 (Agente F · follow-up scheduler):
+ *   - 3 buckets visuais (Vencidos / Hoje / Próximos 7 dias) consumindo
+ *     listOverdue / listToday / listUpcoming · status=aberto · next_action_at.
+ *   - Fila completa filtrável permanece abaixo como navegação geral.
  *
  * Ações disponíveis:
  *   - Iniciar workflow (cria workflow_item · idempotente)
@@ -14,14 +19,15 @@
  *   - Sugestão de abordagem (DRY-RUN · NUNCA dispara WhatsApp)
  *   - Reativar lead perdido (lead_recover RPC · 2RC)
  *
- * ZERO envio WhatsApp · ZERO chamada provider · ZERO row em wa_outbox.
+ * ZERO envio WhatsApp · ZERO chamada provider · ZERO row em wa_outbox · ZERO cron.
  */
 
+import { Suspense } from 'react'
 import { PageHeader, Card, CardHeader, CardTitle, CardContent } from '@clinicai/ui'
 import { loadServerReposContext } from '@/lib/repos'
 import { RecoveryList } from './_recovery-list'
+import { RecoveryBuckets } from './_recovery-buckets'
 import type {
-  RecoveryNextActionType,
   RecoveryPriority,
   RecoverySourceType,
   RecoveryStage,
@@ -44,7 +50,7 @@ export default async function RecuperacaoPage({
   searchParams: Promise<PageSearch>
 }) {
   const sp = await searchParams
-  const { ctx, repos } = await loadServerReposContext()
+  const { ctx } = await loadServerReposContext()
 
   const overdueOnly = sp.overdue === '1' || sp.overdue === 'true'
 
@@ -57,11 +63,6 @@ export default async function RecuperacaoPage({
     limit: 100,
   } as const
 
-  const [{ items }, counts] = await Promise.all([
-    repos.commercialRecovery.listWorkflowQueue(filter),
-    repos.commercialRecovery.getWorkflowCounts(ctx.user_id ?? null),
-  ])
-
   const allowedRole =
     ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'receptionist'
 
@@ -73,6 +74,28 @@ export default async function RecuperacaoPage({
         breadcrumb={[{ label: 'CRM', href: '/crm' }, { label: 'Recuperação' }]}
       />
 
+      <Suspense fallback={<BucketsFallback />}>
+        <KpiAndBuckets canAct={allowedRole} />
+      </Suspense>
+
+      <Suspense fallback={<ListFallback />}>
+        <FullList filter={filter} canAct={allowedRole} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function KpiAndBuckets({ canAct }: { canAct: boolean }) {
+  const { ctx, repos } = await loadServerReposContext()
+  const [counts, overdue, today, upcoming] = await Promise.all([
+    repos.commercialRecovery.getWorkflowCounts(ctx.user_id ?? null),
+    repos.commercialRecovery.listOverdue(50),
+    repos.commercialRecovery.listToday(50),
+    repos.commercialRecovery.listUpcoming(20),
+  ])
+
+  return (
+    <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <KpiCard label="Total" value={counts.total} />
         <KpiCard label="Urgente + Alta" value={counts.byPriority.urgente + counts.byPriority.alta} tone="alert" />
@@ -81,11 +104,50 @@ export default async function RecuperacaoPage({
         <KpiCard label="Atribuídos a mim" value={counts.assignedToMe} />
       </div>
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Fila ({items.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <RecoveryBuckets
+        overdue={overdue.items}
+        today={today.items}
+        upcoming={upcoming.items}
+        overdueError={overdue.error}
+        todayError={today.error}
+        upcomingError={upcoming.error}
+        canAct={canAct}
+      />
+    </>
+  )
+}
+
+async function FullList({
+  filter,
+  canAct,
+}: {
+  filter: {
+    sourceType: RecoverySourceType | 'all'
+    stage: RecoveryStage | 'all'
+    priority: RecoveryPriority | 'all'
+    status: RecoveryStatus | 'all'
+    overdueOnly: boolean
+    limit: number
+  }
+  canAct: boolean
+}) {
+  const { ctx, repos } = await loadServerReposContext()
+  const [{ items, error }, counts] = await Promise.all([
+    repos.commercialRecovery.listWorkflowQueue(filter),
+    repos.commercialRecovery.getWorkflowCounts(ctx.user_id ?? null),
+  ])
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Fila completa ({items.length})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="rounded-md border border-[var(--destructive)] bg-[var(--destructive)]/10 px-3 py-2 text-[12px] text-[var(--destructive)]">
+            Falha ao carregar fila: {error}
+          </p>
+        ) : (
           <RecoveryList
             items={items}
             counts={counts}
@@ -96,11 +158,31 @@ export default async function RecuperacaoPage({
               status: filter.status,
               overdueOnly: filter.overdueOnly,
             }}
-            canAct={allowedRole}
+            canAct={canAct}
           />
-        </CardContent>
-      </Card>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function BucketsFallback() {
+  return (
+    <div className="mt-2 grid animate-pulse grid-cols-1 gap-3 md:grid-cols-3">
+      {[0, 1, 2].map((i) => (
+        <Card key={i}>
+          <CardContent className="h-40" />
+        </Card>
+      ))}
     </div>
+  )
+}
+
+function ListFallback() {
+  return (
+    <Card className="mt-6">
+      <CardContent className="h-40 animate-pulse" />
+    </Card>
   )
 }
 
