@@ -12,6 +12,7 @@ import type { Database } from '@clinicai/supabase'
 export interface ProfileDTO {
   id: string
   firstName: string | null
+  lastName: string | null
   role: string | null
 }
 
@@ -35,7 +36,7 @@ export class ProfileRepository {
   async getById(userId: string): Promise<ProfileDTO | null> {
     const { data } = await this.supabase
       .from('profiles')
-      .select('id, first_name, role')
+      .select('id, first_name, last_name, role')
       .eq('id', userId)
       .maybeSingle()
 
@@ -43,6 +44,7 @@ export class ProfileRepository {
     return {
       id: String(data.id),
       firstName: data.first_name ?? null,
+      lastName: data.last_name ?? null,
       role: data.role ?? null,
     }
   }

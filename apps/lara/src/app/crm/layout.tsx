@@ -48,8 +48,14 @@ export default async function CrmLayout({ children }: CrmLayoutProps) {
       const profiles = new ProfileRepository(supabase as any)
       const profile = await profiles.getById(user.id)
       const first = profile?.firstName ?? ''
-      displayName = first || user.email?.split('@')[0] || 'Usuário'
-      initials = (first || user.email || 'U').slice(0, 1).toUpperCase()
+      const last = profile?.lastName ?? ''
+      const fullName = `${first} ${last}`.trim()
+      displayName = fullName || user.email?.split('@')[0] || 'Usuário'
+      // Iniciais: primeira letra do first + primeira do last (fallback first/email)
+      const firstInit = first ? first[0] : ''
+      const lastInit = last ? last[0] : ''
+      const combined = (firstInit + lastInit).toUpperCase()
+      initials = combined || (first || user.email || 'U').slice(0, 1).toUpperCase()
     }
   } catch (e) {
     console.error('[CrmLayout] profile lookup failed:', (e as Error).message)

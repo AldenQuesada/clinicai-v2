@@ -17,9 +17,6 @@
  */
 
 import { Suspense } from 'react'
-import Link from 'next/link'
-import { Button } from '@clinicai/ui'
-import { Plus } from 'lucide-react'
 import type {
   AppointmentDTO,
   AppointmentPaymentStatus,
@@ -357,12 +354,6 @@ export default async function AgendaPage({
             todayMonth={todayMonth}
           />
         </Suspense>
-        <Link href="/crm/agenda/novo">
-          <button type="button" className="btn-new">
-            <Plus className="h-4 w-4" />
-            Novo
-          </button>
-        </Link>
       </div>
 
       {/* Filtros (status, profissional, tipo, financeiro, origem, avaliação) */}

@@ -98,9 +98,7 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         <span className="breadcrumb-current">{current}</span>
       </div>
 
-      <div className="header-spacer" />
-
-      {/* Search · index.html L143-160 */}
+      {/* Search · index.html L143-160 · sem spacer antes · breadcrumb cola no search */}
       <div className="header-search">
         <span className="search-icon">
           <Search />

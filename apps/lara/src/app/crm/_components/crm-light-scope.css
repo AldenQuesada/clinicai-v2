@@ -559,13 +559,16 @@
 }
 
 /* Fechar o Dia · mesmas medidas do .btn-new (height/padding/font/radius)
- * preservando gradient vermelho · paridade legacy */
+ * preservando gradient vermelho · paridade legacy.
+ * margin-left: auto empurra ele + actions + avatar pra direita ·
+ * substitui o header-spacer (search agora cola no breadcrumb) */
 .crm-light-scope .fechar-dia-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 14px;
   height: 36px;
+  margin-left: auto;
   background: linear-gradient(135deg, #DC2626, #B91C1C);
   color: #fff;
   border: none;
@@ -643,7 +646,7 @@
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
-  max-width: 140px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -682,7 +685,7 @@
 
 .crm-light-scope .agenda-page-header-title {
   flex-shrink: 0;
-  margin-right: auto;
+  margin-right: 16px;
 }
 
 .crm-light-scope .agenda-kpi-row {
@@ -842,10 +845,11 @@
   background: rgba(201, 169, 110, 0.04);
 }
 
+/* .btn-emerald herda 100% as medidas do .btn-outline (height/padding/font/radius)
+ * só muda cor da borda + texto · paridade com Horários/Mês/Semana/Hoje */
 .crm-light-scope .btn-outline.btn-emerald {
   border-color: var(--accent-emerald);
   color: #047857;
-  font-weight: 700;
 }
 
 .crm-light-scope .btn-outline.btn-emerald:hover {
