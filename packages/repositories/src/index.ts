@@ -8,7 +8,12 @@
  *   - DTOs tipados em vez de row bruto
  */
 
-export { LeadRepository } from './lead.repository'
+export {
+  LeadRepository,
+  type KanbanLeadCard,
+  type KanbanStageRpc,
+  type KanbanEvolutionResult,
+} from './lead.repository'
 export { ConversationRepository, type StatusFilter } from './conversation.repository'
 export { computeSla, type SlaInput, type SlaFields } from './sla'
 export { MessageRepository, type AIHistoryMessage } from './message.repository'

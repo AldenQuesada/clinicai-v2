@@ -766,4 +766,215 @@ export class LeadRepository {
     }
     return mapRpcResult<SdrChangePhaseResult>(data)
   }
+
+  // ── BLOCO 3.1 · Kanban Leads · paridade V1 ─────────────────────────────────
+  //
+  // RPC `sdr_get_kanban_evolution` retorna 3 stages do pipeline `evolution`
+  // (novo · em_conversa · em_negociacao) cada um com seu array de leads,
+  // ordenado por priority DESC, created_at ASC. Pipeline + stages vivem nas
+  // tabelas `pipelines` + `pipeline_stages` · leads tem posição em
+  // `lead_pipeline_positions` (lead_id, pipeline_id) UNIQUE.
+  //
+  // RPC `sdr_move_lead` faz UPSERT na posição · ON CONFLICT(lead_id,
+  // pipeline_id) DO UPDATE · invocada no drop pra persistir movimento.
+  //
+  // Estado atual do banco (Bloco 3 audit): `lead_pipeline_positions=0` ·
+  // colunas vão render vazias até primeira movimentação acontecer.
+
+  /**
+   * Carrega kanban do pipeline `evolution` (3 stages canônicos) + fallback
+   * (BLOCO 3.1A) pra leads ativos sem posição.
+   *
+   * Fluxo:
+   *  1. Chama RPC `sdr_get_kanban_evolution(p_phase)` · retorna leads que JÁ
+   *     têm posição em `lead_pipeline_positions`.
+   *  2. **Fallback (BLOCO 3.1A):** SELECT em `public.leads` por leads ativos
+   *     (lifecycle_status='ativo' · phase='lead' · deleted_at IS NULL) que NÃO
+   *     têm registro em `lead_pipeline_positions`. Marca cada um com
+   *     `isUnpositioned: true` e mescla na stage "novo" no início (priority
+   *     DESC, created_at ASC pra coerência com ordenação da RPC).
+   *  3. Dedup defensivo: se mesmo lead aparecer em ambos (race condition),
+   *     mantém o da RPC (já tem posição salva).
+   *  4. Filtro `phaseFilter` aplica em ambos os caminhos · se não for 'lead',
+   *     o fallback retorna 0 leads (semântica preservada).
+   *
+   * `clinicId` é obrigatório pra escopar o SELECT do fallback (ADR-028
+   * multi-tenant). RPC interna já resolve clinic via `_sdr_clinic_id()` JWT;
+   * caller passa clinic_id pro fallback ser explícito.
+   *
+   * Posição só é persistida quando user faz drag-drop · RPC `sdr_move_lead`
+   * UPSERT. Esta função NÃO escreve em `lead_pipeline_positions`.
+   */
+  async getKanbanEvolution(
+    clinicId: string,
+    phaseFilter?: string | null,
+  ): Promise<KanbanEvolutionResult> {
+    const { data, error } = await this.supabase.rpc('sdr_get_kanban_evolution', {
+      p_phase: phaseFilter ?? undefined,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message }
+    }
+    const parsed = data as { ok?: boolean; error?: string; data?: { stages?: KanbanStageRpc[] } } | null
+    if (!parsed?.ok) {
+      return { ok: false, error: parsed?.error ?? 'unknown_error' }
+    }
+
+    const stages = parsed.data?.stages ?? []
+
+    // ── BLOCO 3.1A · fallback pra leads ativos sem posição ─────────────────
+    // Só faz sentido injetar fallback na stage 'novo' quando phaseFilter é
+    // null OU 'lead' (semântica: leads sem posição = leads novos no funil).
+    const fallbackApplies =
+      phaseFilter == null || phaseFilter === 'lead'
+    if (!fallbackApplies) {
+      return { ok: true, stages }
+    }
+
+    // IDs que já vieram da RPC (qualquer stage · dedup defensivo)
+    const positionedIds = new Set<string>()
+    for (const s of stages) {
+      for (const l of s.leads ?? []) {
+        positionedIds.add(l.id)
+      }
+    }
+
+    // SELECT leads ativos sem posição · scope clinic_id + RLS
+    const { data: unpositionedRows, error: selErr } = await this.supabase
+      .from('leads')
+      .select(
+        'id, name, phone, status, phase, temperature, priority, assigned_to, created_at',
+      )
+      .eq('clinic_id', clinicId)
+      .eq('lifecycle_status', 'ativo')
+      .eq('phase', 'lead')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    if (selErr) {
+      // Fallback falha · log mas não bloqueia · retorna só stages da RPC
+      return {
+        ok: true,
+        stages,
+        fallbackWarning: `fallback_query_failed: ${selErr.message}`,
+      }
+    }
+
+    const fallbackLeads: KanbanLeadCard[] = (unpositionedRows ?? [])
+      .filter((row) => !positionedIds.has(row.id as string))
+      .map((row) => ({
+        id: row.id as string,
+        name: (row.name as string | null) ?? '',
+        phone: (row.phone as string | null) ?? null,
+        status: (row.status as string | null) ?? null,
+        phase: (row.phase as string | null) ?? null,
+        temperature: (row.temperature as string | null) ?? null,
+        priority: (row.priority as string | null) ?? null,
+        assigned_to: (row.assigned_to as string | null) ?? null,
+        created_at: row.created_at as string,
+        isUnpositioned: true,
+      }))
+
+    if (fallbackLeads.length === 0) {
+      return { ok: true, stages }
+    }
+
+    // Localiza stage 'novo' e prepende fallback · sort_order menor = novo
+    const stagesOut: KanbanStageRpc[] = stages.map((s) => {
+      if (s.slug !== 'novo') return s
+      return {
+        ...s,
+        leads: [...fallbackLeads, ...(s.leads ?? [])],
+      }
+    })
+
+    // Caso pipeline 'evolution' não tenha seed (sem stages), criar virtual
+    if (stagesOut.length === 0) {
+      stagesOut.push({
+        slug: 'novo',
+        label: 'Novo',
+        color: null,
+        sort_order: 1,
+        leads: fallbackLeads,
+      })
+    }
+
+    return { ok: true, stages: stagesOut }
+  }
+
+  /**
+   * Move lead pra outro stage no pipeline `evolution`.
+   * Origin default 'drag' · pode ser 'manual' se invocado por outro fluxo.
+   * UPSERT em lead_pipeline_positions · ON CONFLICT DO UPDATE.
+   */
+  async moveKanbanStage(
+    leadId: string,
+    stageSlug: string,
+    origin: 'drag' | 'manual' = 'drag',
+  ): Promise<{ ok: true; data: { leadId: string; pipeline: string; stage: string } } | { ok: false; error: string; detail?: string }> {
+    const { data, error } = await this.supabase.rpc('sdr_move_lead', {
+      p_lead_id: leadId,
+      p_pipeline_slug: 'evolution',
+      p_stage_slug: stageSlug,
+      p_origin: origin,
+    })
+    if (error) {
+      return { ok: false, error: 'rpc_error', detail: error.message }
+    }
+    const parsed = data as { ok?: boolean; error?: string; data?: { lead_id: string; pipeline: string; stage: string } } | null
+    if (!parsed?.ok) {
+      return { ok: false, error: parsed?.error ?? 'move_failed' }
+    }
+    return {
+      ok: true,
+      data: {
+        leadId: parsed.data?.lead_id ?? leadId,
+        pipeline: parsed.data?.pipeline ?? 'evolution',
+        stage: parsed.data?.stage ?? stageSlug,
+      },
+    }
+  }
 }
+
+// ── BLOCO 3.1 · tipos exportados pro kanban ──────────────────────────────────
+
+export interface KanbanLeadCard {
+  id: string
+  name: string
+  phone: string | null
+  status: string | null
+  phase: string | null
+  temperature: string | null
+  priority: string | null
+  assigned_to: string | null
+  created_at: string
+  /**
+   * BLOCO 3.1A · true quando o lead vem do fallback (sem registro em
+   * `lead_pipeline_positions`). UI mostra badge "Sem posição" e copy
+   * explicando que primeira movimentação via drag-drop cria a posição.
+   * Default false (lead já tem posição persistida via RPC).
+   */
+  isUnpositioned?: boolean
+}
+
+export interface KanbanStageRpc {
+  slug: string
+  label: string
+  color: string | null
+  sort_order: number
+  leads: KanbanLeadCard[]
+}
+
+export type KanbanEvolutionResult =
+  | {
+      ok: true
+      stages: KanbanStageRpc[]
+      /**
+       * BLOCO 3.1A · presente apenas quando fallback SELECT falhou
+       * (`leads` query) · stages contém só os leads posicionados via RPC.
+       * UI pode exibir alerta discreto.
+       */
+      fallbackWarning?: string
+    }
+  | { ok: false; error: string; detail?: string }
