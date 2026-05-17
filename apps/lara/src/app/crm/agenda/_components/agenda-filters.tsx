@@ -163,8 +163,18 @@ export function AgendaFilters({
         ))}
       </select>
 
-      {/* Avaliação: campo `eval_type` existe mas sem enum canônico claro · não
-          implementado neste bloco · REVIEW_FIELD_NOT_AVAILABLE_IN_CURRENT_DATASET */}
+      {/* Avaliação · placeholder visual disabled (R3_CRM_LIGHT_4 contrato Alden).
+          `eval_type` existe mas sem enum canônico · sem fonte de opções.
+          Renderizado pra manter paridade visual de 5 selects · zero lógica. */}
+      <select
+        aria-label="Filtrar por avaliação (em validação)"
+        className="agenda-filter-select"
+        style={{ width: 120 }}
+        disabled
+        title="Avaliação · em validação · campo eval_type sem enum canônico"
+      >
+        <option value="">Avaliação</option>
+      </select>
     </div>
   )
 }

@@ -204,7 +204,7 @@ export function WeekCalendar({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="crm-week-calendar overflow-x-auto">
-        <div className="grid min-w-[800px] grid-cols-[92px_repeat(7,1fr)]">
+        <div className="grid min-w-[1240px] grid-cols-[92px_repeat(7,minmax(180px,1fr))]">
           {/* Header · vazio + 7 dias · 64px */}
           <div
             className="border-b border-r"
