@@ -105,12 +105,13 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
       timeout: 5_000,
     })
 
-    // 5. Preenche motivo
-    const reasonTextarea = page.locator('textarea#mesa-reason')
-    await reasonTextarea.fill('[E2E_TEST] e2e test archive')
+    // 5. Preenche motivo · scope ao dialog (Modal renderiza inline, nao portal)
+    const dialog = page.getByRole('dialog')
+    await dialog.locator('textarea#mesa-reason').fill('[E2E_TEST] e2e test archive')
 
-    // 6. Click confirmar
-    await page.getByRole('button', { name: /^arquivar$/i }).last().click()
+    // 6. Click confirmar · scope ao dialog · evita match com 12 botoes
+    // "Arquivar" das cards (cada card tem seu proprio trigger)
+    await dialog.getByRole('button', { name: /^arquivar$/i }).click()
 
     // 7. Toast sucesso
     await expect(page.getByText(/lead arquivado|j[áa] estava arquivado/i)).toBeVisible({
@@ -145,12 +146,12 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
       timeout: 5_000,
     })
 
-    // 11. Preenche motivo unarchive
-    const unarchiveReason = page.locator('textarea#mesa-reason')
-    await unarchiveReason.fill('[E2E_TEST] e2e test unarchive')
+    // 11. Preenche motivo unarchive · scope ao dialog
+    const unarchiveDialog = page.getByRole('dialog')
+    await unarchiveDialog.locator('textarea#mesa-reason').fill('[E2E_TEST] e2e test unarchive')
 
     // 12. Click confirmar · confirmLabel agora eh "Reativar" (Patch D)
-    await page.getByRole('button', { name: /^reativar$/i }).last().click()
+    await unarchiveDialog.getByRole('button', { name: /^reativar$/i }).click()
 
     await expect(page.getByText(/lead desarquivado|voltou.*mesa/i)).toBeVisible({
       timeout: 10_000,

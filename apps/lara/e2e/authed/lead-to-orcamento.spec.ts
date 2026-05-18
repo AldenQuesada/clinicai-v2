@@ -74,17 +74,19 @@ test.describe('happy path · lead → orcamento → aprovar', () => {
     await expect(page.getByRole('heading', { name: /novo or[çc]amento/i })).toBeVisible()
 
     // 2. Preencher item · 1 procedimento R$ 200
-    await page
-      .getByLabel(/procedimento/i)
-      .first()
-      .fill('Consulta de avaliação E2E')
-    await page.getByLabel(/unit[áa]rio/i).first().fill('200')
+    // Usa IDs diretos · getByLabel(/procedimento/i) era ambigua (CardTitle
+    // "Itens · procedimentos" tambem matchava). IDs sao garantidos pelo
+    // ItemsEditor: item-${i}-name, item-${i}-qty, item-${i}-price.
+    await page.locator('#item-0-name').fill('Consulta de avaliação E2E')
+    await page.locator('#item-0-price').fill('200')
 
     // 3. Validade · default eh hoje+30, ok
-    // 4. Submit
+    // 4. Submit · aguarda botao enabled (validate() roda em handleSubmit)
+    const submitBtn = page.getByRole('button', { name: /criar or[çc]amento/i })
+    await expect(submitBtn).toBeEnabled({ timeout: 5_000 })
     await Promise.all([
-      page.waitForURL(/\/crm\/orcamentos\/[0-9a-f-]{36}$/, { timeout: 15_000 }),
-      page.getByRole('button', { name: /criar or[çc]amento/i }).click(),
+      page.waitForURL(/\/crm\/orcamentos\/[0-9a-f-]{36}$/, { timeout: 20_000 }),
+      submitBtn.click(),
     ])
 
     // 5. Captura ID do orcamento criado pra cleanup

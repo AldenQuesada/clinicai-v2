@@ -149,10 +149,11 @@ test.describe('Orcamentos · bulk mark sent + export CSV', () => {
     // 6. Confirm · ConfirmDialog usa confirmLabel="Sim, aplicar"
     await page.getByRole('button', { name: /sim,? aplicar/i }).click()
 
-    // 7. Toast sucesso
-    await expect(page.getByText(/enviado|sucesso/i).first()).toBeVisible({
-      timeout: 10_000,
-    })
+    // 7. Aguarda modal fechar · sinal canonico que action rodou
+    // Toast regex /enviado/ era ambigua (matchava titulo do modal + botao
+    // "Marcar enviado" do banner bulk · sempre visivel mesmo se action
+    // falhou). Validacao real eh via SQL abaixo.
+    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 10_000 })
 
     // 8. Valida SQL · 2 orcamentos status='sent' (os outros remain 'draft')
     const sb = await getAuthedSupabase()
