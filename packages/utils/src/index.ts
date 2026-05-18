@@ -25,3 +25,30 @@ export {
   sexLabel,
   type PatientSex,
 } from './sex-map'
+
+// CRM_PARITY_R2 · Money helper (port de window.Money legacy)
+export {
+  Money,
+  toCents,
+  fromCents,
+  round2,
+  add as moneyAdd,
+  sub as moneySub,
+  sum as moneySum,
+  isZero as moneyIsZero,
+  eq as moneyEq,
+  lt as moneyLt,
+  lte as moneyLte,
+  gt as moneyGt,
+  gte as moneyGte,
+  abs as moneyAbs,
+  format as moneyFormat,
+  sumGross,
+  sumDiscount,
+  sumNet,
+  sumPayments,
+  balance as moneyBalance,
+  derivePaymentStatus,
+  type ProcedureItemLike,
+  type PaymentLike,
+} from './money'

@@ -48,6 +48,12 @@ import {
 import type { HorariosMap } from '@/app/(authed)/configuracoes/clinica/lib/horarios'
 import { RecurrenceSection, type SeriesBasePayload } from './_components/recurrence-section'
 import {
+  ProcedureItemsBlock,
+  type ProcedureItemDraft,
+  type PaymentDraft,
+  type ProcedureCatalogOption,
+} from './_components/procedure-items-block'
+import {
   checkInPeriods,
   checkMinAdvance,
   getClinicDay,
@@ -390,6 +396,15 @@ export function NewAppointmentForm({
   // existente, não cria nova série.
   const [recurrenceEnabled, setRecurrenceEnabled] = React.useState(false)
 
+  // CRM_PARITY_R2 · multi-procedure + multi-payment (opt-in toggle).
+  // Quando enabled e há linhas, submit envia procedureItems[] + payments[]
+  // e ignora paymentMethod/value único · senão segue caminho legacy.
+  const [multiMode, setMultiMode] = React.useState(false)
+  const [procedureItems, setProcedureItems] = React.useState<ProcedureItemDraft[]>(
+    [],
+  )
+  const [paymentItems, setPaymentItems] = React.useState<PaymentDraft[]>([])
+
   const [conflictState, setConflictState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'checking' }
@@ -700,6 +715,37 @@ export function NewAppointmentForm({
       | 'cortesia'
       | 'isento'
 
+    // CRM_PARITY_R2 · monta arrays só quando multiMode ativo e houver linhas.
+    // Action faz dual-write: legacy single (value + paymentMethod) continua
+    // sendo enviado pra coexistir com colunas legadas em appointments.
+    const r2Items =
+      multiMode && procedureItems.length > 0
+        ? procedureItems.map((it) => ({
+            procedureId: it.procedureId,
+            procedureName: it.procedureName,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            discountAmount: it.discountAmount,
+            isCourtesy: it.isCourtesy,
+            courtesyReason: it.isCourtesy ? it.courtesyReason : null,
+            isReturn: it.isReturn,
+            returnIntervalDays: it.isReturn ? it.returnIntervalDays : null,
+            sortOrder: 0,
+          }))
+        : undefined
+    const r2Payments =
+      multiMode && paymentItems.length > 0
+        ? paymentItems.map((p) => ({
+            paymentMethod: p.paymentMethod,
+            amount: p.amount,
+            installments: p.installments,
+            dueDate: p.dueDate,
+            paidAt: null,
+            status: p.status,
+            notes: p.notes || null,
+          }))
+        : undefined
+
     setBusy(true)
     try {
       const r = isEdit
@@ -723,6 +769,9 @@ export function NewAppointmentForm({
               | 'aguardando_confirmacao'
               | 'confirmado',
             obs: obsPayload,
+            // CRM_PARITY_R2 · ausentes preservam linhas existentes no DB.
+            procedureItems: r2Items,
+            payments: r2Payments,
           })
         : await createAppointmentAction({
             patientId: data.subjectKind === 'patient' ? data.patientId : null,
@@ -748,6 +797,8 @@ export function NewAppointmentForm({
               | 'confirmado',
             origem: data.origem || null,
             obs: obsPayload,
+            procedureItems: r2Items,
+            payments: r2Payments,
           })
 
       if (!r.ok) {
@@ -1366,6 +1417,37 @@ export function NewAppointmentForm({
               rows={3}
             />
           </FormField>
+
+          {/* CRM_PARITY_R2 · multi-procedure + multi-payment toggle */}
+          <div className="md:col-span-2 mt-2 border-t pt-3">
+            <label className="text-xs flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={multiMode}
+                onChange={(e) => setMultiMode(e.target.checked)}
+              />
+              <span className="font-semibold">
+                Múltiplos procedimentos / pagamentos (paridade legado)
+              </span>
+            </label>
+            {multiMode && (
+              <div className="mt-3">
+                <ProcedureItemsBlock
+                  items={procedureItems}
+                  payments={paymentItems}
+                  catalog={procedures.map<ProcedureCatalogOption>((p) => ({
+                    id: p.id,
+                    nome: p.nome,
+                    preco: p.preco,
+                    precoPromo: p.precoPromo,
+                  }))}
+                  onItemsChange={setProcedureItems}
+                  onPaymentsChange={setPaymentItems}
+                  disabled={busy}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 

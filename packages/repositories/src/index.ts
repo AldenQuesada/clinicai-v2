@@ -389,6 +389,21 @@ export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repos
 export { AppointmentRepository } from './appointment.repository'
 // CRM_PARITY_R1 · room.repository.ts wraps `clinic_rooms` read-only.
 export { RoomRepository, type RoomDTO } from './room.repository'
+// CRM_PARITY_R2 · multi-procedimento + multi-pagamento (migs 193/194/195).
+export {
+  AppointmentProcedureItemsRepository,
+  type AppointmentProcedureItemDTO,
+  type CreateAppointmentProcedureItemInput,
+  type UpdateAppointmentProcedureItemInput,
+} from './appointment-procedure-items.repository'
+export {
+  AppointmentPaymentsRepository,
+  type AppointmentPaymentDTO,
+  type AppointmentPaymentMethod,
+  type AppointmentPaymentStatus as AppointmentPaymentRowStatus,
+  type CreateAppointmentPaymentInput,
+  type UpdateAppointmentPaymentInput,
+} from './appointment-payments.repository'
 export { PatientRepository } from './patient.repository'
 export {
   CommercialRecoveryRepository,

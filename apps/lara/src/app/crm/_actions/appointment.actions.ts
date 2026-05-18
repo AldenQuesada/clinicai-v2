@@ -206,7 +206,15 @@ export async function createAppointmentAction(
     }
   }
 
-  const created = await repos.appointments.create(ctx.clinic_id, parsed.data)
+  // CRM_PARITY_R2 · strip campos R2 antes do insert (repo legacy não conhece).
+  const {
+    procedureItems: _r2Items,
+    payments: _r2Payments,
+    ...legacyCreateInput
+  } = parsed.data
+  void _r2Items
+  void _r2Payments
+  const created = await repos.appointments.create(ctx.clinic_id, legacyCreateInput)
 
   if (!created) {
     log.warn(
@@ -220,6 +228,51 @@ export async function createAppointmentAction(
     return fail('insert_failed')
   }
 
+  // CRM_PARITY_R2 · dual-write items + payments (paridade legacy
+  // `_apptProcs[]` + `_apptPagamentos[]`). Falha aqui NÃO desfaz o appointment
+  // criado (sem transação JS · best-effort). Erro de items vira log + fail.
+  let procedureItemsCount = 0
+  let paymentsCount = 0
+  if (parsed.data.procedureItems && parsed.data.procedureItems.length > 0) {
+    const itemRows = await repos.appointmentProcedureItems.replaceForAppointment(
+      ctx.clinic_id,
+      created.id,
+      parsed.data.procedureItems.map((it) => ({
+        procedureId: it.procedureId ?? null,
+        procedureName: it.procedureName,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        grossAmount: it.grossAmount,
+        discountAmount: it.discountAmount,
+        netAmount: it.netAmount,
+        isCourtesy: it.isCourtesy,
+        courtesyReason: it.courtesyReason ?? null,
+        isReturn: it.isReturn,
+        returnIntervalDays: it.returnIntervalDays ?? null,
+        sortOrder: it.sortOrder,
+        metadata: it.metadata,
+      })),
+    )
+    procedureItemsCount = itemRows.length
+  }
+  if (parsed.data.payments && parsed.data.payments.length > 0) {
+    const payRows = await repos.appointmentPayments.replaceForAppointment(
+      ctx.clinic_id,
+      created.id,
+      parsed.data.payments.map((p) => ({
+        paymentMethod: p.paymentMethod,
+        amount: p.amount,
+        installments: p.installments ?? null,
+        dueDate: p.dueDate ?? null,
+        paidAt: p.paidAt ?? null,
+        status: p.status,
+        notes: p.notes ?? null,
+        metadata: p.metadata,
+      })),
+    )
+    paymentsCount = payRows.length
+  }
+
   log.info(
     {
       action: 'crm.appt.create',
@@ -227,6 +280,8 @@ export async function createAppointmentAction(
       appointment_id: created.id,
       lead_id: created.leadId,
       patient_id: created.patientId,
+      procedure_items: procedureItemsCount,
+      payments: paymentsCount,
     },
     'appt.create.ok',
   )
@@ -334,7 +389,12 @@ export async function updateAppointmentAction(
   const parsed = UpdateAppointmentSchema.safeParse(input)
   if (!parsed.success) return zodFail(parsed.error)
 
-  const { appointmentId, ...patch } = parsed.data
+  const {
+    appointmentId,
+    procedureItems,
+    payments,
+    ...patch
+  } = parsed.data
   const { ctx, repos } = await loadServerReposContext()
 
   // Bloqueia edição se o appointment atual está em terminal
@@ -446,11 +506,57 @@ export async function updateAppointmentAction(
     return fail('update_failed')
   }
 
+  // CRM_PARITY_R2 · replace-set para items + payments quando enviados.
+  // Undefined = preserva existentes · array vazio = limpa tudo.
+  let procedureItemsCount: number | null = null
+  let paymentsCount: number | null = null
+  if (procedureItems !== undefined) {
+    const rows = await repos.appointmentProcedureItems.replaceForAppointment(
+      ctx.clinic_id,
+      appointmentId,
+      procedureItems.map((it) => ({
+        procedureId: it.procedureId ?? null,
+        procedureName: it.procedureName,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        grossAmount: it.grossAmount,
+        discountAmount: it.discountAmount,
+        netAmount: it.netAmount,
+        isCourtesy: it.isCourtesy,
+        courtesyReason: it.courtesyReason ?? null,
+        isReturn: it.isReturn,
+        returnIntervalDays: it.returnIntervalDays ?? null,
+        sortOrder: it.sortOrder,
+        metadata: it.metadata,
+      })),
+    )
+    procedureItemsCount = rows.length
+  }
+  if (payments !== undefined) {
+    const rows = await repos.appointmentPayments.replaceForAppointment(
+      ctx.clinic_id,
+      appointmentId,
+      payments.map((p) => ({
+        paymentMethod: p.paymentMethod,
+        amount: p.amount,
+        installments: p.installments ?? null,
+        dueDate: p.dueDate ?? null,
+        paidAt: p.paidAt ?? null,
+        status: p.status,
+        notes: p.notes ?? null,
+        metadata: p.metadata,
+      })),
+    )
+    paymentsCount = rows.length
+  }
+
   log.info(
     {
       action: 'crm.appt.update',
       clinic_id: ctx.clinic_id,
       appointment_id: appointmentId,
+      procedure_items: procedureItemsCount,
+      payments: paymentsCount,
     },
     'appt.update.ok',
   )
