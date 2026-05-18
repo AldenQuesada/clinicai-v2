@@ -156,11 +156,14 @@ test.describe('CRM Parity Round 5 · Full E2E Flow', () => {
     expect(appt!.payment_status).toBe('pago')
   })
 
-  test('R5.2 · multi-procedure + multi-payment via opt-in', async () => {
+  test('R5.2 + R5.3 + R5.5 · multi-procedure/payment + view sem cartesian · parcial', async () => {
     const itemsOk = await probeTable('appointment_procedure_items')
     const paymentsOk = await probeTable('appointment_payments')
-    test.skip(!itemsOk || !paymentsOk, 'mig 193/194 não aplicadas')
+    const viewOk = await probeTable('appointment_financial_summary')
+    test.skip(!itemsOk || !paymentsOk || !viewOk, 'mig 193/194/195 não aplicadas')
 
+    // Self-contained: cria appt + items + payments + valida view dentro do
+    // mesmo test (sem dependência inter-test brittle).
     const { appointmentId, clinicId } = await createBlockedAppt(
       futureDateIso(81),
       'R5.2',
@@ -217,27 +220,12 @@ test.describe('CRM Parity Round 5 · Full E2E Flow', () => {
       .select('id')
     expect(errPay).toBeNull()
     payments?.forEach((p) => created.payments.push(p.id))
-  })
 
-  test('R5.3 + R5.5 · view 195 agrega sem cartesian · parcial', async () => {
-    const viewOk = await probeTable('appointment_financial_summary')
-    test.skip(!viewOk, 'mig 195 não aplicada')
-
-    const sb = await getAuthedSupabase()
-    // Reusa appt criado em R5.2 (mesma session)
-    const { data: appt } = await sb
-      .from('appointments')
-      .select('id')
-      .like('subject_name', '%R5.2%')
-      .is('deleted_at', null)
-      .limit(1)
-      .single()
-    test.skip(!appt, 'R5.2 appointment não encontrado')
-
+    // Valida view 195 (sem cartesian · status derivado=parcial)
     const { data: summary } = await sb
       .from('appointment_financial_summary')
       .select('*')
-      .eq('appointment_id', appt!.id)
+      .eq('appointment_id', appointmentId!)
       .single()
     expect(summary).toBeTruthy()
     // 2 items: 100 + 50 = 150 gross, 0 + 10 = 10 discount, 100 + 40 = 140 net
