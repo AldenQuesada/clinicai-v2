@@ -28,6 +28,7 @@ import {
   AppointmentRepository,
   AppointmentProcedureItemsRepository,
   AppointmentPaymentsRepository,
+  AppointmentPostActionsRepository,
   RoomRepository,
   PatientRepository,
   OrcamentoRepository,
@@ -73,6 +74,8 @@ export interface Repos {
   appointmentProcedureItems: AppointmentProcedureItemsRepository
   /** CRM_PARITY_R2 · linhas de pagamento por agendamento (mig 194) + view 195 */
   appointmentPayments: AppointmentPaymentsRepository
+  /** CRM_PARITY_R3 · fila interna de pós-ações no finalize (mig 197) */
+  appointmentPostActions: AppointmentPostActionsRepository
   /** CRM_PARITY_R1 · `clinic_rooms` read-only (legacy admin CRUD via RPC) */
   rooms: RoomRepository
   patients: PatientRepository
@@ -119,6 +122,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     appointments: new AppointmentRepository(sb),
     appointmentProcedureItems: new AppointmentProcedureItemsRepository(sb),
     appointmentPayments: new AppointmentPaymentsRepository(sb),
+    appointmentPostActions: new AppointmentPostActionsRepository(sb),
     rooms: new RoomRepository(sb),
     patients: new PatientRepository(sb),
     orcamentos: new OrcamentoRepository(sb),
