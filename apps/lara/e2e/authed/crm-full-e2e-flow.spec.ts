@@ -503,28 +503,15 @@ test.describe('CRM Parity Round 5 · Full E2E Flow', () => {
   })
 
   test('R5.13 · zero anon grants em R2/R3 tables (R5 hardening)', async () => {
-    const sb = await getAuthedSupabase()
-    // Query catálogo information_schema · valida que mig 198 + 196 + 197
-    // sucederam (zero anon grant em qualquer tabela R2/R3).
-    const { data, error } = await sb
-      .rpc('exec_sql', {
-        sql: `SELECT count(*) AS anon_count
-              FROM information_schema.role_table_grants
-              WHERE table_schema='public'
-                AND grantee='anon'
-                AND table_name IN (
-                  'appointment_procedure_items',
-                  'appointment_payments',
-                  'appointment_financial_summary',
-                  'appointment_post_actions'
-                )`,
-      })
-      .catch(() => ({ data: null, error: 'rpc_unavailable' }))
-
-    if (error || !data) {
-      // RPC pode não estar disponível · skipar com aviso operacional.
-      test.skip(true, 'exec_sql RPC não disponível · validar via mig 198 apply')
-    }
+    // Validação primária via probes SQL durante mig 198 apply (Prompt 2).
+    // Este test E2E é placeholder · Supabase JS client não expõe
+    // information_schema queries via supabase-js (precisaria de RPC
+    // dedicado como `exec_sql` que não existe em produção). Skip explícito
+    // documentando que validação real ocorre nas probes pré/pós-apply.
+    test.skip(
+      true,
+      'Anon grants validation via probes SQL pré/pós-mig 198 (não via supabase-js)',
+    )
   })
 
   test('R5.14 · invalid_phases=0 (canon Phase 1C)', async () => {
