@@ -68,26 +68,28 @@ test.describe('CRM · criar lead via wizard 3-step', () => {
       timeout: 5_000,
     })
 
-    // 3. Step 1 · nome + telefone via placeholder (mais robusto que .first())
-    await modal.getByPlaceholder(/maria da silva/i).fill(leadName)
-    // Phone usa pressSequentially pra simular keypress · controlled input
-    // formata em tempo real · fill() pode confundir onChange/state em React 19
-    const phoneField = modal.getByPlaceholder(/\(44\)/).first()
-    await phoneField.click()
-    await phoneField.pressSequentially(phoneDigits, { delay: 20 })
+    // 3. Step 1 · nome + telefone via placeholder unico
+    const nameField = modal.getByPlaceholder(/maria da silva/i)
+    await nameField.fill(leadName)
+    await nameField.blur()
 
-    // Avancar pra step 2 · botao só fica enabled quando step1Valid=true
-    // (name>=2 chars + phone 10-13 digits). Esperar explicitamente evita
-    // timeout silencioso se React ainda nao processou os onChange.
+    const phoneField = modal.getByPlaceholder(/\(44\)/).first()
+    await phoneField.fill(phoneDigits)
+    await phoneField.blur()
+
+    // Avancar pra step 2 · espera step1Valid commitar antes do click
+    // (React 19 batching · onBlur ajuda mas pode levar microtask)
     const avancarBtn = modal.getByRole('button', { name: /avan[çc]ar/i })
     await expect(avancarBtn).toBeEnabled({ timeout: 5_000 })
+    // forcar tick · scrollIntoView sempre re-renderiza · entao re-checa
+    await avancarBtn.scrollIntoViewIfNeeded()
     await avancarBtn.click()
 
-    // Step 2 unique markers · "Origem & qualificação" tambem aparece na
-    // stepper · precisa esperar um marker exclusivo do FORM de step 2.
-    await expect(modal.getByText(/origem\s*\(source\)/i).first()).toBeVisible({
-      timeout: 5_000,
-    })
+    // Step 2 unique marker · select source visivel sinaliza re-render OK
+    // (selects so existem no Step2 component, stepper-only labels nao
+    // garantem step actual)
+    const sourceSelect = modal.locator('select.b2b-input').first()
+    await expect(sourceSelect).toBeVisible({ timeout: 5_000 })
 
     // 4. Step 2 · source + source_type + funnel + temperature
     const selects = modal.locator('select.b2b-input')

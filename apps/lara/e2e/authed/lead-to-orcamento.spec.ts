@@ -44,6 +44,12 @@ test.beforeAll(async () => {
       // CRM_E2E_FIX (2026-05-18): leads_funnel_check exige fullface|procedimentos
       // 'direct' violava CHECK e quebrava beforeAll silenciosamente (0ms fail).
       funnel: 'procedimentos',
+      // CRM_E2E_FIX (2026-05-18): RPC lead_to_orcamento exige phase='compareceu'
+      // (mig 828 phase_guards_inviolates · regra 8 §7). Default 'lead' fazia o
+      // submit retornar illegal_transition sem redirect (waitForURL timeout).
+      // No fluxo real, lead passa por agendado -> compareceu via finalize-day,
+      // mas pro happy path E2E setamos diretamente.
+      phase: 'compareceu',
       metadata: { [E2E_TAG]: true },
     })
     .select('id')
