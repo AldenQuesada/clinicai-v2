@@ -72,13 +72,20 @@ test.beforeAll(async () => {
   leadId = lead.id
 
   // 3 orcamentos draft
+  // CRM_E2E_FIX_ORCAMENTO_FIXTURES (2026-05-17): respeita CHECK constraint
+  // chk_orc_total_consistency em mig 63: abs(total - (subtotal - discount)) < 0.01
+  // Schema (mig 63): subtotal/discount/total numeric(12,2) NOT NULL DEFAULT 0.
+  // Antes setava só total e quebrava (subtotal=0 default → 0-0 != total).
   for (let i = 0; i < 3; i++) {
+    const valor = 100 * (i + 1)
     const { data: orc, error: orcErr } = await sb
       .from('orcamentos')
       .insert({
         lead_id: leadId,
         title: `E2E Bulk Orc ${ts}-${i}`,
-        total: 100 * (i + 1),
+        subtotal: valor,
+        discount: 0,
+        total: valor,
         status: 'draft',
         notes: `[E2E_TEST] auto-cleanup spec=orcamento-bulk-export idx=${i}`,
       })
