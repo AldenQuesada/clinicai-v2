@@ -94,8 +94,9 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     // 3. Click "Arquivar" no card · scope dentro do bucket "lead"
     // O botao Arquivar tem texto literal "Arquivar"
     // (CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · mesa-card-actions.tsx)
-    // Limitamos por proximidade do nome do lead pra evitar clicar no errado
-    const card = page.locator('article, div').filter({ hasText: leadName }).first()
+    // Filtro estrito por <article> (mesa-card root) · 'div' incluiria o
+    // container da board e capturaria 12 cards de uma vez (strict mode err).
+    const card = page.locator('article').filter({ hasText: leadName }).first()
     await card.getByRole('button', { name: /^arquivar$/i }).click()
 
     // 4. Modal motivo abre · titulo "Arquivar registro? · {name}"
@@ -130,8 +131,9 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     await page.reload()
 
     // 10. Card ainda visivel (em outro bucket) · click "Desarquivar"
+    // article only · vide nota acima sobre strict-mode com 'div'
     const archivedCard = page
-      .locator('article, div')
+      .locator('article')
       .filter({ hasText: leadName })
       .first()
     await expect(archivedCard).toBeVisible({ timeout: 10_000 })

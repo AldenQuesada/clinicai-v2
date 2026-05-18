@@ -59,29 +59,27 @@ test.describe('CRM · criar lead via wizard 3-step', () => {
     // 2. Abrir modal "Novo lead"
     await page.getByRole('button', { name: /novo lead/i }).click()
 
-    // Confirma wizard abriu (stepper visivel)
-    await expect(page.getByText(/identifica[çc][ãa]o/i).first()).toBeVisible({
+    // Confirma wizard abriu · modal usa .b2b-modal · scope tudo dentro
+    // pra evitar match com search box da pagina (input.b2b-input fora do
+    // modal · capturava nameInput.first() e quebrava step1Valid).
+    const modal = page.locator('.b2b-modal')
+    await expect(modal.getByRole('heading', { name: /novo lead/i })).toBeVisible({
       timeout: 5_000,
     })
 
-    // 3. Step 1 · nome + telefone
-    // Inputs usam classes b2b-input · label "Nome completo *"
-    const nameInput = page.locator('input[type="text"].b2b-input').first()
-    await nameInput.fill(leadName)
-
-    const phoneInput = page.locator('input[type="tel"].b2b-input').first()
-    // Type digit-by-digit · onChange normaliza
-    await phoneInput.fill(phoneDigits)
+    // 3. Step 1 · nome + telefone (scoped ao modal)
+    await modal.locator('input[type="text"].b2b-input').first().fill(leadName)
+    await modal.locator('input[type="tel"].b2b-input').first().fill(phoneDigits)
 
     // Avancar pra step 2
-    await page.getByRole('button', { name: /avan[çc]ar/i }).click()
-    await expect(page.getByText(/origem.*qualifica[çc][ãa]o/i).first()).toBeVisible({
+    await modal.getByRole('button', { name: /avan[çc]ar/i }).click()
+    await expect(modal.getByText(/origem.*qualifica[çc][ãa]o/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
     // 4. Step 2 · source + source_type + funnel + temperature
     // Os selects nao tem id estavel · acha por value option (mais resiliente)
-    const selects = page.locator('select.b2b-input')
+    const selects = modal.locator('select.b2b-input')
     // Ordem: source (0), source_type (1), funnel (2), temperature (3)
     await selects.nth(0).selectOption('manual')
     await selects.nth(1).selectOption('whatsapp')
@@ -89,19 +87,18 @@ test.describe('CRM · criar lead via wizard 3-step', () => {
     await selects.nth(3).selectOption('hot')
 
     // Avancar pra step 3
-    await page.getByRole('button', { name: /avan[çc]ar/i }).click()
-    await expect(page.getByText(/opera[çc][ãa]o/i).first()).toBeVisible({
+    await modal.getByRole('button', { name: /avan[çc]ar/i }).click()
+    await expect(modal.getByText(/opera[çc][ãa]o/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
     // 5. Step 3 · notes com tag e2e
-    const notesTextarea = page.locator('textarea.b2b-input').first()
-    await notesTextarea.fill(`[E2E_TEST] auto-created by e2e suite ts=${ts}`)
+    await modal.locator('textarea.b2b-input').first().fill(`[E2E_TEST] auto-created by e2e suite ts=${ts}`)
 
     // 6. Submit "Criar lead" · espera redirect pra /leads/[uuid]
     await Promise.all([
       page.waitForURL(/\/leads\/[0-9a-f-]{36}/, { timeout: 15_000 }),
-      page.getByRole('button', { name: /criar lead/i }).click(),
+      modal.getByRole('button', { name: /criar lead/i }).click(),
     ])
 
     // 7. Captura leadId via URL pra cleanup

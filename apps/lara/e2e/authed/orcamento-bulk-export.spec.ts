@@ -136,16 +136,18 @@ test.describe('Orcamentos · bulk mark sent + export CSV', () => {
     await checkboxes.nth(1).check()
     await checkboxes.nth(2).check()
 
-    // 4. Click "Marcar como Enviado" · banner bulk
-    await page.getByRole('button', { name: /marcar como enviado/i }).click()
+    // 4. Click "Marcar enviado" · banner bulk
+    // UI atual usa "Marcar enviado" (sem "como") · modal title usa "Marcar
+    // como Enviado (N) ?" entao filtro permissivo cobre os 2 contextos.
+    await page.getByRole('button', { name: /^marcar enviado$/i }).click()
 
-    // 5. Modal confirmacao
+    // 5. Modal confirmacao · titulo "Marcar como Enviado (2) ?"
     await expect(page.getByText(/marcar como enviado/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
-    // 6. Confirm · click no botao "Marcar como Enviado" do modal (ultimo)
-    await page.getByRole('button', { name: /^marcar como enviado$/i }).last().click()
+    // 6. Confirm · ConfirmDialog usa confirmLabel="Sim, aplicar"
+    await page.getByRole('button', { name: /sim,? aplicar/i }).click()
 
     // 7. Toast sucesso
     await expect(page.getByText(/enviado|sucesso/i).first()).toBeVisible({

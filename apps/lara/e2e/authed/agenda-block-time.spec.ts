@@ -101,8 +101,9 @@ test.describe('CRM · agenda · bloquear horario', () => {
       .locator('#bt-obs')
       .fill(`[E2E_TEST] e2e test block ts=${Date.now()}`)
 
-    // 9. Submit
-    await page.getByRole('button', { name: /^bloquear hor[áa]rio$/i }).click()
+    // 9. Submit · 2 botoes "Bloquear horario" (trigger no header + submit no modal)
+    // Modal abre por ultimo · .last() pega o submit
+    await page.getByRole('button', { name: /^bloquear hor[áa]rio$/i }).last().click()
 
     // 10. Toast sucesso
     await expect(page.getByText(/hor[áa]rio bloqueado/i)).toBeVisible({
