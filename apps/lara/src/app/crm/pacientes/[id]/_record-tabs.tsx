@@ -42,6 +42,7 @@ import {
   ShieldCheck,
   ExternalLink,
   Plus,
+  ListTodo,
 } from 'lucide-react'
 import Link from 'next/link'
 import { sexLabel, formatPhoneBR } from '@clinicai/utils'
@@ -52,6 +53,9 @@ import type {
   PatientDTO,
   PatientProfileExtendedDTO,
   MedicalRecordAttachmentDTO,
+  AppointmentPostActionDTO,
+  AppointmentPostActionType,
+  AppointmentPostActionStatus,
 } from '@clinicai/repositories'
 import { PatientReceptionPanel } from './_reception-panel'
 import {
@@ -94,6 +98,8 @@ interface Props {
   canWriteDocuments: boolean
   attachments: AttachmentForClient[]
   procedureCatalog: ProcedureCatalogEntry[]
+  /** CRM_PARITY_R4 · fila de pós-ações (mig 197) cross-appointments do paciente */
+  postActions: AppointmentPostActionDTO[]
   initialTab: string
 }
 
@@ -108,6 +114,7 @@ type TabKey =
   | 'timeline'
   | 'documentos'
   | 'notas'
+  | 'post-acoes'
 
 const TAB_DEFS: ReadonlyArray<{
   key: TabKey
@@ -126,6 +133,8 @@ const TAB_DEFS: ReadonlyArray<{
   { key: 'timeline', label: 'Timeline', icon: History },
   { key: 'documentos', label: 'Documentos', icon: FolderLock },
   { key: 'notas', label: 'Notas', icon: StickyNote },
+  // CRM_PARITY_R4 · fila de pós-ações (mig 197) cross-appointments.
+  { key: 'post-acoes', label: 'Pós-ações', icon: ListTodo },
 ]
 
 function pickTab(raw: string | undefined): TabKey {
@@ -193,6 +202,7 @@ export function PatientRecordTabs({
   canWriteDocuments,
   attachments,
   procedureCatalog,
+  postActions,
   initialTab,
 }: Props) {
   const [tab, setTab] = React.useState<TabKey>(pickTab(initialTab))
@@ -287,7 +297,149 @@ export function PatientRecordTabs({
           canEditReception={canEditReception}
         />
       )}
+      {tab === 'post-acoes' && (
+        <PostActionsTab
+          postActions={postActions}
+          appointments={appointments}
+        />
+      )}
     </div>
+  )
+}
+
+// ── CRM_PARITY_R4 · post-actions tab (read-only) ───────────────────────────
+// Mostra a fila de appointment_post_actions (mig 197) para todos os
+// appointments do paciente. Read-only · dispatch via /crm/post-acoes.
+
+const POST_ACTION_TYPE_LABELS: Record<AppointmentPostActionType, string> = {
+  google_review: 'Avaliação Google',
+  vpi_indication: 'VPI · Indicação',
+  retouch_reminder: 'Retoque',
+  complaint_logged: 'Queixa',
+  payment_followup: 'Pagamento',
+}
+
+const POST_ACTION_STATUS_LABELS: Record<AppointmentPostActionStatus, string> = {
+  pending: 'Pendente',
+  done: 'Concluído',
+  dismissed: 'Dispensado',
+  cancelled: 'Cancelado',
+}
+
+function postActionStatusStyle(s: AppointmentPostActionStatus): string {
+  switch (s) {
+    case 'pending':
+      return 'border-amber-300 bg-amber-50 text-amber-900'
+    case 'done':
+      return 'border-emerald-300 bg-emerald-50 text-emerald-900'
+    case 'dismissed':
+      return 'border-zinc-300 bg-zinc-50 text-zinc-700'
+    case 'cancelled':
+      return 'border-zinc-300 bg-zinc-100 text-zinc-500'
+  }
+}
+
+function PostActionsTab({
+  postActions,
+  appointments,
+}: {
+  postActions: AppointmentPostActionDTO[]
+  appointments: AppointmentDTO[]
+}) {
+  const apptById = React.useMemo(
+    () => new Map(appointments.map((a) => [a.id, a])),
+    [appointments],
+  )
+  const pending = postActions.filter((p) => p.status === 'pending')
+  const others = postActions.filter((p) => p.status !== 'pending')
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ListTodo className="h-4 w-4" /> Pós-ações
+          <span className="text-xs font-normal text-[var(--muted-foreground)]">
+            ({pending.length} pendente{pending.length === 1 ? '' : 's'} ·{' '}
+            {others.length} histórico)
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-[var(--muted-foreground)] italic">
+          Fila interna do finalize · staff dispatcha em{' '}
+          <Link href="/crm/post-acoes" className="underline">
+            /crm/post-acoes
+          </Link>{' '}
+          ou no botão "Pós-ações" do topbar. Zero envio automático.
+        </p>
+        {postActions.length === 0 ? (
+          <p className="text-sm italic text-[var(--muted-foreground)]">
+            Nenhuma pós-ação registrada para este paciente.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium">Tipo</th>
+                  <th className="px-2 py-1 text-left font-medium">Status</th>
+                  <th className="px-2 py-1 text-left font-medium">Agendamento</th>
+                  <th className="px-2 py-1 text-left font-medium">Programada</th>
+                  <th className="px-2 py-1 text-left font-medium">Criada</th>
+                  <th className="px-2 py-1 text-left font-medium">Notas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {postActions.map((pa) => {
+                  const appt = apptById.get(pa.appointmentId)
+                  return (
+                    <tr key={pa.id}>
+                      <td className="px-2 py-2">
+                        {POST_ACTION_TYPE_LABELS[pa.actionType]}
+                      </td>
+                      <td className="px-2 py-2">
+                        <span
+                          className={`inline-block rounded border px-1.5 py-0.5 ${postActionStatusStyle(pa.status)}`}
+                        >
+                          {POST_ACTION_STATUS_LABELS[pa.status]}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2">
+                        {appt ? (
+                          <Link
+                            href={`/crm/agenda/${appt.id}`}
+                            className="hover:underline"
+                          >
+                            {fmtDate(appt.scheduledDate)} · {appt.startTime}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-[var(--muted-foreground)]">
+                        {pa.scheduleAt ? fmtDateTime(pa.scheduleAt) : '—'}
+                      </td>
+                      <td className="px-2 py-2 text-[var(--muted-foreground)]">
+                        {fmtDateTime(pa.createdAt)}
+                      </td>
+                      <td
+                        className="px-2 py-2 max-w-[20ch] truncate"
+                        title={pa.notes ?? ''}
+                      >
+                        {pa.notes ||
+                          (pa.dismissedReason
+                            ? `Dispensada: ${pa.dismissedReason}`
+                            : '—')}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

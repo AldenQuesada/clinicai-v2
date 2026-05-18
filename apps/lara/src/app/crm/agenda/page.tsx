@@ -32,6 +32,7 @@ import { StatusLegend } from './_components/status-legend'
 import { ViewSwitcher } from './_components/view-switcher'
 import { FinalizarDiaModal } from './_components/finalizar-dia-modal'
 import { BlockTimeButton } from './_components/block-time-button'
+import { AgendaDayAlertsStrip } from './_components/day-alerts-strip'
 
 const APPOINTMENT_STATUS_ENUM: readonly AppointmentStatus[] = [
   'agendado',
@@ -178,8 +179,8 @@ export default async function AgendaPage({
 
   const { ctx, repos } = await loadServerReposContext()
 
-  // Appointments + KPIs + lista de profissionais (paralelo)
-  const [appointments, aggregates, staffList] = await Promise.all([
+  // Appointments + KPIs + lista de profissionais + post-actions queue (paralelo)
+  const [appointments, aggregates, staffList, pendingPostActions] = await Promise.all([
     repos.appointments
       .listByDateRange(ctx.clinic_id, startDate, endDate, {
         professionalId: profFilter,
@@ -203,6 +204,12 @@ export default async function AgendaPage({
       data: null,
       error: 'unknown',
     })),
+    // CRM_PARITY_R4 · fila completa de pending post-actions · usada pelo
+    // AgendaDayAlertsStrip para mostrar atrasadas + agendadas para hoje.
+    // Limit 500 cobre operação típica · staff dashboard tem listagem completa.
+    repos.appointmentPostActions
+      .listPendingByClinic(ctx.clinic_id, { limit: 500 })
+      .catch(() => []),
   ])
 
   // R3_CRM_3B.3 · distinct options pra filtros sem enum (consult_type, origem).
@@ -332,6 +339,12 @@ export default async function AgendaPage({
         />
         </div>
       </div>
+
+      {/* CRM_PARITY_R4 · strip de alertas operacionais do dia (post-actions). */}
+      <AgendaDayAlertsStrip
+        postActions={pendingPostActions}
+        dayIso={finalizarDiaDate}
+      />
 
       {/* Toolbar legacy · ‹ período › + Horários + Finalizar Dia + Bloquear horário + Mês/Semana/Hoje + Novo */}
       <div className="agenda-toolbar">
