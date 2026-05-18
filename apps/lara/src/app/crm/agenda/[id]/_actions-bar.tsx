@@ -31,6 +31,7 @@ import {
   cancelAppointmentAction,
   markNoShowAction,
   softDeleteAppointmentAction,
+  getAppointmentFinancialSummaryAction,
 } from '@/app/crm/_actions/appointment.actions'
 import { markLeadLostAction } from '@/app/crm/_actions/lead.actions'
 
@@ -815,6 +816,36 @@ function FinalizeWizard({
   const [confirmedPaymentDespitePending, setConfirmedPaymentDespitePending] =
     React.useState(false)
 
+  // CRM_PARITY_R3 · financial summary read-only via view 195.
+  // Loaded on modal open · informativo · warning quando paymentStatus=pago e
+  // balance > 0 (UI alerta · server-side action também valida via refines Zod
+  // R2 quando schema é multi-procedure).
+  type FinSummary = {
+    appointmentId: string
+    clinicId: string
+    grossTotal: number
+    discountTotal: number
+    netTotal: number
+    paidTotal: number
+    pendingTotal: number
+    cancelledTotal: number
+    balanceTotal: number
+    procedureItemsCount: number
+    courtesyItemsCount: number
+    paymentsCount: number
+    derivedPaymentStatus: 'cortesia' | 'pendente' | 'parcial' | 'pago'
+    computedAt: string
+  }
+  const [finSummary, setFinSummary] = React.useState<FinSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = React.useState(false)
+
+  // CRM_PARITY_R3 · pós-ações opt-in (checkboxes do wizard).
+  // ZERO efeito externo · só enfileira em appointment_post_actions (mig 197)
+  // que staff dispatcha manualmente depois.
+  const [postGoogleReview, setPostGoogleReview] = React.useState(false)
+  const [postVpiIndication, setPostVpiIndication] = React.useState(false)
+  const [postComplaintNote, setPostComplaintNote] = React.useState('')
+
   const isCortesia = paymentStatus === 'cortesia'
   // PATCH_B · banner aparece SÓ se appointment chegou com pendente/parcial.
   // Não bloqueia cegamente: operador pode marcar checkbox "cobrança confirmada"
@@ -845,8 +876,34 @@ function FinalizeWizard({
       setOverrideRequested(false)
       setOverrideReason('')
       setConfirmedPaymentDespitePending(false)
+      // CRM_PARITY_R3 · reset post-actions opt-in + summary cache
+      setFinSummary(null)
+      setPostGoogleReview(false)
+      setPostVpiIndication(false)
+      setPostComplaintNote('')
     }
   }, [open])
+
+  // CRM_PARITY_R3 · fetch financial summary on open (view 195).
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setSummaryLoading(true)
+    getAppointmentFinancialSummaryAction({ appointmentId })
+      .then((r) => {
+        if (cancelled) return
+        if (r.ok) setFinSummary(r.data)
+      })
+      .catch(() => {
+        // silencioso · summary é informativo · ausência não bloqueia finalize
+      })
+      .finally(() => {
+        if (!cancelled) setSummaryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, appointmentId])
 
   async function handle() {
     if (needsOrcamento) {
@@ -918,6 +975,17 @@ function FinalizeWizard({
         clinicalOverride: gateBlocking && overrideRequested,
         clinicalOverrideReason:
           gateBlocking && overrideRequested ? overrideReason.trim() : null,
+        // CRM_PARITY_R3 · pós-ações opt-in (mig 197 queue interna).
+        // payment_followup é AUTO server-side quando balance > 0.
+        // retouch_reminder é AUTO server-side para items is_return=true.
+        postActions: {
+          googleReviewD3: postGoogleReview,
+          vpiIndication: postVpiIndication,
+          complaintNote:
+            postComplaintNote.trim().length >= 3
+              ? postComplaintNote.trim()
+              : null,
+        },
       })
       if (!r.ok) {
         fromResult(r)
@@ -1194,6 +1262,111 @@ function FinalizeWizard({
             maxLength={2000}
           />
         </FormField>
+
+        {/* CRM_PARITY_R3 · Financial summary preview (view 195 read-only) */}
+        {finSummary && (finSummary.procedureItemsCount > 0 || finSummary.paymentsCount > 0) && (
+          <div
+            className="rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-xs space-y-1"
+            aria-label="Resumo financeiro do agendamento"
+          >
+            <div className="font-semibold mb-1">Resumo financeiro</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div>
+                <span className="text-[var(--muted-foreground)]">Bruto:</span>{' '}
+                <span className="font-mono">{finSummary.grossTotal.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[var(--muted-foreground)]">Desconto:</span>{' '}
+                <span className="font-mono">{finSummary.discountTotal.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[var(--muted-foreground)]">Líquido:</span>{' '}
+                <span className="font-mono font-semibold">{finSummary.netTotal.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[var(--muted-foreground)]">Pago:</span>{' '}
+                <span className="font-mono text-emerald-700">{finSummary.paidTotal.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[var(--muted-foreground)]">Pendente:</span>{' '}
+                <span className="font-mono text-amber-700">{finSummary.pendingTotal.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[var(--muted-foreground)]">Saldo:</span>{' '}
+                <span
+                  className={`font-mono font-semibold ${
+                    finSummary.balanceTotal < -0.01
+                      ? 'text-red-700'
+                      : Math.abs(finSummary.balanceTotal) <= 0.01
+                        ? 'text-emerald-700'
+                        : 'text-amber-700'
+                  }`}
+                >
+                  {finSummary.balanceTotal.toFixed(2)}
+                </span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[var(--muted-foreground)]">Status derivado:</span>{' '}
+                <span className="font-semibold">{finSummary.derivedPaymentStatus}</span>
+              </div>
+            </div>
+            {paymentStatus === 'pago' && finSummary.balanceTotal > 0.01 && (
+              <p role="alert" className="text-red-700 dark:text-red-300 mt-1">
+                ⚠️ Você selecionou pagamento <strong>pago</strong>, mas o saldo é{' '}
+                {finSummary.balanceTotal.toFixed(2)}. Será criada task de follow-up
+                automático para a secretaria.
+              </p>
+            )}
+          </div>
+        )}
+        {summaryLoading && !finSummary && (
+          <p className="text-xs text-[var(--muted-foreground)] italic">
+            Carregando resumo financeiro…
+          </p>
+        )}
+
+        {/* CRM_PARITY_R3 · Pós-ações opt-in (queue interna mig 197) */}
+        <div className="rounded-md border border-[var(--border)] px-3 py-2 space-y-2">
+          <div className="text-xs font-semibold">
+            Pós-ações (enfileira interno · sem envio automático)
+          </div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={postGoogleReview}
+              onChange={(e) => setPostGoogleReview(e.target.checked)}
+              disabled={busy}
+            />
+            <span>Solicitar avaliação Google em D+3</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={postVpiIndication}
+              onChange={(e) => setPostVpiIndication(e.target.checked)}
+              disabled={busy}
+            />
+            <span>Sinalizar paciente para programa VPI (embaixadora)</span>
+          </label>
+          <div>
+            <label htmlFor="fin-complaint" className="text-xs">
+              Queixa registrada (opcional · texto livre)
+            </label>
+            <Textarea
+              id="fin-complaint"
+              value={postComplaintNote}
+              onChange={(e) => setPostComplaintNote(e.target.value)}
+              rows={2}
+              maxLength={1000}
+              placeholder="Descreva queixa do paciente para follow-up posterior · mín 3 chars"
+              disabled={busy}
+            />
+          </div>
+          <p className="text-[10px] text-[var(--muted-foreground)] italic">
+            Estas ações criam tarefas internas para a secretaria · zero
+            mensagem real é enviada automaticamente.
+          </p>
+        </div>
 
         {error && (
           <p className="text-xs text-[var(--destructive)]" role="alert">

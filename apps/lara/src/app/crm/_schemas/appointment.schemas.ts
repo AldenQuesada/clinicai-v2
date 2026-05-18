@@ -578,6 +578,25 @@ export const AppointmentClinicalGateStatusSchema = z.object({
   appointmentId: z.string().uuid(),
 })
 
+// ── CRM_PARITY_R3 · pós-ações no finalize (mig 197) ────────────────────────
+//
+// Checkboxes opt-in que a staff marca no FinalizeWizard. Quando true, a
+// action finalizeAppointmentAction insere uma row em appointment_post_actions
+// após o RPC appointment_finalize ter sucesso. ZERO efeito externo:
+//   - google_review_d3     · queue D+3 (staff dispatcha manualmente)
+//   - vpi_indication       · sinaliza paciente p/ revisão programa
+//   - complaintNote        · staff registra queixa no texto livre
+// retouch_reminder e payment_followup são AUTOMÁTICOS server-side (não
+// precisam de checkbox · derivados de items.is_return e balance > 0).
+
+export const FinalizePostActionsSchema = z.object({
+  googleReviewD3: z.boolean().optional(),
+  vpiIndication: z.boolean().optional(),
+  complaintNote: z.string().max(1000).nullable().optional(),
+})
+
+export type FinalizePostActionsInput = z.infer<typeof FinalizePostActionsSchema>
+
 // ── finalize · roteia outcome (paciente|orcamento|perdido) ──────────────────
 
 export const FinalizeAppointmentSchema = z
@@ -601,6 +620,8 @@ export const FinalizeAppointmentSchema = z
     // Marker server-side é `paymentStatus='cortesia'`. UI gate exige motivo
     // quando paymentStatus='cortesia'.
     motivoCortesia: z.string().max(500).nullable().optional(),
+    // CRM_PARITY_R3 · pós-ações opt-in (checkboxes do wizard).
+    postActions: FinalizePostActionsSchema.optional(),
   })
   // PATCH_0C_FINALIZE_BACKEND_GUARD · refine de lostReason removido ·
   // outcome='perdido' agora rejeitado no enum acima (Zod parse falha

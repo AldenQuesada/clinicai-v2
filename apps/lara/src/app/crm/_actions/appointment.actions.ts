@@ -812,6 +812,142 @@ export async function finalizeAppointmentAction(
     subCallOk ? 'appt.finalize.ok' : 'appt.finalize.subCallFailed',
   )
 
+  // ── CRM_PARITY_R3 · enqueue pós-ações (mig 197) ────────────────────────
+  // SÓ enfileira se RPC + sub-call ok. Falha aqui NÃO desfaz o finalize
+  // (best-effort consistente com pattern R2 dual-write). Logs detalhados.
+  // ZERO worker · ZERO provider · ZERO WhatsApp · queue interna apenas.
+  let postActionsCreated = 0
+  let postActionsSkippedReason: string | null = null
+  if (subCallOk) {
+    try {
+      // Fetch summary read-only via view 195 · usado para auto-derivar
+      // payment_followup (balance > 0) sem precisar de checkbox.
+      const summary = await repos.appointmentPayments.getFinancialSummary(
+        parsed.data.appointmentId,
+      )
+      // Fetch items pra derivar retouch_reminder (per item is_return=true).
+      const items = await repos.appointmentProcedureItems.listByAppointment(
+        parsed.data.appointmentId,
+      )
+
+      const toEnqueue: Array<{
+        appointmentId: string
+        actionType:
+          | 'google_review'
+          | 'vpi_indication'
+          | 'retouch_reminder'
+          | 'complaint_logged'
+          | 'payment_followup'
+        scheduleAt: string | null
+        payload: Record<string, unknown>
+        notes: string | null
+      }> = []
+
+      // Auto · payment_followup quando balance > 0 (independe de checkbox).
+      if (summary && summary.balanceTotal > 0.01) {
+        const due = new Date()
+        due.setUTCDate(due.getUTCDate() + 3) // D+3 default
+        toEnqueue.push({
+          appointmentId: parsed.data.appointmentId,
+          actionType: 'payment_followup',
+          scheduleAt: due.toISOString(),
+          payload: {
+            balance: summary.balanceTotal,
+            netTotal: summary.netTotal,
+            paidTotal: summary.paidTotal,
+            pendingTotal: summary.pendingTotal,
+            source: 'finalize_auto',
+          },
+          notes: null,
+        })
+      }
+
+      // Auto · retouch_reminder por item is_return=true.
+      for (const item of items) {
+        if (item.isReturn && item.returnIntervalDays && item.returnIntervalDays > 0) {
+          const target = new Date()
+          target.setUTCDate(target.getUTCDate() + item.returnIntervalDays)
+          toEnqueue.push({
+            appointmentId: parsed.data.appointmentId,
+            actionType: 'retouch_reminder',
+            scheduleAt: target.toISOString(),
+            payload: {
+              procedureItemId: item.id,
+              procedureName: item.procedureName,
+              intervalDays: item.returnIntervalDays,
+              source: 'finalize_auto',
+            },
+            notes: null,
+          })
+        }
+      }
+
+      // Opt-in · checkboxes do FinalizeWizard.
+      const pa = parsed.data.postActions
+      if (pa?.googleReviewD3) {
+        const target = new Date()
+        target.setUTCDate(target.getUTCDate() + 3)
+        toEnqueue.push({
+          appointmentId: parsed.data.appointmentId,
+          actionType: 'google_review',
+          scheduleAt: target.toISOString(),
+          payload: {
+            source: 'finalize_opt_in',
+            outcome: result.outcome,
+          },
+          notes: null,
+        })
+      }
+      if (pa?.vpiIndication) {
+        toEnqueue.push({
+          appointmentId: parsed.data.appointmentId,
+          actionType: 'vpi_indication',
+          scheduleAt: null,
+          payload: {
+            source: 'finalize_opt_in',
+            outcome: result.outcome,
+            leadId: result.leadId,
+          },
+          notes: null,
+        })
+      }
+      if (pa?.complaintNote && pa.complaintNote.trim().length >= 3) {
+        toEnqueue.push({
+          appointmentId: parsed.data.appointmentId,
+          actionType: 'complaint_logged',
+          scheduleAt: null,
+          payload: {
+            source: 'finalize_opt_in',
+            outcome: result.outcome,
+          },
+          notes: pa.complaintNote.trim(),
+        })
+      }
+
+      if (toEnqueue.length > 0) {
+        const created = await repos.appointmentPostActions.createBatch(
+          ctx.clinic_id,
+          toEnqueue,
+        )
+        postActionsCreated = created.length
+        if (created.length < toEnqueue.length) {
+          postActionsSkippedReason = 'partial_insert'
+        }
+      }
+    } catch (err) {
+      postActionsSkippedReason = `enqueue_error: ${(err as Error).message ?? 'unknown'}`
+      log.warn(
+        {
+          action: 'crm.appt.finalize.postActions',
+          clinic_id: ctx.clinic_id,
+          appointment_id: parsed.data.appointmentId,
+          error: postActionsSkippedReason,
+        },
+        'appt.finalize.postActions.failed',
+      )
+    }
+  }
+
   // Sempre invalida appointments. Outras tags dependem do outcome.
   updateTag(CRM_TAGS.appointments)
   updateTag(CRM_TAGS.leads)
@@ -829,12 +965,63 @@ export async function finalizeAppointmentAction(
   }
   updateTag(CRM_TAGS.phaseHistory)
 
+  log.info(
+    {
+      action: 'crm.appt.finalize.postActions',
+      clinic_id: ctx.clinic_id,
+      appointment_id: result.appointmentId,
+      post_actions_created: postActionsCreated,
+      post_actions_skipped: postActionsSkippedReason,
+    },
+    'appt.finalize.postActions.done',
+  )
+
   return ok({
     appointmentId: result.appointmentId,
     leadId: result.leadId,
     outcome: result.outcome,
     subCallOk,
+    postActionsCreated,
   })
+}
+
+// ── CRM_PARITY_R3 · getAppointmentFinancialSummaryAction ───────────────────
+//
+// Wrapper read-only do view appointment_financial_summary (mig 195) usado
+// pelo FinalizeWizard ANTES de submit · permite que UI mostre items,
+// payments, balance e derived_payment_status sem dependência adicional.
+//
+// ZERO escrita · ZERO efeito · RLS herda via security_invoker=true.
+
+export async function getAppointmentFinancialSummaryAction(
+  input: unknown,
+): Promise<
+  Result<{
+    appointmentId: string
+    clinicId: string
+    grossTotal: number
+    discountTotal: number
+    netTotal: number
+    paidTotal: number
+    pendingTotal: number
+    cancelledTotal: number
+    balanceTotal: number
+    procedureItemsCount: number
+    courtesyItemsCount: number
+    paymentsCount: number
+    derivedPaymentStatus: 'cortesia' | 'pendente' | 'parcial' | 'pago'
+    computedAt: string
+  } | null>
+> {
+  const Schema = z.object({ appointmentId: z.string().uuid() })
+  const parsed = Schema.safeParse(input)
+  if (!parsed.success) return zodFail(parsed.error)
+
+  const { repos } = await loadServerReposContext()
+  const summary = await repos.appointmentPayments.getFinancialSummary(
+    parsed.data.appointmentId,
+  )
+  return ok(summary)
 }
 
 // ── 7. softDeleteAppointmentAction · esconde sem perder audit ───────────────

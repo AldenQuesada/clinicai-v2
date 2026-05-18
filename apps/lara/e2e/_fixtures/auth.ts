@@ -78,18 +78,57 @@ function getTestClient(env: TestEnv): SupabaseClient {
  * Cookie format: `sb-<project-ref>-auth-token` com JSON encoded array
  * (formato @supabase/ssr canonical · middleware Lara le isso).
  */
+// CRM_PARITY_R3 (2026-05-18): cache da session pra evitar Supabase Auth
+// rate limit. Antes do cache, cada test fazia signInWithPassword no setup
+// da page fixture · suites com >20 testes batiam o limite per-IP. Cache
+// dura o processo Playwright todo (re-login só em retry/persist failure).
+type CachedAuth = {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number | undefined
+  expiresIn: number | undefined
+  tokenType: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  user: any
+}
+let _cachedAuth: CachedAuth | null = null
+let _cachedAuthPromise: Promise<CachedAuth> | null = null
+
+async function getOrLogin(env: TestEnv): Promise<CachedAuth> {
+  if (_cachedAuth) return _cachedAuth
+  if (_cachedAuthPromise) return _cachedAuthPromise
+  _cachedAuthPromise = (async () => {
+    const sb = getTestClient(env)
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: env.email,
+      password: env.password,
+    })
+    if (error) {
+      _cachedAuthPromise = null
+      throw new Error(`[e2e/auth] login failed · ${error.message}`)
+    }
+    if (!data.session) {
+      _cachedAuthPromise = null
+      throw new Error('[e2e/auth] login retornou sem session')
+    }
+    _cachedAuth = {
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at,
+      expiresIn: data.session.expires_in,
+      tokenType: data.session.token_type,
+      user: data.session.user,
+    }
+    return _cachedAuth
+  })()
+  return _cachedAuthPromise
+}
+
 async function loginAs(role: AuthRole, page: Page): Promise<void> {
   if (role === 'unauth') return
 
   const env = assertTestEnvs()
-  const sb = getTestClient(env)
-
-  const { data, error } = await sb.auth.signInWithPassword({
-    email: env.email,
-    password: env.password,
-  })
-  if (error) throw new Error(`[e2e/auth] login failed · ${error.message}`)
-  if (!data.session) throw new Error('[e2e/auth] login retornou sem session')
+  const auth = await getOrLogin(env)
 
   // CRM_E2E_FIX_AUTHED_SELECTORS (2026-05-18): @supabase/auth-js 2.103 +
   // @supabase/ssr 0.5.2 esperam SESSION OBJECT, nao mais array legacy. O
@@ -99,12 +138,12 @@ async function loginAs(role: AuthRole, page: Page): Promise<void> {
   // user=null · redireciona /login · todos specs falham em toBeVisible.
   // Fix: serializar a session inteira como objeto.
   const cookieValue = JSON.stringify({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    expires_at: data.session.expires_at,
-    expires_in: data.session.expires_in,
-    token_type: data.session.token_type,
-    user: data.session.user,
+    access_token: auth.accessToken,
+    refresh_token: auth.refreshToken,
+    expires_at: auth.expiresAt,
+    expires_in: auth.expiresIn,
+    token_type: auth.tokenType,
+    user: auth.user,
   })
 
   // Domain depende do baseURL · localhost pra dev, host real pra preview/prod
@@ -141,16 +180,23 @@ export { expect }
  * direto via SQL/RPC (criar lead seed, etc) sem passar pela UI.
  *
  * Usa anon key + login do test user (mesma sessao do browser).
+ *
+ * CRM_PARITY_R3 (2026-05-18): cache da session a nivel de modulo · evita
+ * Supabase Auth rate limit quando suite cresce. Antes desse fix, cada
+ * spec chamava `signInWithPassword` 5-10x por test (uma vez por
+ * `getAuthedSupabase()` invocacao) · acumulando rapidamente bate o
+ * limite per-IP Supabase Auth e quebra suites independentes.
+ *
+ * Comportamento:
+ *   - 1ª chamada: faz login real, popula cache.
+ *   - Chamadas subsequentes: reusa o client + session ja em memória
+ *     (Supabase JS expira a session sozinho se necessário; specs E2E
+ *     duram <10min, dentro do TTL default).
  */
 export async function getAuthedSupabase(): Promise<SupabaseClient> {
   const env = assertTestEnvs()
-  const sb = getTestClient(env)
-  const { data, error } = await sb.auth.signInWithPassword({
-    email: env.email,
-    password: env.password,
-  })
-  if (error || !data.session) {
-    throw new Error(`[e2e/auth] getAuthedSupabase login failed · ${error?.message}`)
-  }
-  return sb
+  // Reaproveita a session cacheada do loginAs · evita signInWithPassword
+  // a cada chamada · Supabase Auth tem rate limit per-IP.
+  await getOrLogin(env)
+  return getTestClient(env)
 }

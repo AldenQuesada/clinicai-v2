@@ -404,6 +404,15 @@ export {
   type CreateAppointmentPaymentInput,
   type UpdateAppointmentPaymentInput,
 } from './appointment-payments.repository'
+// CRM_PARITY_R3 · fila interna de pós-ações no finalize (mig 197).
+export {
+  AppointmentPostActionsRepository,
+  type AppointmentPostActionDTO,
+  type AppointmentPostActionType,
+  type AppointmentPostActionStatus,
+  type CreateAppointmentPostActionInput,
+  type UpdateAppointmentPostActionStatusInput,
+} from './appointment-post-actions.repository'
 export { PatientRepository } from './patient.repository'
 export {
   CommercialRecoveryRepository,
