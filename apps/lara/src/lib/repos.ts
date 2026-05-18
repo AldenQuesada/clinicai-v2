@@ -26,6 +26,7 @@ import {
   B2BVoucherRepository,
   WaMediaBankRepository,
   AppointmentRepository,
+  RoomRepository,
   PatientRepository,
   OrcamentoRepository,
   PhaseHistoryRepository,
@@ -66,6 +67,8 @@ export interface Repos {
   mediaBank: WaMediaBankRepository
   /** CRM core (Camada 4) · Agenda/Pacientes/Orcamento + audit trail */
   appointments: AppointmentRepository
+  /** CRM_PARITY_R1 · `clinic_rooms` read-only (legacy admin CRUD via RPC) */
+  rooms: RoomRepository
   patients: PatientRepository
   orcamentos: OrcamentoRepository
   phaseHistory: PhaseHistoryRepository
@@ -108,6 +111,7 @@ export function makeRepos(supabase: LoadedSupabase | AnySupabase): Repos {
     b2bVouchers: new B2BVoucherRepository(sb),
     mediaBank: new WaMediaBankRepository(sb),
     appointments: new AppointmentRepository(sb),
+    rooms: new RoomRepository(sb),
     patients: new PatientRepository(sb),
     orcamentos: new OrcamentoRepository(sb),
     phaseHistory: new PhaseHistoryRepository(sb),

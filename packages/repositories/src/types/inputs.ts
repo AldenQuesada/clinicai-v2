@@ -278,6 +278,12 @@ export interface CreateAppointmentInput {
   subjectPhone?: string | null
   professionalId?: string | null
   professionalName?: string
+  /**
+   * CRM_PARITY_R1 (mig 190) · FK opcional para `clinic_rooms(id)`. Permite
+   * conflict-check por sala em paralelo a `roomIdx` legacy. `null` ou omitido =
+   * appointment sem sala vinculada (modo legacy ou block-time).
+   */
+  roomId?: string | null
   scheduledDate: string
   startTime: string
   endTime: string
@@ -316,6 +322,8 @@ export interface UpdateAppointmentInput {
   endTime?: string
   professionalId?: string | null
   professionalName?: string
+  /** CRM_PARITY_R1 (mig 190) · FK opcional para `clinic_rooms(id)`. */
+  roomId?: string | null
   /**
    * FK canônica → `clinic_procedimentos.id` (mig 182). Aceitar `null` permite
    * mover appointment de "catálogo" para "manual" sem apagar o snapshot.

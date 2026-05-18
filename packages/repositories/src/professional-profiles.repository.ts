@@ -34,6 +34,22 @@ export interface AgendaProfessionalDTO {
   displayName: string
   specialty: string | null
   color: string | null
+  /**
+   * CRM_PARITY_R1 (mig 189) · FK opcional `sala_id` → `clinic_rooms(id)`.
+   * Usado para sugerir sala default no wizard de agendamento. NULL = sem
+   * default · UI cai em "selecione manualmente".
+   */
+  defaultRoomId: string | null
+}
+
+/**
+ * CRM_PARITY_R1 (mig 188) · período de afastamento (férias, congresso,
+ * licença, blackout planejado).
+ */
+export interface VacationPeriod {
+  startDate: string
+  endDate: string
+  reason: string | null
 }
 
 export class ProfessionalProfilesRepository {
@@ -82,7 +98,7 @@ export class ProfessionalProfilesRepository {
   async listActiveForAgenda(clinicId: string): Promise<AgendaProfessionalDTO[]> {
     const { data } = await this.supabase
       .from('professional_profiles')
-      .select('id, display_name, specialty, color')
+      .select('id, display_name, specialty, color, sala_id')
       .eq('clinic_id', clinicId)
       .eq('is_active', true)
       .eq('agenda_enabled', true)
@@ -93,11 +109,13 @@ export class ProfessionalProfilesRepository {
       display_name: string | null
       specialty: string | null
       color: string | null
+      sala_id: string | null
     }>).map((p) => ({
       id: String(p.id),
       displayName: String(p.display_name ?? 'Sem nome'),
       specialty: p.specialty ?? null,
       color: p.color ?? null,
+      defaultRoomId: p.sala_id ?? null,
     }))
   }
 
@@ -109,17 +127,71 @@ export class ProfessionalProfilesRepository {
   async getById(id: string): Promise<AgendaProfessionalDTO | null> {
     const { data } = await this.supabase
       .from('professional_profiles')
-      .select('id, display_name, specialty, color')
+      .select('id, display_name, specialty, color, sala_id')
       .eq('id', id)
       .maybeSingle()
 
     if (!data) return null
-    const p = data as { id: string; display_name: string | null; specialty: string | null; color: string | null }
+    const p = data as {
+      id: string
+      display_name: string | null
+      specialty: string | null
+      color: string | null
+      sala_id: string | null
+    }
     return {
       id: String(p.id),
       displayName: String(p.display_name ?? 'Sem nome'),
       specialty: p.specialty ?? null,
       color: p.color ?? null,
+      defaultRoomId: p.sala_id ?? null,
     }
+  }
+
+  /**
+   * CRM_PARITY_R1 (mig 188) · checa se profissional está em férias/blackout
+   * em uma data específica. Lê `professional_profiles.ferias` jsonb.
+   *
+   * Retorna o período conflitante (start/end/reason) se houver, ou null se
+   * livre. UI usa o retorno para mensagem "Dr. X em férias entre dd/mm e dd/mm".
+   *
+   * Fail-safe: se a coluna ainda não existir (mig 188 não aplicada) ou a
+   * query falhar, retorna null (não bloqueia). Mig 188 é prerequisito.
+   *
+   * @param professionalId UUID do profissional
+   * @param dateIso YYYY-MM-DD
+   */
+  async isOnVacation(
+    professionalId: string,
+    dateIso: string,
+  ): Promise<VacationPeriod | null> {
+    if (!professionalId || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return null
+    const { data, error } = await this.supabase
+      .from('professional_profiles')
+      .select('ferias')
+      .eq('id', professionalId)
+      .maybeSingle()
+    if (error || !data) return null
+    const rawFerias = (data as { ferias?: unknown }).ferias
+    if (!Array.isArray(rawFerias)) return null
+    for (const item of rawFerias) {
+      if (!item || typeof item !== 'object') continue
+      const period = item as {
+        start_date?: unknown
+        end_date?: unknown
+        reason?: unknown
+      }
+      const start = typeof period.start_date === 'string' ? period.start_date : null
+      const end = typeof period.end_date === 'string' ? period.end_date : null
+      if (!start || !end) continue
+      if (dateIso >= start && dateIso <= end) {
+        return {
+          startDate: start,
+          endDate: end,
+          reason: typeof period.reason === 'string' ? period.reason : null,
+        }
+      }
+    }
+    return null
   }
 }
