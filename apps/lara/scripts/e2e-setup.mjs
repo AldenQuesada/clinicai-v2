@@ -177,6 +177,27 @@ async function main() {
   }
   console.log(`[+] profiles UPSERT · clinic=Mirian role=${ROLE}`)
 
+  // ── UPSERT em app_users ───────────────────────────────────────────────
+  // orcamentos.created_by FK referencia public.app_users(id). Sem essa
+  // linha, qualquer INSERT em orcamentos via lead_to_orcamento (que usa
+  // auth.uid()) violaria a FK. Mantido junto pra E2E ficar idempotente.
+  const { error: appUserErr } = await supabase
+    .from('app_users')
+    .upsert(
+      {
+        id: user.id,
+        clinic_id: CLINIC_ID,
+        full_name: 'E2E Test',
+        email: EMAIL,
+      },
+      { onConflict: 'id' },
+    )
+  if (appUserErr) {
+    console.error('upsert app_users ERR:', appUserErr.message)
+    process.exit(5)
+  }
+  console.log('[+] app_users UPSERT · vincula FK orcamentos.created_by')
+
   // ── Output final ──────────────────────────────────────────────────────
   console.log('\n' + '='.repeat(60))
   console.log('GitHub Settings → Secrets and variables → Actions:')
