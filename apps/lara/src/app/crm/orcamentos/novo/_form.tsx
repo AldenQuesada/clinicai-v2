@@ -5,12 +5,13 @@
  * /crm/orcamentos/novo?leadId=<uuid>.
  *
  * Submit chama createOrcamentoFromLeadAction (lead.actions.ts) ·
- * RPC lead_to_orcamento soft-deleta lead + cria orcamento em transacao
- * atomica.
+ * RPC lead_to_orcamento (Phase 1C canonical · mig 187) cria orcamento +
+ * marca lead.phase=orcamento em transacao atomica. NAO faz soft-delete:
+ * lead permanece visivel em crm_operational_view com mesa_operacional
+ * derivado de phase + lifecycle.
  *
  * Pra orcamento direto em paciente existente: nao suportado v1 ·
- * caminho atual eh criar lead novo primeiro. Camada 10 vai abrir RPC
- * patient_to_orcamento dedicada.
+ * caminho atual eh criar lead novo primeiro. Futura RPC patient_to_orcamento.
  */
 
 import * as React from 'react'
@@ -34,6 +35,32 @@ import {
   computeTotals,
   type ItemsEditorState,
 } from '../_components/items-editor'
+
+// Mapa de codigos da RPC lead_to_orcamento (mig 187 canonical) pra mensagens
+// acionaveis. Codigos não listados caem em fallback generico mas ainda mostram
+// o codigo cru pra debug sem esconder em silencio.
+function mapOrcamentoError(code: string): string {
+  switch (code) {
+    case 'lifecycle_locked':
+      return 'Lead não está ativo (perdido/arquivado/recuperação). Reative o lead antes de emitir orçamento.'
+    case 'already_in_orcamento':
+      return 'Lead já está em fase orçamento. Aprove ou marque o orçamento atual como perdido antes de emitir um novo.'
+    case 'phase_paciente_unsupported':
+      return 'Paciente recorrente não usa este formulário. Abra a ficha do paciente para emitir o orçamento.'
+    case 'illegal_transition':
+      return 'Transição de fase inválida. Lead não pode emitir orçamento na fase atual.'
+    case 'lead_not_found_or_deleted':
+      return 'Lead não encontrado ou já excluído. Recarregue a página.'
+    case 'no_clinic_in_jwt':
+      return 'Sessão sem clínica vinculada. Faça login novamente.'
+    case 'invalid_subtotal':
+      return 'Subtotal inválido. Adicione ao menos 1 item com valor > 0.'
+    case 'invalid_items':
+      return 'Lista de itens inválida. Verifique procedimento, qty e valor unitário.'
+    default:
+      return `Falha ao criar orçamento (${code}). Tente novamente ou contate o suporte.`
+  }
+}
 
 interface NovoOrcamentoFormProps {
   leadId: string
@@ -107,7 +134,12 @@ export function NovoOrcamentoForm({
         toast.error('Dados inválidos · revise os campos')
         setErrors({ form: 'Dados inválidos' })
       } else {
-        toast.error(`Falha: ${r.error}`)
+        // RPC lead_to_orcamento (Phase 1C canonical · mig 187) retorna
+        // erros controlados pra estados terminais/excludentes. UI traduz
+        // o codigo cru pra mensagem acionavel · evita "Falha: xxx" cripto.
+        const msg = mapOrcamentoError(r.error)
+        toast.error(msg)
+        setErrors({ form: msg })
       }
     } catch {
       toast.error('Erro inesperado')

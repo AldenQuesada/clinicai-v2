@@ -94,21 +94,24 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     // 3. Click "Arquivar" no card · scope dentro do bucket "lead"
     // O botao Arquivar tem texto literal "Arquivar"
     // (CRM_FUNCTIONALITY_MULTI_AGENT Lote 2 · mesa-card-actions.tsx)
-    // Limitamos por proximidade do nome do lead pra evitar clicar no errado
-    const card = page.locator('article, div').filter({ hasText: leadName }).first()
+    // Filtro estrito por <article> (mesa-card root) · 'div' incluiria o
+    // container da board e capturaria 12 cards de uma vez (strict mode err).
+    const card = page.locator('article').filter({ hasText: leadName }).first()
     await card.getByRole('button', { name: /^arquivar$/i }).click()
 
-    // 4. Modal motivo abre
-    await expect(page.getByText(/arquivar lead/i).first()).toBeVisible({
+    // 4. Modal motivo abre · titulo "Arquivar registro? · {name}"
+    // (Patch D: microcopy "lead" -> "registro" pra abranger todas fases)
+    await expect(page.getByText(/arquivar registro/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
-    // 5. Preenche motivo
-    const reasonTextarea = page.locator('textarea#mesa-reason')
-    await reasonTextarea.fill('[E2E_TEST] e2e test archive')
+    // 5. Preenche motivo · scope ao dialog (Modal renderiza inline, nao portal)
+    const dialog = page.getByRole('dialog')
+    await dialog.locator('textarea#mesa-reason').fill('[E2E_TEST] e2e test archive')
 
-    // 6. Click confirmar
-    await page.getByRole('button', { name: /^arquivar$/i }).last().click()
+    // 6. Click confirmar · scope ao dialog · evita match com 12 botoes
+    // "Arquivar" das cards (cada card tem seu proprio trigger)
+    await dialog.getByRole('button', { name: /^arquivar$/i }).click()
 
     // 7. Toast sucesso
     await expect(page.getByText(/lead arquivado|j[áa] estava arquivado/i)).toBeVisible({
@@ -129,24 +132,26 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     await page.reload()
 
     // 10. Card ainda visivel (em outro bucket) · click "Desarquivar"
+    // article only · vide nota acima sobre strict-mode com 'div'
     const archivedCard = page
-      .locator('article, div')
+      .locator('article')
       .filter({ hasText: leadName })
       .first()
     await expect(archivedCard).toBeVisible({ timeout: 10_000 })
 
     await archivedCard.getByRole('button', { name: /^desarquivar$/i }).click()
 
-    await expect(page.getByText(/desarquivar lead/i).first()).toBeVisible({
+    // Modal "Reativar registro arquivado? · {name}" (Patch D microcopy)
+    await expect(page.getByText(/reativar registro arquivado/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
-    // 11. Preenche motivo unarchive
-    const unarchiveReason = page.locator('textarea#mesa-reason')
-    await unarchiveReason.fill('[E2E_TEST] e2e test unarchive')
+    // 11. Preenche motivo unarchive · scope ao dialog
+    const unarchiveDialog = page.getByRole('dialog')
+    await unarchiveDialog.locator('textarea#mesa-reason').fill('[E2E_TEST] e2e test unarchive')
 
-    // 12. Click confirmar
-    await page.getByRole('button', { name: /^desarquivar$/i }).last().click()
+    // 12. Click confirmar · confirmLabel agora eh "Reativar" (Patch D)
+    await unarchiveDialog.getByRole('button', { name: /^reativar$/i }).click()
 
     await expect(page.getByText(/lead desarquivado|voltou.*mesa/i)).toBeVisible({
       timeout: 10_000,

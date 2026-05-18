@@ -91,13 +91,21 @@ async function loginAs(role: AuthRole, page: Page): Promise<void> {
   if (error) throw new Error(`[e2e/auth] login failed · ${error.message}`)
   if (!data.session) throw new Error('[e2e/auth] login retornou sem session')
 
-  const cookieValue = JSON.stringify([
-    data.session.access_token,
-    data.session.refresh_token,
-    null,
-    null,
-    data.session.expires_at,
-  ])
+  // CRM_E2E_FIX_AUTHED_SELECTORS (2026-05-18): @supabase/auth-js 2.103 +
+  // @supabase/ssr 0.5.2 esperam SESSION OBJECT, nao mais array legacy. O
+  // _isValidSession exige typeof === 'object' + access_token/refresh_token/
+  // expires_at como PROPRIEDADES. Cookie como array `[a,r,null,null,exp]`
+  // (formato antigo) reprova validacao silenciosamente · middleware vê
+  // user=null · redireciona /login · todos specs falham em toBeVisible.
+  // Fix: serializar a session inteira como objeto.
+  const cookieValue = JSON.stringify({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_at: data.session.expires_at,
+    expires_in: data.session.expires_in,
+    token_type: data.session.token_type,
+    user: data.session.user,
+  })
 
   // Domain depende do baseURL · localhost pra dev, host real pra preview/prod
   const baseURL = process.env.LARA_E2E_URL ?? 'http://localhost:3005'

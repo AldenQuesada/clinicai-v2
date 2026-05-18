@@ -59,49 +59,63 @@ test.describe('CRM · criar lead via wizard 3-step', () => {
     // 2. Abrir modal "Novo lead"
     await page.getByRole('button', { name: /novo lead/i }).click()
 
-    // Confirma wizard abriu (stepper visivel)
-    await expect(page.getByText(/identifica[çc][ãa]o/i).first()).toBeVisible({
+    // Modal renderiza .b2b-modal · scope tudo dentro pra evitar match com
+    // search box da pagina (input.b2b-input fora do modal capturava
+    // nameInput.first() e quebrava step1Valid). Placeholder unico tambem
+    // serve de fallback semantico.
+    const modal = page.locator('.b2b-modal')
+    await expect(modal.getByRole('heading', { name: /novo lead/i })).toBeVisible({
       timeout: 5_000,
     })
 
-    // 3. Step 1 · nome + telefone
-    // Inputs usam classes b2b-input · label "Nome completo *"
-    const nameInput = page.locator('input[type="text"].b2b-input').first()
-    await nameInput.fill(leadName)
+    // 3. Step 1 · nome + telefone via placeholder unico
+    const nameField = modal.getByPlaceholder(/maria da silva/i)
+    await nameField.fill(leadName)
+    await nameField.blur()
 
-    const phoneInput = page.locator('input[type="tel"].b2b-input').first()
-    // Type digit-by-digit · onChange normaliza
-    await phoneInput.fill(phoneDigits)
+    const phoneField = modal.getByPlaceholder(/\(44\)/).first()
+    await phoneField.fill(phoneDigits)
+    await phoneField.blur()
 
-    // Avancar pra step 2
-    await page.getByRole('button', { name: /avan[çc]ar/i }).click()
-    await expect(page.getByText(/origem.*qualifica[çc][ãa]o/i).first()).toBeVisible({
-      timeout: 5_000,
-    })
+    // Avancar pra step 2 · espera step1Valid commitar antes do click
+    // (React 19 batching · onBlur ajuda mas pode levar microtask)
+    const avancarBtn = modal.getByRole('button', { name: /avan[çc]ar/i })
+    await expect(avancarBtn).toBeEnabled({ timeout: 5_000 })
+    // forcar tick · scrollIntoView sempre re-renderiza · entao re-checa
+    await avancarBtn.scrollIntoViewIfNeeded()
+    await avancarBtn.click()
+
+    // Step 2 unique marker · select source visivel sinaliza re-render OK
+    // (selects so existem no Step2 component, stepper-only labels nao
+    // garantem step actual)
+    const sourceSelect = modal.locator('select.b2b-input').first()
+    await expect(sourceSelect).toBeVisible({ timeout: 5_000 })
 
     // 4. Step 2 · source + source_type + funnel + temperature
-    // Os selects nao tem id estavel · acha por value option (mais resiliente)
-    const selects = page.locator('select.b2b-input')
-    // Ordem: source (0), source_type (1), funnel (2), temperature (3)
+    const selects = modal.locator('select.b2b-input')
     await selects.nth(0).selectOption('manual')
     await selects.nth(1).selectOption('whatsapp')
     await selects.nth(2).selectOption('fullface')
     await selects.nth(3).selectOption('hot')
 
     // Avancar pra step 3
-    await page.getByRole('button', { name: /avan[çc]ar/i }).click()
-    await expect(page.getByText(/opera[çc][ãa]o/i).first()).toBeVisible({
-      timeout: 5_000,
-    })
+    const avancarBtn2 = modal.getByRole('button', { name: /avan[çc]ar/i })
+    await expect(avancarBtn2).toBeEnabled({ timeout: 5_000 })
+    await avancarBtn2.click()
+
+    // Step 3 unique marker · textarea de notas (operação só aparece no titulo)
+    const notesTextarea = modal.locator('textarea.b2b-input').first()
+    await expect(notesTextarea).toBeVisible({ timeout: 5_000 })
 
     // 5. Step 3 · notes com tag e2e
-    const notesTextarea = page.locator('textarea.b2b-input').first()
     await notesTextarea.fill(`[E2E_TEST] auto-created by e2e suite ts=${ts}`)
 
     // 6. Submit "Criar lead" · espera redirect pra /leads/[uuid]
+    const criarBtn = modal.getByRole('button', { name: /criar lead/i })
+    await expect(criarBtn).toBeEnabled({ timeout: 5_000 })
     await Promise.all([
       page.waitForURL(/\/leads\/[0-9a-f-]{36}/, { timeout: 15_000 }),
-      page.getByRole('button', { name: /criar lead/i }).click(),
+      criarBtn.click(),
     ])
 
     // 7. Captura leadId via URL pra cleanup

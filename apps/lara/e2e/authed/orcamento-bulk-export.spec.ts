@@ -72,13 +72,20 @@ test.beforeAll(async () => {
   leadId = lead.id
 
   // 3 orcamentos draft
+  // CRM_E2E_FIX_ORCAMENTO_FIXTURES (2026-05-17): respeita CHECK constraint
+  // chk_orc_total_consistency em mig 63: abs(total - (subtotal - discount)) < 0.01
+  // Schema (mig 63): subtotal/discount/total numeric(12,2) NOT NULL DEFAULT 0.
+  // Antes setava só total e quebrava (subtotal=0 default → 0-0 != total).
   for (let i = 0; i < 3; i++) {
+    const valor = 100 * (i + 1)
     const { data: orc, error: orcErr } = await sb
       .from('orcamentos')
       .insert({
         lead_id: leadId,
         title: `E2E Bulk Orc ${ts}-${i}`,
-        total: 100 * (i + 1),
+        subtotal: valor,
+        discount: 0,
+        total: valor,
         status: 'draft',
         notes: `[E2E_TEST] auto-cleanup spec=orcamento-bulk-export idx=${i}`,
       })
@@ -129,21 +136,24 @@ test.describe('Orcamentos · bulk mark sent + export CSV', () => {
     await checkboxes.nth(1).check()
     await checkboxes.nth(2).check()
 
-    // 4. Click "Marcar como Enviado" · banner bulk
-    await page.getByRole('button', { name: /marcar como enviado/i }).click()
+    // 4. Click "Marcar enviado" · banner bulk
+    // UI atual usa "Marcar enviado" (sem "como") · modal title usa "Marcar
+    // como Enviado (N) ?" entao filtro permissivo cobre os 2 contextos.
+    await page.getByRole('button', { name: /^marcar enviado$/i }).click()
 
-    // 5. Modal confirmacao
+    // 5. Modal confirmacao · titulo "Marcar como Enviado (2) ?"
     await expect(page.getByText(/marcar como enviado/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
-    // 6. Confirm · click no botao "Marcar como Enviado" do modal (ultimo)
-    await page.getByRole('button', { name: /^marcar como enviado$/i }).last().click()
+    // 6. Confirm · ConfirmDialog usa confirmLabel="Sim, aplicar"
+    await page.getByRole('button', { name: /sim,? aplicar/i }).click()
 
-    // 7. Toast sucesso
-    await expect(page.getByText(/enviado|sucesso/i).first()).toBeVisible({
-      timeout: 10_000,
-    })
+    // 7. Aguarda modal fechar · sinal canonico que action rodou
+    // Toast regex /enviado/ era ambigua (matchava titulo do modal + botao
+    // "Marcar enviado" do banner bulk · sempre visivel mesmo se action
+    // falhou). Validacao real eh via SQL abaixo.
+    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 10_000 })
 
     // 8. Valida SQL · 2 orcamentos status='sent' (os outros remain 'draft')
     const sb = await getAuthedSupabase()

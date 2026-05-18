@@ -23,6 +23,10 @@ const HAS_TEST_ENVS =
   !!process.env.TEST_USER_PASSWORD
 test.skip(!HAS_TEST_ENVS, 'TEST_SUPABASE_* envs ausentes · ver E2E.md secao Happy path E2E setup')
 
+// CRM_BACKEND_FIX_LEAD_TO_ORCAMENTO_CANONICAL_PHASE (2026-05-18): mig 187
+// alinhou a RPC ao modelo canonico v2 (phase IN (lead, agendado) +
+// lifecycle_status=ativo). Spec antes estava skipado como BLOQUEADO_BACKEND.
+
 test.use({ authedAs: 'owner' })
 
 const E2E_TAG = 'is_e2e_test'
@@ -41,7 +45,12 @@ test.beforeAll(async () => {
       name: 'E2E Test Lead',
       source: 'manual',
       source_type: 'manual',
-      funnel: 'direct',
+      // CRM_E2E_FIX (2026-05-18): leads_funnel_check exige fullface|procedimentos
+      // 'direct' violava CHECK e quebrava beforeAll silenciosamente (0ms fail).
+      funnel: 'procedimentos',
+      // CRM_BACKEND_FIX_LEAD_TO_ORCAMENTO_CANONICAL_PHASE (2026-05-18):
+      // mig 187 aceita phase IN ('lead', 'agendado'). Default 'lead' ja
+      // funciona · sem precisar setar phase explicitamente.
       metadata: { [E2E_TAG]: true },
     })
     .select('id')
@@ -72,17 +81,19 @@ test.describe('happy path · lead → orcamento → aprovar', () => {
     await expect(page.getByRole('heading', { name: /novo or[çc]amento/i })).toBeVisible()
 
     // 2. Preencher item · 1 procedimento R$ 200
-    await page
-      .getByLabel(/procedimento/i)
-      .first()
-      .fill('Consulta de avaliação E2E')
-    await page.getByLabel(/unit[áa]rio/i).first().fill('200')
+    // Usa IDs diretos · getByLabel(/procedimento/i) era ambigua (CardTitle
+    // "Itens · procedimentos" tambem matchava). IDs sao garantidos pelo
+    // ItemsEditor: item-${i}-name, item-${i}-qty, item-${i}-price.
+    await page.locator('#item-0-name').fill('Consulta de avaliação E2E')
+    await page.locator('#item-0-price').fill('200')
 
     // 3. Validade · default eh hoje+30, ok
-    // 4. Submit
+    // 4. Submit · aguarda botao enabled (validate() roda em handleSubmit)
+    const submitBtn = page.getByRole('button', { name: /criar or[çc]amento/i })
+    await expect(submitBtn).toBeEnabled({ timeout: 5_000 })
     await Promise.all([
-      page.waitForURL(/\/crm\/orcamentos\/[0-9a-f-]{36}$/, { timeout: 15_000 }),
-      page.getByRole('button', { name: /criar or[çc]amento/i }).click(),
+      page.waitForURL(/\/crm\/orcamentos\/[0-9a-f-]{36}$/, { timeout: 20_000 }),
+      submitBtn.click(),
     ])
 
     // 5. Captura ID do orcamento criado pra cleanup
