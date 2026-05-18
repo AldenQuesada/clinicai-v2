@@ -7,9 +7,11 @@
  *
  * RLS bloqueia UPDATE/DELETE pra `authenticated` (so service_role bypassa) ·
  * esse repository expoe SO leitura. Inserts vem de dentro das RPCs canonicas
- * (lead_create, lead_to_appointment, appointment_attend, etc). UI nao escreve
- * aqui direto · qualquer transicao manual passa por `sdr_change_phase()` que
- * registra historia automaticamente.
+ * que mudam leads.phase (lead_create, lead_to_appointment, lead_to_paciente,
+ * lead_to_orcamento, sdr_change_phase). `appointment_attend` NÃO escreve em
+ * phase_history (mig 191 · não muta leads.phase). UI não escreve direto ·
+ * qualquer transição manual passa por `sdr_change_phase()` que registra
+ * historia automaticamente.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'

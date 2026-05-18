@@ -176,6 +176,8 @@ export default async function EditAppointmentPage({ params }: PageProps) {
       displayName: p.displayName,
       specialty: p.specialty,
       color: p.color,
+      // CRM_PARITY_R1 (mig 189) · expor defaultRoomId para auto-link prof→sala.
+      defaultRoomId: p.defaultRoomId,
     }))
     if (appt.professionalId && !list.find((p) => p.id === appt.professionalId)) {
       list.unshift({
@@ -183,6 +185,7 @@ export default async function EditAppointmentPage({ params }: PageProps) {
         displayName: appt.professionalName || 'Profissional',
         specialty: null,
         color: null,
+        defaultRoomId: null,
       })
     }
     return list

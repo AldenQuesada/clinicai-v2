@@ -21,6 +21,7 @@ export function mapAppointmentRow(row: any): AppointmentDTO {
     professionalId: row.professional_id ?? null,
     professionalName: String(row.professional_name ?? ''),
     roomIdx: row.room_idx != null ? Number(row.room_idx) : null,
+    roomId: row.room_id ?? null,
     scheduledDate: String(row.scheduled_date ?? ''),
     startTime: String(row.start_time ?? ''),
     endTime: String(row.end_time ?? ''),

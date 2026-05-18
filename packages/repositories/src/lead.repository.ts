@@ -624,7 +624,8 @@ export class LeadRepository {
   /**
    * Wrapper de `lead_to_paciente()` · promove lead pra patients (UUID
    * compartilhado · soft-delete em leads · re-mapeia appointments/orcamentos).
-   * Idempotente. Exige phase=compareceu (pre-condicao validada na RPC).
+   * Idempotente. Gate canônico Phase 1C (mig 191): exige
+   * `phase IN ('lead','agendado')` + `lifecycle_status='ativo'`.
    */
   async toPaciente(
     leadId: string,
@@ -649,9 +650,10 @@ export class LeadRepository {
   }
 
   /**
-   * Wrapper de `lead_to_orcamento()` · cria orcamento + soft-delete em leads
-   * + phase=orcamento. Exige phase=compareceu. Items convertidos pra shape
-   * snake_case esperado pela RPC.
+   * Wrapper de `lead_to_orcamento()` · cria orcamento e atualiza
+   * `leads.phase='orcamento'` (idempotente). Gate canônico Phase 1C (mig 187):
+   * `phase IN ('lead','agendado')` + `lifecycle_status='ativo'`. Items
+   * convertidos pra shape snake_case esperado pela RPC.
    */
   async toOrcamento(input: LeadToOrcamentoRpcInput): Promise<LeadToOrcamentoResult> {
     const itemsForDb = orcamentoItemsToDbShape(input.items)

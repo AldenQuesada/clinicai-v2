@@ -195,7 +195,9 @@ export async function markArrivedFromMesaAction(
   )
 
   updateTag(CRM_TAGS.appointments)
-  // appointment_attend pode tocar leads.phase em transação atômica
+  // appointment_attend (canon mig 191) NÃO altera leads.phase · invalida leads
+  // tag por defesa apenas para cobrir mudanças correlatas em UPDATEs futuros
+  // (ex: timestamps em leads quando paciente chega).
   if (!result.idempotentSkip) updateTag(CRM_TAGS.leads)
   revalidateMesaScope()
   revalidatePath('/crm/agenda')

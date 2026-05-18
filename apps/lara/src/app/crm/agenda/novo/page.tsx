@@ -61,6 +61,11 @@ export default async function NewAppointmentPage({
     .list({ status: 'active' })
     .catch(() => [])
 
+  // CRM_PARITY_R1 (mig 190) · salas ativas pra Step 2 do wizard. Fail-soft:
+  // se tabela ainda não existir ou query falhar, wizard segue sem select
+  // de sala (regra: room_id é opcional · NULL = sem sala vinculada).
+  const rooms = await repos.rooms.listActive(ctx.clinic_id).catch(() => [])
+
   // CRM_PARITY_PATCH_0A · clinic_settings pra validação de periods +
   // antecedência mínima no Step 2 do wizard. Fail-soft: se não conseguir
   // carregar, wizard segue sem validar periods (defesa em profundidade fica
@@ -108,6 +113,8 @@ export default async function NewAppointmentPage({
           displayName: p.displayName,
           specialty: p.specialty,
           color: p.color,
+          // CRM_PARITY_R1 (mig 189) · sala default sugerida quando este prof for selecionado.
+          defaultRoomId: p.defaultRoomId,
         }))}
         procedures={procedures.map((p) => ({
           id: p.id,
@@ -116,6 +123,11 @@ export default async function NewAppointmentPage({
           preco: p.preco,
           precoPromo: p.precoPromo,
           duracaoMin: p.duracaoMin,
+        }))}
+        rooms={rooms.map((r) => ({
+          id: r.id,
+          nome: r.nome,
+          descricao: r.descricao,
         }))}
         operatingHours={operatingHours}
         antecedenciaMinHoras={antecedenciaMinHoras}

@@ -64,6 +64,21 @@ interface ProfessionalOption {
   displayName: string
   specialty: string | null
   color: string | null
+  /**
+   * CRM_PARITY_R1 (mig 189) · sala default sugerida quando este profissional
+   * é selecionado no wizard. `null` = sem default · usuário escolhe manualmente.
+   */
+  defaultRoomId: string | null
+}
+
+/**
+ * CRM_PARITY_R1 (mig 190) · opção de sala vinda de `clinic_rooms`.
+ * Lista filtrada a ativos pela `page.tsx` server-side.
+ */
+export interface RoomOption {
+  id: string
+  nome: string
+  descricao: string | null
 }
 
 /**
@@ -98,6 +113,8 @@ interface EditingPrefill {
    */
   procedureId: string | null
   procedureName: string
+  /** CRM_PARITY_R1 (mig 190) · sala atual do appointment · null em legacy. */
+  roomId?: string | null
   consultType: string | null
   value: number
   /** CRM_PARITY_PATCH_0A · payment fields opcionais em edit */
@@ -116,6 +133,8 @@ export interface NewAppointmentFormProps {
   professionals: ReadonlyArray<ProfessionalOption>
   /** CRM_PHASE_LEGACY.PORT.WIZARD_PROCEDURES · catálogo ativo de clinic_procedimentos */
   procedures: ReadonlyArray<ProcedureOption>
+  /** CRM_PARITY_R1 (mig 190) · salas ativas para Step 2. Vazio = sem cadastro. */
+  rooms?: ReadonlyArray<RoomOption>
   /**
    * CRM_PARITY_PATCH_0A · horários de funcionamento da clínica
    * (`operating_hours` jsonb). `null` = sem contrato configurado · UI
@@ -142,6 +161,11 @@ interface FormState {
   startTime: string
   endTime: string
   professionalId: string
+  /**
+   * CRM_PARITY_R1 (mig 190) · FK opcional para `clinic_rooms`. Vazio = sem
+   * sala vinculada (usuário não escolheu · ou cadastro de salas vazio).
+   */
+  roomId: string
   /**
    * Canonical procedure id (vindo de clinic_procedimentos). Vazio = sem
    * vínculo canônico (modo manual/legado · ver `procedureMode`).
@@ -269,6 +293,7 @@ export function NewAppointmentForm({
   leads,
   professionals,
   procedures,
+  rooms = [],
   operatingHours = null,
   antecedenciaMinHoras = null,
   prefillDate,
@@ -322,6 +347,15 @@ export function NewAppointmentForm({
           ? 'lead'
           : 'patient'
 
+  // CRM_PARITY_R1 (mig 189+190) · sala inicial: edit usa appointment.room_id,
+  // create usa o defaultRoomId do profissional pré-selecionado (se houver),
+  // senão vazio (usuário escolhe).
+  const initialProfessionalForRoom = editing?.professionalId
+    ? professionals.find((p) => p.id === editing.professionalId) ?? null
+    : null
+  const initialRoomId =
+    editing?.roomId ?? initialProfessionalForRoom?.defaultRoomId ?? ''
+
   const [step, setStep] = React.useState<Step>(1)
   const [data, setData] = React.useState<FormState>({
     subjectKind: initialKind,
@@ -331,6 +365,7 @@ export function NewAppointmentForm({
     startTime: startTimeInit,
     endTime: addMinutes(startTimeInit, 60),
     professionalId: editing?.professionalId ?? '',
+    roomId: initialRoomId,
     procedureId: initialProcedureId,
     procedureMode: initialProcedureMode,
     procedureName: editing?.procedureName ?? '',
@@ -374,13 +409,29 @@ export function NewAppointmentForm({
   >(null)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setData((d) => ({ ...d, [key]: value }))
+    setData((d) => {
+      const next = { ...d, [key]: value }
+      // CRM_PARITY_R1 (mig 189) · auto-link prof → sala default. Roda só se
+      // user mudou profissional E ainda não escolheu sala manualmente
+      // (roomId atual vazio OU igual ao defaultRoomId do prof anterior).
+      if (key === 'professionalId' && typeof value === 'string') {
+        const nextProf = professionals.find((p) => p.id === value) ?? null
+        const prevProf = professionals.find((p) => p.id === d.professionalId) ?? null
+        const userTouchedRoom =
+          d.roomId !== '' && d.roomId !== (prevProf?.defaultRoomId ?? '')
+        if (!userTouchedRoom) {
+          next.roomId = nextProf?.defaultRoomId ?? ''
+        }
+      }
+      return next
+    })
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
     if (
       key === 'scheduledDate' ||
       key === 'startTime' ||
       key === 'endTime' ||
-      key === 'professionalId'
+      key === 'professionalId' ||
+      key === 'roomId'
     ) {
       setConflictState({ kind: 'idle' })
       setScheduleConstraintError(null)
@@ -544,6 +595,8 @@ export function NewAppointmentForm({
         startTime: data.startTime,
         endTime: data.endTime,
         professionalId: data.professionalId || null,
+        // CRM_PARITY_R1 (mig 190) · conflito de sala via FK canônica.
+        roomId: data.roomId || null,
         leadId: data.subjectKind === 'lead' ? data.leadId || null : null,
         patientId: data.subjectKind === 'patient' ? data.patientId || null : null,
       })
@@ -657,6 +710,8 @@ export function NewAppointmentForm({
             endTime: data.endTime,
             professionalId: data.professionalId,
             professionalName: professional.displayName,
+            // CRM_PARITY_R1 (mig 190) · room_id null permite limpar sala.
+            roomId: data.roomId || null,
             procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
@@ -679,6 +734,8 @@ export function NewAppointmentForm({
             endTime: data.endTime,
             professionalId: data.professionalId,
             professionalName: professional.displayName,
+            // CRM_PARITY_R1 (mig 190) · FK canônica para clinic_rooms.
+            roomId: data.roomId || null,
             procedureId: procedureIdPayload,
             procedureName: data.procedureName || '',
             consultType: data.consultType || null,
@@ -719,6 +776,41 @@ export function NewAppointmentForm({
           toastError(
             'Este agendamento já foi finalizado/cancelado/no-show · edição bloqueada',
           )
+          return
+        }
+        // CRM_PARITY_R1 · erros server-side de constraints estruturais.
+        if (r.error === 'professional_on_vacation') {
+          const det = (r.details ?? {}) as {
+            start_date?: string
+            end_date?: string
+            reason?: string | null
+          }
+          const startBr = det.start_date
+            ? det.start_date.split('-').reverse().join('/')
+            : '?'
+          const endBr = det.end_date
+            ? det.end_date.split('-').reverse().join('/')
+            : '?'
+          const reasonSuffix = det.reason ? ` · ${det.reason}` : ''
+          setScheduleConstraintError(
+            `${professional?.displayName ?? 'Profissional'} em férias entre ${startBr} e ${endBr}${reasonSuffix}.`,
+          )
+          toastError('Profissional está em férias nesse dia')
+          setStep(2)
+          return
+        }
+        if (r.error === 'min_advance_required') {
+          const det = (r.details ?? {}) as { message?: string; min_hours?: unknown }
+          setScheduleConstraintError(det.message ?? 'Antecedência mínima não atendida')
+          toastError('Antecedência mínima não atendida')
+          setStep(2)
+          return
+        }
+        if (r.error === 'outside_working_hours') {
+          const det = (r.details ?? {}) as { message?: string }
+          setScheduleConstraintError(det.message ?? 'Fora do horário de funcionamento')
+          toastError('Horário fora do expediente da clínica')
+          setStep(2)
           return
         }
         if (r.error === 'invalid_input' && (r.details as { issues?: unknown })?.issues) {
@@ -944,6 +1036,42 @@ export function NewAppointmentForm({
               ))}
             </Select>
           </FormField>
+
+          {/* CRM_PARITY_R1 (mig 189+190) · sala. Auto-link prof→sala default em set(). */}
+          {rooms.length > 0 && (
+            <FormField
+              label="Sala"
+              htmlFor="roomId"
+              hint={
+                selectedProfessional?.defaultRoomId
+                  ? 'Sala sugerida pelo profissional · pode ajustar'
+                  : 'Opcional · escolha onde acontece o atendimento'
+              }
+            >
+              <Select
+                id="roomId"
+                value={data.roomId}
+                onChange={(e) => set('roomId', e.target.value)}
+              >
+                <option value="">— sem sala —</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nome}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          )}
+
+          {scheduleConstraintError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{scheduleConstraintError}</span>
+            </div>
+          )}
 
           {conflictState.kind === 'checking' && (
             <p className="text-xs text-[var(--muted-foreground)]">

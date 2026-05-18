@@ -383,9 +383,12 @@ export {
   ProfessionalProfilesRepository,
   type ProfessionalProfileDTO,
   type AgendaProfessionalDTO,
+  type VacationPeriod,
 } from './professional-profiles.repository'
 export { MiraChannelRepository, type MiraChannelDTO } from './mira-channel.repository'
 export { AppointmentRepository } from './appointment.repository'
+// CRM_PARITY_R1 · room.repository.ts wraps `clinic_rooms` read-only.
+export { RoomRepository, type RoomDTO } from './room.repository'
 export { PatientRepository } from './patient.repository'
 export {
   CommercialRecoveryRepository,

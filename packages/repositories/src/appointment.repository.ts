@@ -7,9 +7,14 @@
  *
  * Modelo excludente forte (ADR-001): subject dual `lead_id` ou `patient_id`
  * (CHECK chk_appt_subject_xor garante exatamente um · exceto bloqueado).
- * Mutacoes que mudam phase do lead (`appointment_attend`, `finalize`)
- * passam pelas RPCs canonicas (mig 65); CRUD direto fica em UPDATEs simples
- * (data/horario/profissional/notas).
+ *
+ * Contrato canônico Phase 1C (mig 150 + mig 191):
+ *   - `appointment_attend` muda APENAS appointments.status / chegada_em.
+ *     NÃO altera leads.phase (compareceu deixou de ser phase canônica).
+ *   - `appointment_finalize` é a única RPC que muta leads.phase, via sub-RPCs
+ *     `lead_to_paciente` ou `lead_to_orcamento` conforme outcome.
+ *   - CRUD direto (este repository) fica em UPDATEs simples de
+ *     data/horario/profissional/notas · NÃO toca leads.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -34,7 +39,7 @@ import {
 
 const APPT_COLUMNS =
   'id, clinic_id, lead_id, patient_id, subject_name, subject_phone, ' +
-  'professional_id, professional_name, room_idx, scheduled_date, start_time, ' +
+  'professional_id, professional_name, room_idx, room_id, scheduled_date, start_time, ' +
   'end_time, procedure_id, procedure_name, consult_type, eval_type, value, payment_method, ' +
   'payment_status, status, origem, chegada_em, cancelado_em, motivo_cancelamento, ' +
   'no_show_em, motivo_no_show, consentimento_img, obs, recurrence_group_id, ' +
@@ -174,6 +179,9 @@ export class AppointmentRepository {
       subject_phone: input.subjectPhone ?? null,
       professional_id: input.professionalId ?? null,
       professional_name: input.professionalName ?? '',
+      // CRM_PARITY_R1 (mig 190) · FK canônica · null fica sem sala vinculada.
+      // room_idx legacy permanece intocado nesta mig (backfill em Round 5).
+      room_id: input.roomId ?? null,
       scheduled_date: input.scheduledDate,
       start_time: input.startTime,
       end_time: input.endTime,
@@ -224,6 +232,8 @@ export class AppointmentRepository {
     if (input.endTime !== undefined) row.end_time = input.endTime
     if (input.professionalId !== undefined) row.professional_id = input.professionalId
     if (input.professionalName !== undefined) row.professional_name = input.professionalName
+    // CRM_PARITY_R1 (mig 190) · FK opcional · permite atualizar/limpar sala.
+    if (input.roomId !== undefined) row.room_id = input.roomId
     if (input.procedureId !== undefined) row.procedure_id = input.procedureId
     if (input.procedureName !== undefined) row.procedure_name = input.procedureName
     if (input.consultType !== undefined) row.consult_type = input.consultType
@@ -315,12 +325,23 @@ export class AppointmentRepository {
   // ── RPC wrappers (state-machine moves) ─────────────────────────────────────
 
   /**
-   * Wrapper de `appointment_attend()` RPC · marca paciente chegou
-   * (status=na_clinica) + atualiza leads.phase=compareceu em transacao
-   * atomica. Idempotente: pode ser chamado 2x sem duplicar audit.
+   * Wrapper de `appointment_attend()` RPC · move appointment para `na_clinica`
+   * (chegada do paciente). Idempotente: pode ser chamado 2x sem duplicar audit.
    *
-   * Bloqueia se appt esta cancelado/no_show/bloqueado (retorna
+   * **Contrato canônico Phase 1C (mig 150 · 2026-05-10):**
+   * `leads.phase` permanece em `agendado`. `appointment_attend` NÃO promove
+   * phase para `compareceu` (compareceu deixou de ser phase válida na mig 150
+   * que reduziu o enum para `{lead, agendado, paciente, orcamento}`). A
+   * promoção de phase só acontece em `appointment_finalize` conforme o
+   * outcome (paciente|orcamento|paciente_orcamento) ou em `lead_lost`
+   * (lifecycle_status, não phase).
+   *
+   * Bloqueia se appt está cancelado/no_show/bloqueado (retorna
    * `invalid_status_for_attend`).
+   *
+   * Hot-fix mig 191 (CRM_PARITY_R1_PHASE_C1 · 2026-05-18) recriou a função
+   * SQL para remover o UPDATE residual em `leads.phase` herdado da mig 65.
+   * O wrapper aqui mantém a assinatura · zero mudança de runtime no TS.
    */
   async attend(
     appointmentId: string,
@@ -475,7 +496,10 @@ export class AppointmentRepository {
       startTime: string
       endTime: string
       professionalId?: string | null
+      /** Legacy index-based · preservado durante deprecation period. */
       roomIdx?: number | null
+      /** CRM_PARITY_R1 (mig 190) · FK canônica · prefere este se ambos forem fornecidos. */
+      roomId?: string | null
       leadId?: string | null
       patientId?: string | null
     },
@@ -515,10 +539,17 @@ export class AppointmentRepository {
         )
       : []
 
-    const room =
-      candidate.roomIdx != null
-        ? eligible.filter((a) => a.roomIdx === candidate.roomIdx && overlap(a))
-        : []
+    // CRM_PARITY_R1 · conflict por sala usa room_id (FK) prioritariamente.
+    // Fallback em room_idx legacy durante deprecation period (Rounds 5-7).
+    const room = (() => {
+      if (candidate.roomId) {
+        return eligible.filter((a) => a.roomId === candidate.roomId && overlap(a))
+      }
+      if (candidate.roomIdx != null) {
+        return eligible.filter((a) => a.roomIdx === candidate.roomIdx && overlap(a))
+      }
+      return []
+    })()
 
     const patient = (() => {
       if (candidate.patientId) {

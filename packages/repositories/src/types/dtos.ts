@@ -213,7 +213,11 @@ export interface PatientDTO {
   totalRevenue: number
   firstProcedureAt: string | null
   lastProcedureAt: string | null
-  /** Quando o lead transicionou pra phase=compareceu */
+  /**
+   * Timestamp histórico em que o lead foi promovido para patient
+   * (legacy: marcava transição lead.phase=compareceu, agora preservado como
+   * snapshot do `leads.phase_updated_at` no momento do `lead_to_paciente`).
+   */
   sourceLeadPhaseAt: string | null
   /** Snapshot do lead.metadata + source/funnel no momento da promocao · imutavel */
   sourceLeadMeta: Record<string, unknown>
@@ -236,7 +240,17 @@ export interface AppointmentDTO {
   subjectPhone: string | null
   professionalId: string | null
   professionalName: string
+  /**
+   * Legado index-based. Preservado para backward-compat até backfill em Round 5
+   * (parity-r5-backfills) e freeze em Round 7. Use `roomId` (FK canônica) para
+   * código novo.
+   */
   roomIdx: number | null
+  /**
+   * CRM_PARITY_R1 (mig 190) · FK canônica para `clinic_rooms(id)`.
+   * `null` durante deprecation period · backfill em Round 5.
+   */
+  roomId: string | null
   /** YYYY-MM-DD */
   scheduledDate: string
   /** HH:MM:SS */

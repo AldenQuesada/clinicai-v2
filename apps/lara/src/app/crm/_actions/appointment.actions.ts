@@ -29,12 +29,94 @@ import {
   MarkNoShowSchema,
   UpdateAppointmentSchema,
 } from '../_schemas/appointment.schemas'
+// CRM_PARITY_R1 · validators originalmente client-side · agora rodam server-side
+// como defense-in-depth. Mesmas funções, mesmas mensagens · garante que o DB
+// não recebe insert/update fora do contrato mesmo se o cliente for bypassed.
+import {
+  checkInPeriods,
+  checkMinAdvance,
+  getClinicDay,
+} from '@/app/crm/agenda/novo/_components/agenda-validation'
+import { loadClinicSettingsAction } from '@/app/(authed)/configuracoes/clinica/actions'
+import type { ProfessionalProfilesRepository } from '@clinicai/repositories'
 
 const SoftDeleteAppointmentSchema = z.object({
   appointmentId: z.string().uuid(),
 })
 
 const log = createLogger({ app: 'lara' })
+
+// ── CRM_PARITY_R1 · helper server-side de validações estruturais ────────────
+//
+// Roda os validadores antes de qualquer conflict check. Garante que o servidor
+// rejeita appointments fora do expediente, dentro de férias do profissional,
+// ou com antecedência menor que a configurada · independente do cliente.
+//
+// Retorna null se tudo OK · ou objeto {code, detail} pronto para virar
+// `fail(code, detail)` na action chamadora.
+async function enforceScheduleConstraintsServerSide(
+  professionalProfiles: ProfessionalProfilesRepository,
+  input: {
+    scheduledDate: string
+    startTime: string
+    endTime: string
+    professionalId: string | null
+  },
+): Promise<null | { code: string; detail: Record<string, unknown> }> {
+  // 1. Antecedência mínima + horário de expediente · usa clinic_settings.
+  //    Fail-soft: se settings não carregar, pula validações (defesa fica no
+  //    conflict check + CHECK constraints DB).
+  const settingsResult = await loadClinicSettingsAction().catch(() => null)
+  const operatingHours = settingsResult?.ok
+    ? settingsResult.data?.horarios ?? null
+    : null
+  const antecedenciaMinHoras = settingsResult?.ok
+    ? settingsResult.data?.antecedencia_min ?? null
+    : null
+
+  const minAdvErr = checkMinAdvance(
+    antecedenciaMinHoras,
+    input.scheduledDate,
+    input.startTime,
+  )
+  if (minAdvErr) {
+    return {
+      code: 'min_advance_required',
+      detail: { message: minAdvErr, min_hours: antecedenciaMinHoras ?? null },
+    }
+  }
+
+  if (operatingHours) {
+    const day = getClinicDay(operatingHours, input.scheduledDate)
+    const periodErr = checkInPeriods(day, input.startTime, input.endTime)
+    if (periodErr) {
+      return {
+        code: 'outside_working_hours',
+        detail: { message: periodErr },
+      }
+    }
+  }
+
+  // 2. Profissional em férias · só verifica se professionalId foi enviado.
+  if (input.professionalId) {
+    const vac = await professionalProfiles.isOnVacation(
+      input.professionalId,
+      input.scheduledDate,
+    )
+    if (vac) {
+      return {
+        code: 'professional_on_vacation',
+        detail: {
+          start_date: vac.startDate,
+          end_date: vac.endDate,
+          reason: vac.reason,
+        },
+      }
+    }
+  }
+
+  return null
+}
 
 // ── 1. createAppointmentAction · paciente recorrente OU slot bloqueado ──────
 //
@@ -62,11 +144,39 @@ export async function createAppointmentAction(
   // Gate de conflito · só aplica se appointment tem subject + bloqueia
   // calendário. Block-time (status='bloqueado' sem subject) pula check.
   if (parsed.data.status !== 'bloqueado') {
+    // CRM_PARITY_R1 · server-side defense-in-depth · roda checkMinAdvance +
+    // checkInPeriods + isOnVacation antes do conflict check. UI já valida
+    // client-side, mas aqui é a última linha antes do DB.
+    const constraintErr = await enforceScheduleConstraintsServerSide(
+      repos.professionalProfiles,
+      {
+        scheduledDate: parsed.data.scheduledDate,
+        startTime: parsed.data.startTime,
+        endTime: parsed.data.endTime,
+        professionalId: parsed.data.professionalId ?? null,
+      },
+    )
+    if (constraintErr) {
+      log.warn(
+        {
+          action: 'crm.appt.create',
+          clinic_id: ctx.clinic_id,
+          professional_id: parsed.data.professionalId ?? null,
+          scheduled_date: parsed.data.scheduledDate,
+          constraint_code: constraintErr.code,
+        },
+        'appt.create.constraint_blocked',
+      )
+      return fail(constraintErr.code, constraintErr.detail)
+    }
+
     const conflicts = await repos.appointments.checkConflicts(ctx.clinic_id, {
       scheduledDate: parsed.data.scheduledDate,
       startTime: parsed.data.startTime,
       endTime: parsed.data.endTime,
       professionalId: parsed.data.professionalId ?? null,
+      // CRM_PARITY_R1 (mig 190) · conflito de sala via FK canônica.
+      roomId: parsed.data.roomId ?? null,
       leadId: parsed.data.leadId ?? null,
       patientId: parsed.data.patientId ?? null,
     })
@@ -158,6 +268,8 @@ export async function checkAppointmentConflictAction(input: unknown): Promise<
       startTime: parsed.data.startTime,
       endTime: parsed.data.endTime,
       professionalId: parsed.data.professionalId ?? null,
+      // CRM_PARITY_R1 (mig 190) · conflito de sala via FK canônica.
+      roomId: parsed.data.roomId ?? null,
       leadId: parsed.data.leadId ?? null,
       patientId: parsed.data.patientId ?? null,
     },
@@ -248,15 +360,49 @@ export async function updateAppointmentAction(
     patch.scheduledDate !== undefined ||
     patch.startTime !== undefined ||
     patch.endTime !== undefined ||
-    patch.professionalId !== undefined
+    patch.professionalId !== undefined ||
+    patch.roomId !== undefined
   if (scheduleChanged && current.status !== 'bloqueado') {
+    // CRM_PARITY_R1 · server-side constraints também em update.
+    const effectiveDate = patch.scheduledDate ?? current.scheduledDate
+    const effectiveStart = patch.startTime ?? current.startTime
+    const effectiveEnd = patch.endTime ?? current.endTime
+    const effectiveProf =
+      patch.professionalId !== undefined
+        ? patch.professionalId
+        : current.professionalId
+    const constraintErr = await enforceScheduleConstraintsServerSide(
+      repos.professionalProfiles,
+      {
+        scheduledDate: effectiveDate,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
+        professionalId: effectiveProf ?? null,
+      },
+    )
+    if (constraintErr) {
+      log.warn(
+        {
+          action: 'crm.appt.update',
+          clinic_id: ctx.clinic_id,
+          appointment_id: appointmentId,
+          constraint_code: constraintErr.code,
+        },
+        'appt.update.constraint_blocked',
+      )
+      return fail(constraintErr.code, constraintErr.detail)
+    }
+
     const conflicts = await repos.appointments.checkConflicts(
       ctx.clinic_id,
       {
-        scheduledDate: patch.scheduledDate ?? current.scheduledDate,
-        startTime: patch.startTime ?? current.startTime,
-        endTime: patch.endTime ?? current.endTime,
-        professionalId: patch.professionalId ?? current.professionalId,
+        scheduledDate: effectiveDate,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
+        professionalId: effectiveProf ?? null,
+        // CRM_PARITY_R1 (mig 190) · prioriza roomId novo · fallback no atual.
+        roomId:
+          patch.roomId !== undefined ? patch.roomId : current.roomId,
         leadId: current.leadId,
         patientId: current.patientId,
       },
@@ -425,7 +571,9 @@ export async function attendAppointmentAction(
     'appt.attend.ok',
   )
   updateTag(CRM_TAGS.appointments)
-  // appointment_attend pode atualizar leads.phase em transação atômica · invalida tag
+  // appointment_attend (canon mig 191) NÃO altera leads.phase. Tag leads é
+  // invalidada por segurança caso outras colunas mudem (alertas internos,
+  // timestamps correlatos).
   if (!result.idempotentSkip) updateTag(CRM_TAGS.leads)
 
   // Mig 161 (CRM_PHASE_2G) · best-effort alerta interno de chegada.

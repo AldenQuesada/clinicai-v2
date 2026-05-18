@@ -75,6 +75,10 @@ export const CreateAppointmentSchema = z
     subjectPhone: z.string().max(20).nullable().optional(),
     professionalId: z.string().uuid().nullable().optional(),
     professionalName: z.string().max(120).optional(),
+    // CRM_PARITY_R1 (mig 190) · FK opcional para `clinic_rooms`. UI envia
+    // quando user escolhe sala no Step 2. Server action também valida que o
+    // room_id pertence à clinic (RLS faz isso · este Zod só checa formato).
+    roomId: z.string().uuid().nullable().optional(),
     scheduledDate: DateStr,
     startTime: TimeStr,
     endTime: TimeStr,
@@ -166,6 +170,8 @@ export const UpdateAppointmentSchema = z
     endTime: TimeStr.optional(),
     professionalId: z.string().uuid().nullable().optional(),
     professionalName: z.string().max(120).optional(),
+    // CRM_PARITY_R1 (mig 190) · permite mudar/limpar sala em edit.
+    roomId: z.string().uuid().nullable().optional(),
     // CRM_PHASE_APPOINTMENT_PROCEDURE_FK_WIRE: aceita null pra mover row de
     // catálogo→manual sem destruir snapshot.
     procedureId: z.string().uuid().nullable().optional(),
@@ -225,6 +231,8 @@ export const CheckAppointmentConflictSchema = z
     startTime: TimeStr,
     endTime: TimeStr,
     professionalId: z.string().uuid().nullable().optional(),
+    // CRM_PARITY_R1 (mig 190) · conflict-check por sala via FK canônica.
+    roomId: z.string().uuid().nullable().optional(),
     leadId: z.string().uuid().nullable().optional(),
     patientId: z.string().uuid().nullable().optional(),
   })
