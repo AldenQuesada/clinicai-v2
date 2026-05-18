@@ -78,8 +78,10 @@ export function isTerminalStatus(status: AppointmentStatus): boolean {
  * Flags canonicas pra UI decidir quais botoes mostrar no detalhe do
  * appointment. Espelho 1:1 do contrato real do banco (RPCs + state machine).
  *
- * - canMarkArrived: pode chamar `appointment_attend()` → status=na_clinica
- *   + alerta interno arrival + leads.phase=compareceu.
+ * - canMarkArrived: pode chamar `appointment_attend()` → appointment.status
+ *   passa para na_clinica + cria alerta interno de chegada. NÃO altera
+ *   `leads.phase` (contrato canônico Phase 1C · mig 150): phase só é promovida
+ *   em `appointment_finalize` conforme o outcome.
  * - canStartAttendance: pode chamar `appointment_change_status(em_atendimento)`
  *   · indica que a consulta comecou de fato (so a partir de na_clinica).
  * - canFinalize: pode chamar `appointment_finalize()` (3 outcomes).
