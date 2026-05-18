@@ -61,6 +61,169 @@ const DateStr = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Esperado YYYY-MM-DD')
 
+// ── CRM_PARITY_R2 · procedure items + payment items (multi) ────────────────
+//
+// `appointment_procedure_items` (mig 193) · uma linha por procedimento
+// agendado. Paridade com legacy `_apptProcs[]`. Court esia: net_amount=0 e
+// courtesyReason obrigatorio (≥3 chars).
+//
+// `appointment_payments` (mig 194) · uma linha por pagamento. 10 formas
+// canônicas. Status pendente/pago/cancelado.
+//
+// Tolerância de centavo (0.01) espelha CHECK constraints DB.
+
+const APPOINTMENT_PAYMENT_METHOD_CANON = z.enum([
+  'pix',
+  'dinheiro',
+  'debito',
+  'credito',
+  'parcelado',
+  'entrada_saldo',
+  'boleto',
+  'link',
+  'cortesia',
+  'convenio',
+])
+
+const APPOINTMENT_PAYMENT_ROW_STATUS = z.enum([
+  'pendente',
+  'pago',
+  'cancelado',
+])
+
+export const AppointmentProcedureItemInputSchema = z
+  .object({
+    procedureId: z.string().uuid().nullable().optional(),
+    procedureName: z.string().min(2, 'Procedimento exige nome ≥ 2 chars').max(200),
+    quantity: z.number().int().positive().default(1),
+    unitPrice: z.number().nonnegative().default(0),
+    grossAmount: z.number().nonnegative().optional(),
+    discountAmount: z.number().nonnegative().default(0),
+    netAmount: z.number().nonnegative().optional(),
+    isCourtesy: z.boolean().default(false),
+    courtesyReason: z.string().max(500).nullable().optional(),
+    isReturn: z.boolean().default(false),
+    returnIntervalDays: z.number().int().positive().nullable().optional(),
+    sortOrder: z.number().int().nonnegative().default(0),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine(
+    (v) => {
+      // courtesy exige motivo ≥ 3 chars
+      if (v.isCourtesy) {
+        return !!v.courtesyReason && v.courtesyReason.trim().length >= 3
+      }
+      return true
+    },
+    {
+      message: 'courtesyReason obrigatório (≥ 3 chars) quando isCourtesy=true',
+      path: ['courtesyReason'],
+    },
+  )
+  .refine(
+    (v) => {
+      // return exige intervalo
+      if (v.isReturn) {
+        return v.returnIntervalDays != null && v.returnIntervalDays > 0
+      }
+      return true
+    },
+    {
+      message: 'returnIntervalDays obrigatório (> 0) quando isReturn=true',
+      path: ['returnIntervalDays'],
+    },
+  )
+  .refine(
+    (v) => {
+      // discount ≤ gross (tolerância 0.01)
+      const gross = v.grossAmount ?? v.unitPrice * v.quantity
+      const discount = v.discountAmount ?? 0
+      return discount <= gross + 0.01
+    },
+    {
+      message: 'discountAmount não pode exceder grossAmount',
+      path: ['discountAmount'],
+    },
+  )
+  .refine(
+    (v) => {
+      // courtesy → net=0 (defensivo · DB força via CHECK)
+      if (v.isCourtesy && v.netAmount != null) {
+        return v.netAmount === 0
+      }
+      return true
+    },
+    {
+      message: 'netAmount deve ser 0 quando isCourtesy=true',
+      path: ['netAmount'],
+    },
+  )
+  .refine(
+    (v) => {
+      // net = gross - discount (tolerância 0.01) · só valida se net foi enviado
+      if (v.netAmount == null) return true
+      if (v.isCourtesy) return true // courtesy ignora regra
+      const gross = v.grossAmount ?? v.unitPrice * v.quantity
+      const discount = v.discountAmount ?? 0
+      const expected = Math.max(0, gross - discount)
+      return Math.abs(v.netAmount - expected) <= 0.01
+    },
+    {
+      message: 'netAmount deve ser grossAmount - discountAmount (tolerância 0.01)',
+      path: ['netAmount'],
+    },
+  )
+
+export type AppointmentProcedureItemInput = z.infer<
+  typeof AppointmentProcedureItemInputSchema
+>
+
+export const AppointmentPaymentInputSchema = z.object({
+  paymentMethod: APPOINTMENT_PAYMENT_METHOD_CANON,
+  amount: z.number().positive('amount deve ser > 0'),
+  installments: z.number().int().positive().nullable().optional(),
+  dueDate: DateStr.nullable().optional(),
+  paidAt: z.string().datetime().nullable().optional(),
+  status: APPOINTMENT_PAYMENT_ROW_STATUS.default('pendente'),
+  notes: z.string().max(1000).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+export type AppointmentPaymentInput = z.infer<
+  typeof AppointmentPaymentInputSchema
+>
+
+// Helpers compartilhados pelas refines de Create/Update.
+function sumItemsNet(items: AppointmentProcedureItemInput[] | undefined): number {
+  if (!items || items.length === 0) return 0
+  let totalCents = 0
+  for (const it of items) {
+    if (it.isCourtesy) continue // net=0
+    const gross = it.grossAmount ?? it.unitPrice * it.quantity
+    const discount = it.discountAmount ?? 0
+    const net = it.netAmount ?? Math.max(0, gross - discount)
+    totalCents += Math.round(net * 100)
+  }
+  return totalCents / 100
+}
+
+function sumPayments(
+  payments: AppointmentPaymentInput[] | undefined,
+  statuses: ReadonlyArray<'pendente' | 'pago' | 'cancelado'>,
+): number {
+  if (!payments || payments.length === 0) return 0
+  let totalCents = 0
+  for (const p of payments) {
+    if (!statuses.includes(p.status)) continue
+    totalCents += Math.round(p.amount * 100)
+  }
+  return totalCents / 100
+}
+
+function hasCourtesyItem(items: AppointmentProcedureItemInput[] | undefined): boolean {
+  return !!items && items.some((i) => i.isCourtesy === true)
+}
+
 // ── Create direto (paciente recorrente · sem passar por lead) ───────────────
 //
 // Pra criar appointment NOVO de um lead, prefira ScheduleAppointmentSchema
@@ -103,6 +266,11 @@ export const CreateAppointmentSchema = z
     recurrenceTotal: z.number().int().positive().nullable().optional(),
     recurrenceProcedure: z.string().max(200).nullable().optional(),
     recurrenceIntervalDays: z.number().int().positive().nullable().optional(),
+    // CRM_PARITY_R2 · multi-procedimento (mig 193) + multi-pagamento (mig 194).
+    // Quando ausentes, action faz fallback pra campos legacy single (value +
+    // paymentMethod) · dual-write em ambos modos durante migração.
+    procedureItems: z.array(AppointmentProcedureItemInputSchema).optional(),
+    payments: z.array(AppointmentPaymentInputSchema).optional(),
   })
   .refine(
     (v) => {
@@ -118,6 +286,79 @@ export const CreateAppointmentSchema = z
       message:
         'Deve setar EXATAMENTE um de leadId/patientId (ou nenhum se status=bloqueado)',
       path: ['leadId'],
+    },
+  )
+  // CRM_PARITY_R2 · validação cruzada items × payments × paymentStatus.
+  .refine(
+    (v) => {
+      // Block-time não tem procedimento/pagamento.
+      if (v.status === 'bloqueado') {
+        return (
+          (!v.procedureItems || v.procedureItems.length === 0) &&
+          (!v.payments || v.payments.length === 0)
+        )
+      }
+      return true
+    },
+    {
+      message: 'status=bloqueado não aceita procedureItems nem payments',
+      path: ['procedureItems'],
+    },
+  )
+  .refine(
+    (v) => {
+      // Soma de payments (pago+pendente) não pode exceder net (tolerância 0.01).
+      if (!v.payments || v.payments.length === 0) return true
+      if (!v.procedureItems || v.procedureItems.length === 0) {
+        // Sem items · fallback no value legacy se presente.
+        const net = v.value ?? 0
+        if (net === 0) return true // permite pagamento contra valor legacy não informado
+        const total = sumPayments(v.payments, ['pago', 'pendente'])
+        return total <= net + 0.01
+      }
+      const net = sumItemsNet(v.procedureItems)
+      const total = sumPayments(v.payments, ['pago', 'pendente'])
+      return total <= net + 0.01
+    },
+    {
+      message: 'Soma de pagamentos (pago+pendente) excede netTotal dos procedimentos',
+      path: ['payments'],
+    },
+  )
+  .refine(
+    (v) => {
+      // Se paymentStatus=pago no header, soma de payments status=pago precisa
+      // cobrir o net (tolerância 0.01).
+      if (v.paymentStatus !== 'pago') return true
+      const net = v.procedureItems && v.procedureItems.length > 0
+        ? sumItemsNet(v.procedureItems)
+        : v.value ?? 0
+      if (net === 0) return true
+      const paid = sumPayments(v.payments, ['pago'])
+      return paid + 0.01 >= net
+    },
+    {
+      message:
+        'paymentStatus=pago exige soma de payments status=pago >= netTotal',
+      path: ['paymentStatus'],
+    },
+  )
+  .refine(
+    (v) => {
+      // paymentStatus=cortesia exige ter ao menos um item courtesy + net=0.
+      if (v.paymentStatus !== 'cortesia') return true
+      // Se enviou items, precisa ter courtesy E net=0.
+      if (v.procedureItems && v.procedureItems.length > 0) {
+        const net = sumItemsNet(v.procedureItems)
+        return hasCourtesyItem(v.procedureItems) && net === 0
+      }
+      // Sem items · respeita value=0 (já validado via outro refine antigo).
+      return v.value == null || v.value === 0
+    },
+    {
+      message:
+        'paymentStatus=cortesia exige item is_courtesy=true com netTotal=0',
+      path: ['paymentStatus'],
     },
   )
   // CRM_PHASE_2AUX: validações operacionais reforçadas
@@ -184,6 +425,10 @@ export const UpdateAppointmentSchema = z
     status: AppointmentStatus.optional(),
     consentimentoImg: AppointmentConsentImg.optional(),
     obs: z.string().max(2000).nullable().optional(),
+    // CRM_PARITY_R2 · replace-set semântica · quando enviado, ação faz
+    // soft-delete dos existentes + insert do novo conjunto. Undefined = preserva.
+    procedureItems: z.array(AppointmentProcedureItemInputSchema).optional(),
+    payments: z.array(AppointmentPaymentInputSchema).optional(),
   })
   // CRM_PHASE_2AUX: validações operacionais (só quando os campos estiverem presentes)
   .refine(
@@ -192,6 +437,41 @@ export const UpdateAppointmentSchema = z
       return true
     },
     { message: 'Horário final deve ser maior que o inicial', path: ['endTime'] },
+  )
+  // CRM_PARITY_R2 · validação cruzada (replicada do create).
+  .refine(
+    (v) => {
+      if (!v.payments || v.payments.length === 0) return true
+      if (!v.procedureItems || v.procedureItems.length === 0) {
+        const net = v.value ?? 0
+        if (net === 0) return true
+        const total = sumPayments(v.payments, ['pago', 'pendente'])
+        return total <= net + 0.01
+      }
+      const net = sumItemsNet(v.procedureItems)
+      const total = sumPayments(v.payments, ['pago', 'pendente'])
+      return total <= net + 0.01
+    },
+    {
+      message: 'Soma de pagamentos (pago+pendente) excede netTotal',
+      path: ['payments'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (v.paymentStatus !== 'pago') return true
+      const net = v.procedureItems && v.procedureItems.length > 0
+        ? sumItemsNet(v.procedureItems)
+        : v.value ?? 0
+      if (net === 0) return true
+      const paid = sumPayments(v.payments, ['pago'])
+      return paid + 0.01 >= net
+    },
+    {
+      message:
+        'paymentStatus=pago exige soma de payments status=pago >= netTotal',
+      path: ['paymentStatus'],
+    },
   )
   .refine(
     (v) => {
