@@ -135,18 +135,17 @@ export function CrmTopbar({ displayName, initials, role }: CrmTopbarProps) {
         <AlertBell />
       </div>
 
-      {/* Tasks · em validação · PATCH_D: badge fake "24" removida ·
-          title explicativo · index.html L188-193 */}
+      {/* Tasks · CRM_PARITY_R4 · link para fila de pós-ações
+          (appointment_post_actions mig 197 · staff dispatcha manual). */}
       <div className="header-action">
-        <button
-          type="button"
-          disabled
-          title="Tarefas · módulo em validação · sem dados reais ainda"
-          aria-label="Tarefas · em validação"
+        <Link
+          href="/crm/post-acoes"
+          title="Pós-ações · fila interna do finalize"
+          aria-label="Pós-ações"
           className="header-action-btn"
         >
           <CheckSquare />
-        </button>
+        </Link>
       </div>
 
       {/* + Novo dropdown · index.html L196-220 · LITERAL .btn-new */}

@@ -41,6 +41,7 @@ import type {
   PatientAnamnesisRecordDTO,
   AdminProcedureDTO,
   MedicalRecordAttachmentDTO,
+  AppointmentPostActionDTO,
 } from '@clinicai/repositories'
 import { PatientRecordTabs } from './_record-tabs'
 
@@ -153,6 +154,16 @@ export default async function PatientDetailPage({
     procedures.map((p) => [p.nome.trim().toLowerCase(), p]),
   )
 
+  // CRM_PARITY_R4 · fila de pós-ações (mig 197) across todos os
+  // appointments do paciente · usada na nova tab "Pós-ações".
+  const appointmentIds = appointments.map((a) => a.id)
+  const postActions: AppointmentPostActionDTO[] =
+    appointmentIds.length > 0
+      ? await repos.appointmentPostActions
+          .listByAppointmentIds(appointmentIds)
+          .catch(() => [] as AppointmentPostActionDTO[])
+      : []
+
   const initialTab = (sp.tab as string | undefined) ?? 'overview'
 
   return (
@@ -203,6 +214,7 @@ export default async function PatientDetailPage({
             precoPromo: p.precoPromo,
           }),
         )}
+        postActions={postActions}
         initialTab={initialTab}
       />
     </div>

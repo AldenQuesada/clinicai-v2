@@ -76,6 +76,8 @@ export const CRM_TAGS = {
   patients: 'crm.patients',
   orcamentos: 'crm.orcamentos',
   phaseHistory: 'crm.phase_history',
+  /** CRM_PARITY_R4 · fila de pós-ações no finalize (mig 197). */
+  postActions: 'crm.post_actions',
 } as const
 
 // ── Auth/Authorization gating ──────────────────────────────────────────────

@@ -106,6 +106,21 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
       !actionFlags.isTerminal,
   )
 
+  // CRM_PARITY_R4 · R2/R3 data inline (procedures, payments, summary,
+  // post-actions). Paralelo + catch defensivo · ausência não bloqueia render.
+  const [procedureItems, payments, financialSummary, postActions] = await Promise.all([
+    repos.appointmentProcedureItems
+      .listByAppointment(appt.id)
+      .catch(() => []),
+    repos.appointmentPayments.listByAppointment(appt.id).catch(() => []),
+    repos.appointmentPayments
+      .getFinancialSummary(appt.id)
+      .catch(() => null),
+    repos.appointmentPostActions
+      .listByAppointment(appt.id)
+      .catch(() => []),
+  ])
+
   // CRM_PHASE_2I · estado clínico (anamnese + consent)
   const clinicalGate = await repos.appointments.getClinicalGateStatus(appt.id)
   const clinicalData: ClinicalGateData = clinicalGate.ok
@@ -288,6 +303,230 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
             />
           </CardContent>
         </Card>
+
+        {/* CRM_PARITY_R4 · cards ricos R2/R3 (procedures + payments + post-actions). */}
+        {(procedureItems.length > 0 || payments.length > 0 || postActions.length > 0) && (
+          <>
+            {/* Procedimentos R2 */}
+            {procedureItems.length > 0 && (
+              <Card className="md:col-span-3">
+                <CardHeader>
+                  <CardTitle>Procedimentos ({procedureItems.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                        <tr>
+                          <th className="px-2 py-1 text-left font-medium">Nome</th>
+                          <th className="px-2 py-1 text-right font-medium">Qtd</th>
+                          <th className="px-2 py-1 text-right font-medium">Unit.</th>
+                          <th className="px-2 py-1 text-right font-medium">Bruto</th>
+                          <th className="px-2 py-1 text-right font-medium">Desconto</th>
+                          <th className="px-2 py-1 text-right font-medium">Líquido</th>
+                          <th className="px-2 py-1 text-left font-medium">Flags</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {procedureItems.map((p) => (
+                          <tr key={p.id}>
+                            <td className="px-2 py-1">{p.procedureName}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                              {p.quantity}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                              {BRL.format(p.unitPrice)}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                              {BRL.format(p.grossAmount)}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                              {p.discountAmount > 0 ? BRL.format(p.discountAmount) : '—'}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums font-medium">
+                              {BRL.format(p.netAmount)}
+                            </td>
+                            <td className="px-2 py-1 text-[10px]">
+                              {p.isCourtesy && (
+                                <span className="mr-1 inline-block rounded border border-purple-300 bg-purple-50 px-1 py-0.5 text-purple-900">
+                                  Cortesia
+                                </span>
+                              )}
+                              {p.isReturn && (
+                                <span className="inline-block rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-amber-900">
+                                  Retorno {p.returnIntervalDays}d
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pagamentos R2 + Resumo R2 */}
+            {(payments.length > 0 || financialSummary) && (
+              <Card className="md:col-span-3">
+                <CardHeader>
+                  <CardTitle>
+                    Pagamentos ({payments.length})
+                    {financialSummary && (
+                      <span className="ml-2 text-xs font-normal text-[var(--muted-foreground)]">
+                        · status derivado:{' '}
+                        <strong>{financialSummary.derivedPaymentStatus}</strong>
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {payments.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                          <tr>
+                            <th className="px-2 py-1 text-left font-medium">Forma</th>
+                            <th className="px-2 py-1 text-right font-medium">Valor</th>
+                            <th className="px-2 py-1 text-left font-medium">Parcelas</th>
+                            <th className="px-2 py-1 text-left font-medium">Venc.</th>
+                            <th className="px-2 py-1 text-left font-medium">Status</th>
+                            <th className="px-2 py-1 text-left font-medium">Notas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)]">
+                          {payments.map((pay) => (
+                            <tr key={pay.id}>
+                              <td className="px-2 py-1">{pay.paymentMethod}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">
+                                {BRL.format(pay.amount)}
+                              </td>
+                              <td className="px-2 py-1">{pay.installments ?? '—'}</td>
+                              <td className="px-2 py-1">{fmtDate(pay.dueDate)}</td>
+                              <td className="px-2 py-1">{pay.status}</td>
+                              <td
+                                className="px-2 py-1 max-w-[20ch] truncate"
+                                title={pay.notes ?? ''}
+                              >
+                                {pay.notes ?? '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {financialSummary && (
+                    <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-xs md:grid-cols-4">
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Bruto:</span>{' '}
+                        <span className="font-mono">
+                          {BRL.format(financialSummary.grossTotal)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Desconto:</span>{' '}
+                        <span className="font-mono">
+                          {BRL.format(financialSummary.discountTotal)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Líquido:</span>{' '}
+                        <span className="font-mono font-semibold">
+                          {BRL.format(financialSummary.netTotal)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Pago:</span>{' '}
+                        <span className="font-mono text-emerald-700">
+                          {BRL.format(financialSummary.paidTotal)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Pendente:</span>{' '}
+                        <span className="font-mono text-amber-700">
+                          {BRL.format(financialSummary.pendingTotal)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted-foreground)]">Saldo:</span>{' '}
+                        <span
+                          className={`font-mono font-semibold ${
+                            financialSummary.balanceTotal < -0.01
+                              ? 'text-red-700'
+                              : Math.abs(financialSummary.balanceTotal) <= 0.01
+                                ? 'text-emerald-700'
+                                : 'text-amber-700'
+                          }`}
+                        >
+                          {BRL.format(financialSummary.balanceTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pós-ações R3 */}
+            {postActions.length > 0 && (
+              <Card className="md:col-span-3">
+                <CardHeader>
+                  <CardTitle>
+                    Pós-ações ({postActions.filter((p) => p.status === 'pending').length}{' '}
+                    pendente
+                    {postActions.filter((p) => p.status === 'pending').length === 1
+                      ? ''
+                      : 's'}
+                    )
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-2 text-[10px] italic text-[var(--muted-foreground)]">
+                    Staff dispatcha em{' '}
+                    <Link href="/crm/post-acoes" className="underline">
+                      /crm/post-acoes
+                    </Link>
+                    . Zero envio automático.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                        <tr>
+                          <th className="px-2 py-1 text-left font-medium">Tipo</th>
+                          <th className="px-2 py-1 text-left font-medium">Status</th>
+                          <th className="px-2 py-1 text-left font-medium">Programada</th>
+                          <th className="px-2 py-1 text-left font-medium">Notas</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {postActions.map((pa) => (
+                          <tr key={pa.id}>
+                            <td className="px-2 py-1">{pa.actionType}</td>
+                            <td className="px-2 py-1">{pa.status}</td>
+                            <td className="px-2 py-1">
+                              {pa.scheduleAt ? fmtDateTime(pa.scheduleAt) : '—'}
+                            </td>
+                            <td
+                              className="px-2 py-1 max-w-[20ch] truncate"
+                              title={pa.notes ?? ''}
+                            >
+                              {pa.notes ??
+                                (pa.dismissedReason
+                                  ? `Dispensada: ${pa.dismissedReason}`
+                                  : '—')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
 
         {/* Observações */}
         {appt.obs && (

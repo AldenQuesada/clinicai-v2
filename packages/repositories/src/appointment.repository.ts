@@ -89,6 +89,21 @@ export class AppointmentRepository {
   }
 
   /**
+   * Batch lookup por IDs · usado para enrichment em queues (R4 staff
+   * dashboard de appointment_post_actions, etc) sem N+1 round-trips.
+   * Retorna apenas registros visíveis ao caller (RLS) e não soft-deleted.
+   */
+  async findByIds(ids: ReadonlyArray<string>): Promise<AppointmentDTO[]> {
+    if (ids.length === 0) return []
+    const { data } = await this.supabase
+      .from('appointments')
+      .select(APPT_COLUMNS)
+      .in('id', ids as string[])
+      .is('deleted_at', null)
+    return ((data ?? []) as unknown[]).map(mapAppointmentRow)
+  }
+
+  /**
    * Agenda do dia · 1 query, ordenada por start_time. Inclui status=bloqueado
    * pra UI poder pintar slots reservados. UI filtra finalizados/cancelados se
    * quiser visao "ativos".

@@ -128,6 +128,56 @@ export class AppointmentPostActionsRepository {
     return ((data ?? []) as unknown[]).map(mapRow)
   }
 
+  /**
+   * Listagem flexível por status arbitrário (ou todos) · usada pelo staff
+   * dashboard R4 para mostrar histórico (done/dismissed/cancelled).
+   * Ordena por created_at desc para mostrar mais recentes primeiro.
+   */
+  async listByClinic(
+    clinicId: string,
+    options?: {
+      status?: AppointmentPostActionStatus | 'all'
+      actionType?: AppointmentPostActionType
+      limit?: number
+    },
+  ): Promise<AppointmentPostActionDTO[]> {
+    let query = this.supabase
+      .from('appointment_post_actions')
+      .select(COLS)
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (options?.status && options.status !== 'all') {
+      query = query.eq('status', options.status)
+    }
+    if (options?.actionType) {
+      query = query.eq('action_type', options.actionType)
+    }
+    query = query.limit(options?.limit ?? 200)
+
+    const { data } = await query
+    return ((data ?? []) as unknown[]).map(mapRow)
+  }
+
+  /**
+   * Lista pós-ações para múltiplos appointment_ids · usado pela aba
+   * post-actions do perfil do paciente (mostra fila across todos os
+   * agendamentos daquele paciente).
+   */
+  async listByAppointmentIds(
+    appointmentIds: ReadonlyArray<string>,
+  ): Promise<AppointmentPostActionDTO[]> {
+    if (appointmentIds.length === 0) return []
+    const { data } = await this.supabase
+      .from('appointment_post_actions')
+      .select(COLS)
+      .in('appointment_id', appointmentIds as string[])
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+    return ((data ?? []) as unknown[]).map(mapRow)
+  }
+
   async getById(id: string): Promise<AppointmentPostActionDTO | null> {
     const { data } = await this.supabase
       .from('appointment_post_actions')
