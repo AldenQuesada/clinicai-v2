@@ -41,7 +41,9 @@ test.beforeAll(async () => {
       name: 'E2E Test Lead',
       source: 'manual',
       source_type: 'manual',
-      funnel: 'direct',
+      // CRM_E2E_FIX (2026-05-18): leads_funnel_check exige fullface|procedimentos
+      // 'direct' violava CHECK e quebrava beforeAll silenciosamente (0ms fail).
+      funnel: 'procedimentos',
       metadata: { [E2E_TAG]: true },
     })
     .select('id')

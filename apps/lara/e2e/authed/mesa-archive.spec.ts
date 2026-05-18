@@ -98,8 +98,9 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     const card = page.locator('article, div').filter({ hasText: leadName }).first()
     await card.getByRole('button', { name: /^arquivar$/i }).click()
 
-    // 4. Modal motivo abre
-    await expect(page.getByText(/arquivar lead/i).first()).toBeVisible({
+    // 4. Modal motivo abre · titulo "Arquivar registro? · {name}"
+    // (Patch D: microcopy "lead" -> "registro" pra abranger todas fases)
+    await expect(page.getByText(/arquivar registro/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
@@ -137,7 +138,8 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
 
     await archivedCard.getByRole('button', { name: /^desarquivar$/i }).click()
 
-    await expect(page.getByText(/desarquivar lead/i).first()).toBeVisible({
+    // Modal "Reativar registro arquivado? · {name}" (Patch D microcopy)
+    await expect(page.getByText(/reativar registro arquivado/i).first()).toBeVisible({
       timeout: 5_000,
     })
 
@@ -145,8 +147,8 @@ test.describe('Mesa Operacional · arquivar + desarquivar', () => {
     const unarchiveReason = page.locator('textarea#mesa-reason')
     await unarchiveReason.fill('[E2E_TEST] e2e test unarchive')
 
-    // 12. Click confirmar
-    await page.getByRole('button', { name: /^desarquivar$/i }).last().click()
+    // 12. Click confirmar · confirmLabel agora eh "Reativar" (Patch D)
+    await page.getByRole('button', { name: /^reativar$/i }).last().click()
 
     await expect(page.getByText(/lead desarquivado|voltou.*mesa/i)).toBeVisible({
       timeout: 10_000,
