@@ -30,51 +30,53 @@ pnpm -F @clinicai/lara e2e:ui
 | `e2e/visual-login.spec.ts` | Snapshot baseline visual de /login (skip ate baseline commited) | Não | Não |
 | `e2e/authed/lead-to-orcamento.spec.ts` | **Happy path**: lead seed → criar orçamento → marcar enviado → aprovar | **Sim** | Sim (cria/deleta com is_e2e_test=true) |
 
-## Happy path E2E · setup (Camada 11d entregue)
+## Happy path E2E · setup (CRM_E2E_AUTH_TOOLING_SETUP · 2026-05-17)
 
-Decisão: usar **mesma clínica Mirian** com **isolamento via tag** `metadata.is_e2e_test=true`. Razão: single-tenant em prod (não há outra clínica); criar segundo projeto Supabase exigia migrar todas as 80+ migs. Trade-off é cleanup defensivo via script.
+Decisão: usar **mesma clínica Mirian** com **isolamento via tag** `metadata.is_e2e_user=true` + `metadata.is_e2e_test=true` nas fixtures. Razão: single-tenant em prod (não há outra clínica); criar segundo projeto Supabase exigia migrar todas as 80+ migs. Trade-off é cleanup defensivo via spec.
 
-### Passo 1 (você, 1 vez) · Criar test user
+### Passo 1 (você, 1 vez) · Criar test user via script real
 
 ```bash
-SUPABASE_ACCESS_TOKEN=sbp_... pnpm e2e:setup
+pnpm --filter lara e2e:setup
 ```
 
-O script:
-1. Cria user `e2e-test@miriandpaula.com.br` no Supabase Auth (senha aleatória)
-2. Insere em `clinic_members` vinculando o user à clínica Mirian com role=owner
-3. Imprime as 4 env vars pra você copiar
+Pré-req: `apps/lara/.env.local` precisa de:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (admin operations · NÃO commitar)
 
-**Idempotente** — se rodar de novo, reutiliza o user existente. Se quiser senha nova, mude `TEST_EMAIL` ou delete o user via dashboard.
+O script (`apps/lara/scripts/e2e-setup.mjs`):
+1. Cria/reusa user `e2e-test@miriandpaula.com.br` no Supabase Auth (`email_confirm=true` · senha hex 32 chars se primeira execução)
+2. UPSERT em `profiles` vinculando user à clínica Mirian (`00000000-0000-0000-0000-000000000001`) com `role='owner'`
+3. Imprime 4 envs uma única vez (cole em GitHub Settings → Secrets → Actions)
+
+**Idempotente** — se user já existe, reusa. Senha só é impressa se foi gerada/reset.
+
+**Reset de senha:** rode com `E2E_TEST_PASSWORD=<nova-senha> pnpm --filter lara e2e:setup`.
 
 ### Passo 2 (você, 1 vez) · Adicionar 4 secrets no GitHub
 
 Settings → Secrets and variables → Actions → New repository secret:
 
 ```
-TEST_SUPABASE_URL          (já tem · https://oqboitkpcvuaudouwvkl.supabase.co)
+TEST_SUPABASE_URL          (https://oqboitkpcvuaudouwvkl.supabase.co)
 TEST_SUPABASE_ANON_KEY     (output do e2e:setup)
 TEST_USER_EMAIL_OWNER      (e2e-test@miriandpaula.com.br)
 TEST_USER_PASSWORD         (output do e2e:setup · senha gerada)
 ```
 
-Bonus: `SUPABASE_ACCESS_TOKEN` pra cleanup automático no CI (workflow já configurado pra usar).
-
 ### Passo 3 · Pronto
 
-Próximo PR que mexe em `apps/lara/**`, `packages/repositories/**` ou `packages/ui/**` vai disparar Playwright incluindo o happy path. Se as 4 secrets não estiverem setadas, o spec autenticado falha com erro claro.
+Workflow `.github/workflows/lara-e2e.yml` (manual via `workflow_dispatch`) roda Playwright autenticado contra prod URL. Specs `e2e/authed/*` têm `test.skip(!HAS_TEST_ENVS)` se as 4 envs faltarem.
 
 ### Cleanup
 
 Cada spec autenticado:
-1. Cria com `metadata.is_e2e_test=true`
+1. Cria fixtures com `metadata.is_e2e_test=true` + nomes prefixados `[E2E_TEST]`
 2. Faz cleanup explícito em `afterAll()` (delete por id)
-3. CI roda `pnpm e2e:cleanup` defensivo após (independente de fail/pass)
+3. Cleanup defensivo opcional via script futuro (não implementado nesta rodada)
 
-Manual quando suspeitar de leak:
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_... pnpm e2e:cleanup
-```
+Manual: deletar via Supabase Studio se houver vazamento.
 
 ### Adicionar mais specs autenticados
 
