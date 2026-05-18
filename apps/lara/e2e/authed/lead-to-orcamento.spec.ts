@@ -23,17 +23,9 @@ const HAS_TEST_ENVS =
   !!process.env.TEST_USER_PASSWORD
 test.skip(!HAS_TEST_ENVS, 'TEST_SUPABASE_* envs ausentes · ver E2E.md secao Happy path E2E setup')
 
-// CRM_E2E_BACKEND_BACKLOG (2026-05-18): RPC lead_to_orcamento (mig 65) ainda
-// exige phase='compareceu', mas mig 150 (Phase 1C lifecycle refactor) removeu
-// 'compareceu' do chk_leads_phase (canonical agora eh lead|agendado|paciente|
-// orcamento). Resultado: RPC eh codigo morto em prod · qualquer chamada via
-// /crm/orcamentos/novo retorna illegal_transition silenciosamente.
-//
-// Fix correto: atualizar RPC pra usar phase IN ('lead','agendado') OU
-// reintroduzir 'compareceu' no enum E ajustar trigger appointment_finalize
-// pra setar 'compareceu' antes da emissao. Fora do escopo seletor-only.
-// Skip ate backend gate (BACKEND_SQL_GUARD_PENDING).
-test.skip(true, 'BLOQUEADO_BACKEND · RPC lead_to_orcamento exige phase=compareceu (removido por mig 150)')
+// CRM_BACKEND_FIX_LEAD_TO_ORCAMENTO_CANONICAL_PHASE (2026-05-18): mig 187
+// alinhou a RPC ao modelo canonico v2 (phase IN (lead, agendado) +
+// lifecycle_status=ativo). Spec antes estava skipado como BLOQUEADO_BACKEND.
 
 test.use({ authedAs: 'owner' })
 
@@ -56,12 +48,9 @@ test.beforeAll(async () => {
       // CRM_E2E_FIX (2026-05-18): leads_funnel_check exige fullface|procedimentos
       // 'direct' violava CHECK e quebrava beforeAll silenciosamente (0ms fail).
       funnel: 'procedimentos',
-      // CRM_E2E_FIX (2026-05-18): RPC lead_to_orcamento exige phase='compareceu'
-      // (mig 828 phase_guards_inviolates · regra 8 §7). Default 'lead' fazia o
-      // submit retornar illegal_transition sem redirect (waitForURL timeout).
-      // No fluxo real, lead passa por agendado -> compareceu via finalize-day,
-      // mas pro happy path E2E setamos diretamente.
-      phase: 'compareceu',
+      // CRM_BACKEND_FIX_LEAD_TO_ORCAMENTO_CANONICAL_PHASE (2026-05-18):
+      // mig 187 aceita phase IN ('lead', 'agendado'). Default 'lead' ja
+      // funciona · sem precisar setar phase explicitamente.
       metadata: { [E2E_TAG]: true },
     })
     .select('id')
