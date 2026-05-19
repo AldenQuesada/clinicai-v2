@@ -19,11 +19,13 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase
 const SUPABASE_HOST = SUPABASE_URL.replace(/\/$/, '')
 const SUPABASE_WS = SUPABASE_HOST.replace(/^https:/, 'wss:')
 
-function buildCsp(nonce: string, isProd: boolean): string {
-  // Em dev, Next/Turbopack avalia código via eval (HMR) — exige unsafe-eval.
-  // Em prod, usar nonce + strict-dynamic permite só scripts originados do bootstrap autenticado.
+function buildCsp(_nonce: string, isProd: boolean): string {
+  // Standalone do Next 16 nao propaga nonce pros scripts inline gerados em
+  // build · CSP estrita com strict-dynamic bloqueia hydration. Mantemos
+  // unsafe-inline · risco baixo (script-src controla, XSS protegido por
+  // React escape + sanitizacao explicita em DOMPurify).
   const scriptSrc = isProd
-    ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
+    ? "'self' 'unsafe-inline'"
     : "'self' 'unsafe-inline' 'unsafe-eval'"
 
   // Style: Tailwind 4 emite link extracted em prod. Inline crítico do Next usa nonce.
