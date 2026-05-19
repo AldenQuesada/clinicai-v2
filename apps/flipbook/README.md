@@ -181,3 +181,4 @@ Build standalone: `pnpm --filter=@clinicai/flipbook build` gera `.next/standalon
 - **8 rotas** acessíveis (1 público, 4 admin gated, 1 reader, 2 SEO + 1 manifest)
 - **5 API routes**
 - **Typecheck** passa sem erros
+
