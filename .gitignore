@@ -18,6 +18,9 @@ dist/
 .env.production
 .env.test.local
 .env.development.local
+# Exceção: flipbook precisa de NEXT_PUBLIC_* commitados (Easypanel não passa
+# runtime env pro docker build · valores embed no bundle são públicos por design).
+!apps/flipbook/.env.production
 
 # Vercel
 .vercel/
