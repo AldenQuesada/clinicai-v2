@@ -1,9 +1,5 @@
 import type { NextConfig } from 'next'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 /**
  * Flipbook Tool · Next.js 16 (Turbopack default).
@@ -29,8 +25,9 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Monorepo pnpm · standalone precisa apontar pra raiz pra tracing pegar
   // @clinicai/* packages workspace. Sem isso, server.js crasha em runtime
-  // procurando deps em node_modules locais que não existem.
-  outputFileTracingRoot: path.join(__dirname, '../..'),
+  // procurando deps em node_modules locais que não existem. process.cwd()
+  // resolve a app dir no build · `../..` aponta pra raiz do monorepo.
+  outputFileTracingRoot: path.join(process.cwd(), '..', '..'),
   reactStrictMode: true,
   // Types do Supabase em packages/supabase são regenerados fora do build do Next
   // (via supabase gen types · commitado). Build do Easypanel não deve bloquear
