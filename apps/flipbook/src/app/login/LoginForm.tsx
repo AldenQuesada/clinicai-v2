@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/browser'
 
@@ -17,6 +17,34 @@ export function LoginForm() {
   const [magicSent, setMagicSent] = useState(false)
 
   const supabase = createBrowserClient()
+
+  // Processa magic link · quando Supabase verify redireciona pra /login com
+  // #access_token+refresh_token no hash, troca os tokens por session cookies
+  // e empurra pra rota destino. Sem isso, ficaria parado no form.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!window.location.hash) return
+    const hash = new URLSearchParams(window.location.hash.slice(1))
+    const access_token = hash.get('access_token')
+    const refresh_token = hash.get('refresh_token')
+    if (!access_token || !refresh_token) return
+    setLoading(true)
+    supabase.auth
+      .setSession({ access_token, refresh_token })
+      .then(({ error }) => {
+        if (error) {
+          setError('Magic link inválido ou expirado: ' + error.message)
+          setLoading(false)
+          return
+        }
+        window.location.replace(next)
+      })
+      .catch((e: Error) => {
+        setError('Erro ao processar link: ' + e.message)
+        setLoading(false)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function loginPassword(e: React.FormEvent) {
     e.preventDefault()
