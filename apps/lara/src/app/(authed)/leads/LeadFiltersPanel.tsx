@@ -151,7 +151,7 @@ export function LeadFiltersPanel({ initial }: { initial: FilterState }) {
           />
           <input
             type="text"
-            placeholder="Buscar por nome, telefone ou email..."
+            placeholder="Buscar por nome ou telefone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="b2b-input"

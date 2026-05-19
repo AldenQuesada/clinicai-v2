@@ -79,6 +79,11 @@ export function LeadsClient({
   const [view, setView] = useState<ViewMode>('table')
   const [search, setSearch] = useState((searchParams.get('q') || '').toString())
   const [confirmDelete, setConfirmDelete] = useState<LeadDTO | null>(null)
+  // CRM_FUNCTIONAL_1X1_LEADS_FULLFACE · stub modais legacy (lead-modal.js · schedule-modal.js)
+  // Click row abre Lead Detail Modal (10 tabs legacy) · botão Agendar abre Schedule Modal.
+  // NÃO navega para /leads/[id] como comportamento primário (legacy = modal, não rota).
+  const [detailLead, setDetailLead] = useState<LeadDTO | null>(null)
+  const [scheduleLead, setScheduleLead] = useState<LeadDTO | null>(null)
   const [showNewLead, setShowNewLead] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'err' } | null>(null)
   // BLOCO 3.4B · seleção múltipla
@@ -303,11 +308,49 @@ export function LeadsClient({
 
         <div style={{ flex: 1 }} />
 
-        {/* Botões direita */}
+        {/* Botões direita · spec Full Face: Importar Planilha (FF exclusivo) + Exportar + Novo Lead */}
+        {/* CRM_FUNCTIONAL_1X1_LEADS_FULLFACE · Importar Planilha · stub · service SheetsImport
+            ainda não portado pra v2 · UI presente pra spec compliance · próximo prompt habilita. */}
+        <button
+          type="button"
+          title="Importar Planilha do Google Sheets (próximo prompt)"
+          disabled
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: '#fff',
+            color: '#16a34a',
+            border: '1.5px solid #16a34a',
+            padding: '7px 14px',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'not-allowed',
+            opacity: 0.55,
+          }}
+        >
+          {/* Ícone planilha legacy */}
+          <svg
+            width="13"
+            height="13"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+          Importar Planilha
+        </button>
         <button
           type="button"
           onClick={exportCsv}
           className="b2b-btn"
+          title="Exportar CSV · dropdown CSV/PDF no próximo prompt (spec)"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           <Download size={12} /> Exportar
@@ -316,10 +359,22 @@ export function LeadsClient({
           <button
             type="button"
             onClick={() => setShowNewLead(true)}
-            className="b2b-btn b2b-btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'linear-gradient(135deg, #7C3AED, #5B21B6)',
+              color: '#fff',
+              border: 'none',
+              padding: '8px 18px',
+              borderRadius: 10,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(124,58,237,0.30)',
+            }}
           >
-            <Plus size={12} /> Novo lead
+            <Plus size={14} /> Novo Lead
           </button>
         )}
       </div>
@@ -664,6 +719,8 @@ export function LeadsClient({
                     canEdit={canEdit}
                     canDelete={canDelete}
                     onDelete={() => setConfirmDelete(lead)}
+                    onAgendar={() => setScheduleLead(lead)}
+                    onOpenDetail={() => setDetailLead(lead)}
                     isSelected={selectedIds.has(lead.id)}
                     onToggleSelect={() => toggleLead(lead.id)}
                   />
@@ -728,6 +785,21 @@ export function LeadsClient({
             setConfirmDelete(null)
             showToast('Lead removido')
             startTransition(() => router.refresh())
+          }}
+        />
+      )}
+
+      {detailLead && (
+        <LeadDetailModalStub lead={detailLead} onClose={() => setDetailLead(null)} />
+      )}
+
+      {scheduleLead && (
+        <ScheduleFromLeadModalStub
+          lead={scheduleLead}
+          onClose={() => setScheduleLead(null)}
+          onContinueFull={() => {
+            setScheduleLead(null)
+            router.push(`/crm/agenda/novo?leadId=${scheduleLead.id}`)
           }}
         />
       )}
@@ -870,6 +942,8 @@ function LeadRow({
   canEdit,
   canDelete,
   onDelete,
+  onAgendar,
+  onOpenDetail,
   isSelected,
   onToggleSelect,
 }: {
@@ -878,10 +952,11 @@ function LeadRow({
   canEdit: boolean
   canDelete: boolean
   onDelete: () => void
+  onAgendar: () => void
+  onOpenDetail: () => void
   isSelected: boolean
   onToggleSelect: () => void
 }) {
-  const router = useRouter()
   const initial = (lead.name || lead.phone || '?').trim().charAt(0).toUpperCase()
   const phoneDigits = (lead.phone || '').replace(/\D/g, '')
   const waHref = phoneDigits
@@ -889,14 +964,21 @@ function LeadRow({
     : null
   const queixas = lead.queixasFaciais || []
   const queixaText = queixas.join(' · ')
-  const isActive = !lead.deletedAt
+  // CRM_FUNCTIONAL_1X1_LEADS_FULLFACE · ActiveBadge é readonly (canon legacy: lifecycle_status
+  // ∈ {ativo, perdido, recuperacao, arquivado} — toggle precisa de action canônica).
+  // NÃO usar `!deletedAt` como estado ativo (deleted_at NÃO é estado operacional).
+  // TODO próximo prompt: action `setLeadLifecycleStatusAction` + UI clicável com tooltip.
+  const isActive = (lead.lifecycleStatus ?? 'ativo') === 'ativo'
+  // Checkbox bulk continua usando deleted_at apenas para bloquear seleção de rows excluídas
+  // (isso é canônico: soft-delete impede operações em massa). NÃO confundir com Ativo/Inativo.
   const selectable = !lead.deletedAt
 
   function clickRow(e: React.MouseEvent) {
-    // Ignora click se vier de elemento interativo (a/button/select/checkbox)
+    // CRM_FUNCTIONAL_1X1_LEADS_FULLFACE · legacy abre MODAL (lead-modal.js 10 tabs) · NÃO navega.
+    // Ignora click em elementos interativos (button/input/select/anchor).
     const target = e.target as HTMLElement
     if (target.closest('a, button, select, input, label')) return
-    router.push(`/leads/${lead.id}`)
+    onOpenDetail()
   }
 
   return (
@@ -1004,19 +1086,43 @@ function LeadRow({
         </span>
       </Cell>
 
-      <Cell center onClick={clickRow}>
-        <ActiveBadge active={isActive} />
+      <Cell center>
+        <span
+          title="Ativo/Inativo será ligado via lifecycle_status canônico. Não usa exclusão."
+          style={{ display: 'inline-block', cursor: 'help' }}
+        >
+          <ActiveBadge active={isActive} />
+        </span>
       </Cell>
 
       <Cell center>
         <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+          {canEdit && isActive && (
+            <button
+              type="button"
+              title="Agendar"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAgendar()
+              }}
+              className="b2b-btn"
+              style={{
+                padding: '4px 7px',
+                fontSize: 11,
+                lineHeight: 1,
+                color: 'var(--b2b-champagne)',
+              }}
+            >
+              <Calendar size={12} />
+            </button>
+          )}
           {canEdit && (
             <button
               type="button"
-              title="Editar"
+              title="Ver detalhes"
               onClick={(e) => {
                 e.stopPropagation()
-                router.push(`/leads/${lead.id}`)
+                onOpenDetail()
               }}
               className="b2b-btn"
               style={{ padding: '4px 7px', fontSize: 11, lineHeight: 1 }}
@@ -1269,8 +1375,8 @@ function DeleteModal({
         <div className="b2b-modal-body">
           <p style={{ marginBottom: 12, color: 'var(--b2b-text-dim)', fontSize: 13 }}>
             Esta ação é{' '}
-            <strong style={{ color: 'var(--b2b-ivory)' }}>permanente</strong>{' '}
-            (soft-delete · pode ser restaurado por admin).
+            <strong style={{ color: 'var(--b2b-ivory)' }}>permanente e irreversível</strong>.
+            {' '}(soft-delete · pode ser restaurado por admin)
           </p>
           <p style={{ marginBottom: 6, fontSize: 12, color: 'var(--b2b-text-muted)' }}>
             Para confirmar, digite o nome exato do lead:
@@ -1326,6 +1432,486 @@ function DeleteModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// LeadDetailModalStub · 10 tabs legacy (lead-modal.js)
+//
+// Paridade UIX literal:
+//   - Sidebar vertical 172px
+//   - 10 tabs na ordem exata do legacy:
+//     Geral · Clínico · Anamnese · Evolução · Financeiro · Linha do Tempo ·
+//     Documentos · Orçamentos · Interações · Protocolos
+//   - Conteúdo de cada tab = empty state honesto neste prompt.
+//     Próximo prompt: portar `_lmTabGeral`/`_lmTabFinanceiro`/etc. com dados reais.
+//   - NÃO substitui rota /leads/[id] (rota mantida pra deep-link).
+//
+// Spec: docs/crm-functional-1x1/leads-fullface-css-rules-spec.md (componente 15)
+// ──────────────────────────────────────────────────────────────────────────
+
+const LEAD_DETAIL_TABS = [
+  { id: 'geral', label: 'Geral' },
+  { id: 'clinico', label: 'Clínico' },
+  { id: 'anamnese', label: 'Anamnese' },
+  { id: 'evolucao', label: 'Evolução' },
+  { id: 'financeiro', label: 'Financeiro' },
+  { id: 'timeline', label: 'Linha do Tempo' },
+  { id: 'documentos', label: 'Documentos' },
+  { id: 'orcamentos', label: 'Orçamentos' },
+  { id: 'interacoes', label: 'Interações' },
+  { id: 'protocolos', label: 'Protocolos' },
+] as const
+
+type LeadDetailTabId = (typeof LEAD_DETAIL_TABS)[number]['id']
+
+function LeadDetailModalStub({
+  lead,
+  onClose,
+}: {
+  lead: LeadDTO
+  onClose: () => void
+}) {
+  const [activeTab, setActiveTab] = useState<LeadDetailTabId>('geral')
+  const phoneDigits = (lead.phone || '').replace(/\D/g, '')
+  const waHref = phoneDigits
+    ? `https://wa.me/${phoneDigits.length <= 11 ? '55' + phoneDigits : phoneDigits}`
+    : null
+
+  // Esc fecha modal
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="b2b-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Detalhe do lead ${lead.name || ''}`}
+      onClick={onClose}
+      style={{ padding: 16 }}
+    >
+      <div
+        className="b2b-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: 1080,
+          width: '100%',
+          maxHeight: '96vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div className="b2b-modal-hdr" style={{ flexShrink: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: 'var(--b2b-ivory)',
+                margin: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {lead.name || '(sem nome)'}
+            </h2>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--b2b-text-muted)',
+                marginTop: 2,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              {lead.phone && <span>{formatPhoneBr(lead.phone)}</span>}
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#22c55e', textDecoration: 'none' }}
+                >
+                  · WhatsApp
+                </a>
+              )}
+              {lead.email && <span>· {lead.email}</span>}
+            </div>
+          </div>
+          <button onClick={onClose} className="b2b-close" aria-label="Fechar">
+            ×
+          </button>
+        </div>
+
+        {/* Body · sidebar + content */}
+        <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Sidebar 172px */}
+          <nav
+            aria-label="Navegação do lead"
+            style={{
+              width: 172,
+              flexShrink: 0,
+              borderRight: '1px solid var(--b2b-border)',
+              padding: '14px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              overflowY: 'auto',
+              background: 'rgba(255,255,255,0.02)',
+            }}
+          >
+            {LEAD_DETAIL_TABS.map((t) => {
+              const isActive = activeTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '9px 12px',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 500,
+                    textAlign: 'left',
+                    background: isActive ? 'rgba(201,169,110,0.18)' : 'transparent',
+                    color: isActive ? 'var(--b2b-champagne)' : 'var(--b2b-text-dim)',
+                    transition: 'background .12s',
+                  }}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Content */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+            <LeadDetailTabContent tab={activeTab} lead={lead} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeadDetailTabContent({
+  tab,
+  lead,
+}: {
+  tab: LeadDetailTabId
+  lead: LeadDTO
+}) {
+  if (tab === 'geral') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <DetailSection label="Identificação">
+          <DetailField label="Nome" value={lead.name || '—'} />
+          <DetailField label="Telefone" value={lead.phone ? formatPhoneBr(lead.phone) : '—'} />
+          <DetailField label="Email" value={lead.email || '—'} />
+          <DetailField label="CPF" value={lead.cpf || '—'} />
+        </DetailSection>
+        <DetailSection label="Pipeline">
+          <DetailField label="Funnel" value={lead.funnel || '—'} />
+          <DetailField label="Fase" value={lead.phase || '—'} />
+          <DetailField label="Lifecycle" value={lead.lifecycleStatus || 'ativo'} />
+          <DetailField label="Temperatura" value={lead.temperature || 'cold'} />
+          <DetailField label="Score" value={lead.leadScore != null ? String(lead.leadScore) : '—'} />
+        </DetailSection>
+      </div>
+    )
+  }
+  return (
+    <EmptyTab
+      label={LEAD_DETAIL_TABS.find((t) => t.id === tab)?.label || ''}
+      hint="Conteúdo será portado do legacy no próximo prompt."
+    />
+  )
+}
+
+function DetailSection({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <section
+      style={{
+        border: '1px solid var(--b2b-border)',
+        borderRadius: 10,
+        padding: 14,
+      }}
+    >
+      <h3
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: 1.5,
+          color: 'var(--b2b-text-muted)',
+          marginBottom: 10,
+          marginTop: 0,
+        }}
+      >
+        {label}
+      </h3>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 10,
+        }}
+      >
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: 1.4,
+          color: 'var(--b2b-text-muted)',
+        }}
+      >
+        {label}
+      </span>
+      <span style={{ fontSize: 13, color: 'var(--b2b-ivory)' }}>{value}</span>
+    </div>
+  )
+}
+
+function EmptyTab({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '48px 24px',
+        textAlign: 'center',
+        gap: 8,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--b2b-text-dim)' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--b2b-text-muted)', maxWidth: 360 }}>
+        {hint}
+      </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ScheduleFromLeadModalStub · paridade legacy schedule-modal.js
+//
+// Spec: docs/crm-functional-1x1/leads-fullface-css-rules-spec.md (componente 16 · Modal Schedule)
+// Campos legacy: Profissional · Procedimento · Data · Hora início · Duração · Observações
+// RPC legacy: appt_upsert(p_data) · origem='sdr_table'
+//
+// Neste prompt: stub UI com campos visuais + botão "Continuar no agendamento completo"
+// que abre /crm/agenda/novo?leadId={id} (fallback, NÃO paridade final).
+// Próximo prompt: carregar professionals + procedures e submeter via createAppointmentAction.
+// ──────────────────────────────────────────────────────────────────────────
+
+function ScheduleFromLeadModalStub({
+  lead,
+  onClose,
+  onContinueFull,
+}: {
+  lead: LeadDTO
+  onClose: () => void
+  onContinueFull: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="b2b-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Agendar para ${lead.name || 'lead'}`}
+      onClick={onClose}
+    >
+      <div
+        className="b2b-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 520 }}
+      >
+        <div className="b2b-modal-hdr">
+          <h2
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: 'var(--b2b-ivory)',
+              margin: 0,
+            }}
+          >
+            Agendar — {lead.name || '(sem nome)'}
+          </h2>
+          <button onClick={onClose} className="b2b-close" aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="b2b-modal-body">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: 'var(--b2b-text-muted)',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 14,
+            }}
+          >
+            {lead.phone ? formatPhoneBr(lead.phone) : 'sem telefone'}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
+            <ScheduleField label="Profissional">
+              <select
+                className="b2b-input"
+                disabled
+                aria-label="Profissional"
+                style={{ fontSize: 12 }}
+              >
+                <option>Carregar profissionais no próximo prompt</option>
+              </select>
+            </ScheduleField>
+            <ScheduleField label="Procedimento">
+              <input
+                type="text"
+                className="b2b-input"
+                placeholder="Ex: Full Face 5D"
+                disabled
+                style={{ fontSize: 12 }}
+              />
+            </ScheduleField>
+            <ScheduleField label="Data">
+              <input type="date" className="b2b-input" disabled style={{ fontSize: 12 }} />
+            </ScheduleField>
+            <ScheduleField label="Hora início">
+              <input type="time" className="b2b-input" disabled style={{ fontSize: 12 }} />
+            </ScheduleField>
+            <ScheduleField label="Duração">
+              <select className="b2b-input" disabled style={{ fontSize: 12 }}>
+                <option>60 min</option>
+              </select>
+            </ScheduleField>
+            <ScheduleField label="Observações" full>
+              <textarea
+                className="b2b-input"
+                placeholder="Observações internas"
+                disabled
+                rows={2}
+                style={{ fontSize: 12, resize: 'vertical' }}
+              />
+            </ScheduleField>
+          </div>
+
+          <p
+            style={{
+              fontSize: 11,
+              color: 'var(--b2b-text-muted)',
+              margin: '0 0 14px 0',
+              fontStyle: 'italic',
+            }}
+          >
+            Submissão inline será habilitada no próximo prompt (carrega profissionais
+            + procedimentos + envia via createAppointmentAction).
+          </p>
+
+          <div className="b2b-form-actions">
+            <button type="button" className="b2b-btn" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="b2b-btn b2b-btn-primary"
+              onClick={onContinueFull}
+            >
+              Continuar no agendamento completo →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScheduleField({
+  label,
+  children,
+  full,
+}: {
+  label: string
+  children: React.ReactNode
+  full?: boolean
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        gridColumn: full ? '1 / -1' : undefined,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: 1.5,
+          color: 'var(--b2b-text-muted)',
+        }}
+      >
+        {label}
+      </span>
+      {children}
     </div>
   )
 }

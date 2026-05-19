@@ -37,7 +37,7 @@ export default async function CrmLeadsPage({
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Leads"
-        description="Pessoas em contato com a clínica · filtros, KPIs e ações por linha."
+        description="Gerencie e acompanhe seus leads por fase."
       />
 
       <LeadsClient
