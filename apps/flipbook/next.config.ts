@@ -23,6 +23,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  // Types do Supabase em packages/supabase são regenerados fora do build do Next
+  // (via supabase gen types · commitado). Build do Easypanel não deve bloquear
+  // por drift de types · typecheck roda separado via `pnpm typecheck` em CI.
+  typescript: { ignoreBuildErrors: true },
   // Brotli/gzip nas responses (-30% bytes na transmissão)
   compress: true,
   // Remove header X-Powered-By: Next.js (sem motivo pra anunciar versão)
