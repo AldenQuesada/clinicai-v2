@@ -11,6 +11,7 @@ export function LoginForm() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [magicSent, setMagicSent] = useState(false)
@@ -62,13 +63,23 @@ export function LoginForm() {
       </div>
       <div>
         <label className="font-meta text-text-muted block mb-2">Senha</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full bg-bg-elevated border border-border rounded px-4 py-3 text-text focus:border-gold/60 outline-none transition"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-bg-elevated border border-border rounded px-4 py-3 pr-20 text-text focus:border-gold/60 outline-none transition"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-meta text-text-muted hover:text-gold transition"
+            tabIndex={-1}
+          >
+            {showPassword ? 'ocultar' : 'mostrar'}
+          </button>
+        </div>
       </div>
 
       {error && <div className="text-red-400 text-sm">{error}</div>}
