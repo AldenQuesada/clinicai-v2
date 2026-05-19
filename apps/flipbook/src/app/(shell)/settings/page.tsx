@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import Link from 'next/link'
+import { ChangePasswordCard } from './ChangePasswordCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +32,8 @@ export default async function SettingsPage() {
         </dl>
       </section>
 
+      <ChangePasswordCard />
+
       <section className="border border-border rounded-lg bg-bg-elevated p-6">
         <h3 className="font-meta text-text-muted mb-4">Em breve</h3>
         <ul className="text-text-muted text-sm space-y-2">
@@ -41,10 +43,6 @@ export default async function SettingsPage() {
           <li>· Apagar conta</li>
         </ul>
       </section>
-
-      <p className="text-xs text-text-dim mt-8 text-center">
-        Pra mudar senha, use <Link href="/login" className="text-gold hover:underline">login</Link> com magic link.
-      </p>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/browser'
 
@@ -128,6 +129,15 @@ export function LoginForm() {
       >
         Entrar com link mágico
       </button>
+
+      <div className="text-center pt-2">
+        <Link
+          href="/login/forgot"
+          className="font-meta text-xs text-text-muted hover:text-gold transition"
+        >
+          Esqueci minha senha
+        </Link>
+      </div>
     </form>
   )
 }
