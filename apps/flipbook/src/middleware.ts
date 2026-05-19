@@ -94,6 +94,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Exclui assets estáticos pra não gerar nonce desnecessário a cada request de imagem/font.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|pdfjs/).*)'],
+  // Debug 2026-05-19 · matcher restrito só pra rotas que de fato precisam de auth
+  // (admin/settings/stats + login redirect). Reduz superfície enquanto investiga
+  // 500 em prod. Revisar depois.
+  matcher: ['/admin/:path*', '/settings/:path*', '/stats/:path*', '/login'],
 }
