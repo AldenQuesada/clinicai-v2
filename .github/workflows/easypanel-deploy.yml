@@ -5,8 +5,9 @@ name: Easypanel auto-deploy
 # nativo do Easypanel falha (webhook GitHub quebrado, signature invalida, etc).
 #
 # CONFIGURACAO NECESSARIA · Settings -> Secrets -> Actions:
-#   EASYPANEL_DEPLOY_LARA  · token da app `whatsapp` (Lara)
-#   EASYPANEL_DEPLOY_MIRA  · token da app `mira`
+#   EASYPANEL_DEPLOY_LARA      · token da app `whatsapp` (Lara)
+#   EASYPANEL_DEPLOY_MIRA      · token da app `mira`
+#   EASYPANEL_DEPLOY_FLIPBOOK  · token da app `flipbook`
 # Tokens em tmp/easypanel-list.json (campo `token` de cada service).
 #
 # TRIGGER MANUAL: Actions -> Easypanel auto-deploy -> Run workflow -> escolhe app.
@@ -17,6 +18,7 @@ on:
     paths:
       - 'apps/lara/**'
       - 'apps/mira/**'
+      - 'apps/flipbook/**'
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -24,13 +26,14 @@ on:
       - 'Dockerfile'
       - 'apps/lara/Dockerfile'
       - 'apps/mira/Dockerfile'
+      - 'apps/flipbook/Dockerfile'
   workflow_dispatch:
     inputs:
       app:
         description: 'Qual app deployar manualmente'
         required: true
         type: choice
-        options: [all, lara, mira]
+        options: [all, lara, mira, flipbook]
         default: all
 
 jobs:
@@ -40,6 +43,8 @@ jobs:
     outputs:
       lara: ${{ steps.filter.outputs.lara }}
       mira: ${{ steps.filter.outputs.mira }}
+      flipbook: ${{ steps.filter.outputs.flipbook }}
+      shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,6 +62,8 @@ jobs:
               - 'apps/lara/**'
             mira:
               - 'apps/mira/**'
+            flipbook:
+              - 'apps/flipbook/**'
 
   deploy-lara:
     name: Deploy Lara (whatsapp)
@@ -91,3 +98,20 @@ jobs:
           fi
           curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
             "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_MIRA }}"
+
+  deploy-flipbook:
+    name: Deploy Flipbook
+    needs: detect
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.app == 'all' || inputs.app == 'flipbook') ||
+      github.event_name == 'push' && (needs.detect.outputs.flipbook == 'true' || needs.detect.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Easypanel deploy
+        run: |
+          if [ -z "${{ secrets.EASYPANEL_DEPLOY_FLIPBOOK }}" ]; then
+            echo "::error::secret EASYPANEL_DEPLOY_FLIPBOOK nao configurada"
+            exit 1
+          fi
+          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_FLIPBOOK }}"
