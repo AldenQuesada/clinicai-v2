@@ -39,8 +39,8 @@ export default async function LeadsPage({
     <PageContainer variant="wide">
       <PageHero
         kicker="Painel · Lara"
-        title={<>Lista de <em>leads</em></>}
-        lede="Pessoas em contato com a clínica · filtros, KPIs reativos e ações por linha."
+        title={<>Leads</>}
+        lede="Gerencie e acompanhe seus leads por fase."
       />
 
       <LeadsClient
