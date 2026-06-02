@@ -36,3 +36,21 @@ verify_jwt = false
 # Tavares, Dani Mendes) — commit deste fix fecha o gap.
 [functions.b2b-mira-router]
 verify_jwt = false
+
+# b2b-voucher-audio e chamada pelo trigger SQL trg_b2b_voucher_audio_auto
+# (pg_net, sem JWT) e por admin. Auth via shared secret X-Voucher-Audio-Secret
+# validado no codigo (timingSafeEqual). Sem verify_jwt=false aqui o gateway
+# rejeita o trigger com UNAUTHORIZED_NO_AUTH_HEADER e NENHUM audio de voucher
+# e entregue. Funil quebrou silenciosamente em 2026-05-07 por esse drift
+# (entrada faltava no config.toml) — mig 905 restaurou o trigger.
+[functions.b2b-voucher-audio]
+verify_jwt = false
+
+# b2b-comm-dispatch e b2b-mira-welcome: mesma classe — chamadas por
+# pg_net/cron com shared secret X-B2B-Edge-Secret (= VOUCHER_AUDIO_SECRET)
+# validado no codigo. Precisam verify_jwt=false pelo mesmo motivo.
+[functions.b2b-comm-dispatch]
+verify_jwt = false
+
+[functions.b2b-mira-welcome]
+verify_jwt = false
