@@ -69,6 +69,7 @@ export default function SecretariaPage() {
     refreshConversations,
     loadMore,
     lastSseEventAtRef,
+    lastSseEventSeq,
   } = useConversations({ inbox: 'secretaria' });
 
   // Open from /logs (2026-05-08) · seleciona conversa via ?conversationId=<uuid>
@@ -122,7 +123,7 @@ export default function SecretariaPage() {
     setReplyTarget,
     // React A (2026-05-07) · reação emoji outbound
     reactToMessage,
-  } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
+  } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef, lastSseEventSeq });
 
   // SmartReplies A (2026-05-07) · copilot IA também na secretaria · 3 chips
   // acima do composer (empilhado com DoctorAnswerCard, não substituído).

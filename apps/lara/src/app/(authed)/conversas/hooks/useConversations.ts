@@ -263,6 +263,10 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
   const prevDataRef = useRef<Conversation[]>([]);
   const prevStatusRef = useRef(statusFilter);
   const lastSseEventAtRef = useRef<number>(0);
+  // Real-time refresh (2026-06-03) · seq de evento SSE como STATE (não ref) ·
+  // muda a cada evento → useMessages reage e refetcha a conversa aberta na
+  // hora. lastSseEventAtRef (ref) segue governando só a cadência do polling.
+  const [lastSseEventSeq, setLastSseEventSeq] = useState<number>(0);
   const cursorRef = useRef<string | null>(null);
   // Patch B (HIGH-1 flicker fix · 2026-05-07): sequence pra descartar respostas
   // stale do fetchConversations. Mount + SSE onmessage + polling 30s podem
@@ -462,6 +466,9 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
           // SSE entregou evento · conexao saudavel · reseta backoff
           reconnectAttempt = 0;
           lastSseEventAtRef.current = Date.now();
+          // Real-time refresh (2026-06-03) · incrementa seq (state) pra
+          // useMessages refetchar a conversa aberta imediatamente.
+          setLastSseEventSeq((s) => s + 1);
           fetchConversations();
         };
         eventSource.onopen = () => {
@@ -505,6 +512,7 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
     setStatusFilter,
     refreshConversations: fetchConversations,
     loadMore,
-    lastSseEventAtRef
+    lastSseEventAtRef,
+    lastSseEventSeq,
   };
 }

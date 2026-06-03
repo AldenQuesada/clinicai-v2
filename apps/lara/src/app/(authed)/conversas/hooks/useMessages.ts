@@ -53,9 +53,44 @@ export interface Message {
   reaction?: string | null;
 }
 
+/**
+ * Fingerprint estável da lista de mensagens (2026-06-03). Usado pelo silent
+ * fetch pra detectar mudanças que NÃO alteram a contagem — reaction, delivery
+ * status, content, status — que o guard antigo por `count` ignorava. Inclui
+ * todos os campos que a UI renderiza por mensagem. Separadores são control
+ * chars pra não colidir com conteúdo. Exportado puro pra teste.
+ */
+export function messagesFingerprint(messages: Message[]): string {
+  return messages
+    .map((m) =>
+      [
+        m.id,
+        m.createdAt,
+        m.content,
+        m.type,
+        m.mediaUrl ?? '',
+        m.sender,
+        m.failed ? '1' : '0',
+        m.deliveryStatus ?? '',
+        m.providerMsgId ?? '',
+        m.replyToProviderMsgId ?? '',
+        m.reaction ?? '',
+      ].join(''),
+    )
+    .join('');
+}
+
 export function useMessages(
   conversationId: string | null,
-  opts?: { lastSseEventAtRef?: React.MutableRefObject<number> }
+  opts?: {
+    lastSseEventAtRef?: React.MutableRefObject<number>;
+    /**
+     * Real-time refresh (2026-06-03) · seq de evento SSE (state em
+     * useConversations). Muda a cada evento → effect abaixo refetcha a
+     * conversa ABERTA na hora, sem esperar o polling de 30s.
+     */
+    lastSseEventSeq?: number;
+  }
 ) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +102,9 @@ export function useMessages(
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const lastCountRef = useRef(0);
+  // Real-time refresh (2026-06-03) · fingerprint da última lista renderizada ·
+  // troca o guard por-count (que ignorava reaction/status/content sem nova msg).
+  const lastFingerprintRef = useRef('');
 
   /**
    * Scroll pro final da lista. Suporta 2 modos:
@@ -121,27 +159,37 @@ export function useMessages(
 
         const formatted = Array.from(uniqueMap.values());
         const newCount = formatted.length;
+        const prevCount = lastCountRef.current;
+        // Real-time refresh (2026-06-03) · guard por FINGERPRINT (não só count).
+        // Atualiza quando qualquer campo renderizado muda (reaction/status/
+        // content/media) mesmo sem nova mensagem · ou em fetch não-silencioso.
+        const fingerprint = messagesFingerprint(formatted);
 
-        // Só atualiza o state se tem conteúdo novo (evita re-render desnecessário)
-        if (newCount !== lastCountRef.current || !silent) {
+        if (fingerprint !== lastFingerprintRef.current || !silent) {
 
-          // Se for polling silencioso, e já tínhamos msgs, e entrou 1 nova do paciente... apita imediato!
-          if (silent && lastCountRef.current > 0 && newCount > lastCountRef.current) {
+          // Notificação sonora · só quando ENTROU mensagem nova do paciente
+          // (count subiu). Reaction/status updates NÃO apitam.
+          if (silent && prevCount > 0 && newCount > prevCount) {
             const lastMsg = formatted[formatted.length - 1];
             if (lastMsg.sender === 'user') {
                playNotificationSound();
             }
           }
 
-          // Primeira carga (lastCountRef era 0 antes deste batch) usa
-          // scroll INSTANT · evita animacao parar no meio com imagens
-          // ainda carregando. Mensagens novas (polling subsequente) usam
-          // smooth pra dar feedback visual.
-          const isInitialLoad = lastCountRef.current === 0 && newCount > 0;
+          // Primeira carga (prevCount era 0 antes deste batch) usa scroll
+          // INSTANT · evita animacao parar no meio com imagens ainda
+          // carregando. Mensagens novas (polling subsequente) usam smooth.
+          const isInitialLoad = prevCount === 0 && newCount > 0;
           if (signal?.aborted) return;
           setMessages(formatted);
           lastCountRef.current = newCount;
-          if (newCount > 0) {
+          lastFingerprintRef.current = fingerprint;
+
+          // Scroll · SÓ quando entrou mensagem nova (count subiu) ou carga
+          // inicial. Updates de reaction/status (mesma contagem) NÃO disparam
+          // scroll agressivo · usuária não é jogada pro fim por um 👍.
+          const messageCountIncreased = newCount > prevCount;
+          if (newCount > 0 && (messageCountIncreased || isInitialLoad)) {
             const behavior: 'smooth' | 'instant' = isInitialLoad ? 'instant' : 'smooth';
             // 3 empurroes em janelas crescentes · cobre layout shift quando
             // imagens, audios e documentos terminam de carregar
@@ -171,6 +219,7 @@ export function useMessages(
     if (!conversationId) {
       setMessages([]);
       lastCountRef.current = 0;
+      lastFingerprintRef.current = '';
       return;
     }
 
@@ -202,6 +251,27 @@ export function useMessages(
       clearTimeout(timeoutId);
     };
   }, [conversationId, fetchMessages, opts?.lastSseEventAtRef]);
+
+  // Part A (2026-06-03) · refetch IMEDIATO da conversa aberta quando chega
+  // evento SSE. lastSseEventAtRef (ref) segue governando a cadência do polling
+  // acima; lastSseEventSeq (state, muda a cada evento) dispara aqui um silent
+  // fetch na hora — mata o lag de até 30s pra mensagens vindas do telefone
+  // (sem optimistic insert) e pra reaction/status (via fingerprint guard).
+  // Ref-guard: só refetcha quando o seq AVANÇOU · troca de conversa (seq igual)
+  // não dispara fetch redundante (a carga inicial do effect acima já cobre).
+  const sseSeq = opts?.lastSseEventSeq ?? 0;
+  const handledSseSeqRef = useRef(0);
+  useEffect(() => {
+    if (!conversationId) return;
+    if (sseSeq === 0) return; // nenhum evento SSE ainda
+    if (sseSeq === handledSseSeqRef.current) return; // troca de conv sem novo evento
+    handledSseSeqRef.current = sseSeq;
+    const ctrl = new AbortController();
+    // silent=true · não mostra spinner; signal descarta resposta stale se a
+    // conversa trocar ou outro evento SSE chegar antes do fetch retornar.
+    fetchMessages(conversationId, true, ctrl.signal);
+    return () => ctrl.abort();
+  }, [sseSeq, conversationId, fetchMessages]);
 
   /**
    * Posta o conteudo no server. Retorna true se OK, false se falhou.
