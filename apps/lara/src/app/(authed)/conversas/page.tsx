@@ -33,6 +33,7 @@ export default function ChatPage() {
     refreshConversations,
     loadMore,
     lastSseEventAtRef,
+    lastSseEventSeq,
   } = useConversations();
 
   // Open from /logs (2026-05-08) · seleciona conversa via ?conversationId=<uuid>
@@ -89,7 +90,7 @@ export default function ChatPage() {
     setReplyTarget,
     // React A (2026-05-07) · reação emoji outbound · POST + optimistic update
     reactToMessage,
-  } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef });
+  } = useMessages(selectedConversation?.conversation_id || null, { lastSseEventAtRef, lastSseEventSeq });
 
   // P-03/P-04: insights globais do clinic · independente do filtro ativo.
   // Substitui calculos filter() do array (que zeravam ao trocar de aba).
