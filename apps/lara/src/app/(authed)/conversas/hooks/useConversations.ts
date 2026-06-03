@@ -124,6 +124,67 @@ export interface Conversation {
   wa_number_id?: string;
 }
 
+/**
+ * P1 backlog /secretaria (2026-06-03) · decide se a conversa SELECIONADA deve
+ * ser re-renderizada após um refetch/SSE/polling.
+ *
+ * Antes o hasChanged inline só comparava mensagem/IA/nome/funnel/phase/tags/
+ * queixas — então mudanças OPERACIONAIS (assign/unassign, status, dono, filas,
+ * SLA) atualizavam a LISTA mas deixavam o PAINEL DIREITO com dono/status velho.
+ * Agora compara também esses campos.
+ *
+ * Mantém a intenção original: retorna false quando nada relevante mudou, então
+ * o caller NÃO troca a referência de selectedConversation → não re-monta o
+ * MessageArea e não cria loop de render.
+ */
+export function hasSelectedConversationChanged(
+  prev: Conversation,
+  updated: Conversation,
+): boolean {
+  const scalarKeys: (keyof Conversation)[] = [
+    // Mensagem / IA (intenção original)
+    'last_message_text',
+    'last_message_at',
+    'ai_enabled',
+    'ai_paused_until',
+    'lead_name',
+    'funnel',
+    'phase',
+    // Operacionais · governam dono/status/filas/SLA do painel direito (P1)
+    'status',
+    'assigned_to',
+    'assigned_at',
+    'operational_owner',
+    'operational_owner_label',
+    'is_assigned',
+    'assigned_to_name',
+    'assigned_to_role',
+    'is_dra',
+    'is_lara',
+    'is_secretaria',
+    'is_aguardando',
+    'is_urgente',
+    'op_response_color',
+    'response_color',
+    'waiting_human_response',
+    'minutes_waiting',
+    'last_patient_msg_at',
+    'last_human_reply_at',
+    'last_inbound_msg',
+    'last_human_msg',
+    'last_lara_msg',
+    'last_outbound_msg',
+    'minutes_since_last_inbound',
+  ];
+  for (const key of scalarKeys) {
+    if (prev[key] !== updated[key]) return true;
+  }
+  // Arrays · comparação por conteúdo (não por referência)
+  if (JSON.stringify(prev.tags) !== JSON.stringify(updated.tags)) return true;
+  if (JSON.stringify(prev.queixas) !== JSON.stringify(updated.queixas)) return true;
+  return false;
+}
+
 export const playNotificationSound = () => {
     try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -300,17 +361,11 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
             setSelectedConversation(prev => {
               if (!prev) return updated;
               
-              // Verifica se algo mudou
-              const hasChanged = 
-                prev.last_message_text !== updated.last_message_text ||
-                prev.last_message_at !== updated.last_message_at ||
-                prev.ai_enabled !== updated.ai_enabled ||
-                prev.ai_paused_until !== updated.ai_paused_until ||
-                prev.lead_name !== updated.lead_name ||
-                prev.funnel !== updated.funnel ||
-                prev.phase !== updated.phase ||
-                JSON.stringify(prev.tags) !== JSON.stringify(updated.tags) ||
-                JSON.stringify(prev.queixas) !== JSON.stringify(updated.queixas);
+              // P1 backlog · além de mensagem/IA, inclui campos operacionais
+              // (assign/status/dono/filas/SLA) que governam o painel direito ·
+              // helper mantém a intenção de NÃO trocar a referência se nada
+              // relevante mudou (sem re-mount do MessageArea · sem loop).
+              const hasChanged = hasSelectedConversationChanged(prev, updated);
 
               if (hasChanged) {
                 console.log(`[useConversations] Atualizando conversa selecionada:`, {
