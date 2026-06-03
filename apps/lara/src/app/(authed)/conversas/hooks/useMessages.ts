@@ -228,9 +228,21 @@ export function useMessages(
         body: JSON.stringify(body)
       });
       if (res.ok) {
-        // Server confirmou · refetch traz o id real e remove o temp
-        fetchMessages(conversationId, true);
-        return true;
+        // P1 · HTTP 200 NÃO garante envio: o backend salva e retorna 200 mesmo
+        // quando o provider (WhatsApp) falha, sinalizando via whatsappStatus.
+        // Parseia o JSON e trata whatsappStatus==='error' / ok===false como
+        // falha de envio (preserva composer · marca optimistic failed abaixo).
+        const data = await res.json().catch(() => null as any);
+        const providerFailed =
+          data?.whatsappStatus === 'error' || data?.ok === false;
+        if (!providerFailed) {
+          // Server confirmou · refetch traz o id real e remove o temp
+          fetchMessages(conversationId, true);
+          return true;
+        }
+        // Provider falhou apesar do 200 · NÃO refetch aqui (o server já salvou a
+        // msg real 'failed' · refetch imediato duplicaria com a optimistic).
+        // Reconcilia no próximo poll/SSE; por ora marca a optimistic failed.
       }
     } catch {
       // network/abort · marca como failed abaixo

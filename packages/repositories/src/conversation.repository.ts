@@ -315,6 +315,7 @@ export class ConversationRepository {
       pausedBy?: string | null
       status?: ConversationStatus
     },
+    clinicId?: string,
   ): Promise<void> {
     const patch: Record<string, unknown> = {
       ai_paused_until: update.pausedUntil,
@@ -322,7 +323,12 @@ export class ConversationRepository {
     }
     if (update.pausedBy !== undefined) patch.paused_by = update.pausedBy
     if (update.status) patch.status = update.status
-    await this.supabase.from('wa_conversations').update(patch).eq('id', conversationId)
+    // Scope hardening · em caminho service_role (RLS furada) o caller passa
+    // clinicId pra escopar o UPDATE por id + clinic_id (multi-tenant ADR-028).
+    // Param opcional · callers existentes (já validados antes) não quebram.
+    let q = this.supabase.from('wa_conversations').update(patch).eq('id', conversationId)
+    if (clinicId) q = q.eq('clinic_id', clinicId)
+    await q
   }
 
   async setStatus(conversationId: string, status: ConversationStatus): Promise<void> {

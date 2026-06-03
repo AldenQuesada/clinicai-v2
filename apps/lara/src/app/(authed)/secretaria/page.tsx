@@ -341,7 +341,11 @@ export default function SecretariaPage() {
     const cid = selectedConversation.conversation_id;
 
     if (action === 'resolve') {
-      // 'resolved' fora do CHECK · usa 'archived' (mesmo path do botão Arquivar).
+      // `wa_conversations.status` é text SEM CHECK · 'resolved' é aceito pelo
+      // banco e pelo endpoint (ALLOWED). A inbox filtra por status='active',
+      // então 'resolved' sai da lista igual 'archived' (e reabre em nova msg),
+      // mas analytics/operação distinguem RESOLVIDA de ARQUIVADA. (Corrige
+      // comentário antigo equivocado sobre CHECK · P1 auditoria 2026-06-03.)
       setModalConfig({
         isOpen: true,
         title: 'Resolver Conversa',
@@ -352,7 +356,7 @@ export default function SecretariaPage() {
           await fetch(`/api/conversations/${cid}/status`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'archived' }),
+            body: JSON.stringify({ status: 'resolved' }),
           });
           setSelectedConversation(null);
           setModalConfig(null);
@@ -385,13 +389,28 @@ export default function SecretariaPage() {
           'Deseja transferir esta conversa para a Dra. Mirian? A conversa vai pra fila Dra · paciente é avisado.',
         confirmText: 'Transferir',
         onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          // P1 · só avisa o paciente DEPOIS de assume + assign confirmados.
+          // Em falha: mantém modal aberto com erro (reusa description · sem
+          // toast novo) e NÃO envia "Vou encaminhar..." ao paciente.
+          const assumeRes = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          if (!assumeRes.ok) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao pausar a IA. Nada foi enviado ao paciente. Tente novamente.' } : m,
+            );
+            return;
+          }
           const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: DOCTOR_USER_ID }),
           });
           const assignData = await assignRes.json().catch(() => ({}));
+          if (!assignRes.ok || assignData?.ok === false) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao atribuir à Dra. Mirian. Nada foi enviado ao paciente. Tente novamente.' } : m,
+            );
+            return;
+          }
           await sendMessage(
             'Vou encaminhar para a Dra. Mirian avaliar com carinho e já te retorno.',
           );
@@ -419,13 +438,26 @@ export default function SecretariaPage() {
           'Deseja transferir esta conversa para o Dr. Alden? A conversa vai pra fila Alden · paciente é avisado.',
         confirmText: 'Transferir',
         onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          // P1 · só avisa o paciente DEPOIS de assume + assign confirmados.
+          const assumeRes = await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
+          if (!assumeRes.ok) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao pausar a IA. Nada foi enviado ao paciente. Tente novamente.' } : m,
+            );
+            return;
+          }
           const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: ALDEN_USER_ID }),
           });
           const assignData = await assignRes.json().catch(() => ({}));
+          if (!assignRes.ok || assignData?.ok === false) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao atribuir ao Dr. Alden. Nada foi enviado ao paciente. Tente novamente.' } : m,
+            );
+            return;
+          }
           await sendMessage(
             'Vou encaminhar para o Dr. Alden avaliar com carinho e já te retorno.',
           );

@@ -114,6 +114,48 @@ export async function pauseAgent(conversationId: string, minutes: number) {
   }
 }
 
+/**
+ * pauseAgentScoped · igual a pauseAgent, mas valida a posse da conversa pela
+ * clínica e escopa o UPDATE por clinic_id (caminho service_role · RLS furada).
+ * Usado pelo POST /assume endurecido (P0). Lança se a conversa não for da
+ * clínica informada — o endpoint converte em 403.
+ */
+export async function pauseAgentScoped(
+  conversationId: string,
+  clinicId: string,
+  minutes: number,
+) {
+  const supabase = createServerClient()
+  const repos = makeRepos(supabase)
+
+  const conv = await repos.conversations.getById(conversationId)
+  if (!conv || conv.clinicId !== clinicId) {
+    throw new Error('conversation_not_found_or_forbidden')
+  }
+
+  const now = new Date()
+  let baseTime = now
+  if (conv?.aiPausedUntil) {
+    const existing = new Date(conv.aiPausedUntil)
+    if (existing > now) baseTime = existing
+  }
+
+  const pauseUntil = new Date(baseTime.getTime() + minutes * 60 * 1000)
+  await repos.conversations.updateAiPause(
+    conversationId,
+    { pausedUntil: pauseUntil.toISOString(), aiEnabled: false },
+    clinicId,
+  )
+
+  return {
+    isPaused: true,
+    remainingTime:
+      minutes + (baseTime > now ? (baseTime.getTime() - now.getTime()) / 60000 : 0),
+    pausedAt: now.toISOString(),
+    ai_paused_until: pauseUntil.toISOString(),
+  }
+}
+
 export async function reactivateAgent(conversationId: string) {
   const supabase = createServerClient()
   const repos = makeRepos(supabase)
