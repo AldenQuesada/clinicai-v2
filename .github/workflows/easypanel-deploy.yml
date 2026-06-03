@@ -4,6 +4,14 @@ name: Easypanel auto-deploy
 # foram afetados (path filters). Funciona como fallback quando o autoDeploy
 # nativo do Easypanel falha (webhook GitHub quebrado, signature invalida, etc).
 #
+# 2026-06-03 · BEST-EFFORT / NAO-FATAL: o host Easypanel (181.215.69.124:3000)
+# responde normal de outras redes, mas o firewall do VPS BLOQUEIA os IPs dos
+# runners do GitHub Actions · o curl daqui sempre da timeout (exit 28). O
+# deploy REAL acontece pelo autoDeploy NATIVO do Easypanel (git push). Por
+# isso este trigger virou best-effort: tenta, mas NUNCA falha o job · evita
+# travar a CI com um X vermelho enganoso. Pra reativar o trigger por aqui,
+# liberar os ranges de IP do GitHub Actions no firewall do VPS.
+#
 # CONFIGURACAO NECESSARIA · Settings -> Secrets -> Actions:
 #   EASYPANEL_DEPLOY_LARA      · token da app `whatsapp` (Lara)
 #   EASYPANEL_DEPLOY_MIRA      · token da app `mira`
@@ -73,14 +81,23 @@ jobs:
       github.event_name == 'push' && (needs.detect.outputs.lara == 'true' || needs.detect.outputs.shared == 'true')
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Easypanel deploy
+      - name: Trigger Easypanel deploy (best-effort · fallback)
         run: |
-          if [ -z "${{ secrets.EASYPANEL_DEPLOY_LARA }}" ]; then
-            echo "::error::secret EASYPANEL_DEPLOY_LARA nao configurada"
-            exit 1
+          # Best-effort · o deploy real acontece pelo autoDeploy nativo do
+          # Easypanel (git). O runner do GitHub e bloqueado pelo firewall do
+          # VPS, entao este curl pode dar timeout · NUNCA falha o job.
+          SECRET="${{ secrets.EASYPANEL_DEPLOY_LARA }}"
+          if [ -z "$SECRET" ]; then
+            echo "::warning::EASYPANEL_DEPLOY_LARA ausente · pulando trigger (autoDeploy nativo cobre)"
+            exit 0
           fi
-          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
-            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_LARA }}"
+          if curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+               "http://181.215.69.124:3000/api/deploy/$SECRET"; then
+            echo "OK · trigger Easypanel respondeu"
+          else
+            echo "::warning::trigger Easypanel inacessivel do runner GitHub (firewall) · deploy real via autoDeploy nativo do Easypanel"
+          fi
+          exit 0
 
   deploy-mira:
     name: Deploy Mira
@@ -90,14 +107,21 @@ jobs:
       github.event_name == 'push' && (needs.detect.outputs.mira == 'true' || needs.detect.outputs.shared == 'true')
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Easypanel deploy
+      - name: Trigger Easypanel deploy (best-effort · fallback)
         run: |
-          if [ -z "${{ secrets.EASYPANEL_DEPLOY_MIRA }}" ]; then
-            echo "::error::secret EASYPANEL_DEPLOY_MIRA nao configurada"
-            exit 1
+          # Best-effort · ver nota no topo do workflow (firewall bloqueia runner).
+          SECRET="${{ secrets.EASYPANEL_DEPLOY_MIRA }}"
+          if [ -z "$SECRET" ]; then
+            echo "::warning::EASYPANEL_DEPLOY_MIRA ausente · pulando trigger (autoDeploy nativo cobre)"
+            exit 0
           fi
-          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
-            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_MIRA }}"
+          if curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+               "http://181.215.69.124:3000/api/deploy/$SECRET"; then
+            echo "OK · trigger Easypanel respondeu"
+          else
+            echo "::warning::trigger Easypanel inacessivel do runner GitHub (firewall) · deploy real via autoDeploy nativo do Easypanel"
+          fi
+          exit 0
 
   deploy-flipbook:
     name: Deploy Flipbook
@@ -107,11 +131,18 @@ jobs:
       github.event_name == 'push' && (needs.detect.outputs.flipbook == 'true' || needs.detect.outputs.shared == 'true')
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Easypanel deploy
+      - name: Trigger Easypanel deploy (best-effort · fallback)
         run: |
-          if [ -z "${{ secrets.EASYPANEL_DEPLOY_FLIPBOOK }}" ]; then
-            echo "::error::secret EASYPANEL_DEPLOY_FLIPBOOK nao configurada"
-            exit 1
+          # Best-effort · ver nota no topo do workflow (firewall bloqueia runner).
+          SECRET="${{ secrets.EASYPANEL_DEPLOY_FLIPBOOK }}"
+          if [ -z "$SECRET" ]; then
+            echo "::warning::EASYPANEL_DEPLOY_FLIPBOOK ausente · pulando trigger (autoDeploy nativo cobre)"
+            exit 0
           fi
-          curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
-            "http://181.215.69.124:3000/api/deploy/${{ secrets.EASYPANEL_DEPLOY_FLIPBOOK }}"
+          if curl -sSf -X POST -m 30 -w "\nHTTP %{http_code}\n" \
+               "http://181.215.69.124:3000/api/deploy/$SECRET"; then
+            echo "OK · trigger Easypanel respondeu"
+          else
+            echo "::warning::trigger Easypanel inacessivel do runner GitHub (firewall) · deploy real via autoDeploy nativo do Easypanel"
+          fi
+          exit 0
