@@ -454,7 +454,10 @@ export function useConversations(opts?: { inbox?: 'sdr' | 'secretaria' }) {
     function connect() {
       if (stopped) return;
       try {
-        eventSource = new EventSource('/api/conversations/sse');
+        // P2 backlog (2026-06-03): passa o inbox pro SSE filtrar eventos de
+        // wa_conversations por inbox_role server-side · reduz refresh por evento
+        // de outro inbox (ex: /secretaria não recarrega por mudança de conv sdr).
+        eventSource = new EventSource(`/api/conversations/sse?inbox=${inbox}`);
         eventSource.onmessage = () => {
           // SSE entregou evento · conexao saudavel · reseta backoff
           reconnectAttempt = 0;

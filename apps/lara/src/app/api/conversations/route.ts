@@ -158,14 +158,27 @@ export async function GET(request: NextRequest) {
     if (inboxRole === 'secretaria') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const resolved = await resolveSecretariaWaNumberId(supabase as any, ctx.clinic_id)
-      waNumberIdForList = resolved ?? undefined
+      // Fail-closed (P1 backlog · 2026-06-03): sem o wa_number_id da Mih, a lista
+      // cairia num fallback amplo (inbox_role='secretaria' = Mih+Mira+Marci+
+      // auxiliar) que diverge dos KPIs (operational view, hardcoded em Mih) e
+      // deixa a tela inconsistente (KPI diz 10, lista mostra 3 / outro canal).
+      // Melhor erro explícito do que lista errada · NÃO chamamos listByStatus.
       if (!resolved) {
-        console.warn(
-          '[API] /secretaria · wa_number_id da Mih nao resolvido · ' +
-            'caindo no fallback inbox_role=secretaria (pode misturar canais). ' +
+        console.error(
+          '[API] /secretaria · wa_number_id da Mih nao resolvido · falhando fechado. ' +
             'Verifique wa_numbers com phone=5544991622986 ou label="Secretaria B&H".',
         )
+        return NextResponse.json(
+          {
+            error: 'secretaria_channel_not_resolved',
+            detail:
+              'Canal da Secretaria (Mih) nao resolvido · lista bloqueada pra nao ' +
+              'misturar canais nem divergir dos KPIs.',
+          },
+          { status: 503 },
+        )
       }
+      waNumberIdForList = resolved
     }
 
     // Default flow (sdr e secretaria sem flag) · listByStatus + view operacional
