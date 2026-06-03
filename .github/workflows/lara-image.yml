@@ -55,11 +55,13 @@ jobs:
           A: ${{ secrets.NEXT_PUBLIC_APP_URL }}
           P: ${{ secrets.NEXT_PUBLIC_PAINEL_URL }}
         run: |
+          # NEXT_PUBLIC_PAINEL_URL e OPCIONAL · nao existe no env atual da Lara
+          # e o build sempre funcionou sem ele (build-arg vazio). So os 3 abaixo
+          # sao obrigatorios.
           missing=""
           [ -z "$U" ] && missing="$missing NEXT_PUBLIC_SUPABASE_URL"
           [ -z "$K" ] && missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
           [ -z "$A" ] && missing="$missing NEXT_PUBLIC_APP_URL"
-          [ -z "$P" ] && missing="$missing NEXT_PUBLIC_PAINEL_URL"
           if [ -n "$missing" ]; then
             echo "::error::Faltam secrets do repo (Settings -> Secrets -> Actions):$missing"
             echo "Sem eles o browser client recebe undefined e a UI quebra. Adicione e re-rode."
