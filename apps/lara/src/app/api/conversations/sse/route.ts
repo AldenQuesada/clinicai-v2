@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
   }
 
   const clinicId = ctx.clinic_id;
+  // P2 backlog (2026-06-03): filtro opcional por inbox. O payload de evento de
+  // `wa_conversations` carrega `inbox_role` → dá pra dropar mudanças de OUTRO
+  // inbox server-side. `wa_messages`/`leads` NÃO trazem inbox_role no payload,
+  // então continuam emitindo (não dá pra filtrar sem join · fallback documentado).
+  const inboxRaw = request.nextUrl.searchParams.get('inbox');
+  const inboxFilter: 'sdr' | 'secretaria' | null =
+    inboxRaw === 'sdr' || inboxRaw === 'secretaria' ? inboxRaw : null;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -55,7 +62,13 @@ export async function GET(request: NextRequest) {
             table: 'wa_conversations',
             filter: `clinic_id=eq.${clinicId}`,
           },
-          () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (payload: any) => {
+            // Fail-open: só dropa quando o evento é comprovadamente de OUTRO
+            // inbox. inbox_role null/ausente → emite (nunca perde update do
+            // inbox pedido).
+            const role = payload?.new?.inbox_role ?? payload?.old?.inbox_role;
+            if (inboxFilter && role && role !== inboxFilter) return;
             controller.enqueue(encoder.encode(`data: "update"\n\n`));
           }
         )

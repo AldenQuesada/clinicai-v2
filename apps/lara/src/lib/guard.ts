@@ -171,6 +171,30 @@ export async function reactivateAgent(conversationId: string) {
   return { isPaused: false, remainingTime: 0, pausedAt: null }
 }
 
+/**
+ * reactivateAgentScoped · igual a reactivateAgent, mas valida a posse da
+ * conversa pela clínica e escopa o UPDATE por clinic_id (caminho service_role ·
+ * RLS furada). Usado pelo DELETE /pause endurecido (P1 backlog). Lança se a
+ * conversa não for da clínica informada — o endpoint converte em 403.
+ */
+export async function reactivateAgentScoped(conversationId: string, clinicId: string) {
+  const supabase = createServerClient()
+  const repos = makeRepos(supabase)
+
+  const conv = await repos.conversations.getById(conversationId)
+  if (!conv || conv.clinicId !== clinicId) {
+    throw new Error('conversation_not_found_or_forbidden')
+  }
+
+  await repos.conversations.updateAiPause(
+    conversationId,
+    { pausedUntil: null, aiEnabled: true, status: 'active' },
+    clinicId,
+  )
+
+  return { isPaused: false, remainingTime: 0, pausedAt: null }
+}
+
 export async function getPauseStatus(conversationId: string) {
   const supabase = createServerClient()
   const repos = makeRepos(supabase)
