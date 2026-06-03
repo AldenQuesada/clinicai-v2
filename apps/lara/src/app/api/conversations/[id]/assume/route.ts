@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadServerContext } from '@clinicai/supabase';
 import { makeRepos } from '@/lib/repos';
 import { createServerClient } from '@/lib/supabase';
-import { pauseAgent } from '@/lib/guard';
+import { pauseAgentScoped } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,20 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const result = await pauseAgent(id, 30);
+    // Scope hardening (P0) · espelha o DELETE: valida JWT + clinic ANTES de
+    // pausar IA. pauseAgentScoped roda em service_role (RLS furada), então sem
+    // este check qualquer usuário autenticado que conheça um conversation_id
+    // pausaria a IA de conversa de outra clínica/tenant (ADR-028).
+    const { ctx } = await loadServerContext();
+    const supabase = createServerClient();
+    const repos = makeRepos(supabase);
+
+    const conv = await repos.conversations.getById(id);
+    if (!conv || conv.clinicId !== ctx.clinic_id) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
+    const result = await pauseAgentScoped(id, ctx.clinic_id, 30);
     return NextResponse.json({ ok: true, pauseStatus: result });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

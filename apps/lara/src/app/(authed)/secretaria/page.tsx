@@ -42,7 +42,10 @@ import { useAutoSelectFromQuery } from '../conversas/hooks/useAutoSelectFromQuer
 // da tela · resolve subestimação anterior (KPIs eram .filter().length em
 // array paginado de 50 itens · auditoria 2026-05-07: 91 reais vs 50 mostrados).
 import { useSecretariaKpis } from './hooks/useSecretariaKpis';
-import { DOCTOR_USER_ID, ALDEN_USER_ID, isDoctor } from '@/lib/clinic-profiles';
+// P2 refactor (2026-06-03) · ações + KPI bar extraídos pra reduzir o page.tsx.
+import { useSecretariaActions } from './hooks/useSecretariaActions';
+import { SecretariaKpiBar, type KpiId } from './components/SecretariaKpiBar';
+import { ALDEN_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
   RefreshCw,
@@ -50,12 +53,6 @@ import {
   Filter,
   CheckCircle,
   Archive,
-  AlertCircle,
-  Clock,
-  Stethoscope,
-  Inbox,
-  CircleDot,
-  CheckCheck,
 } from 'lucide-react';
 
 export default function SecretariaPage() {
@@ -103,17 +100,10 @@ export default function SecretariaPage() {
   //   Todos | Secretaria | Mirian | Alden | Aguardando | Urgente
   // Default 'todos' pra Secretaria/outros · 'mirian' pra Mirian (effect abaixo).
   // KpiId 'secretaria' (mig 147 normalizou · luciana NAO eh mais alias).
-  type KpiId = 'todos' | 'secretaria' | 'mirian' | 'alden' | 'aguardando' | 'urgente';
+  // KpiId vem de SecretariaKpiBar (não duplicar literal · P2 refactor).
   const [activeKpi, setActiveKpi] = useState<KpiId>('todos');
   const [didApplyRoleKpi, setDidApplyRoleKpi] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    description: string;
-    confirmText?: string;
-    cancelText?: string;
-    onConfirm: () => void;
-  } | null>(null);
+  // modalConfig + handleAction migraram pra useSecretariaActions (mais abaixo).
 
   const {
     messages,
@@ -236,7 +226,7 @@ export default function SecretariaPage() {
   // Patch SECRETARIA KPI A (2026-05-07) · counts reais via /api/secretaria/
   // kpis · 5 COUNT(*) na wa_conversations_operational_view. Antes: contagem
   // local subestimava porque conversations vem paginado em PAGE_SIZE=50.
-  const { kpis: serverKpis, hasFetched: kpisHasFetched } = useSecretariaKpis();
+  const { kpis: serverKpis, hasFetched: kpisHasFetched, isError: kpisError } = useSecretariaKpis();
 
   // Fallback local · usado SO ate o primeiro fetch terminar (kpisHasFetched=
   // false) ou se endpoint quebrar de vez (mantem ultimo valor server e cai
@@ -334,134 +324,15 @@ export default function SecretariaPage() {
     }
   }, [selectedConversation?.conversation_id]);
 
-  const handleAction = async (
-    action: 'assume' | 'resolve' | 'archive' | 'transfer' | 'transfer_alden' | 'devolver',
-  ) => {
-    if (!selectedConversation?.conversation_id) return;
-    const cid = selectedConversation.conversation_id;
-
-    if (action === 'resolve') {
-      // 'resolved' fora do CHECK · usa 'archived' (mesmo path do botão Arquivar).
-      setModalConfig({
-        isOpen: true,
-        title: 'Resolver Conversa',
-        description:
-          'Marcar conversa como resolvida? Ela sai da lista de pendências.',
-        confirmText: 'Resolver',
-        onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'archived' }),
-          });
-          setSelectedConversation(null);
-          setModalConfig(null);
-        },
-      });
-    } else if (action === 'archive') {
-      setModalConfig({
-        isOpen: true,
-        title: 'Arquivar Conversa',
-        description:
-          'Arquivar essa conversa? Ela volta caso o paciente mande nova mensagem.',
-        confirmText: 'Arquivar',
-        onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'archived' }),
-          });
-          setSelectedConversation(null);
-          setModalConfig(null);
-        },
-      });
-    } else if (action === 'transfer') {
-      // Transferir para Dra (Caminho A · Alden 2026-05-05)
-      // Pausa Lara via /assume + atribui à Mirian via /assign + msg auto.
-      setModalConfig({
-        isOpen: true,
-        title: 'Transferir para Dra. Mirian',
-        description:
-          'Deseja transferir esta conversa para a Dra. Mirian? A conversa vai pra fila Dra · paciente é avisado.',
-        confirmText: 'Transferir',
-        onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
-          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: DOCTOR_USER_ID }),
-          });
-          const assignData = await assignRes.json().catch(() => ({}));
-          await sendMessage(
-            'Vou encaminhar para a Dra. Mirian avaliar com carinho e já te retorno.',
-          );
-          setSelectedConversation((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  ai_enabled: false,
-                  assigned_to: DOCTOR_USER_ID,
-                  assigned_at: assignData?.assigned_at || new Date().toISOString(),
-                }
-              : prev,
-          );
-          setModalConfig(null);
-        },
-      });
-    } else if (action === 'transfer_alden') {
-      // Onda 3 (2026-05-08) · Transferir pra Dr Alden · paralelo ao Mirian.
-      // Mesmo POST /assign body { user_id: ALDEN_USER_ID } · view (mig 146)
-      // reconhece via UUID puro · KPI/aba Alden separados.
-      setModalConfig({
-        isOpen: true,
-        title: 'Transferir para Dr. Alden',
-        description:
-          'Deseja transferir esta conversa para o Dr. Alden? A conversa vai pra fila Alden · paciente é avisado.',
-        confirmText: 'Transferir',
-        onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assume`, { method: 'POST' });
-          const assignRes = await fetch(`/api/conversations/${cid}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: ALDEN_USER_ID }),
-          });
-          const assignData = await assignRes.json().catch(() => ({}));
-          await sendMessage(
-            'Vou encaminhar para o Dr. Alden avaliar com carinho e já te retorno.',
-          );
-          setSelectedConversation((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  ai_enabled: false,
-                  assigned_to: ALDEN_USER_ID,
-                  assigned_at: assignData?.assigned_at || new Date().toISOString(),
-                }
-              : prev,
-          );
-          setModalConfig(null);
-        },
-      });
-    } else if (action === 'devolver') {
-      // Devolver para Secretária · DELETE /assign limpa assigned_to.
-      setModalConfig({
-        isOpen: true,
-        title: 'Devolver para Secretária',
-        description: 'Deseja devolver essa conversa para a fila da Secretária?',
-        confirmText: 'Devolver',
-        onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assign`, { method: 'DELETE' });
-          setSelectedConversation((prev) =>
-            prev ? { ...prev, assigned_to: null, assigned_at: null } : prev,
-          );
-          setModalConfig(null);
-        },
-      });
-    }
-    // 'assume' nao faz sentido na inbox secretaria (ja e humano)
-  };
-
-  const isModalOpen = !!modalConfig?.isOpen;
+  // P2 refactor (2026-06-03) · ações operacionais + modal extraídos pra
+  // useSecretariaActions (encapsula handleAction, a validação de response do
+  // Prompt 1 e o estado do modal · hook puro, sem JSX). page.tsx fica mais fino.
+  const { modalConfig, setModalConfig, handleAction, isModalOpen } =
+    useSecretariaActions({
+      selectedConversation,
+      setSelectedConversation,
+      sendMessage,
+    });
   useKeyboardShortcuts({
     conversations,
     selectedConversation,
@@ -522,158 +393,24 @@ export default function SecretariaPage() {
           </button>
         </div>
 
-        {/* ZONA CENTRAL · 5 KPIs CANÔNICOS · view operacional como SoT
-            ESCOPO: Todos (visão geral)
-            DONOS:  Luciana · Mirian (canônicos · únicos donos operacionais)
-            FILA:   Aguardando · Urgente
-            Removidos: Retorno (sem estrutura), Abertas/Resolvidas (legacy). */}
-        <div className="flex-1 border-b border-white/[0.06] flex items-center justify-center px-6 min-w-0">
-          <div className="flex items-center gap-1.5">
-            {([
-              // ── Grupo ESCOPO (cinza/discreto) ──
-              {
-                id: 'todos' as const,
-                icon: Inbox,
-                label: 'Todos',
-                value: todosCount,
-                color: 'foreground',
-                title: 'Todas as conversas operacionais (Secretaria + Mirian)',
-                group: 'escopo' as const,
-              },
-              // ── Grupo DONO (canônico · KPI B 2026-05-07 rename visual ·
-              //    Mig 147 2026-05-08 normalizou: id 'secretaria' agora · view
-              //    retorna operational_owner='secretaria' direto · NUNCA mais
-              //    'luciana' como alias · Luciana so se atribuida real).
-              {
-                id: 'secretaria' as const,
-                icon: CircleDot,
-                label: 'Secretaria',
-                value: secretariaCount,
-                color: 'primary',
-                title: 'Conversas operacionais da Secretaria (default · não atribuídas)',
-                group: 'dono' as const,
-              },
-              {
-                id: 'mirian' as const,
-                icon: Stethoscope,
-                label: 'Mirian',
-                value: mirianCount,
-                color: 'accent',
-                title: 'Conversas transferidas pra Dra Mirian (assigned_to)',
-                group: 'dono' as const,
-              },
-              // Onda 3 (2026-05-08) · Dr Alden como dono operacional separado.
-              // operational_owner='alden' via UUID na view (mig 146) · is_dra
-              // continua Mirian-only por decisao de produto.
-              {
-                id: 'alden' as const,
-                icon: Stethoscope,
-                label: 'Alden',
-                value: aldenCount,
-                color: 'primary',
-                title: 'Conversas transferidas pra Dr Alden (assigned_to)',
-                group: 'dono' as const,
-              },
-              // ── Grupo FILA (colorido) ──
-              {
-                id: 'aguardando' as const,
-                icon: Clock,
-                label: 'Aguardando',
-                value: aguardandoCount,
-                color: 'warning',
-                title: 'Paciente esperando resposta humana · view canônica',
-                group: 'fila' as const,
-              },
-              // KPI Urgente · usa token --danger (mesmo da tag urgente nas
-              // conversas) · realce permanente + pulso leve no icone quando
-              // count > 0 · "atencao operacional", nao alarme.
-              {
-                id: 'urgente' as const,
-                icon: AlertCircle,
-                label: 'Urgente',
-                value: urgenteCount,
-                color: 'danger',
-                title: 'Alerta crítico · is_urgente da view (>5min sem resposta humana)',
-                group: 'fila' as const,
-              },
-            ]).map((k, idx, arr) => {
-              const Icon = k.icon;
-              const colorVar = `hsl(var(--${k.color}))`;
-              const isActive = activeKpi === k.id;
-              const prev = arr[idx - 1];
-              const showDivider = !!prev && prev.group !== k.group;
-              // Realce permanente do KPI Urgente · alinhado com a tag urgente
-              // existente nas conversas (--danger token canonico). Sempre
-              // mostra bg + border vermelho suave mesmo inativo · pulso leve
-              // no icone quando ha conversa(s) urgente(s) · zero animacao
-              // quando count==0 (estado calmo).
-              const isUrgentKpi = k.id === 'urgente';
-              const urgentHighlight = isUrgentKpi && k.value > 0;
-              return (
-                <div key={k.id} className="flex items-center gap-1.5">
-                  {showDivider && (
-                    <div className="w-px h-8 bg-white/[0.08] mx-1" aria-hidden="true" />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setActiveKpi(k.id)}
-                    title={k.title}
-                    className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 ease-out cursor-pointer ${
-                      isActive
-                        ? '-translate-y-[1px]'
-                        : 'hover:-translate-y-[2px] hover:bg-white/[0.03]'
-                    }`}
-                    style={{
-                      // KPI Urgente sempre traz seu bg/border tenue mesmo
-                      // inativo · isActive empilha intensidade.
-                      background: isActive
-                        ? colorVar.replace(')', ' / 0.10)')
-                        : isUrgentKpi
-                          ? colorVar.replace(')', ' / 0.06)')
-                          : undefined,
-                      boxShadow: isActive
-                        ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.35)')}`
-                        : isUrgentKpi
-                          ? `inset 0 0 0 1px ${colorVar.replace(')', ' / 0.20)')}`
-                          : undefined,
-                    }}
-                  >
-                    <div
-                      className={`p-1 rounded-md transition-colors shrink-0 ${
-                        urgentHighlight ? 'animate-pulse' : ''
-                      }`}
-                      style={{
-                        background: colorVar.replace(')', ' / 0.10)'),
-                        color: colorVar,
-                      }}
-                    >
-                      <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    </div>
-                    <div className="text-left">
-                      <p
-                        className="font-meta text-[8.5px] uppercase whitespace-nowrap transition-colors"
-                        style={{
-                          color: isActive ? colorVar : undefined,
-                          letterSpacing: '0.08em',
-                        }}
-                      >
-                        {k.label}
-                      </p>
-                      <p
-                        className="font-display text-xl leading-none mt-0.5 tabular-nums"
-                        style={{
-                          color: k.value > 0 ? colorVar : 'hsl(var(--foreground))',
-                        }}
-                      >
-                        {k.value}
-                      </p>
-                    </div>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* ZONA CENTRAL · 6 KPIs canônicos · extraído pra SecretariaKpiBar
+            (P2 refactor 2026-06-03) · view operacional como SoT · labels,
+            grupos, divisores e realce do Urgente preservados 1:1. A computação
+            server/fallback-local dos counts fica aqui (usa os mesmos helpers
+            de filtro da lista). kpisError mostra indicador discreto na barra. */}
+        <SecretariaKpiBar
+          activeKpi={activeKpi}
+          setActiveKpi={setActiveKpi}
+          counts={{
+            todos: todosCount,
+            secretaria: secretariaCount,
+            mirian: mirianCount,
+            alden: aldenCount,
+            aguardando: aguardandoCount,
+            urgente: urgenteCount,
+          }}
+          kpisError={kpisError}
+        />
 
         {/* ZONA DIREITA · sobre painel direito */}
         {isLeadPanelExpanded ? (

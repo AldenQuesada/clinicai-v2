@@ -33,8 +33,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase } = await loadServerContext();
+  const { supabase, ctx } = await loadServerContext();
   const repos = makeRepos(supabase);
+
+  // Scope hardening (P1) · valida que a conversa pertence à clínica do JWT
+  // ANTES de listar. A RLS de wa_messages já mitiga, mas espelhamos o check
+  // do POST (belt + suspenders · ADR-028) pra não depender só do banco.
+  const conv = await repos.conversations.getById(id);
+  if (!conv || conv.clinicId !== ctx.clinic_id) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
 
   const messages = await repos.messages.listByConversation(id, { ascending: true });
 
