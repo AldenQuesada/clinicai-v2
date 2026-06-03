@@ -202,13 +202,21 @@ export function useSecretariaActions({
       });
     } else if (action === 'devolver') {
       // Devolver para Secretária · DELETE /assign limpa assigned_to.
+      // Follow-up audit-check PR #47: só atualiza UI após unassign confirmado.
       setModalConfig({
         isOpen: true,
         title: 'Devolver para Secretária',
         description: 'Deseja devolver essa conversa para a fila da Secretária?',
         confirmText: 'Devolver',
         onConfirm: async () => {
-          await fetch(`/api/conversations/${cid}/assign`, { method: 'DELETE' });
+          const unassignRes = await fetch(`/api/conversations/${cid}/assign`, { method: 'DELETE' });
+          const unassignData = await unassignRes.json().catch(() => ({}));
+          if (!unassignRes.ok || unassignData?.ok === false) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao devolver para a Secretária. A conversa não foi alterada. Tente novamente.' } : m,
+            );
+            return;
+          }
           setSelectedConversation((prev) =>
             prev ? { ...prev, assigned_to: null, assigned_at: null } : prev,
           );
