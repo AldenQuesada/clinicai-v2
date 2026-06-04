@@ -107,6 +107,72 @@ export async function POST(req: NextRequest) {
   const repos = makeMiraRepos(supabase)
   const clinicId = await resolveClinicId(supabase)
 
+  // 3.5. Mira LID Layer-2 · 2026-06-04
+  //      Quando @lid sem senderPn, resolve phone via wa_contact_identities
+  //      (jid_lid → contact_id → phone_e164 primary). Pattern espelha Lara
+  //      route.ts:1128 (Layer 2). Mira NÃO tem wa_conversations (Layer 1 do
+  //      Lara não aplica) e NÃO aprende mappings novos nesta fase · só
+  //      consome backfill existente. Sem enqueue em wa_pending_lid_events.
+  if (msg.lidUnresolved && msg.remoteJid) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any
+    const { data: identityRow } = await sb
+      .from('wa_contact_identities')
+      .select('contact_id')
+      .eq('clinic_id', clinicId)
+      .eq('identity_type', 'jid_lid')
+      .eq('identity_value_norm', msg.remoteJid)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!identityRow?.contact_id) {
+      log.info(
+        { remote_jid: msg.remoteJid, wa_message_id: msg.messageId },
+        'mira.webhook.lid_identity_not_found',
+      )
+      return jsonRes({
+        ok: true,
+        skip: 'lid_identity_not_found',
+        remote_jid: msg.remoteJid,
+        wa_message_id: msg.messageId,
+      })
+    }
+    const { data: phoneRow } = await sb
+      .from('wa_contact_identities')
+      .select('identity_value')
+      .eq('clinic_id', clinicId)
+      .eq('contact_id', identityRow.contact_id)
+      .eq('identity_type', 'phone_e164')
+      .eq('is_primary', true)
+      .is('deleted_at', null)
+      .maybeSingle()
+    const resolvedPhone = String(phoneRow?.identity_value ?? '').replace(/\D/g, '')
+    if (!/^\d{10,15}$/.test(resolvedPhone)) {
+      log.info(
+        {
+          remote_jid: msg.remoteJid,
+          contact_id: identityRow.contact_id,
+          wa_message_id: msg.messageId,
+        },
+        'mira.webhook.lid_identity_phone_invalid',
+      )
+      return jsonRes({
+        ok: true,
+        skip: 'lid_identity_not_found',
+        remote_jid: msg.remoteJid,
+        wa_message_id: msg.messageId,
+      })
+    }
+    log.info(
+      {
+        remote_jid: msg.remoteJid,
+        phone_hash: hashPhone(resolvedPhone),
+        wa_message_id: msg.messageId,
+      },
+      'mira.webhook.lid_resolved_via_identity',
+    )
+    msg.phone = resolvedPhone
+  }
+
   // 4. Role gate (ALDEN: Mira NUNCA responde unknown)
   const role = await resolveRole(repos.waNumbers, repos.b2bSenders, clinicId, msg.phone)
   if (role === null) {
