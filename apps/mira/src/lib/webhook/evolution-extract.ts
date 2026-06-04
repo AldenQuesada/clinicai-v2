@@ -12,7 +12,7 @@
  */
 
 export interface ExtractedMessage {
-  /** Phone normalizado (so digitos · ex: 5544998787673) */
+  /** Phone normalizado (so digitos · ex: 5544998787673) · vazio quando lidUnresolved */
   phone: string
   /** wa_message_id pra dedup */
   messageId: string
@@ -24,6 +24,14 @@ export interface ExtractedMessage {
   messageKey: Record<string, unknown>
   /** Push name (nome WhatsApp do remetente · pode ser null) */
   pushName: string | null
+  /**
+   * Mira LID Layer-2 (2026-06-04) · true quando @lid sem senderPn.
+   * Caller DEVE resolver phone via wa_contact_identities (jid_lid → phone_e164)
+   * ANTES de usar msg.phone. Espelha pattern Lara 2-layer (route.ts:1038+).
+   */
+  lidUnresolved?: boolean
+  /** Mira LID Layer-2 · remoteJid original (ex: 93716287086617@lid) quando lidUnresolved */
+  remoteJid?: string
 }
 
 export type ExtractResult =
@@ -56,18 +64,23 @@ export function extractEvolutionMessage(body: unknown): ExtractResult {
   }
 
   // Phone extract · @s.whatsapp.net direto, @lid via senderPn
+  // Mira LID Layer-2 (2026-06-04): @lid sem senderPn NÃO retorna skip aqui ·
+  // marca lidUnresolved=true · caller resolve via wa_contact_identities
+  // (jid_lid → phone_e164) antes de resolveRole. Mesmo pattern do Lara
+  // (route.ts:1038+).
   let phone = ''
+  let lidUnresolved = false
   if (remoteJid.endsWith('@lid')) {
     const senderPn: string = String(key?.senderPn ?? data?.senderPn ?? '')
     phone = senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '')
     if (!phone) {
-      return { ok: false, skip: 'lid_without_senderPn', detail: remoteJid }
+      lidUnresolved = true
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
   }
 
-  if (!/^\d{10,15}$/.test(phone)) {
+  if (!lidUnresolved && !/^\d{10,15}$/.test(phone)) {
     return { ok: false, skip: 'bad_phone_format', detail: phone }
   }
 
@@ -99,6 +112,7 @@ export function extractEvolutionMessage(body: unknown): ExtractResult {
       isAudio,
       messageKey: { remoteJid, fromMe: false, id: messageId },
       pushName: data?.pushName ? String(data.pushName) : null,
+      ...(lidUnresolved ? { lidUnresolved: true, remoteJid } : {}),
     },
   }
 }
