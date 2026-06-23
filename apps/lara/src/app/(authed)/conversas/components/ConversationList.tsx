@@ -154,28 +154,14 @@ export function ConversationList({
         if (filterFunnel === 'procedimentos' && !f.includes('procedimento')) return false;
       }
 
-      // 4. Filtro por Tag.
-      //    As opções de FUNIL (FULL FACE / OLHEIRAS / PROCEDIMENTO) derivam de
-      //    conv.funnel — data-driven, mesmo needle do filtro Funil acima.
-      //    computeConversationTags NÃO emite mais pills de funil (removidas
-      //    2026-05-05), então essas opções eram zumbis: passam a filtrar pelo
-      //    funil do lead (banco), não por label semântico.
-      //    Demais opções (URGENTE, LARA...) seguem via tags semânticas + conv.tags.
+      // 4. Filtro por Tag · só tags/sinais reais (URGENTE, LARA + Tags do CRM
+      //    livres de conv.tags). Funil NÃO mora aqui — vive no filtro "Funil"
+      //    acima (evita redundância/conflito entre os dois filtros).
       if (filterTag !== 'all') {
-        const FUNNEL_TAG_NEEDLE: Record<string, string> = {
-          OLHEIRAS: 'olheira',
-          'FULL FACE': 'full',
-          PROCEDIMENTO: 'procedimento',
-        };
-        const needle = FUNNEL_TAG_NEEDLE[filterTag];
-        if (needle) {
-          if (!(conv.funnel || '').toLowerCase().includes(needle)) return false;
-        } else {
-          const semanticTags = computeConversationTags(conv).map((t) => t.label);
-          const rawTags = conv.tags ?? [];
-          const allConvTags = [...semanticTags, ...rawTags];
-          if (!allConvTags.includes(filterTag)) return false;
-        }
+        const semanticTags = computeConversationTags(conv).map((t) => t.label);
+        const rawTags = conv.tags ?? [];
+        const allConvTags = [...semanticTags, ...rawTags];
+        if (!allConvTags.includes(filterTag)) return false;
       }
 
       // 5. Filtro por Data · presets + DATA ESPECÍFICA (YYYY-MM-DD)
@@ -332,19 +318,14 @@ export function ConversationList({
                 className="w-full bg-[hsl(var(--chat-bg))] border border-[hsl(var(--chat-border))] text-xs rounded px-2 py-1 outline-none text-[hsl(var(--foreground))]"
               >
                 <option value="all">Todas as tags</option>
+                {/* Funil saiu daqui (vive no filtro "Funil" · evita conflito).
+                    Removidas tb as opções zumbis QUER AGENDAR / PERGUNTOU PREÇO /
+                    VOCÊ — computeConversationTags não as emite desde 2026-05-05. */}
                 <optgroup label="Estado">
                   <option value="URGENTE">URGENTE</option>
-                  <option value="QUER AGENDAR">QUER AGENDAR</option>
-                  <option value="PERGUNTOU PREÇO">PERGUNTOU PREÇO</option>
                 </optgroup>
                 <optgroup label="Quem conduz">
                   <option value="LARA">LARA conduzindo</option>
-                  <option value="VOCÊ">VOCÊ assumiu</option>
-                </optgroup>
-                <optgroup label="Funil">
-                  <option value="FULL FACE">FULL FACE</option>
-                  <option value="OLHEIRAS">OLHEIRAS</option>
-                  <option value="PROCEDIMENTO">PROCEDIMENTO</option>
                 </optgroup>
                 {allTags.length > 0 && (
                   <optgroup label="Tags do CRM">
