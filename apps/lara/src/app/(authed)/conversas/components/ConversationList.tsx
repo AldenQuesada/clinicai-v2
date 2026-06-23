@@ -154,14 +154,28 @@ export function ConversationList({
         if (filterFunnel === 'procedimentos' && !f.includes('procedimento')) return false;
       }
 
-      // 4. Filtro por Tag SEMÂNTICA · usa computeConversationTags pra incluir
-      //    tags derivadas (URGENTE, LARA, VOCÊ, FULL FACE, PROCEDIMENTO, OLHEIRAS,
-      //    QUER AGENDAR, PERGUNTOU PREÇO) + tags do banco (conv.tags[])
+      // 4. Filtro por Tag.
+      //    As opções de FUNIL (FULL FACE / OLHEIRAS / PROCEDIMENTO) derivam de
+      //    conv.funnel — data-driven, mesmo needle do filtro Funil acima.
+      //    computeConversationTags NÃO emite mais pills de funil (removidas
+      //    2026-05-05), então essas opções eram zumbis: passam a filtrar pelo
+      //    funil do lead (banco), não por label semântico.
+      //    Demais opções (URGENTE, LARA...) seguem via tags semânticas + conv.tags.
       if (filterTag !== 'all') {
-        const semanticTags = computeConversationTags(conv).map((t) => t.label);
-        const rawTags = conv.tags ?? [];
-        const allConvTags = [...semanticTags, ...rawTags];
-        if (!allConvTags.includes(filterTag)) return false;
+        const FUNNEL_TAG_NEEDLE: Record<string, string> = {
+          OLHEIRAS: 'olheira',
+          'FULL FACE': 'full',
+          PROCEDIMENTO: 'procedimento',
+        };
+        const needle = FUNNEL_TAG_NEEDLE[filterTag];
+        if (needle) {
+          if (!(conv.funnel || '').toLowerCase().includes(needle)) return false;
+        } else {
+          const semanticTags = computeConversationTags(conv).map((t) => t.label);
+          const rawTags = conv.tags ?? [];
+          const allConvTags = [...semanticTags, ...rawTags];
+          if (!allConvTags.includes(filterTag)) return false;
+        }
       }
 
       // 5. Filtro por Data · presets + DATA ESPECÍFICA (YYYY-MM-DD)
