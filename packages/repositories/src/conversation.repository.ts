@@ -339,6 +339,32 @@ export class ConversationRepository {
   }
 
   /**
+   * Encerrar operacional (Secretaria · mig 200) · seta kpi_cleared_at = agora.
+   *
+   * Limpa APENAS as lentes de KPI (Aguardando/Urgente) na
+   * wa_conversations_operational_view. NÃO muda status, last_message_at,
+   * sort, ai_enabled nem remove da inbox/timeline. Se o paciente mandar
+   * mensagem nova (patient_last_at > kpi_cleared_at), o KPI reabre sozinho.
+   * Escopo multi-tenant ADR-028: id + clinic_id (caminho service_role).
+   */
+  async clearSecretariaKpi(
+    conversationId: string,
+    clinicId: string,
+  ): Promise<{ kpi_cleared_at: string }> {
+    const clearedAt = new Date().toISOString()
+    // patch destipado (mesmo padrão de updateAiPause) · não depende do tipo
+    // gerado da tabela conter kpi_cleared_at.
+    const patch: Record<string, unknown> = { kpi_cleared_at: clearedAt }
+    const { error } = await this.supabase
+      .from('wa_conversations')
+      .update(patch)
+      .eq('id', conversationId)
+      .eq('clinic_id', clinicId)
+    if (error) throw new Error(error.message)
+    return { kpi_cleared_at: clearedAt }
+  }
+
+  /**
    * P-12 · atribui conversa a um membro da clinic via RPC atomico
    * (wa_conversation_assign). Retorna estado final · UI reconcilia
    * em race entre 2 atendentes.

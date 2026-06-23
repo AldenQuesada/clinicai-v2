@@ -32,6 +32,7 @@ import type { Conversation } from '../../conversas/hooks/useConversations';
 export type SecretariaAction =
   | 'assume'
   | 'resolve'
+  | 'clear_kpi'
   | 'archive'
   | 'transfer'
   | 'transfer_alden'
@@ -53,12 +54,15 @@ interface UseSecretariaActionsParams {
     overrideContent?: string,
     explicitReplyToMessageId?: string | null,
   ) => Promise<void>;
+  /** Chamado após "Encerrar" (clear_kpi) p/ atualizar lista + KPIs na hora. */
+  onKpiCleared?: () => void | Promise<void>;
 }
 
 export function useSecretariaActions({
   selectedConversation,
   setSelectedConversation,
   sendMessage,
+  onKpiCleared,
 }: UseSecretariaActionsParams) {
   const [modalConfig, setModalConfig] = useState<SecretariaModalConfig | null>(null);
 
@@ -103,6 +107,31 @@ export function useSecretariaActions({
           });
           setSelectedConversation(null);
           setModalConfig(null);
+        },
+      });
+    } else if (action === 'clear_kpi') {
+      // ENCERRAR operacional · seta kpi_cleared_at via /kpi-clear.
+      // NÃO muda status, NÃO desseleciona, NÃO remove da lista — só limpa
+      // os KPIs Aguardando/Urgente. Reabre sozinho se o paciente falar de novo.
+      setModalConfig({
+        isOpen: true,
+        title: 'Encerrar pendência',
+        description:
+          'Remove esta conversa de Aguardando/Urgente sem tirar da lista. Se o paciente falar de novo, ela volta automaticamente.',
+        confirmText: 'Encerrar',
+        onConfirm: async () => {
+          const res = await fetch(`/api/conversations/${cid}/kpi-clear`, {
+            method: 'POST',
+          });
+          if (!res.ok) {
+            setModalConfig((m) =>
+              m ? { ...m, description: '⚠️ Falha ao encerrar. A conversa não foi alterada. Tente novamente.' } : m,
+            );
+            return;
+          }
+          // mantém a conversa selecionada e na lista; só sai das lentes de KPI.
+          setModalConfig(null);
+          await onKpiCleared?.();
         },
       });
     } else if (action === 'transfer') {

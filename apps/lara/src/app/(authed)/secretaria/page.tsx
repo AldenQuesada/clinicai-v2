@@ -227,7 +227,7 @@ export default function SecretariaPage() {
   // Patch SECRETARIA KPI A (2026-05-07) · counts reais via /api/secretaria/
   // kpis · 5 COUNT(*) na wa_conversations_operational_view. Antes: contagem
   // local subestimava porque conversations vem paginado em PAGE_SIZE=50.
-  const { kpis: serverKpis, hasFetched: kpisHasFetched, isError: kpisError } = useSecretariaKpis();
+  const { kpis: serverKpis, hasFetched: kpisHasFetched, isError: kpisError, refresh: refreshSecretariaKpis } = useSecretariaKpis();
 
   // Fallback local · usado SO ate o primeiro fetch terminar (kpisHasFetched=
   // false) ou se endpoint quebrar de vez (mantem ultimo valor server e cai
@@ -333,6 +333,10 @@ export default function SecretariaPage() {
       selectedConversation,
       setSelectedConversation,
       sendMessage,
+      onKpiCleared: async () => {
+        await refreshConversations();
+        await refreshSecretariaKpis();
+      },
     });
   useKeyboardShortcuts({
     conversations,
@@ -420,8 +424,8 @@ export default function SecretariaPage() {
               <>
                 <button
                   type="button"
-                  onClick={() => handleAction('resolve')}
-                  title="Resolver conversa"
+                  onClick={() => handleAction('clear_kpi')}
+                  title="Encerrar pendência (sai de Aguardando/Urgente · continua na lista · reabre se o paciente falar)"
                   className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/10 transition-colors cursor-pointer shrink-0"
                 >
                   <CheckCircle className="w-4 h-4" strokeWidth={1.5} />
