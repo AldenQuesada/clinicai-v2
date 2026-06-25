@@ -4,11 +4,15 @@
  * Enriquece findings `open` do Recovery Radar com sugestão de IA (suggested_message
  * /action/owner/deadline). NÃO envia WhatsApp · humano aprova depois.
  *
- * Body:
- *   { "limit": 5, "priority": ["P0","P1"], "dry_run": true, "force": false }
+ * ⚠️ FASE DRY-RUN-ONLY (Prompt 4D): esta rota IGNORA `dry_run`/`force` do body e
+ * roda SEMPRE com `dry_run=true, force=false`. Como o backend usa service_role,
+ * permitir `dry_run=false`/`force=true` via body deixaria qualquer usuário
+ * autenticado com tenant válido persistir/forçar sugestões antes de termos UI,
+ * role-check e fluxo operacional. A persistência (`dry_run=false`) será liberada
+ * em prompt futuro, depois do dry-run live e/ou gate por role/secret.
  *
- * dry_run=true (default): só retorna sugestões, NÃO grava.
- * dry_run=false: grava via RPC SECURITY DEFINER (guards no DB).
+ * Body aceito nesta fase:
+ *   { "limit": 5, "priority": ["P0","P1"] }   // dry_run/force são ignorados
  *
  * Multi-tenant ADR-028: clinic_id via JWT (loadServerReposContext).
  * Cost control: callAnthropic checa budget (BUDGET_EXCEEDED → 402).
@@ -29,11 +33,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'no_tenant' }, { status: 401 })
     }
 
+    // dry_run/force NÃO são lidos do body nesta fase (ver doc acima · trava de segurança).
     const body = (await request.json().catch(() => ({}))) as {
       limit?: number
       priority?: string[]
-      dry_run?: boolean
-      force?: boolean
     }
 
     // sanitize priority · default P0/P1 (P2/P3 só se explicitamente pedidos)
@@ -47,8 +50,9 @@ export async function POST(request: NextRequest) {
       userId: ctx.user_id ?? undefined,
       limit,
       priority: priority && priority.length > 0 ? priority : undefined,
-      dry_run: body.dry_run !== false, // default seguro: true
-      force: body.force === true,
+      // FASE DRY-RUN-ONLY · hardcoded · NÃO derivar do body (trava de segurança 4D).
+      dry_run: true,
+      force: false,
     })
 
     return NextResponse.json(result)
