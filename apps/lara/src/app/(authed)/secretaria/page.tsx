@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ensureRoleDefaults } from '@/hooks/useNotificationSettings';
 import { ConversationList } from '../conversas/components/ConversationList';
 import { MessageArea } from '../conversas/components/MessageArea';
@@ -45,6 +46,8 @@ import { useSecretariaKpis } from './hooks/useSecretariaKpis';
 // P2 refactor (2026-06-03) · ações + KPI bar extraídos pra reduzir o page.tsx.
 import { useSecretariaActions } from './hooks/useSecretariaActions';
 import { SecretariaKpiBar, type KpiId } from './components/SecretariaKpiBar';
+// Recovery Radar · Prompt 5 · painel read-only de oportunidades perdidas.
+import { RecoveryRadarPanel } from './components/RecoveryRadarPanel';
 import { ALDEN_USER_ID, isDoctor } from '@/lib/clinic-profiles';
 import {
   Search,
@@ -53,6 +56,7 @@ import {
   Filter,
   CheckCircle,
   Archive,
+  Radar,
 } from 'lucide-react';
 
 export default function SecretariaPage() {
@@ -346,6 +350,15 @@ export default function SecretariaPage() {
     disabled: isModalOpen,
   });
 
+  // Recovery Radar (Prompt 5) · toggle de view inbox|radar · abrir conversa
+  // reusa ?conversationId (useAutoSelectFromQuery já existente nesta página).
+  const router = useRouter();
+  const [view, setView] = useState<'inbox' | 'radar'>('inbox');
+  const handleOpenFromRadar = (conversationId: string) => {
+    setView('inbox');
+    router.push(`/secretaria?conversationId=${conversationId}`);
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-[hsl(var(--chat-bg))]">
       {/* Topbar · 3 zonas (mirror /conversas com KPIs especificos da secretaria) */}
@@ -395,6 +408,18 @@ export default function SecretariaPage() {
             className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08] transition-all shrink-0 cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView((v) => (v === 'radar' ? 'inbox' : 'radar'))}
+            title="Radar de Recuperação"
+            className={`p-1.5 rounded-md transition-all shrink-0 cursor-pointer ${
+              view === 'radar'
+                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/[0.12] ring-1 ring-[hsl(var(--primary))]/30'
+                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/[0.08]'
+            }`}
+          >
+            <Radar className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -464,6 +489,9 @@ export default function SecretariaPage() {
         )}
       </div>
 
+      {view === 'radar' ? (
+        <RecoveryRadarPanel onOpenConversation={handleOpenFromRadar} />
+      ) : (
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ConversationList
           conversations={filteredConversations}
@@ -535,6 +563,7 @@ export default function SecretariaPage() {
           onAskDoctor={() => setShowAskDoctor(true)}
         />
       </div>
+      )}
 
       {/* Sprint 1 · Modal pra perguntar pra Dra. Mirian · acionado pelo
           botao no painel direito (LeadInfoPanel zona BAIXO FIXA) */}
